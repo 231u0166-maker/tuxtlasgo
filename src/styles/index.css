@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --safe-bottom: env(safe-area-inset-bottom, 0);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #f0fdf4;
+  color: #14532d;
+  overscroll-behavior-y: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.font-display {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Leaflet ajustes */
+.leaflet-container {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #dcfce7;
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+.leaflet-popup-content {
+  margin: 12px 16px;
+  font-size: 14px;
+}
+
+/* Scrollbar discreto */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(20, 83, 45, 0.25);
+  border-radius: 3px;
+}
+
+/* Animación de carga del chat */
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+.typing-dot {
+  animation: typing 1.2s infinite ease-in-out;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* Modo offline badge: pulso suave */
+@keyframes ping-soft {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+  100% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+}
+.offline-badge {
+  animation: ping-soft 2s infinite;
+}

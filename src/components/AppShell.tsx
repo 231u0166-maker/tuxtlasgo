@@ -35,7 +35,7 @@ export default function AppShell() {
         </Link>
       </div>
 
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden min-h-0">
         {tab === 'explorar' && (
           <div className="h-full overflow-y-auto">
             <ExploreScreen onVerLugar={verLugar} />

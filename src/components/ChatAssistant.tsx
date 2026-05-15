@@ -252,7 +252,7 @@ export default function ChatAssistant({ onVerLugar }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-jungle-50">
+    <div className="flex flex-col h-full min-h-0 bg-jungle-50">
       {/* Header */}
       <div className="bg-gradient-to-br from-jungle-800 to-jungle-950 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -280,7 +280,7 @@ export default function ChatAssistant({ onVerLugar }: Props) {
       </div>
 
       {/* Mensajes */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-3">
         {mensajes.map((msg) => (
           <Burbuja
             key={msg.id}

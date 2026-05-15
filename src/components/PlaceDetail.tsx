@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
+import { manejarErrorImagen } from '../lib/imagenLugar';
 
 interface Props {
   lugar: Lugar;
@@ -40,12 +41,13 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-jungle-950/85 backdrop-blur flex items-end sm:items-center justify-center animate-fade-in">
       <div className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-3xl max-h-[92vh] overflow-y-auto animate-slide-up">
         <div className="relative aspect-[16/10] bg-jungle-200">
           <img
             src={lugar.imagen}
             alt={lugar.nombre}
+            onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
             className="w-full h-full object-cover"
           />
           <button

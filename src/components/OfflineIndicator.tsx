@@ -1,15 +1,21 @@
 import { WifiOff, CheckCircle2 } from 'lucide-react';
 import { useOffline } from '../hooks/useOffline';
 
+// Indicador discreto de modo offline. Antes era una banda naranja que
+// tapaba el header — ahora es un badge flotante pequeño en la esquina
+// inferior derecha, encima del bottom nav. No estorba a la navegación.
 export default function OfflineIndicator() {
   const offline = useOffline();
-
   if (!offline) return null;
 
   return (
-    <div className="fixed top-0 inset-x-0 z-50 bg-amber-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium shadow-md offline-badge">
-      <WifiOff size={16} />
-      <span>Modo offline activo · funcionando con datos descargados</span>
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-20 right-3 z-40 bg-amber-500/95 backdrop-blur text-white pl-3 pr-3.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold shadow-lg shadow-amber-900/20 animate-fade-in"
+    >
+      <WifiOff size={13} />
+      <span>Offline</span>
     </div>
   );
 }

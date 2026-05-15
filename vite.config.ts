@@ -18,31 +18,38 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,json}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Cuando el navegador rechaza por cuota, workbox limpia sus cachés.
+        // Sin esto, un QuotaExceeded congela el service worker.
         runtimeCaching: [
           {
-            // Tiles del mapa de OpenStreetMap (a, b, c subdominios)
+            // Tiles de OpenStreetMap. Bajamos a 800 entradas (suficiente
+            // para cubrir Los Tuxtlas a varios zooms) y solo cacheamos
+            // respuestas 200 — nada de respuestas opacas/error.
             urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'osm-tiles',
               expiration: {
-                maxEntries: 3000,
-                maxAgeSeconds: 60 * 60 * 24 * 60, // 60 días
+                maxEntries: 800,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+                purgeOnQuotaError: true,
               },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheableResponse: { statuses: [200] },
             },
           },
           {
-            // Imágenes de Unsplash usadas como fotos de lugares
+            // Imágenes de Unsplash. 60 entradas, solo 200 OK (los 404 no
+            // se cachean, así no llenan el almacenamiento del navegador).
             urlPattern: /^https:\/\/images\.unsplash\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'place-images',
               expiration: {
-                maxEntries: 200,
+                maxEntries: 60,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
+                purgeOnQuotaError: true,
               },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],

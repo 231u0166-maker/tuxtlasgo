@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
+import { manejarErrorImagen } from '../lib/imagenLugar';
 
 interface Props {
   lugar: Lugar;
@@ -36,7 +37,8 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
           alt={lugar.nombre}
           className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
           loading="lazy"
-        />
+        onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
+          />
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-jungle-950 text-sm leading-tight truncate">
             {lugar.nombre}
@@ -70,7 +72,8 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
           alt={lugar.nombre}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
-        />
+        onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
+          />
         <button
           onClick={handleFav}
           className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur flex items-center justify-center hover:bg-white transition"

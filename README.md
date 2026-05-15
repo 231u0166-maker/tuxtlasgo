@@ -3,7 +3,7 @@
 > Plataforma turística inteligente offline de Los Tuxtlas, Veracruz.
 > Proyecto **InnovaTecNM 2026** — ITSSAT — Folio 68894-17.
 
-PWA construida con React + TypeScript + Vite. Funciona 100% offline una vez cargada con internet por primera vez. Asistente conversacional con motor de recomendación local (sin LLMs en la nube), mapa interactivo de Los Tuxtlas y panel para que prestadores locales registren sus servicios.
+PWA construida con React + TypeScript + Vite. Funciona 100% offline una vez cargada con internet por primera vez. Asistente conversacional con PLN local (sin LLMs en la nube), base de conocimiento de la región, mapa interactivo de Los Tuxtlas y panel para que prestadores locales registren sus servicios y se validen.
 
 ---
 
@@ -84,9 +84,11 @@ tuxtlasgo/
 │   │   ├── BottomNav.tsx
 │   │   └── OfflineIndicator.tsx
 │   ├── data/
-│   │   └── lugares.ts          # 18 lugares reales de Los Tuxtlas
+│   │   └── lugares.ts          # 19 lugares reales y verificados
 │   ├── lib/
-│   │   ├── chatbot.ts          # motor de recomendación (CORE)
+│   │   ├── chatbot.ts          # motor del asistente (CORE)
+│   │   ├── pln.ts              # módulo de Procesamiento de Lenguaje Natural
+│   │   ├── conocimiento.ts     # base de conocimiento (clima, transporte, comida...)
 │   │   └── db.ts               # IndexedDB con Dexie
 │   ├── hooks/
 │   │   └── useOffline.ts
@@ -152,23 +154,48 @@ gh repo create tuxtlasgo --public --source=. --push
 
 ## 🧠 Cómo funciona el asistente offline
 
-No usa LLM. Es un árbol de decisiones + motor de scoring:
+El asistente es un **chatbot conversacional con PLN (Procesamiento de
+Lenguaje Natural) local** — un sistema experto basado en reglas. No usa
+ningún modelo de lenguaje en la nube ni ninguna API: toda la inteligencia
+vive en el dispositivo. Funciona en tres etapas:
 
-1. **Flujo guiado:** pregunta días → intereses (multi-select) → presupuesto → grupo.
-2. **Filtro y ranking:** cada lugar recibe un score basado en:
-   - +5 si su categoría está en tus intereses
-   - +3 si tu grupo de viaje (solo/pareja/familia/amigos) está en su lista "ideal para"
-   - +rating del lugar (1-5)
-   - +1.5 si está marcado como destacado
-   - -4 si excede tu presupuesto
-3. **Generación de ruta:** agrupa los mejores lugares por municipio (para no cruzar toda la región en un día), distribuye en días, ordena dentro del día (aventura/naturaleza en la mañana, gastronomía a la tarde).
-4. **Modo libre:** una vez generada la ruta, el chat acepta texto libre. Detecta intents simples ("donde comer", "hotel económico", "playas").
+### Etapa 1 — PLN: entender al usuario
+El módulo `lib/pln.ts` procesa lo que escribe el usuario:
+- **Normalización:** minúsculas, sin acentos, sin signos.
+- **Tokenización:** separa el texto en palabras.
+- **Tolerancia a errores ortográficos:** usa la *distancia de edición de
+  Damerau-Levenshtein* para reconocer palabras mal escritas. Así
+  "cascda", "comdia" o "catemco" se entienden igual que bien escritas.
+- **Normalización morfológica:** ignora la *h muda* del español
+  ("ospedaje" → hospedaje) y el plural simple ("cascadas" → cascada).
+- **Detección de intención y entidades:** identifica qué quiere el
+  usuario (comida, naturaleza, cultura...) y qué municipio menciona.
 
-Ventajas:
-- **100% offline**
-- **Predecible** (no alucina como un LLM)
-- **Instantáneo** (sin tiempo de respuesta de API)
-- **Privado** (los datos del usuario nunca salen del dispositivo)
+### Etapa 2 — Motor de inferencia: decidir
+- **Para rutas:** cada lugar recibe un score ponderado:
+  +5 si su categoría coincide con tus intereses, +3 si tu grupo de viaje
+  está en su lista "ideal para", + su rating, +1.5 si es destacado,
+  -4 si excede tu presupuesto.
+- **Para preguntas prácticas:** consulta la base de conocimiento
+  (`lib/conocimiento.ts`) — clima, transporte, comida típica, seguridad,
+  qué llevar, mejor época — y elige la entrada con más coincidencias.
+
+### Etapa 3 — Generación de respuesta
+- Agrupa los mejores lugares por municipio para minimizar traslados,
+  los distribuye en días y los ordena por momento del día
+  (aventura/naturaleza en la mañana, gastronomía en la tarde).
+- **IA explicable:** cada recomendación viene con su razonamiento
+  ("te puse esto porque..."), no es una caja negra.
+
+### Por qué este enfoque y no un LLM en la nube
+- **100% offline** — funciona en las zonas sin señal de Los Tuxtlas,
+  que es el problema que la app resuelve.
+- **Predecible** — no inventa lugares ni datos; solo responde con
+  información verificada de la base.
+- **Instantáneo** — sin esperar respuesta de ningún servidor.
+- **Privado** — lo que escribe el usuario nunca sale del dispositivo.
+- **Defendible** — todo el comportamiento es código que se puede leer,
+  explicar y auditar.
 
 ---
 

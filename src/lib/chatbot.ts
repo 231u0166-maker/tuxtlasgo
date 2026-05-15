@@ -1,13 +1,29 @@
 import { LUGARES, Lugar, Categoria, Presupuesto } from '../data/lugares';
+import { buscarConocimiento } from './conocimiento';
+import { tokenizar, contieneClave } from './pln';
 
-// Motor de recomendación 100% offline.
-// Flujo conversacional guiado: el usuario navega un árbol de preguntas con
-// botones o texto libre. El motor cruza sus respuestas con el catálogo de
-// lugares y arma una ruta optimizada.
+// ============================================================
+// MOTOR DE ASISTENTE CONVERSACIONAL — 100% OFFLINE
+// ============================================================
+// Sistema de IA basado en reglas (sistema experto con PLN local).
+// No usa LLM ni conexión a internet. Funciona así:
 //
-// Esto es lo que la memoria técnica llama "PLN local": no usa un LLM, sino
-// reglas determinísticas sobre tags semánticos. Ventaja: corre 100% offline,
-// es predecible para el demo y rapidísimo.
+//   1. PROCESAMIENTO DE LENGUAJE NATURAL: normaliza el texto del
+//      usuario y detecta su intención (intent) y entidades
+//      (municipios, categorías) mediante reconocimiento de
+//      patrones léxicos.
+//
+//   2. MOTOR DE INFERENCIA: cruza las preferencias del usuario
+//      con la base de datos de lugares mediante un algoritmo de
+//      scoring ponderado, y consulta la base de conocimiento
+//      general para preguntas prácticas.
+//
+//   3. GENERACIÓN DE RESPUESTA: arma rutas optimizadas por
+//      geografía y explica su razonamiento (IA explicable).
+//
+// Toda la "inteligencia" vive en el dispositivo. Esto garantiza
+// que la app funcione en las zonas sin señal de Los Tuxtlas.
+// ============================================================
 
 export type GrupoViaje = 'solo' | 'pareja' | 'familia' | 'amigos';
 export type Dias = 1 | 2 | 3;
@@ -23,16 +39,12 @@ export interface MensajeChat {
   id: string;
   role: 'user' | 'bot';
   texto: string;
-  // Botones de respuesta rápida que el bot ofrece
   opciones?: { label: string; valor: string }[];
-  // Lista de lugares que el bot recomienda en este mensaje
   lugares?: Lugar[];
-  // Ruta ordenada para un día específico
   rutaDia?: { dia: number; lugares: Lugar[]; resumen: string };
   timestamp: number;
 }
 
-// === Diálogo guiado: estados de la conversación ===
 export type EstadoChat =
   | 'inicio'
   | 'preguntando_dias'
@@ -42,35 +54,122 @@ export type EstadoChat =
   | 'generando'
   | 'libre';
 
-// Detección simple de intenciones en texto libre (para cuando ya pasó el flujo)
+// ─────────────── DETECCIÓN DE INTENCIONES (PLN local) ───────────────
+// Vocabulario de cada intención. Incluye sinónimos, conjugaciones
+// y formas coloquiales de hablar — entre más amplio, mejor entiende
+// el motor. El módulo PLN se encarga aparte de los errores de dedo,
+// así que aquí basta con escribir las palabras bien.
 const INTENT_KEYWORDS: { intent: string; words: string[] }[] = [
-  { intent: 'comida', words: ['comer', 'hambre', 'restaurante', 'comida', 'pescado', 'mariscos', 'gastronomia'] },
-  { intent: 'hospedaje', words: ['dormir', 'hotel', 'posada', 'hospedaje', 'donde quedarme', 'alojarme'] },
-  { intent: 'naturaleza', words: ['naturaleza', 'cascada', 'laguna', 'rio', 'verde', 'selva'] },
-  { intent: 'aventura', words: ['aventura', 'extremo', 'caminar', 'senderismo', 'volcan', 'caminata'] },
-  { intent: 'cultura', words: ['museo', 'historia', 'olmeca', 'cultura', 'arqueologia', 'iglesia'] },
-  { intent: 'playa', words: ['playa', 'mar', 'arena', 'oleaje'] },
-  { intent: 'precio', words: ['cuanto cuesta', 'precio', 'barato', 'gratis', 'economico'] },
-  { intent: 'saludo', words: ['hola', 'buenas', 'hey', 'que tal', 'ayuda'] },
+  {
+    intent: 'comida',
+    words: [
+      'comer', 'comida', 'comemos', 'hambre', 'hambriento', 'restaurante',
+      'restaurant', 'fonda', 'cocina', 'pescado', 'mariscos', 'marisco',
+      'gastronomia', 'tegogolo', 'tegogolos', 'mojarra', 'anguila', 'antojo',
+      'antojito', 'garnacha', 'picada', 'empanada', 'desayunar', 'desayuno',
+      'almorzar', 'almuerzo', 'cenar', 'cena', 'platillo', 'probar', 'degustar',
+      'rico', 'sabroso', 'tipica',
+    ],
+  },
+  {
+    intent: 'hospedaje',
+    words: [
+      'dormir', 'hotel', 'posada', 'hospedaje', 'hospedar', 'hospedarme',
+      'hospedo', 'quedarme', 'quedar', 'alojarme', 'alojar', 'alojamiento',
+      'cabaña', 'cabana', 'habitacion', 'cuarto', 'noche', 'pernoctar',
+      'hostal', 'motel',
+    ],
+  },
+  {
+    intent: 'naturaleza',
+    words: [
+      'naturaleza', 'natural', 'cascada', 'cascadas', 'salto', 'laguna',
+      'lagunas', 'lago', 'rio', 'rios', 'verde', 'selva', 'aire libre',
+      'paisaje', 'bosque', 'manantial', 'agua', 'ecoturismo', 'ecologico',
+      'vegetacion',
+    ],
+  },
+  {
+    intent: 'aventura',
+    words: [
+      'aventura', 'aventurero', 'extremo', 'senderismo', 'sendero', 'volcan',
+      'caminata', 'caminar', 'adrenalina', 'kayak', 'temazcal', 'mirador',
+      'miradores', 'escalada', 'rappel', 'ciclismo', 'montaña', 'montana',
+      'trekking', 'excursion', 'deportes', 'activo',
+    ],
+  },
+  {
+    intent: 'cultura',
+    words: [
+      'museo', 'museos', 'historia', 'historico', 'historica', 'olmeca',
+      'olmecas', 'cultura', 'cultural', 'arqueologia', 'arqueologico',
+      'arqueologica', 'ruinas', 'prehispanico', 'prehispanica', 'estela',
+      'iglesia', 'iglesias', 'basilica', 'templo', 'tabaco', 'puro', 'puros',
+      'cigarro', 'tradicion', 'tradicional', 'cabeza', 'monumento', 'artesania',
+    ],
+  },
+  {
+    intent: 'playa',
+    words: [
+      'playa', 'playas', 'mar', 'mares', 'oceano', 'arena', 'oleaje', 'costa',
+      'costas', 'balneario', 'nadar', 'orilla', 'broncear',
+    ],
+  },
+  {
+    intent: 'monos',
+    words: [
+      'mono', 'monos', 'chango', 'changos', 'mico', 'fauna', 'macaco',
+      'macacos', 'animales', 'animal', 'primate', 'silvestre',
+    ],
+  },
+  {
+    intent: 'saludo',
+    words: [
+      'hola', 'holi', 'buenas', 'hey', 'hi', 'hello', 'que tal', 'que onda',
+      'ke onda', 'buenos dias', 'buen dia', 'buenas tardes', 'buenas noches',
+      'saludos',
+    ],
+  },
+  {
+    intent: 'agradecimiento',
+    words: [
+      'gracias', 'gracia', 'thank', 'genial', 'perfecto', 'excelente',
+      'muy bien', 'mil gracias', 'chido', 'padre', 'increible', 'super',
+      'buenisimo', 'te pasaste',
+    ],
+  },
 ];
 
 export function detectarIntent(texto: string): string {
-  const t = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Tokeniza el texto y compara contra las palabras clave de cada
+  // intención TOLERANDO errores ortográficos (vía el módulo PLN).
+  const tokens = tokenizar(texto);
   for (const { intent, words } of INTENT_KEYWORDS) {
-    if (words.some((w) => t.includes(w))) return intent;
+    if (words.some((w) => contieneClave(tokens, w))) return intent;
   }
   return 'desconocido';
 }
 
-// === Generador de mensaje inicial ===
+// Detecta menciones de municipios en texto libre
+export function detectarMunicipio(texto: string): string | null {
+  // Detecta el municipio mencionado, tolerando errores de escritura
+  // ("catemco" -> Catemaco) gracias al módulo PLN.
+  const tokens = tokenizar(texto);
+  if (contieneClave(tokens, 'catemaco')) return 'Catemaco';
+  if (contieneClave(tokens, 'san andres')) return 'San Andrés Tuxtla';
+  if (contieneClave(tokens, 'santiago')) return 'Santiago Tuxtla';
+  return null;
+}
+
+// ─────────────── MENSAJES DEL FLUJO GUIADO ───────────────
 export function mensajeBienvenida(): MensajeChat {
   return {
     id: crypto.randomUUID(),
     role: 'bot',
     texto:
-      '¡Hola! Soy tu guía de TuxtlasGO 🌿. Te voy a armar una ruta personalizada en Los Tuxtlas. Primero dime: ¿cuántos días vas a estar?',
+      '¡Hola! Soy tu guía de TuxtlasGO 🌿 Conozco los rincones de Catemaco, San Andrés y Santiago Tuxtla, y funciono aunque no tengas internet. Puedo armarte una ruta a tu medida o responder dudas sobre la región. Para empezar con tu ruta: ¿cuántos días vas a estar por Los Tuxtlas?',
     opciones: [
-      { label: '1 día (solo de paso)', valor: '1' },
+      { label: '1 día (vengo de paso)', valor: '1' },
       { label: '2 días (fin de semana)', valor: '2' },
       { label: '3 días o más', valor: '3' },
     ],
@@ -83,13 +182,14 @@ export function mensajeIntereses(): MensajeChat {
     id: crypto.randomUUID(),
     role: 'bot',
     texto:
-      '¡Perfecto! Ahora dime, ¿qué te gusta más? Puedes elegir varios. Toca los que más te llamen la atención.',
+      'Perfecto. Ahora cuéntame qué te mueve cuando viajas. Puedes elegir varios — toca todos los que te interesen y luego dale a "Listo".',
     opciones: [
       { label: '🌳 Naturaleza', valor: 'Naturaleza' },
       { label: '🥾 Aventura', valor: 'Aventura' },
       { label: '🏛️ Cultura e historia', valor: 'Cultura' },
       { label: '🍤 Gastronomía', valor: 'Gastronomia' },
       { label: '🏖️ Playa', valor: 'Playa' },
+      { label: '🛏️ Hospedaje', valor: 'Hospedaje' },
       { label: '✅ Listo, ya escogí', valor: '__done__' },
     ],
     timestamp: Date.now(),
@@ -100,11 +200,11 @@ export function mensajePresupuesto(): MensajeChat {
   return {
     id: crypto.randomUUID(),
     role: 'bot',
-    texto: '¿Cómo va tu presupuesto?',
+    texto: '¿Cómo anda el presupuesto para este viaje? Así te recomiendo cosas que te acomoden.',
     opciones: [
-      { label: '💸 Bajo (gratis y económicos)', valor: 'bajo' },
-      { label: '💳 Medio (precios normales)', valor: 'medio' },
-      { label: '💎 Alto (sin restricciones)', valor: 'alto' },
+      { label: '💸 Ajustado (lo gratis y económico)', valor: 'bajo' },
+      { label: '💳 Normal (sin gastar de más)', valor: 'medio' },
+      { label: '💎 Holgado (quiero lo mejor)', valor: 'alto' },
     ],
     timestamp: Date.now(),
   };
@@ -114,103 +214,157 @@ export function mensajeGrupo(): MensajeChat {
   return {
     id: crypto.randomUUID(),
     role: 'bot',
-    texto: '¿Con quién viajas?',
+    texto: 'Última pregunta y armo tu ruta: ¿con quién vienes?',
     opciones: [
       { label: '🧍 Solo / sola', valor: 'solo' },
       { label: '💕 En pareja', valor: 'pareja' },
-      { label: '👨‍👩‍👧 Familia con niños', valor: 'familia' },
+      { label: '👨‍👩‍👧 En familia con niños', valor: 'familia' },
       { label: '🎉 Con amigos', valor: 'amigos' },
     ],
     timestamp: Date.now(),
   };
 }
 
-// === Núcleo: filtrado y ranking de lugares ===
-export function filtrarLugares(prefs: PreferenciasUsuario): Lugar[] {
-  // 1. Filtro duro por presupuesto
+// ─────────────── NÚCLEO: FILTRADO Y RANKING (motor de inferencia) ───────────────
+interface LugarConScore {
+  lugar: Lugar;
+  score: number;
+  razones: string[]; // por qué se recomienda — IA explicable
+}
+
+export function filtrarLugaresConRazones(
+  prefs: PreferenciasUsuario
+): LugarConScore[] {
   const ordenPresup: Presupuesto[] = ['bajo', 'medio', 'alto'];
   const maxPresup = ordenPresup.indexOf(prefs.presupuesto);
 
-  // 2. Calcular score: matches de intereses + grupo
-  const scored = LUGARES.map((lugar) => {
+  const scored: LugarConScore[] = LUGARES.map((lugar) => {
     let score = 0;
-    // Match categoría
-    if (prefs.intereses.includes(lugar.categoria)) score += 5;
-    // Match grupo
-    if (lugar.ideal.includes(prefs.grupo)) score += 3;
+    const razones: string[] = [];
+
+    // Match de categoría con intereses
+    if (prefs.intereses.includes(lugar.categoria)) {
+      score += 5;
+      razones.push(`te interesa ${lugar.categoria.toLowerCase()}`);
+    }
+    // Match con tags de intereses (parcial)
+    const interesesLower = prefs.intereses.map((i) => i.toLowerCase());
+    const tagMatch = lugar.tags.some((t) => interesesLower.includes(t));
+    if (tagMatch) score += 1.5;
+
+    // Match de grupo
+    if (lugar.ideal.includes(prefs.grupo)) {
+      score += 3;
+      const grupoTexto =
+        prefs.grupo === 'pareja'
+          ? 'es ideal para parejas'
+          : prefs.grupo === 'familia'
+          ? 'funciona bien en familia'
+          : prefs.grupo === 'amigos'
+          ? 'es buen plan con amigos'
+          : 'se disfruta viajando solo';
+      razones.push(grupoTexto);
+    }
+
     // Bonus rating
     score += lugar.rating;
+    if (lugar.rating >= 4.6) {
+      razones.push('tiene de las mejores valoraciones de la zona');
+    }
+
     // Bonus destacado
-    if (lugar.destacado) score += 1.5;
-    // Penalización si excede presupuesto
+    if (lugar.destacado) {
+      score += 1.5;
+      razones.push('es un imperdible de Los Tuxtlas');
+    }
+
+    // Penalización por presupuesto
     const presupLugar = ordenPresup.indexOf(lugar.precio);
-    if (presupLugar > maxPresup) score -= 4;
-    return { lugar, score };
+    if (presupLugar > maxPresup) {
+      score -= 4;
+    } else if (prefs.presupuesto === 'bajo' && lugar.precio === 'bajo') {
+      razones.push('es económico o gratis');
+    }
+
+    return { lugar, score, razones };
   });
 
-  // 3. Ordenar y filtrar
   return scored
     .sort((a, b) => b.score - a.score)
-    .filter((s) => s.score > 3)
-    .map((s) => s.lugar);
+    .filter((s) => s.score > 3);
 }
 
-// === Generador de rutas por día ===
-// Distribuye lugares en N días agrupándolos por proximidad geográfica
-// (mismo municipio = mismo día siempre que sea posible) y mezclando categorías.
-export function generarRuta(
-  prefs: PreferenciasUsuario
-): { dia: number; lugares: Lugar[]; resumen: string }[] {
-  const recomendados = filtrarLugares(prefs);
-  if (recomendados.length === 0) return [];
+// Versión simple (solo lugares, sin razones)
+export function filtrarLugares(prefs: PreferenciasUsuario): Lugar[] {
+  return filtrarLugaresConRazones(prefs).map((s) => s.lugar);
+}
 
-  // Tomar más lugares que días*4 para tener margen
+// ─────────────── GENERADOR DE RUTAS POR DÍA ───────────────
+export interface DiaRuta {
+  dia: number;
+  lugares: Lugar[];
+  resumen: string;
+  razonamiento: string; // explicación de por qué se armó así
+}
+
+export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
+  const recomendadosConScore = filtrarLugaresConRazones(prefs);
+  if (recomendadosConScore.length === 0) return [];
+
+  const recomendados = recomendadosConScore.map((s) => s.lugar);
   const seleccion = recomendados.slice(0, prefs.dias * 4);
 
-  // Agrupar por municipio
+  // Agrupar por municipio (para minimizar traslados)
   const porMunicipio: Record<string, Lugar[]> = {};
   seleccion.forEach((l) => {
     if (!porMunicipio[l.municipio]) porMunicipio[l.municipio] = [];
     porMunicipio[l.municipio].push(l);
   });
 
-  // Distribuir: cada día prioriza un municipio
   const municipios = Object.keys(porMunicipio).sort(
     (a, b) => porMunicipio[b].length - porMunicipio[a].length
   );
 
-  const dias: { dia: number; lugares: Lugar[]; resumen: string }[] = [];
-  const lugaresPorDia = prefs.dias === 1 ? 3 : prefs.dias === 2 ? 3 : 3;
+  const dias: DiaRuta[] = [];
+  const lugaresPorDia = 3;
 
   for (let i = 0; i < prefs.dias; i++) {
     const municipio = municipios[i % municipios.length];
     const lugaresMuni = porMunicipio[municipio] || [];
 
-    // Mezclar categorías: 1 naturaleza/aventura + 1 cultura/comida + 1 hospedaje
     const dia: Lugar[] = [];
     const usados = new Set<string>();
-    const yaSeleccionados = new Set(dias.flatMap((d) => d.lugares.map((l) => l.id)));
+    const yaSeleccionados = new Set(
+      dias.flatMap((d) => d.lugares.map((l) => l.id))
+    );
 
     // Prioridad 1: del municipio del día
     for (const l of lugaresMuni) {
       if (dia.length >= lugaresPorDia) break;
       if (yaSeleccionados.has(l.id) || usados.has(l.id)) continue;
-      // Evitar repetir misma categoría
-      if (dia.some((d) => d.categoria === l.categoria) && l.categoria !== 'Gastronomia') continue;
+      if (
+        dia.some((d) => d.categoria === l.categoria) &&
+        l.categoria !== 'Gastronomia'
+      )
+        continue;
       dia.push(l);
       usados.add(l.id);
     }
 
-    // Rellenar de otros municipios si falta
+    // Rellenar de otros municipios
     for (const l of seleccion) {
       if (dia.length >= lugaresPorDia) break;
       if (yaSeleccionados.has(l.id) || usados.has(l.id)) continue;
-      if (dia.some((d) => d.categoria === l.categoria) && l.categoria !== 'Gastronomia') continue;
+      if (
+        dia.some((d) => d.categoria === l.categoria) &&
+        l.categoria !== 'Gastronomia'
+      )
+        continue;
       dia.push(l);
       usados.add(l.id);
     }
 
-    // Ordenar el día: naturaleza/aventura primero (mañana), gastronomía a media tarde
+    // Ordenar el día por momento ideal
     dia.sort((a, b) => {
       const orden: Record<Categoria, number> = {
         Aventura: 1,
@@ -228,6 +382,7 @@ export function generarRuta(
         dia: i + 1,
         lugares: dia,
         resumen: armarResumen(i + 1, municipio, dia, prefs),
+        razonamiento: armarRazonamiento(dia, prefs),
       });
     }
   }
@@ -241,34 +396,84 @@ function armarResumen(
   lugares: Lugar[],
   prefs: PreferenciasUsuario
 ): string {
-  const tipos = [...new Set(lugares.map((l) => l.categoria.toLowerCase()))].join(', ');
+  const tipos = [...new Set(lugares.map((l) => l.categoria.toLowerCase()))];
+  const tiposTexto =
+    tipos.length > 1
+      ? `${tipos.slice(0, -1).join(', ')} y ${tipos[tipos.length - 1]}`
+      : tipos[0];
   const conQuien =
     prefs.grupo === 'pareja'
-      ? 'una experiencia romántica'
+      ? 'pensado para disfrutarse en pareja'
       : prefs.grupo === 'familia'
-      ? 'un día familiar'
+      ? 'diseñado para un día en familia'
       : prefs.grupo === 'amigos'
-      ? 'una aventura con amigos'
-      : 'un recorrido a tu ritmo';
-  return `Día ${numDia} · ${municipio}. Pensado como ${conQuien}, mezcla ${tipos}.`;
+      ? 'ideal para un día con amigos'
+      : 'a tu propio ritmo';
+  return `Día ${numDia} · ${municipio} — ${tiposTexto}, ${conQuien}.`;
 }
 
-// === Respuestas a texto libre (modo "ya terminó el flujo guiado") ===
+function armarRazonamiento(lugares: Lugar[], prefs: PreferenciasUsuario): string {
+  const primero = lugares[0];
+  const partes: string[] = [];
+  partes.push(
+    `Te puse ${primero.nombre} para empezar porque ${
+      primero.categoria === 'Aventura' || primero.categoria === 'Naturaleza'
+        ? 'conviene aprovechar la mañana para actividad al aire libre'
+        : 'es un buen arranque de día'
+    }.`
+  );
+  const tieneGastronomia = lugares.some((l) => l.categoria === 'Gastronomia');
+  if (tieneGastronomia) {
+    partes.push('Dejé la comida para media tarde, cuando ya tengas hambre.');
+  }
+  if (prefs.presupuesto === 'bajo') {
+    partes.push('Prioricé lugares económicos o gratuitos según tu presupuesto.');
+  }
+  const municipiosUnicos = [...new Set(lugares.map((l) => l.municipio))];
+  if (municipiosUnicos.length === 1) {
+    partes.push(
+      `Todo el día es en ${municipiosUnicos[0]} para que no pierdas tiempo en traslados.`
+    );
+  }
+  return partes.join(' ');
+}
+
+// ─────────────── RESPUESTAS A TEXTO LIBRE ───────────────
 export function responderTextoLibre(
   texto: string,
-  prefs: PreferenciasUsuario | null
+  _prefs: PreferenciasUsuario | null
 ): MensajeChat {
   const intent = detectarIntent(texto);
+  const municipioMencionado = detectarMunicipio(texto);
 
+  // Saludo
   if (intent === 'saludo') {
     return {
       id: crypto.randomUUID(),
       role: 'bot',
-      texto: '¡Hola! ¿Qué buscas hoy? Puedes pedirme "donde comer", "playas cerca", "qué hacer un día" o "hotel económico".',
+      texto:
+        '¡Hola de nuevo! Pregúntame lo que necesites. Puedo recomendarte lugares, decirte dónde comer, cómo llegar, qué llevar, cuál es la mejor época para visitar, o armarte una ruta nueva. ¿Qué buscas?',
       timestamp: Date.now(),
     };
   }
 
+  // Agradecimiento
+  if (intent === 'agradecimiento') {
+    return {
+      id: crypto.randomUUID(),
+      role: 'bot',
+      texto:
+        '¡Con gusto! Para eso estoy. Si quieres te armo otra ruta o te recomiendo más lugares. Disfruta Los Tuxtlas 🌿',
+      opciones: [{ label: '🔄 Armar otra ruta', valor: '__restart__' }],
+      timestamp: Date.now(),
+    };
+  }
+
+  // PASO 1: ¿es una pregunta de conocimiento general?
+  // (clima, transporte, comida típica, seguridad, qué llevar, etc.)
+  const conocimiento = buscarConocimiento(texto);
+
+  // Intents que mapean a categoría de lugar
   const mapaIntentCat: Record<string, Categoria> = {
     comida: 'Gastronomia',
     hospedaje: 'Hospedaje',
@@ -278,25 +483,108 @@ export function responderTextoLibre(
     playa: 'Playa',
   };
   const cat = mapaIntentCat[intent];
-  if (cat) {
-    const sugerencias = LUGARES.filter((l) => l.categoria === cat)
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 3);
+
+  // Si hay conocimiento general Y NO hay una categoría de lugar clara,
+  // responde con el conocimiento. Si hay categoría, los lugares ganan
+  // (pero igual añadimos el dato de conocimiento si aplica).
+  if (conocimiento && !cat && intent !== 'monos') {
     return {
       id: crypto.randomUUID(),
       role: 'bot',
-      texto: `Mira lo que tengo en ${cat.toLowerCase()}:`,
+      texto: conocimiento.respuesta,
+      timestamp: Date.now(),
+    };
+  }
+
+  // PASO 2: intents que mapean a categoría de lugar
+  if (cat) {
+    let candidatos = LUGARES.filter((l) => l.categoria === cat);
+    if (municipioMencionado) {
+      const enMunicipio = candidatos.filter(
+        (l) => l.municipio === municipioMencionado
+      );
+      if (enMunicipio.length > 0) candidatos = enMunicipio;
+    }
+    const sugerencias = candidatos
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 3);
+
+    if (sugerencias.length === 0) {
+      return {
+        id: crypto.randomUUID(),
+        role: 'bot',
+        texto: `No tengo registrado nada de ${cat.toLowerCase()}${
+          municipioMencionado ? ` en ${municipioMencionado}` : ''
+        } por ahora. Prueba con otra categoría o municipio.`,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Si además había un dato de conocimiento (ej: "dónde comer comida típica"),
+    // lo anteponemos al listado de lugares.
+    let textoIntro = municipioMencionado
+      ? `Esto es lo que te recomiendo de ${cat.toLowerCase()} en ${municipioMencionado}:`
+      : `Mira estas opciones de ${cat.toLowerCase()} en Los Tuxtlas:`;
+    if (conocimiento) {
+      textoIntro = `${conocimiento.respuesta}\n\n${textoIntro}`;
+    }
+
+    return {
+      id: crypto.randomUUID(),
+      role: 'bot',
+      texto: textoIntro,
       lugares: sugerencias,
       timestamp: Date.now(),
     };
   }
 
-  // Default: ofrecer rearmar ruta
+  // PASO 3: caso especial monos / fauna
+  if (intent === 'monos') {
+    const fauna = LUGARES.filter(
+      (l) => l.tags.includes('fauna') || l.tags.includes('monos')
+    ).slice(0, 3);
+    return {
+      id: crypto.randomUUID(),
+      role: 'bot',
+      texto:
+        'Si quieres ver monos y fauna, el clásico es el paseo en lancha por la laguna de Catemaco, que pasa por las islas de los monos:',
+      lugares: fauna.length > 0 ? fauna : [LUGARES[0]],
+      timestamp: Date.now(),
+    };
+  }
+
+  // PASO 4: solo un municipio mencionado, sin categoría clara
+  if (municipioMencionado) {
+    const delMunicipio = LUGARES.filter(
+      (l) => l.municipio === municipioMencionado
+    )
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 3);
+    return {
+      id: crypto.randomUUID(),
+      role: 'bot',
+      texto: `Esto es lo más destacado de ${municipioMencionado}:`,
+      lugares: delMunicipio,
+      timestamp: Date.now(),
+    };
+  }
+
+  // PASO 5: si quedó algún conocimiento suelto, úsalo
+  if (conocimiento) {
+    return {
+      id: crypto.randomUUID(),
+      role: 'bot',
+      texto: conocimiento.respuesta,
+      timestamp: Date.now(),
+    };
+  }
+
+  // Default — no entendió
   return {
     id: crypto.randomUUID(),
     role: 'bot',
     texto:
-      'No estoy seguro de entender. ¿Quieres que te arme una ruta nueva? Puedes preguntarme también por: comida, hospedaje, naturaleza, aventura, cultura o playa.',
+      'No estoy seguro de haber entendido. Puedo ayudarte con: lugares qué visitar, dónde comer, cómo llegar y moverte, qué llevar, mejor época para visitar, seguridad, o info de un municipio (Catemaco, San Andrés, Santiago). También puedo armarte una ruta nueva.',
     opciones: [{ label: '🔄 Armar nueva ruta', valor: '__restart__' }],
     timestamp: Date.now(),
   };

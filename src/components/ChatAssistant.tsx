@@ -1,21 +1,31 @@
-import { useEffect, useRef, useState } from 'react';
-import { Send, Sparkles, RotateCcw } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Send, Sparkles, RotateCcw, MapPin } from 'lucide-react';
+import type { Lugar } from '../data/lugares';
+import type { Categoria, Presupuesto } from '../data/lugares';
 import {
+  type MensajeChat,
+  type EstadoChat,
+  type PreferenciasUsuario,
+  type GrupoViaje,
+  type Dias,
   mensajeBienvenida,
   mensajeIntereses,
   mensajePresupuesto,
   mensajeGrupo,
   generarRuta,
   responderTextoLibre,
-  type MensajeChat,
-  type EstadoChat,
-  type PreferenciasUsuario,
-  type Dias,
-  type GrupoViaje,
 } from '../lib/chatbot';
-import { CATEGORIAS, type Categoria, type Presupuesto, type Lugar } from '../data/lugares';
-import PlaceCard from './PlaceCard';
-import { db } from '../lib/db';
+
+// ============================================================
+// PANTALLA DEL ASISTENTE — interfaz del motor local de IA
+// ============================================================
+// Conversa con el usuario en dos modos:
+//  - Flujo guiado: pregunta días, intereses, presupuesto, grupo
+//    y arma una ruta personalizada explicando su razonamiento.
+//  - Texto libre: responde preguntas sueltas sobre lugares,
+//    comida, transporte, clima, etc.
+// Todo corre offline con el motor de lib/chatbot.ts
+// ============================================================
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
@@ -24,24 +34,35 @@ interface Props {
 export default function ChatAssistant({ onVerLugar }: Props) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([mensajeBienvenida()]);
   const [estado, setEstado] = useState<EstadoChat>('preguntando_dias');
-  const [prefs, setPrefs] = useState<Partial<PreferenciasUsuario>>({ intereses: [] });
   const [input, setInput] = useState('');
   const [escribiendo, setEscribiendo] = useState(false);
-  const finRef = useRef<HTMLDivElement>(null);
+
+  // Preferencias que se van armando durante el flujo guiado
+  const [prefsParcial, setPrefsParcial] = useState<Partial<PreferenciasUsuario>>(
+    {}
+  );
+  // Intereses seleccionados (multi-selección)
+  const [interesesTemp, setInteresesTemp] = useState<Categoria[]>([]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    finRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
   }, [mensajes, escribiendo]);
 
-  const agregarMensajeBot = (m: MensajeChat, delayMs = 700) => {
+  // Agrega un mensaje del bot con un pequeño retardo (sensación de "escribiendo")
+  function responderBot(msg: MensajeChat, delay = 500) {
     setEscribiendo(true);
     setTimeout(() => {
+      setMensajes((prev) => [...prev, msg]);
       setEscribiendo(false);
-      setMensajes((prev) => [...prev, m]);
-    }, delayMs);
-  };
+    }, delay);
+  }
 
-  const agregarMensajeUsuario = (texto: string) => {
+  function agregarUsuario(texto: string) {
     setMensajes((prev) => [
       ...prev,
       {
@@ -51,316 +72,411 @@ export default function ChatAssistant({ onVerLugar }: Props) {
         timestamp: Date.now(),
       },
     ]);
-  };
+  }
 
-  const handleOpcion = (valor: string, label: string) => {
-    agregarMensajeUsuario(label);
-
-    // === Estado: días ===
-    if (estado === 'preguntando_dias') {
-      const dias = parseInt(valor, 10) as Dias;
-      setPrefs((p) => ({ ...p, dias }));
-      setEstado('preguntando_intereses');
-      agregarMensajeBot(mensajeIntereses());
-      return;
-    }
-
-    // === Estado: intereses (multi-select) ===
-    if (estado === 'preguntando_intereses') {
-      if (valor === '__done__') {
-        if (!prefs.intereses || prefs.intereses.length === 0) {
-          agregarMensajeBot({
-            id: crypto.randomUUID(),
-            role: 'bot',
-            texto: 'Necesito que escojas al menos un interés para armar tu ruta 😊',
-            timestamp: Date.now(),
-          });
-          // Re-mostrar opciones
-          setTimeout(() => agregarMensajeBot(mensajeIntereses(), 400), 1200);
-          return;
-        }
-        setEstado('preguntando_presupuesto');
-        agregarMensajeBot(mensajePresupuesto());
-        return;
-      }
-      // Toggle del interés
-      const cat = valor as Categoria;
-      const yaEsta = prefs.intereses?.includes(cat);
-      const nuevos = yaEsta
-        ? (prefs.intereses || []).filter((c) => c !== cat)
-        : [...(prefs.intereses || []), cat];
-      setPrefs((p) => ({ ...p, intereses: nuevos }));
-      agregarMensajeBot(
-        {
-          id: crypto.randomUUID(),
-          role: 'bot',
-          texto: yaEsta
-            ? `Quito "${cat}". Tus intereses: ${nuevos.join(', ') || 'ninguno'}.`
-            : `Anoté "${cat}". Tus intereses: ${nuevos.join(', ')}. ¿Algo más? Cuando termines toca "Listo".`,
-          opciones: [
-            ...CATEGORIAS.filter((c) => !nuevos.includes(c.id)).map((c) => ({
-              label: `${c.emoji} ${c.id}`,
-              valor: c.id,
-            })),
-            { label: '✅ Listo, ya escogí', valor: '__done__' },
-          ],
-          timestamp: Date.now(),
-        },
-        400
-      );
-      return;
-    }
-
-    // === Estado: presupuesto ===
-    if (estado === 'preguntando_presupuesto') {
-      setPrefs((p) => ({ ...p, presupuesto: valor as Presupuesto }));
-      setEstado('preguntando_grupo');
-      agregarMensajeBot(mensajeGrupo());
-      return;
-    }
-
-    // === Estado: grupo (genera ruta) ===
-    if (estado === 'preguntando_grupo') {
-      const grupo = valor as GrupoViaje;
-      const prefsFinales: PreferenciasUsuario = {
-        intereses: prefs.intereses || [],
-        presupuesto: prefs.presupuesto || 'medio',
-        grupo,
-        dias: prefs.dias || 1,
-      };
-      setPrefs(prefsFinales);
-      setEstado('generando');
-
-      agregarMensajeBot(
-        {
-          id: crypto.randomUUID(),
-          role: 'bot',
-          texto: '¡Listo! Déjame procesar tus respuestas y armar tu ruta...',
-          timestamp: Date.now(),
-        },
-        500
-      );
-
-      setTimeout(() => {
-        const ruta = generarRuta(prefsFinales);
-        if (ruta.length === 0) {
-          agregarMensajeBot(
-            {
-              id: crypto.randomUUID(),
-              role: 'bot',
-              texto:
-                'No encontré coincidencias con esos filtros. Prueba relajando el presupuesto o ampliando intereses.',
-              opciones: [{ label: '🔄 Empezar de nuevo', valor: '__restart__' }],
-              timestamp: Date.now(),
-            },
-            1500
-          );
-          setEstado('libre');
-          return;
-        }
-
-        const intro: MensajeChat = {
-          id: crypto.randomUUID(),
-          role: 'bot',
-          texto: `Aquí está tu ruta de ${prefsFinales.dias} día${prefsFinales.dias > 1 ? 's' : ''} en Los Tuxtlas, hecha para ti 🌿`,
-          timestamp: Date.now(),
-        };
-        const mensajesRuta: MensajeChat[] = ruta.map((dia) => ({
-          id: crypto.randomUUID(),
-          role: 'bot',
-          texto: dia.resumen,
-          rutaDia: dia,
-          lugares: dia.lugares,
-          timestamp: Date.now(),
-        }));
-        // Guardar la ruta en IndexedDB
-        db.rutas.add({
-          nombre: `Ruta ${prefsFinales.dias}d · ${new Date().toLocaleDateString('es-MX')}`,
-          creadaEn: Date.now(),
-          dias: ruta.map((d) => ({
-            dia: d.dia,
-            lugaresIds: d.lugares.map((l) => l.id),
-            resumen: d.resumen,
-          })),
-          prefsJson: JSON.stringify(prefsFinales),
-        });
-
-        agregarMensajeBot(intro, 1500);
-        mensajesRuta.forEach((m, idx) => {
-          setTimeout(() => {
-            setMensajes((prev) => [...prev, m]);
-          }, 2200 + idx * 600);
-        });
-
-        setTimeout(() => {
-          agregarMensajeBot(
-            {
-              id: crypto.randomUUID(),
-              role: 'bot',
-              texto:
-                'Tu ruta quedó guardada en favoritos. ¿Quieres preguntarme algo más? Puedes pedirme "donde comer", "playas cerca" o armar otra ruta.',
-              opciones: [{ label: '🔄 Armar otra ruta', valor: '__restart__' }],
-              timestamp: Date.now(),
-            },
-            2200 + mensajesRuta.length * 600 + 500
-          );
-          setEstado('libre');
-        }, 2200 + mensajesRuta.length * 600 + 200);
-      }, 1300);
-      return;
-    }
-
-    // === Estado: libre ===
-    if (estado === 'libre') {
-      if (valor === '__restart__') {
-        setMensajes([mensajeBienvenida()]);
-        setEstado('preguntando_dias');
-        setPrefs({ intereses: [] });
-        return;
-      }
-      const resp = responderTextoLibre(valor, prefs as PreferenciasUsuario);
-      agregarMensajeBot(resp);
-    }
-  };
-
-  const handleEnviarTexto = () => {
-    if (!input.trim()) return;
-    const txt = input.trim();
-    setInput('');
-    agregarMensajeUsuario(txt);
-
-    if (estado === 'libre') {
-      const resp = responderTextoLibre(txt, prefs as PreferenciasUsuario);
-      agregarMensajeBot(resp);
-    } else {
-      // Si está en flujo guiado, redirigir a usar botones
-      agregarMensajeBot({
-        id: crypto.randomUUID(),
-        role: 'bot',
-        texto: 'Para esta pregunta es más fácil si tocas una de las opciones de arriba 👆',
-        timestamp: Date.now(),
-      });
-    }
-  };
-
-  const reiniciar = () => {
+  // Reinicia toda la conversación
+  function reiniciar() {
     setMensajes([mensajeBienvenida()]);
     setEstado('preguntando_dias');
-    setPrefs({ intereses: [] });
-  };
+    setPrefsParcial({});
+    setInteresesTemp([]);
+  }
+
+  // ─────────── Manejo de opciones tocadas (botones) ───────────
+  function manejarOpcion(valor: string, label: string) {
+    // Casos especiales
+    if (valor === '__restart__') {
+      agregarUsuario(label);
+      reiniciar();
+      return;
+    }
+
+    if (estado === 'preguntando_dias') {
+      agregarUsuario(label);
+      const dias = parseInt(valor) as Dias;
+      setPrefsParcial({ dias });
+      setEstado('preguntando_intereses');
+      responderBot(mensajeIntereses());
+      return;
+    }
+
+    if (estado === 'preguntando_intereses') {
+      // Multi-selección de intereses
+      if (valor === '__done__') {
+        if (interesesTemp.length === 0) {
+          responderBot(
+            {
+              id: crypto.randomUUID(),
+              role: 'bot',
+              texto:
+                'Elige al menos un interés para poder recomendarte bien 🙂',
+              timestamp: Date.now(),
+            },
+            300
+          );
+          return;
+        }
+        agregarUsuario(`Me interesa: ${interesesTemp.join(', ')}`);
+        setPrefsParcial((p) => ({ ...p, intereses: interesesTemp }));
+        setEstado('preguntando_presupuesto');
+        responderBot(mensajePresupuesto());
+        return;
+      }
+      // Toggle de un interés
+      const cat = valor as Categoria;
+      setInteresesTemp((prev) =>
+        prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+      );
+      return;
+    }
+
+    if (estado === 'preguntando_presupuesto') {
+      agregarUsuario(label);
+      setPrefsParcial((p) => ({ ...p, presupuesto: valor as Presupuesto }));
+      setEstado('preguntando_grupo');
+      responderBot(mensajeGrupo());
+      return;
+    }
+
+    if (estado === 'preguntando_grupo') {
+      agregarUsuario(label);
+      const prefsCompletas: PreferenciasUsuario = {
+        dias: prefsParcial.dias ?? 2,
+        intereses: prefsParcial.intereses ?? ['Naturaleza'],
+        presupuesto: prefsParcial.presupuesto ?? 'medio',
+        grupo: valor as GrupoViaje,
+      };
+      setEstado('generando');
+      generarYMostrarRuta(prefsCompletas);
+      return;
+    }
+  }
+
+  // ─────────── Genera la ruta y la muestra día por día ───────────
+  function generarYMostrarRuta(prefs: PreferenciasUsuario) {
+    const dias = generarRuta(prefs);
+
+    if (dias.length === 0) {
+      responderBot({
+        id: crypto.randomUUID(),
+        role: 'bot',
+        texto:
+          'Mmm, con esas preferencias no encontré suficientes lugares. ¿Probamos de nuevo con otros intereses?',
+        opciones: [{ label: '🔄 Intentar de nuevo', valor: '__restart__' }],
+        timestamp: Date.now(),
+      });
+      setEstado('libre');
+      return;
+    }
+
+    // Mensaje introductorio
+    responderBot(
+      {
+        id: crypto.randomUUID(),
+        role: 'bot',
+        texto: `¡Listo! Te armé una ruta de ${dias.length} ${
+          dias.length === 1 ? 'día' : 'días'
+        } pensada para ti. Aquí va, día por día:`,
+        timestamp: Date.now(),
+      },
+      600
+    );
+
+    // Un mensaje por cada día (escalonados)
+    dias.forEach((dia, i) => {
+      setTimeout(() => {
+        setMensajes((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: `${dia.resumen}\n\n💡 ${dia.razonamiento}`,
+            rutaDia: {
+              dia: dia.dia,
+              lugares: dia.lugares,
+              resumen: dia.resumen,
+            },
+            timestamp: Date.now(),
+          },
+        ]);
+      }, 1200 + i * 900);
+    });
+
+    // Mensaje final con opción de reiniciar
+    setTimeout(() => {
+      setMensajes((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'bot',
+          texto:
+            '¿Qué te parece la ruta? Puedes tocar cualquier lugar para ver sus detalles. Si quieres, también puedo responderte dudas sueltas: cómo llegar, qué llevar, dónde comer, la mejor época para visitar...',
+          opciones: [{ label: '🔄 Armar otra ruta', valor: '__restart__' }],
+          timestamp: Date.now(),
+        },
+      ]);
+      setEstado('libre');
+    }, 1200 + dias.length * 900 + 400);
+  }
+
+  // ─────────── Envío de texto libre ───────────
+  function enviarTexto() {
+    const texto = input.trim();
+    if (!texto) return;
+    agregarUsuario(texto);
+    setInput('');
+
+    // Durante el flujo guiado, el texto libre se interpreta igual
+    // pero damos prioridad a seguir el flujo si está a medias.
+    if (estado === 'libre' || estado === 'generando') {
+      const respuesta = responderTextoLibre(texto, null);
+      responderBot(respuesta, 600);
+    } else {
+      // Si el usuario escribe en vez de tocar botones, lo guiamos
+      const respuesta = responderTextoLibre(texto, null);
+      responderBot(respuesta, 600);
+      // Y le recordamos que puede usar los botones
+      setTimeout(() => {
+        setMensajes((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto:
+              'Por cierto, si quieres que te arme una ruta completa, puedes usar los botones de arriba para responderme. 🙂',
+            timestamp: Date.now(),
+          },
+        ]);
+      }, 1300);
+    }
+  }
 
   return (
     <div className="flex flex-col h-full bg-jungle-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-jungle-700 to-jungle-800 text-white px-4 py-3 flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
-            <Sparkles className="text-white" size={20} />
+      <div className="bg-gradient-to-br from-jungle-800 to-jungle-950 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center">
+            <Sparkles size={18} />
           </div>
           <div>
-            <div className="font-display font-bold text-lg leading-none">
+            <div className="font-display font-bold leading-tight">
               Guía TuxtlasGO
             </div>
-            <div className="text-xs text-jungle-100 leading-none mt-1">
-              ● Asistente offline
+            <div className="text-[11px] text-jungle-200 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+              Funciona sin internet
             </div>
           </div>
         </div>
         <button
           onClick={reiniciar}
-          className="text-xs flex items-center gap-1 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full backdrop-blur"
-          title="Reiniciar conversación"
+          className="text-jungle-200 hover:text-white p-2"
+          aria-label="Reiniciar conversación"
+          title="Reiniciar"
         >
-          <RotateCcw size={12} /> Reiniciar
+          <RotateCcw size={18} />
         </button>
       </div>
 
       {/* Mensajes */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {mensajes.map((m) => (
-          <div key={m.id}>
-            {m.role === 'user' ? (
-              <div className="flex justify-end">
-                <div className="max-w-[80%] bg-jungle-700 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm">
-                  {m.texto}
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-start">
-                <div className="max-w-[90%] space-y-2">
-                  <div className="bg-white text-jungle-950 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm shadow-sm">
-                    {m.texto}
-                  </div>
-                  {m.opciones && (
-                    <div className="flex flex-wrap gap-2 pl-1">
-                      {m.opciones.map((op, i) => (
-                        <button
-                          key={i}
-                          onClick={() => handleOpcion(op.valor, op.label)}
-                          className="bg-white border-2 border-jungle-200 hover:border-jungle-400 hover:bg-jungle-50 text-jungle-900 text-sm font-medium px-3 py-2 rounded-xl transition-colors"
-                        >
-                          {op.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {m.lugares && m.lugares.length > 0 && (
-                    <div className="space-y-2 pl-1 pt-1">
-                      {m.lugares.map((l) => (
-                        <PlaceCard
-                          key={l.id}
-                          lugar={l}
-                          compact
-                          onClick={() => onVerLugar(l)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+        {mensajes.map((msg) => (
+          <Burbuja
+            key={msg.id}
+            mensaje={msg}
+            interesesTemp={interesesTemp}
+            estado={estado}
+            onOpcion={manejarOpcion}
+            onVerLugar={onVerLugar}
+          />
         ))}
+
         {escribiendo && (
-          <div className="flex justify-start">
-            <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-1">
-              <span className="typing-dot w-2 h-2 bg-jungle-500 rounded-full inline-block" />
-              <span className="typing-dot w-2 h-2 bg-jungle-500 rounded-full inline-block" />
-              <span className="typing-dot w-2 h-2 bg-jungle-500 rounded-full inline-block" />
-            </div>
+          <div className="flex items-center gap-1.5 px-4 py-3 bg-white rounded-2xl rounded-tl-sm w-fit border border-jungle-100">
+            <span
+              className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
+              style={{ animationDelay: '0ms' }}
+            />
+            <span
+              className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
+              style={{ animationDelay: '150ms' }}
+            />
+            <span
+              className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
+              style={{ animationDelay: '300ms' }}
+            />
           </div>
         )}
-        <div ref={finRef} />
       </div>
 
-      {/* Input */}
-      <div
-        className="bg-white border-t border-jungle-100 p-3"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 12px)' }}
-      >
-        <div className="flex gap-2 items-center">
+      {/* Input de texto libre */}
+      <div className="px-3 py-3 bg-white border-t border-jungle-100 flex-shrink-0">
+        <div className="flex items-center gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleEnviarTexto()}
-            placeholder={
-              estado === 'libre'
-                ? 'Pregúntame lo que quieras...'
-                : 'Usa los botones arriba 👆'
-            }
-            className="flex-1 bg-jungle-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0"
-            disabled={estado !== 'libre'}
+            onKeyDown={(e) => e.key === 'Enter' && enviarTexto()}
+            placeholder="Escribe tu pregunta..."
+            className="flex-1 bg-jungle-50 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0"
           />
           <button
-            onClick={handleEnviarTexto}
-            disabled={!input.trim() || estado !== 'libre'}
-            className="w-11 h-11 rounded-xl bg-jungle-700 hover:bg-jungle-800 disabled:bg-jungle-200 text-white flex items-center justify-center transition-colors"
+            onClick={enviarTexto}
+            disabled={!input.trim()}
+            className="w-10 h-10 rounded-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white flex items-center justify-center flex-shrink-0"
+            aria-label="Enviar"
           >
             <Send size={18} />
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+// ─────────────── BURBUJA DE MENSAJE ───────────────
+function Burbuja({
+  mensaje,
+  interesesTemp,
+  estado,
+  onOpcion,
+  onVerLugar,
+}: {
+  mensaje: MensajeChat;
+  interesesTemp: Categoria[];
+  estado: EstadoChat;
+  onOpcion: (valor: string, label: string) => void;
+  onVerLugar: (lugar: Lugar) => void;
+}) {
+  const esBot = mensaje.role === 'bot';
+
+  return (
+    <div className={`flex ${esBot ? 'justify-start' : 'justify-end'}`}>
+      <div className={`max-w-[85%] ${esBot ? '' : 'items-end'}`}>
+        {/* Texto del mensaje */}
+        <div
+          className={`px-4 py-2.5 text-sm whitespace-pre-line ${
+            esBot
+              ? 'bg-white text-jungle-900 rounded-2xl rounded-tl-sm border border-jungle-100'
+              : 'bg-jungle-700 text-white rounded-2xl rounded-tr-sm'
+          }`}
+        >
+          {mensaje.texto}
+        </div>
+
+        {/* Opciones (botones) */}
+        {mensaje.opciones && mensaje.opciones.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {mensaje.opciones.map((op) => {
+              const seleccionado =
+                estado === 'preguntando_intereses' &&
+                interesesTemp.includes(op.valor as Categoria);
+              const esDone = op.valor === '__done__';
+              return (
+                <button
+                  key={op.valor}
+                  onClick={() => onOpcion(op.valor, op.label)}
+                  className={`text-sm px-3 py-2 rounded-xl font-medium transition-colors border ${
+                    esDone
+                      ? 'bg-jungle-700 text-white border-jungle-700 hover:bg-jungle-800'
+                      : seleccionado
+                      ? 'bg-jungle-600 text-white border-jungle-600'
+                      : 'bg-white text-jungle-800 border-jungle-200 hover:bg-jungle-50'
+                  }`}
+                >
+                  {seleccionado ? '✓ ' : ''}
+                  {op.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Lugares sueltos recomendados */}
+        {mensaje.lugares && mensaje.lugares.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {mensaje.lugares.map((lugar) => (
+              <TarjetaLugarChat
+                key={lugar.id}
+                lugar={lugar}
+                onClick={() => onVerLugar(lugar)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Ruta de un día */}
+        {mensaje.rutaDia && (
+          <div className="mt-2 bg-white rounded-2xl border border-jungle-100 overflow-hidden">
+            <div className="bg-jungle-100 px-3 py-2 font-display font-bold text-jungle-900 text-sm">
+              Día {mensaje.rutaDia.dia}
+            </div>
+            <div className="p-2 space-y-2">
+              {mensaje.rutaDia.lugares.map((lugar, i) => (
+                <div key={lugar.id} className="flex gap-2">
+                  <div className="flex flex-col items-center flex-shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-jungle-700 text-white text-xs font-bold flex items-center justify-center">
+                      {i + 1}
+                    </div>
+                    {i < mensaje.rutaDia!.lugares.length - 1 && (
+                      <div className="w-0.5 flex-1 bg-jungle-200 my-1" />
+                    )}
+                  </div>
+                  <button
+                    onClick={() => onVerLugar(lugar)}
+                    className="flex-1 text-left bg-jungle-50 hover:bg-jungle-100 rounded-lg p-2 transition-colors mb-1"
+                  >
+                    <div className="font-semibold text-jungle-950 text-sm leading-tight">
+                      {lugar.nombre}
+                    </div>
+                    <div className="text-xs text-jungle-600 mt-0.5 flex items-center gap-1">
+                      <MapPin size={10} />
+                      {lugar.municipio} · {lugar.duracionSugerida}
+                    </div>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Tarjeta compacta de lugar dentro del chat
+function TarjetaLugarChat({
+  lugar,
+  onClick,
+}: {
+  lugar: Lugar;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex gap-3 bg-white rounded-xl p-2.5 hover:bg-jungle-50 transition-colors text-left border border-jungle-100"
+    >
+      <img
+        src={lugar.imagen}
+        alt={lugar.nombre}
+        className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+        loading="lazy"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-jungle-950 text-sm leading-tight">
+          {lugar.nombre}
+        </div>
+        <div className="text-xs text-jungle-600 mt-0.5 line-clamp-2">
+          {lugar.descripcionCorta}
+        </div>
+        <div className="text-xs text-jungle-500 mt-1 flex items-center gap-1">
+          <MapPin size={10} />
+          {lugar.municipio}
+          {lugar.rating > 0 && <span>· ⭐ {lugar.rating}</span>}
+        </div>
+      </div>
+    </button>
   );
 }

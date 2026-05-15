@@ -1,9 +1,20 @@
-import { X, Star, MapPin, Clock, DollarSign, Calendar, Navigation, Heart } from 'lucide-react';
+import {
+  X,
+  Star,
+  MapPin,
+  Clock,
+  DollarSign,
+  Calendar,
+  Navigation,
+  Heart,
+  Route,
+  Lightbulb,
+  BadgeCheck,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
-import { OfflineReadyBadge } from './OfflineIndicator';
 
 interface Props {
   lugar: Lugar;
@@ -57,39 +68,81 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
         </div>
 
         <div className="p-5 sm:p-6 space-y-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
               <span
                 className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${cat?.color}`}
               >
                 {cat?.emoji} {lugar.categoria}
               </span>
-              <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-jungle-950 mt-2">
-                {lugar.nombre}
-              </h2>
-              <div className="flex items-center gap-3 text-sm text-jungle-700 mt-1">
-                <span className="flex items-center gap-1 font-semibold">
-                  <Star size={15} className="fill-amber-400 text-amber-400" />
-                  {lugar.rating}
+              {lugar.verificado && (
+                <span className="inline-flex items-center gap-1 text-xs bg-jungle-100 text-jungle-800 px-2.5 py-1 rounded-full font-medium">
+                  <BadgeCheck size={12} />
+                  Info verificada
                 </span>
-                <span>·</span>
-                <span className="flex items-center gap-1">
-                  <MapPin size={14} /> {lugar.municipio}
-                </span>
-              </div>
+              )}
             </div>
-            <OfflineReadyBadge />
+            <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-jungle-950 mt-2">
+              {lugar.nombre}
+            </h2>
+            <div className="flex items-center gap-3 text-sm text-jungle-700 mt-1">
+              {lugar.rating > 0 && (
+                <>
+                  <span className="flex items-center gap-1 font-semibold">
+                    <Star size={15} className="fill-amber-400 text-amber-400" />
+                    {lugar.rating}
+                  </span>
+                  <span>·</span>
+                </>
+              )}
+              <span className="flex items-center gap-1">
+                <MapPin size={14} /> {lugar.municipio}
+              </span>
+            </div>
           </div>
 
           <p className="text-jungle-800 leading-relaxed">{lugar.descripcion}</p>
 
           <div className="grid grid-cols-2 gap-3">
-            <InfoChip icon={Clock} label="Duración" value={lugar.duracionSugerida} />
+            <InfoChip
+              icon={Clock}
+              label="Duración"
+              value={lugar.duracionSugerida}
+            />
             <InfoChip icon={DollarSign} label="Costo" value={lugar.precioMxn} />
-            <InfoChip icon={Calendar} label="Días" value={lugar.abierto.dias} />
-            <InfoChip icon={Clock} label="Horario" value={lugar.abierto.horario} />
+            <InfoChip
+              icon={Calendar}
+              label="Días"
+              value={lugar.abierto.dias}
+            />
+            <InfoChip
+              icon={Clock}
+              label="Horario"
+              value={lugar.abierto.horario}
+            />
           </div>
 
+          {/* Cómo llegar */}
+          <div className="bg-jungle-50 rounded-xl p-4">
+            <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
+              <Navigation size={12} />
+              Cómo llegar
+            </div>
+            <p className="text-sm text-jungle-900">{lugar.comoLlegar}</p>
+          </div>
+
+          {/* Tip del lugar */}
+          {lugar.tip && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <div className="flex items-center gap-1.5 text-xs text-amber-700 mb-1 uppercase tracking-wide font-semibold">
+                <Lightbulb size={12} />
+                Consejo
+              </div>
+              <p className="text-sm text-amber-900">{lugar.tip}</p>
+            </div>
+          )}
+
+          {/* Ideal para */}
           <div>
             <div className="text-xs font-semibold text-jungle-600 uppercase tracking-wide mb-2">
               Ideal para
@@ -98,7 +151,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
               {lugar.ideal.map((g) => (
                 <span
                   key={g}
-                  className="bg-jungle-100 text-jungle-800 px-3 py-1 rounded-full text-xs font-medium capitalize"
+                  className="bg-jungle-100 text-jungle-800 px-3 py-1 rounded-full text-xs font-medium"
                 >
                   {g === 'solo'
                     ? '🧍 viajeros solos'
@@ -112,15 +165,13 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
             </div>
           </div>
 
-          <div className="flex gap-3 pt-2">
-            <button
-              onClick={onVerEnMapa}
-              className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-            >
-              <Navigation size={18} />
-              Ver en el mapa
-            </button>
-          </div>
+          <button
+            onClick={onVerEnMapa}
+            className="w-full bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+          >
+            <Route size={18} />
+            Ver en el mapa
+          </button>
         </div>
       </div>
     </div>

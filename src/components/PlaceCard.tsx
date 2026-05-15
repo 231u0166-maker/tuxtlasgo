@@ -45,9 +45,13 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
             {lugar.descripcionCorta}
           </div>
           <div className="flex items-center gap-2 mt-1 text-xs text-jungle-600">
-            <Star size={12} className="fill-amber-400 text-amber-400" />
-            <span>{lugar.rating}</span>
-            <span>·</span>
+            {lugar.rating > 0 && (
+              <>
+                <Star size={12} className="fill-amber-400 text-amber-400" />
+                <span>{lugar.rating}</span>
+                <span>·</span>
+              </>
+            )}
             <span>{lugar.municipio}</span>
           </div>
         </div>
@@ -98,10 +102,16 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
           {lugar.descripcionCorta}
         </p>
         <div className="flex items-center justify-between mt-3 text-xs text-jungle-600">
-          <span className="flex items-center gap-1">
-            <Star size={13} className="fill-amber-400 text-amber-400" />
-            <span className="font-semibold text-jungle-900">{lugar.rating}</span>
-          </span>
+          {lugar.rating > 0 ? (
+            <span className="flex items-center gap-1">
+              <Star size={13} className="fill-amber-400 text-amber-400" />
+              <span className="font-semibold text-jungle-900">{lugar.rating}</span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-jungle-500">
+              Prestador local
+            </span>
+          )}
           <span className="flex items-center gap-1">
             <MapPin size={12} />
             {lugar.municipio}

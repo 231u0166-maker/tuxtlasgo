@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Briefcase } from 'lucide-react';
 import BottomNav, { type Tab } from './BottomNav';
 import ExploreScreen from './ExploreScreen';
 import MapScreen from './MapScreen';
@@ -74,14 +74,21 @@ export default function AppShell() {
     <div className="flex flex-col bg-jungle-50 h-screen [height:100dvh]">
       <OfflineIndicator />
 
-      {/* Mini header con "atrás" */}
-      <div className="absolute top-3 left-3 z-30">
+      {/* Mini header con "atrás" + acceso a panel del prestador */}
+      <div className="absolute top-3 left-3 z-30 flex items-center gap-2">
         <Link
           to="/"
           className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-900 hover:bg-white"
           aria-label="Volver al inicio"
         >
           <ArrowLeft size={18} />
+        </Link>
+        <Link
+          to="/prestador"
+          className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 hover:bg-white border border-jungle-200"
+        >
+          <Briefcase size={13} />
+          Soy prestador
         </Link>
       </div>
 
@@ -125,6 +132,7 @@ export default function AppShell() {
             onVerLugar={verLugar}
             rutaResaltada={rutaVisible?.geometria}
             paradasResaltadas={rutaVisible?.paradas}
+            onLimpiarRuta={() => setRutaVisible(null)}
           />
         )}
         {tab === 'chat' && (
@@ -140,7 +148,17 @@ export default function AppShell() {
         )}
       </main>
 
-      <BottomNav activa={tab} onChange={setTab} />
+      <BottomNav
+        activa={tab}
+        onChange={(nuevoTab) => {
+          // Al cambiar de tab limpiamos la ruta resaltada del mapa,
+          // para que no quede "fantasma" al volver al mapa más tarde.
+          if (nuevoTab !== 'mapa' && rutaVisible) {
+            setRutaVisible(null);
+          }
+          setTab(nuevoTab);
+        }}
+      />
 
       {lugarSeleccionado && (
         <PlaceDetail

@@ -61,6 +61,8 @@ interface Props {
   // Puntos numerados (paradas de la ruta del día) — opcional.
   // Se dibujan como círculos numerados al lado de cada lugar.
   paradasResaltadas?: { coord: [number, number]; orden: number }[];
+  // Permite al usuario quitar la ruta visible y volver al mapa normal.
+  onLimpiarRuta?: () => void;
 }
 
 // Icono numerado para las paradas de una ruta (1, 2, 3...)
@@ -89,7 +91,7 @@ function AjustarVistaARuta({ puntos }: { puntos: [number, number][] }) {
   return null;
 }
 
-export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada, paradasResaltadas }: Props) {
+export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada, paradasResaltadas, onLimpiarRuta }: Props) {
   const [serviciosPrestadores, setServiciosPrestadores] = useState<Lugar[]>([]);
   const [descargando, setDescargando] = useState(false);
   const [progreso, setProgreso] = useState(0);
@@ -182,6 +184,18 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
           }}
         />
       </MapContainer>
+
+      {/* Pill flotante: cerrar ruta resaltada. Solo aparece cuando hay una. */}
+      {rutaResaltada && onLimpiarRuta && (
+        <button
+          onClick={onLimpiarRuta}
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3.5 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
+          aria-label="Cerrar ruta y volver al mapa normal"
+        >
+          <X size={14} />
+          Cerrar ruta
+        </button>
+      )}
 
       {/* Botón de descarga de mapa offline */}
       <div className="absolute top-3 right-3 z-[1000]">

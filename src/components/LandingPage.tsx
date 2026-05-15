@@ -34,7 +34,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <Link
               to="/prestador"
-              className="hidden sm:inline text-sm text-jungle-700 hover:text-jungle-900 font-medium"
+              className="text-xs sm:text-sm text-jungle-700 hover:text-jungle-900 font-medium border border-jungle-300 sm:border-0 px-3 py-1.5 rounded-full sm:px-0 sm:py-0 sm:rounded-none"
             >
               Soy prestador
             </Link>

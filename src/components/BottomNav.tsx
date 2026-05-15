@@ -17,7 +17,7 @@ const tabs: { id: Tab; label: string; icon: typeof Compass }[] = [
 export default function BottomNav({ activa, onChange }: Props) {
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 bg-white border-t border-jungle-100 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]"
+      className="flex-shrink-0 bg-white border-t border-jungle-100 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}
     >
       <div className="flex max-w-2xl mx-auto">

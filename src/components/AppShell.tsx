@@ -21,7 +21,7 @@ export default function AppShell() {
   };
 
   return (
-    <div className="flex flex-col bg-jungle-50" style={{ height: '100dvh', minHeight: '100vh' }}>
+    <div className="flex flex-col bg-jungle-50 h-screen [height:100dvh]">
       <OfflineIndicator />
 
       {/* Mini header con "atrás" */}

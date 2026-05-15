@@ -319,7 +319,12 @@ export default function ChatAssistant({ onVerLugar }: Props) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && enviarTexto()}
             placeholder="Escribe tu pregunta..."
-            className="flex-1 bg-jungle-50 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0"
+            inputMode="text"
+            enterKeyHint="send"
+            autoComplete="off"
+            autoCorrect="on"
+            autoCapitalize="sentences"
+            className="flex-1 bg-jungle-50 rounded-full px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0"
           />
           <button
             onClick={enviarTexto}

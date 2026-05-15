@@ -12,7 +12,7 @@ export default function OfflineIndicator() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-20 right-3 z-40 bg-amber-500/95 backdrop-blur text-white pl-3 pr-3.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold shadow-lg shadow-amber-900/20 animate-fade-in"
+      className="fixed top-3 right-3 z-40 bg-amber-500/95 backdrop-blur text-white pl-3 pr-3.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold shadow-lg shadow-amber-900/20 animate-fade-in"
     >
       <WifiOff size={13} />
       <span>Offline</span>

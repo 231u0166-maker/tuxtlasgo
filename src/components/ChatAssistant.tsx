@@ -29,9 +29,13 @@ import {
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
+  // Cuando el usuario quiere ver una ruta del día sobre el mapa.
+  // El padre (AppShell) calcula el trazado por carretera y cambia
+  // al tab del mapa con la polyline visible.
+  onVerRutaEnMapa?: (lugares: Lugar[]) => void;
 }
 
-export default function ChatAssistant({ onVerLugar }: Props) {
+export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([mensajeBienvenida()]);
   const [estado, setEstado] = useState<EstadoChat>('preguntando_dias');
   const [input, setInput] = useState('');
@@ -289,6 +293,7 @@ export default function ChatAssistant({ onVerLugar }: Props) {
             estado={estado}
             onOpcion={manejarOpcion}
             onVerLugar={onVerLugar}
+            onVerRutaEnMapa={onVerRutaEnMapa}
           />
         ))}
 
@@ -347,12 +352,14 @@ function Burbuja({
   estado,
   onOpcion,
   onVerLugar,
+  onVerRutaEnMapa,
 }: {
   mensaje: MensajeChat;
   interesesTemp: Categoria[];
   estado: EstadoChat;
   onOpcion: (valor: string, label: string) => void;
   onVerLugar: (lugar: Lugar) => void;
+  onVerRutaEnMapa?: (lugares: Lugar[]) => void;
 }) {
   const esBot = mensaje.role === 'bot';
 
@@ -443,6 +450,15 @@ function Burbuja({
                 </div>
               ))}
             </div>
+            {onVerRutaEnMapa && mensaje.rutaDia.lugares.length >= 2 && (
+              <button
+                onClick={() => onVerRutaEnMapa(mensaje.rutaDia!.lugares)}
+                className="w-full bg-jungle-700 hover:bg-jungle-800 text-white text-sm font-semibold py-2.5 flex items-center justify-center gap-2 transition-colors"
+              >
+                <MapPin size={14} />
+                Ver ruta en el mapa
+              </button>
+            )}
           </div>
         )}
       </div>

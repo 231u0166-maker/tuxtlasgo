@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Download, CheckCircle2, Loader2, X } from 'lucide-react';
 import {
@@ -54,9 +54,42 @@ function getIcono(categoria: string): L.DivIcon {
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   filtroCategorias?: string[];
+  // Lista de coordenadas que dibuja una ruta sobre las carreteras.
+  // Si se pasa, se renderiza como polyline verde y el mapa hace zoom
+  // para encuadrarla completa.
+  rutaResaltada?: [number, number][];
+  // Puntos numerados (paradas de la ruta del día) — opcional.
+  // Se dibujan como círculos numerados al lado de cada lugar.
+  paradasResaltadas?: { coord: [number, number]; orden: number }[];
 }
 
-export default function MapScreen({ onVerLugar, filtroCategorias }: Props) {
+// Icono numerado para las paradas de una ruta (1, 2, 3...)
+const paradaIconCache = new Map<number, L.DivIcon>();
+function iconoParada(orden: number): L.DivIcon {
+  if (paradaIconCache.has(orden)) return paradaIconCache.get(orden)!;
+  const icono = L.divIcon({
+    html: `<div style="width:28px;height:28px;background:#15803d;color:white;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${orden}</div>`,
+    className: '',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+  paradaIconCache.set(orden, icono);
+  return icono;
+}
+
+// Componente interno: cuando recibe puntos, hace zoom para encuadrar
+// toda la ruta. Se monta dentro del <MapContainer>.
+function AjustarVistaARuta({ puntos }: { puntos: [number, number][] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (puntos.length < 2) return;
+    const bounds = L.latLngBounds(puntos);
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }, [puntos, map]);
+  return null;
+}
+
+export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada, paradasResaltadas }: Props) {
   const [serviciosPrestadores, setServiciosPrestadores] = useState<Lugar[]>([]);
   const [descargando, setDescargando] = useState(false);
   const [progreso, setProgreso] = useState(0);
@@ -105,32 +138,38 @@ export default function MapScreen({ onVerLugar, filtroCategorias }: Props) {
           keepBuffer={2}
         />
         {todosLosLugares.map((lugar) => (
+          // Un tap en el marcador abre directo el detalle del lugar.
+          // Antes teníamos un Popup intermedio de Leaflet, pero se traslapaba
+          // visualmente con el panel inferior. Tap directo = un paso menos
+          // y sin solapamiento.
           <Marker
             key={lugar.id}
             position={lugar.coords}
             icon={getIcono(lugar.categoria)}
-          >
-            <Popup>
-              <div style={{ minWidth: 180 }}>
-                <div className="font-bold text-jungle-950 text-sm leading-tight mb-1">
-                  {lugar.nombre}
-                </div>
-                <div className="text-xs text-jungle-600 mb-1">
-                  {lugar.rating > 0 ? `⭐ ${lugar.rating} · ` : ''}
-                  {lugar.categoria} · {lugar.municipio}
-                </div>
-                <p className="text-xs text-jungle-700 leading-snug mb-2">
-                  {lugar.descripcionCorta}
-                </p>
-                <button
-                  onClick={() => onVerLugar(lugar)}
-                  className="w-full bg-jungle-700 text-white text-xs font-semibold py-1.5 rounded-md"
-                >
-                  Ver detalles
-                </button>
-              </div>
-            </Popup>
-          </Marker>
+            eventHandlers={{ click: () => onVerLugar(lugar) }}
+          />
+        ))}
+        {/* Trazado de la ruta del día sobre las carreteras (si hay) */}
+        {rutaResaltada && rutaResaltada.length >= 2 && (
+          <>
+            <Polyline
+              positions={rutaResaltada}
+              pathOptions={{
+                color: '#15803d',
+                weight: 5,
+                opacity: 0.85,
+              }}
+            />
+            <AjustarVistaARuta puntos={rutaResaltada} />
+          </>
+        )}
+        {/* Paradas numeradas de la ruta del día */}
+        {paradasResaltadas?.map((p) => (
+          <Marker
+            key={`parada-${p.orden}`}
+            position={p.coord}
+            icon={iconoParada(p.orden)}
+          />
         ))}
         <ControladorDescarga
           descargando={descargando}

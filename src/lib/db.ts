@@ -41,10 +41,20 @@ export interface ServicioPrestador {
   codigoSeguimiento: string;
 }
 
+// Geometría de una ruta calculada por OSRM, cacheada para uso offline
+export interface RutaCacheada {
+  clave: string; // identificador único basado en los puntos
+  geometria: [number, number][]; // polyline decodificada
+  distanciaMetros: number;
+  duracionSegundos: number;
+  calculadaEn: number;
+}
+
 class TuxtlasDB extends Dexie {
   favoritos!: Table<Favorito, string>;
   rutas!: Table<RutaGuardada, number>;
   prestadores!: Table<ServicioPrestador, number>;
+  rutasCache!: Table<RutaCacheada, string>;
 
   constructor() {
     super('tuxtlasgo-db');
@@ -58,6 +68,14 @@ class TuxtlasDB extends Dexie {
       favoritos: 'id, agregadoEn',
       rutas: '++id, creadaEn',
       prestadores: '++id, municipio, creadoEn, estado, codigoSeguimiento',
+    });
+    // v3: tabla nueva rutasCache para guardar rutas calculadas
+    // por OSRM y poder reutilizarlas sin internet.
+    this.version(3).stores({
+      favoritos: 'id, agregadoEn',
+      rutas: '++id, creadaEn',
+      prestadores: '++id, municipio, creadoEn, estado, codigoSeguimiento',
+      rutasCache: 'clave, calculadaEn',
     });
   }
 }

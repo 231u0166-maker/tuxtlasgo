@@ -1,4 +1,22 @@
 import { LUGARES, Lugar, Categoria, Presupuesto } from '../data/lugares';
+
+// Catálogo activo del motor: empieza con los lugares estáticos y se puede
+// extender con prestadores aprobados (desde IndexedDB). Mantener este
+// estado al nivel del módulo permite que TODO el motor — recomendaciones,
+// rutas, búsquedas por texto libre — incluya a los prestadores sin tener
+// que pasar listas como parámetros por todos lados.
+let catalogoActivo: Lugar[] = [...LUGARES];
+
+// Llamar al iniciar la app (después de cargar prestadores aprobados) o
+// cada vez que cambie la lista de prestadores aprobados.
+export function setCatalogoExtendido(prestadoresAprobados: Lugar[]): void {
+  catalogoActivo = [...LUGARES, ...prestadoresAprobados];
+}
+
+// Acceso de solo lectura al catálogo actual (lugares + prestadores).
+export function getCatalogoActivo(): Lugar[] {
+  return catalogoActivo;
+}
 import { buscarConocimiento } from './conocimiento';
 import { tokenizar, contieneClave } from './pln';
 
@@ -238,7 +256,7 @@ export function filtrarLugaresConRazones(
   const ordenPresup: Presupuesto[] = ['bajo', 'medio', 'alto'];
   const maxPresup = ordenPresup.indexOf(prefs.presupuesto);
 
-  const scored: LugarConScore[] = LUGARES.map((lugar) => {
+  const scored: LugarConScore[] = catalogoActivo.map((lugar) => {
     let score = 0;
     const razones: string[] = [];
 
@@ -498,7 +516,7 @@ export function responderTextoLibre(
 
   // PASO 2: intents que mapean a categoría de lugar
   if (cat) {
-    let candidatos = LUGARES.filter((l) => l.categoria === cat);
+    let candidatos = catalogoActivo.filter((l) => l.categoria === cat);
     if (municipioMencionado) {
       const enMunicipio = candidatos.filter(
         (l) => l.municipio === municipioMencionado
@@ -540,7 +558,7 @@ export function responderTextoLibre(
 
   // PASO 3: caso especial monos / fauna
   if (intent === 'monos') {
-    const fauna = LUGARES.filter(
+    const fauna = catalogoActivo.filter(
       (l) => l.tags.includes('fauna') || l.tags.includes('monos')
     ).slice(0, 3);
     return {
@@ -548,14 +566,14 @@ export function responderTextoLibre(
       role: 'bot',
       texto:
         'Si quieres ver monos y fauna, el clásico es el paseo en lancha por la laguna de Catemaco, que pasa por las islas de los monos:',
-      lugares: fauna.length > 0 ? fauna : [LUGARES[0]],
+      lugares: fauna.length > 0 ? fauna : [catalogoActivo[0]],
       timestamp: Date.now(),
     };
   }
 
   // PASO 4: solo un municipio mencionado, sin categoría clara
   if (municipioMencionado) {
-    const delMunicipio = LUGARES.filter(
+    const delMunicipio = catalogoActivo.filter(
       (l) => l.municipio === municipioMencionado
     )
       .sort((a, b) => b.rating - a.rating)

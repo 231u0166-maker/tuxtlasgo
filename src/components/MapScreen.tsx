@@ -189,7 +189,7 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
       {rutaResaltada && onLimpiarRuta && (
         <button
           onClick={onLimpiarRuta}
-          className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3.5 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3.5 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
           aria-label="Cerrar ruta y volver al mapa normal"
         >
           <X size={14} />
@@ -198,7 +198,7 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
       )}
 
       {/* Botón de descarga de mapa offline */}
-      <div className="absolute top-3 right-3 z-[1000]">
+      <div className="absolute top-3 right-3 z-30">
         {tilesListos ? (
           <div className="bg-white shadow-lg rounded-xl px-3 py-2 flex items-center gap-2 text-sm font-semibold text-jungle-800">
             <CheckCircle2 size={16} className="text-jungle-600" />
@@ -222,7 +222,7 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
 
       {/* Modal de ayuda antes de descargar */}
       {mostrarAyuda && (
-        <div className="absolute inset-0 z-[1100] bg-black/50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 z-40 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-5 max-w-sm animate-fade-in">
             <div className="flex items-start justify-between mb-2">
               <h3 className="font-display font-bold text-lg text-jungle-950">
@@ -262,7 +262,7 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
       )}
 
       {/* Leyenda de categorías */}
-      <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-white/95 backdrop-blur rounded-2xl p-3 shadow-xl text-xs z-[1000]">
+      <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-white/95 backdrop-blur rounded-2xl p-3 shadow-xl text-xs z-30">
         <div className="font-semibold text-jungle-900 mb-2">
           {todosLosLugares.length} lugares en el mapa
           {serviciosPrestadores.length > 0 && (

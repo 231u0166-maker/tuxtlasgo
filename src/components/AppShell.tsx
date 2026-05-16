@@ -146,7 +146,13 @@ export default function AppShell() {
         </div>
         {tab === 'favoritos' && (
           <div className="h-full overflow-y-auto">
-            <FavoritesScreen onVerLugar={verLugar} />
+            <FavoritesScreen
+              onVerLugar={verLugar}
+              onVerRutaEnMapa={(lugares) => {
+                verRutaEnMapa(lugares);
+                setTab('mapa');
+              }}
+            />
           </div>
         )}
       </main>

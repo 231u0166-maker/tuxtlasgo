@@ -219,3 +219,28 @@ export async function seedDemoSiVacio() {
     },
   ]);
 }
+
+// Guarda una ruta generada por la IA en el dispositivo del usuario.
+// Los IDs de los lugares se guardan (no los objetos completos) para
+// que la ruta ocupe poco espacio y funcione offline.
+export async function guardarRuta(
+  nombre: string,
+  dias: { dia: number; lugaresIds: string[]; resumen: string }[],
+  prefs: object
+): Promise<number> {
+  return db.rutas.add({
+    nombre,
+    creadaEn: Date.now(),
+    dias,
+    prefsJson: JSON.stringify(prefs),
+  });
+}
+
+// Verifica si el mapa ya fue descargado para uso offline.
+export function mapaDescargado(): boolean {
+  try {
+    return localStorage.getItem('tiles-precargados') === 'true';
+  } catch {
+    return false;
+  }
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Heart, Route, Trash2, Calendar } from 'lucide-react';
+import { Heart, Route, Trash2, Calendar, MapPin } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
 import { LUGARES, type Lugar } from '../data/lugares';
@@ -7,9 +7,10 @@ import PlaceCard from './PlaceCard';
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
+  onVerRutaEnMapa?: (lugares: Lugar[]) => void;
 }
 
-export default function FavoritesScreen({ onVerLugar }: Props) {
+export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) {
   const [tab, setTab] = useState<'favoritos' | 'rutas'>('favoritos');
 
   const favoritos = useLiveQuery(async () => {
@@ -113,6 +114,21 @@ export default function FavoritesScreen({ onVerLugar }: Props) {
                         <Trash2 size={16} />
                       </button>
                     </div>
+                    {/* Botón Ver en mapa — muestra todos los lugares de la ruta */}
+                    {onVerRutaEnMapa && (() => {
+                      const todosLugares = r.dias.flatMap(d =>
+                        d.lugaresIds.map(id => LUGARES.find(l => l.id === id)).filter(Boolean) as Lugar[]
+                      );
+                      return todosLugares.length >= 2 ? (
+                        <button
+                          onClick={() => onVerRutaEnMapa(todosLugares)}
+                          className="w-full bg-jungle-700 hover:bg-jungle-800 text-white text-xs font-semibold py-2 flex items-center justify-center gap-1.5 rounded-xl mb-2 transition-colors"
+                        >
+                          <MapPin size={12} />
+                          Ver ruta en el mapa
+                        </button>
+                      ) : null;
+                    })()}
                     {r.dias.map((d) => {
                       const lugaresDia = d.lugaresIds
                         .map((id) => LUGARES.find((l) => l.id === id))

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, RotateCcw, MapPin } from 'lucide-react';
+import { Send, Sparkles, RotateCcw, MapPin, BookmarkPlus, CheckCircle2 } from 'lucide-react';
 import type { Lugar } from '../data/lugares';
 import type { Categoria, Presupuesto } from '../data/lugares';
 import {
@@ -16,6 +16,7 @@ import {
   responderTextoLibre,
 } from '../lib/chatbot';
 
+import { guardarRuta, mapaDescargado } from '../lib/db';
 // ============================================================
 // PANTALLA DEL ASISTENTE — interfaz del motor local de IA
 // ============================================================
@@ -59,6 +60,10 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
   });
   const [input, setInput] = useState('');
   const [escribiendo, setEscribiendo] = useState(false);
+  // Set de índices de mensajes cuya ruta ya fue guardada
+  const [rutasGuardadas, setRutasGuardadas] = useState<Set<number>>(new Set());
+  // Si el mapa NO está descargado, mostramos un aviso al ver la ruta
+  const [mostrarAvisoMapa, setMostrarAvisoMapa] = useState(false);
 
   // Preferencias que se van armando durante el flujo guiado
   const [prefsParcial, setPrefsParcial] = useState<Partial<PreferenciasUsuario>>(
@@ -198,8 +203,9 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
       {
         id: crypto.randomUUID(),
         role: 'bot',
-        texto: `¡Listo! Te armé una ruta de ${dias.length} ${dias.length === 1 ? 'día' : 'días'
-          } pensada para ti. Aquí va, día por día:`,
+        texto: `¡Listo! Te armé una ruta de ${dias.length} ${
+          dias.length === 1 ? 'día' : 'días'
+        } pensada para ti. Aquí va, día por día:`,
         timestamp: Date.now(),
       },
       600
@@ -276,6 +282,21 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-jungle-50">
+      {/* Aviso: descarga el mapa antes de seguir la ruta */}
+      {mostrarAvisoMapa && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-50 border border-amber-300 rounded-2xl shadow-xl px-4 py-3 max-w-xs w-[90vw] text-center animate-fade-in">
+          <p className="text-sm font-semibold text-amber-900 mb-1">📡 Descarga el mapa primero</p>
+          <p className="text-xs text-amber-700 mb-3">
+            Para seguir esta ruta sin internet, ve al Mapa y toca "Descargar mapa" una vez con Wi-Fi.
+          </p>
+          <button
+            onClick={() => setMostrarAvisoMapa(false)}
+            className="bg-amber-600 text-white text-xs font-bold px-4 py-1.5 rounded-full"
+          >
+            Entendido
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="bg-gradient-to-br from-jungle-800 to-jungle-950 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -312,7 +333,25 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
             estado={estado}
             onOpcion={manejarOpcion}
             onVerLugar={onVerLugar}
-            onVerRutaEnMapa={onVerRutaEnMapa}
+            onVerRutaEnMapa={(lugares) => {
+              // Si el mapa no está descargado, avisamos antes de mostrar la ruta
+              if (!mapaDescargado()) {
+                setMostrarAvisoMapa(true);
+              }
+              onVerRutaEnMapa?.(lugares);
+            }}
+            onGuardarRuta={async (diaRuta) => {
+              // Busca si ya hay una ruta guardada con este mensaje
+              // para nombrarla automáticamente
+              const nombre = `Ruta ${new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} — Día ${diaRuta.dia}`;
+              await guardarRuta(
+                nombre,
+                [{ dia: diaRuta.dia, lugaresIds: diaRuta.lugares.map(l => l.id), resumen: diaRuta.resumen }],
+                {}
+              );
+              setRutasGuardadas(prev => new Set([...prev, mensajes.indexOf(msg)]));
+            }}
+            rutaYaGuardada={rutasGuardadas.has(mensajes.indexOf(msg))}
           />
         ))}
 
@@ -372,6 +411,8 @@ function Burbuja({
   onOpcion,
   onVerLugar,
   onVerRutaEnMapa,
+  onGuardarRuta,
+  rutaYaGuardada,
 }: {
   mensaje: MensajeChat;
   interesesTemp: Categoria[];
@@ -379,6 +420,8 @@ function Burbuja({
   onOpcion: (valor: string, label: string) => void;
   onVerLugar: (lugar: Lugar) => void;
   onVerRutaEnMapa?: (lugares: Lugar[]) => void;
+  onGuardarRuta?: (dia: { dia: number; lugares: Lugar[]; resumen: string }) => void;
+  rutaYaGuardada?: boolean;
 }) {
   const esBot = mensaje.role === 'bot';
 
@@ -387,10 +430,11 @@ function Burbuja({
       <div className={`max-w-[85%] ${esBot ? '' : 'items-end'}`}>
         {/* Texto del mensaje */}
         <div
-          className={`px-4 py-2.5 text-sm whitespace-pre-line ${esBot
+          className={`px-4 py-2.5 text-sm whitespace-pre-line ${
+            esBot
               ? 'bg-white text-jungle-900 rounded-2xl rounded-tl-sm border border-jungle-100'
               : 'bg-jungle-700 text-white rounded-2xl rounded-tr-sm'
-            }`}
+          }`}
         >
           {mensaje.texto}
         </div>
@@ -407,12 +451,13 @@ function Burbuja({
                 <button
                   key={op.valor}
                   onClick={() => onOpcion(op.valor, op.label)}
-                  className={`text-sm px-3 py-2 rounded-xl font-medium transition-colors border ${esDone
+                  className={`text-sm px-3 py-2 rounded-xl font-medium transition-colors border ${
+                    esDone
                       ? 'bg-jungle-700 text-white border-jungle-700 hover:bg-jungle-800'
                       : seleccionado
-                        ? 'bg-jungle-600 text-white border-jungle-600'
-                        : 'bg-white text-jungle-800 border-jungle-200 hover:bg-jungle-50'
-                    }`}
+                      ? 'bg-jungle-600 text-white border-jungle-600'
+                      : 'bg-white text-jungle-800 border-jungle-200 hover:bg-jungle-50'
+                  }`}
                 >
                   {seleccionado ? '✓ ' : ''}
                   {op.label}
@@ -467,15 +512,33 @@ function Burbuja({
                 </div>
               ))}
             </div>
-            {onVerRutaEnMapa && mensaje.rutaDia.lugares.length >= 2 && (
-              <button
-                onClick={() => onVerRutaEnMapa(mensaje.rutaDia!.lugares)}
-                className="w-full bg-jungle-700 hover:bg-jungle-800 text-white text-sm font-semibold py-2.5 flex items-center justify-center gap-2 transition-colors"
-              >
-                <MapPin size={14} />
-                Ver ruta en el mapa
-              </button>
-            )}
+            <div className="border-t border-jungle-100 mt-2 pt-2 space-y-1.5">
+              {onVerRutaEnMapa && mensaje.rutaDia.lugares.length >= 2 && (
+                <button
+                  onClick={() => onVerRutaEnMapa(mensaje.rutaDia!.lugares)}
+                  className="w-full bg-jungle-700 hover:bg-jungle-800 text-white text-sm font-semibold py-2.5 flex items-center justify-center gap-2 transition-colors rounded-b-xl"
+                >
+                  <MapPin size={14} />
+                  Ver ruta en el mapa
+                </button>
+              )}
+              {onGuardarRuta && (
+                rutaYaGuardada ? (
+                  <div className="w-full flex items-center justify-center gap-2 text-xs text-jungle-600 py-1.5">
+                    <CheckCircle2 size={13} />
+                    Ruta guardada en Mis lugares
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onGuardarRuta(mensaje.rutaDia!)}
+                    className="w-full border border-jungle-300 text-jungle-700 hover:bg-jungle-50 text-xs font-semibold py-2 flex items-center justify-center gap-1.5 transition-colors rounded-xl"
+                  >
+                    <BookmarkPlus size={13} />
+                    Guardar esta ruta en Mis lugares
+                  </button>
+                )
+              )}
+            </div>
           </div>
         )}
       </div>

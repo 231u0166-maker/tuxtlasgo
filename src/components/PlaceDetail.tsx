@@ -52,7 +52,8 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
         backgroundColor: 'rgba(2, 44, 22, 0.97)',
         display: 'flex',
         flexDirection: 'column',
-        overflowY: 'auto',
+        // El scroll ocurre en el div interior, no aquí
+        overflow: 'hidden',
       }}
     >
       <div
@@ -61,7 +62,10 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
           backgroundColor: 'white',
           display: 'flex',
           flexDirection: 'column',
-          minHeight: '100%',
+          overflowY: 'scroll',           // scroll siempre visible en iOS
+          WebkitOverflowScrolling: 'touch', // scroll inercial en iOS
+          overscrollBehavior: 'contain',  // evita que el scroll se escape al mapa
+          touchAction: 'pan-y',           // solo permite scroll vertical táctil
         }}
       >
         <div className="relative aspect-[16/10] bg-jungle-200">

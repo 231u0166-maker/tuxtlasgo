@@ -128,12 +128,17 @@ export default function AppShell() {
           </div>
         )}
         {tab === 'mapa' && (
-          <MapScreen
-            onVerLugar={verLugar}
-            rutaResaltada={rutaVisible?.geometria}
-            paradasResaltadas={rutaVisible?.paradas}
-            onLimpiarRuta={() => setRutaVisible(null)}
-          />
+          // Cuando hay un detalle abierto, bloqueamos los eventos de
+          // toque del mapa para que Leaflet no interfiera con el scroll
+          // del PlaceDetail que está encima.
+          <div style={{ pointerEvents: lugarSeleccionado ? 'none' : 'auto', height: '100%' }}>
+            <MapScreen
+              onVerLugar={verLugar}
+              rutaResaltada={rutaVisible?.geometria}
+              paradasResaltadas={rutaVisible?.paradas}
+              onLimpiarRuta={() => setRutaVisible(null)}
+            />
+          </div>
         )}
         {tab === 'chat' && (
           <ChatAssistant

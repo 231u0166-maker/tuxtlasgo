@@ -139,18 +139,23 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
           maxZoom={18}
           keepBuffer={2}
         />
-        {todosLosLugares.map((lugar) => (
-          // Un tap en el marcador abre directo el detalle del lugar.
-          // Antes teníamos un Popup intermedio de Leaflet, pero se traslapaba
-          // visualmente con el panel inferior. Tap directo = un paso menos
-          // y sin solapamiento.
-          <Marker
-            key={lugar.id}
-            position={lugar.coords}
-            icon={getIcono(lugar.categoria)}
-            eventHandlers={{ click: () => onVerLugar(lugar) }}
-          />
-        ))}
+        {todosLosLugares.map((lugar) => {
+          // Si este lugar ya aparece como parada numerada en la ruta,
+          // no mostramos el marcador normal para evitar superposición.
+          const esParada = paradasResaltadas?.some(
+            (p) => Math.abs(p.coord[0] - lugar.coords[0]) < 0.001 &&
+                   Math.abs(p.coord[1] - lugar.coords[1]) < 0.001
+          );
+          if (esParada) return null;
+          return (
+            <Marker
+              key={lugar.id}
+              position={lugar.coords}
+              icon={getIcono(lugar.categoria)}
+              eventHandlers={{ click: () => onVerLugar(lugar) }}
+            />
+          );
+        })}
         {/* Botón de brújula/reset: regresa al centro de Los Tuxtlas */}
         <ResetearVista />
 

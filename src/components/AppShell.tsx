@@ -135,12 +135,15 @@ export default function AppShell() {
             onLimpiarRuta={() => setRutaVisible(null)}
           />
         )}
-        {tab === 'chat' && (
+        {/* ChatAssistant SIEMPRE montado — solo se oculta visualmente.
+             Así el estado del chat (mensajes, ruta, preferencias) nunca
+             se pierde al cambiar de tab. */}
+        <div style={{ display: tab === 'chat' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
           <ChatAssistant
             onVerLugar={verLugar}
             onVerRutaEnMapa={verRutaEnMapa}
           />
-        )}
+        </div>
         {tab === 'favoritos' && (
           <div className="h-full overflow-y-auto">
             <FavoritesScreen onVerLugar={verLugar} />
@@ -186,4 +189,4 @@ export default function AppShell() {
       )}
     </div>
   );
-}                   
+}

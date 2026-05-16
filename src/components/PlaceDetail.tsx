@@ -41,8 +41,29 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-jungle-950/95 backdrop-blur flex items-stretch sm:items-center justify-center animate-fade-in" style={{ height: '100dvh' }}>
-      <div className="bg-white w-full sm:max-w-2xl sm:rounded-2xl sm:rounded-t-2xl rounded-t-3xl h-full sm:h-auto sm:max-h-[92vh] overflow-y-auto animate-slide-up">
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+        backgroundColor: 'rgba(2, 44, 22, 0.97)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflowY: 'auto',
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          backgroundColor: 'white',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100%',
+        }}
+      >
         <div className="relative aspect-[16/10] bg-jungle-200">
           <img
             src={lugar.imagen}

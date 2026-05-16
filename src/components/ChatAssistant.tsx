@@ -36,8 +36,27 @@ interface Props {
 }
 
 export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
-  const [mensajes, setMensajes] = useState<MensajeChat[]>([mensajeBienvenida()]);
-  const [estado, setEstado] = useState<EstadoChat>('preguntando_dias');
+  // El chat persiste entre cambios de tab usando sessionStorage.
+  // Se limpia al cerrar/recargar la app, pero sobrevive mientras
+  // la PWA esté abierta — el turista puede ir al mapa y volver
+  // sin perder su conversación.
+  const [mensajes, setMensajes] = useState<MensajeChat[]>(() => {
+    try {
+      const guardado = sessionStorage.getItem('tuxtlasgo-chat');
+      if (guardado) {
+        const parsed = JSON.parse(guardado) as MensajeChat[];
+        if (parsed.length > 0) return parsed;
+      }
+    } catch { /* sessionStorage no disponible */ }
+    return [mensajeBienvenida()];
+  });
+  const [estado, setEstado] = useState<EstadoChat>(() => {
+    try {
+      const e = sessionStorage.getItem('tuxtlasgo-chat-estado');
+      if (e) return e as EstadoChat;
+    } catch { /* ok */ }
+    return 'preguntando_dias';
+  });
   const [input, setInput] = useState('');
   const [escribiendo, setEscribiendo] = useState(false);
 
@@ -81,6 +100,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
   // Reinicia toda la conversación
   function reiniciar() {
     setMensajes([mensajeBienvenida()]);
+    try { sessionStorage.removeItem('tuxtlasgo-chat'); sessionStorage.removeItem('tuxtlasgo-chat-estado'); } catch { /* ok */ }
     setEstado('preguntando_dias');
     setPrefsParcial({});
     setInteresesTemp([]);
@@ -178,9 +198,8 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
       {
         id: crypto.randomUUID(),
         role: 'bot',
-        texto: `¡Listo! Te armé una ruta de ${dias.length} ${
-          dias.length === 1 ? 'día' : 'días'
-        } pensada para ti. Aquí va, día por día:`,
+        texto: `¡Listo! Te armé una ruta de ${dias.length} ${dias.length === 1 ? 'día' : 'días'
+          } pensada para ti. Aquí va, día por día:`,
         timestamp: Date.now(),
       },
       600
@@ -368,11 +387,10 @@ function Burbuja({
       <div className={`max-w-[85%] ${esBot ? '' : 'items-end'}`}>
         {/* Texto del mensaje */}
         <div
-          className={`px-4 py-2.5 text-sm whitespace-pre-line ${
-            esBot
+          className={`px-4 py-2.5 text-sm whitespace-pre-line ${esBot
               ? 'bg-white text-jungle-900 rounded-2xl rounded-tl-sm border border-jungle-100'
               : 'bg-jungle-700 text-white rounded-2xl rounded-tr-sm'
-          }`}
+            }`}
         >
           {mensaje.texto}
         </div>
@@ -389,13 +407,12 @@ function Burbuja({
                 <button
                   key={op.valor}
                   onClick={() => onOpcion(op.valor, op.label)}
-                  className={`text-sm px-3 py-2 rounded-xl font-medium transition-colors border ${
-                    esDone
+                  className={`text-sm px-3 py-2 rounded-xl font-medium transition-colors border ${esDone
                       ? 'bg-jungle-700 text-white border-jungle-700 hover:bg-jungle-800'
                       : seleccionado
-                      ? 'bg-jungle-600 text-white border-jungle-600'
-                      : 'bg-white text-jungle-800 border-jungle-200 hover:bg-jungle-50'
-                  }`}
+                        ? 'bg-jungle-600 text-white border-jungle-600'
+                        : 'bg-white text-jungle-800 border-jungle-200 hover:bg-jungle-50'
+                    }`}
                 >
                   {seleccionado ? '✓ ' : ''}
                   {op.label}

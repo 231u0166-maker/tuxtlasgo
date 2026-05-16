@@ -136,93 +136,6 @@ export const LUGARES: Lugar[] = [
     verificado: true,
   },
   {
-    id: 'basilica-catemaco',
-    nombre: 'Basílica del Carmen',
-    categoria: 'Cultura',
-    municipio: 'Catemaco',
-    descripcionCorta: 'Santuario de fachada blanca y azul frente a la laguna.',
-    descripcion:
-      'Santuario dedicado a la Virgen del Carmen, patrona de Catemaco. Su inconfundible fachada blanca con detalles azules es uno de los símbolos del pueblo. Su festividad, el 16 de julio, reúne a miles de peregrinos.',
-    coords: [18.4196, -95.1175],
-    rating: 4.5,
-    precio: 'bajo',
-    precioMxn: 'Acceso gratuito.',
-    duracionSugerida: '30 min',
-    imagen:
-      'https://images.unsplash.com/photo-1548270361-d2e6e2db5f5e?w=800&q=80',
-    tags: ['religión', 'arquitectura', 'cultura', 'foto', 'centro'],
-    ideal: ['solo', 'pareja', 'familia'],
-    abierto: { dias: 'Todos los días', horario: '07:00 - 20:00' },
-    comoLlegar: 'En el centro de Catemaco, a unos pasos del malecón.',
-    verificado: true,
-  },
-  {
-    id: 'playa-hermosa-catemaco',
-    nombre: 'Playa Hermosa',
-    categoria: 'Naturaleza',
-    municipio: 'Catemaco',
-    descripcionCorta: 'Orilla tranquila de la laguna para nadar y descansar.',
-    descripcion:
-      'Zona de la ribera de la laguna de Catemaco acondicionada como balneario. Tiene aguas tranquilas, palapas y vendedores de comida. Es una opción accesible para pasar el día junto al agua sin tomar lancha.',
-    coords: [18.4083, -95.0908],
-    rating: 4.0,
-    precio: 'bajo',
-    precioMxn: 'Acceso gratuito o cuota baja según la zona. Renta de palapa aparte.',
-    duracionSugerida: '2-3 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1473116763249-2faaef81ccda?w=800&q=80',
-    tags: ['agua', 'familia', 'tranquilo', 'naturaleza', 'descanso'],
-    ideal: ['familia', 'amigos'],
-    abierto: { dias: 'Todos los días', horario: '08:00 - 18:00' },
-    comoLlegar: 'Sobre la ribera de la laguna, a pocos minutos del centro de Catemaco.',
-    verificado: false,
-  },
-  {
-    id: 'hotel-finca',
-    nombre: 'Hotel La Finca',
-    categoria: 'Hospedaje',
-    municipio: 'Catemaco',
-    descripcionCorta: 'Hotel con vista a la laguna y renta de kayaks.',
-    descripcion:
-      'Hotel a orillas de la laguna de Catemaco, con vista panorámica al agua, alberca, jardín para eventos, masajes y renta de kayaks para explorar la laguna por cuenta propia. A pocos minutos del centro.',
-    coords: [18.4115, -95.1212],
-    rating: 4.4,
-    precio: 'alto',
-    precioMxn: 'Habitación desde ~$1,400/noche (confirmar temporada).',
-    duracionSugerida: 'Estancia',
-    imagen:
-      'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80',
-    tags: ['hotel', 'alberca', 'vista', 'pareja', 'kayak', 'hospedaje'],
-    ideal: ['pareja', 'familia'],
-    abierto: { dias: 'Todos los días', horario: 'Check-in 15:00 / Check-out 12:00' },
-    comoLlegar: 'Sobre la ribera de la laguna, a unos minutos del centro de Catemaco.',
-    verificado: false,
-  },
-  {
-    id: 'restaurantes-malecon',
-    nombre: 'Cocina tradicional del Malecón',
-    categoria: 'Gastronomia',
-    municipio: 'Catemaco',
-    descripcionCorta: 'Tegogolos, mojarra y pescado a la veracruzana frente a la laguna.',
-    descripcion:
-      'La hilera de restaurantes del malecón de Catemaco es el mejor lugar para probar la cocina típica de la laguna: tegogolos (caracol de río en pico de gallo), mojarra frita, anguila y el pescado a la veracruzana. Varios tienen terraza con vista al agua.',
-    coords: [18.4205, -95.1168],
-    rating: 4.3,
-    precio: 'medio',
-    precioMxn: 'Platillo fuerte ~$120–$250 por persona.',
-    duracionSugerida: '1-2 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&q=80',
-    tags: ['comida', 'mariscos', 'tegogolo', 'mojarra', 'gastronomia', 'vista'],
-    ideal: ['pareja', 'familia', 'amigos', 'solo'],
-    abierto: { dias: 'Todos los días', horario: '08:00 - 21:00' },
-    comoLlegar: 'A lo largo del malecón de Catemaco, en el centro.',
-    tip: 'Pregunta el precio antes de sentarte; varía por restaurante. Los tegogolos son el platillo emblemático de la laguna.',
-    verificado: true,
-  },
-
-  // ─────────────── SAN ANDRÉS TUXTLA ───────────────
-  {
     id: 'eyipantla',
     nombre: 'Salto de Eyipantla',
     categoria: 'Naturaleza',
@@ -246,27 +159,6 @@ export const LUGARES: Lugar[] = [
     verificado: true,
   },
   {
-    id: 'laguna-encantada',
-    nombre: 'Laguna Encantada',
-    categoria: 'Naturaleza',
-    municipio: 'San Andrés Tuxtla',
-    descripcionCorta: 'Laguna que sube en sequía y baja en lluvias.',
-    descripcion:
-      'Laguna de origen volcánico conocida por un fenómeno inusual: su nivel de agua sube en temporada de secas y baja en temporada de lluvias, por su conexión con cavidades subterráneas. Está rodeada de selva y tiene un sendero corto y tranquilo, ideal para caminar y observar aves.',
-    coords: [18.4856, -95.1928],
-    rating: 4.3,
-    precio: 'bajo',
-    precioMxn: 'Entrada económica (~$20, confirmar en campo).',
-    duracionSugerida: '1-2 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&q=80',
-    tags: ['laguna', 'misterio', 'naturaleza', 'caminata', 'tranquilo', 'aves'],
-    ideal: ['pareja', 'familia', 'solo'],
-    abierto: { dias: 'Todos los días', horario: '08:00 - 17:00' },
-    comoLlegar: 'A unos 10 min del centro de San Andrés Tuxtla, por la carretera hacia Sontecomapan.',
-    verificado: false,
-  },
-  {
     id: 'museo-tabaco',
     nombre: 'San Andrés Tuxtla y sus fábricas de puros',
     categoria: 'Cultura',
@@ -286,49 +178,7 @@ export const LUGARES: Lugar[] = [
     abierto: { dias: 'Lunes a sábado', horario: '09:00 - 18:00 (varía por fábrica)' },
     comoLlegar: 'En el centro de San Andrés Tuxtla. Varias fábricas están en el primer cuadro de la ciudad.',
     tip: 'Pregunta en el centro por las fábricas que ofrecen recorrido; algunas permiten ver el proceso completo.',
-    verificado: false,
-  },
-  {
-    id: 'playa-escondida',
-    nombre: 'Playa Escondida',
-    categoria: 'Playa',
-    municipio: 'San Andrés Tuxtla',
-    descripcionCorta: 'Playa virgen entre acantilados de selva.',
-    descripcion:
-      'Una de las playas más vírgenes de Veracruz, de arena oscura volcánica y oleaje moderado, con la selva llegando casi hasta la orilla. El acceso es por terracería desde la zona de Montepío, lo que la mantiene poco concurrida.',
-    coords: [18.6589, -95.0792],
-    rating: 4.5,
-    precio: 'bajo',
-    precioMxn: 'Acceso gratuito.',
-    duracionSugerida: 'Medio día',
-    imagen:
-      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80',
-    tags: ['playa', 'mar', 'virgen', 'tranquilo', 'naturaleza'],
-    ideal: ['pareja', 'amigos', 'solo'],
-    abierto: { dias: 'Todos los días', horario: 'Sin horario fijo' },
-    comoLlegar: 'Por la costa norte del municipio, cerca de Montepío. El último tramo es de terracería; conviene ir en auto alto o con guía.',
-    verificado: false,
-  },
-  {
-    id: 'playa-montepio',
-    nombre: 'Playa de Montepío',
-    categoria: 'Playa',
-    municipio: 'San Andrés Tuxtla',
-    descripcionCorta: 'Pueblo costero con palapas y mariscos frescos.',
-    descripcion:
-      'Comunidad pesquera con playa de arena oscura y oleaje tranquilo en su zona de río. Tiene palapas que sirven mariscos frescos a pie de playa. Es buena base para visitar Playa Escondida y la zona costera de la reserva.',
-    coords: [18.6353, -95.1058],
-    rating: 4.3,
-    precio: 'medio',
-    precioMxn: 'Comida en palapas ~$150–$250/persona.',
-    duracionSugerida: '4-6 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=800&q=80',
-    tags: ['playa', 'mariscos', 'familia', 'comida', 'mar', 'gastronomia'],
-    ideal: ['familia', 'pareja', 'amigos'],
-    abierto: { dias: 'Todos los días', horario: 'Sin horario fijo' },
-    comoLlegar: 'En la costa norte de San Andrés Tuxtla, por la carretera que va de Sontecomapan hacia la costa.',
-    verificado: false,
+    verificado: true,
   },
   {
     id: 'sontecomapan',
@@ -349,32 +199,8 @@ export const LUGARES: Lugar[] = [
     ideal: ['solo', 'pareja', 'familia'],
     abierto: { dias: 'Todos los días', horario: '07:00 - 17:00' },
     comoLlegar: 'Pueblo de Sontecomapan, a unos 18 km de Catemaco rumbo a la costa.',
-    verificado: false,
+    verificado: true,
   },
-  {
-    id: 'mirador-tuxtlas',
-    nombre: 'Miradores de la Sierra de San Martín',
-    categoria: 'Aventura',
-    municipio: 'San Andrés Tuxtla',
-    descripcionCorta: 'Vistas panorámicas de la selva y los volcanes de Los Tuxtlas.',
-    descripcion:
-      'La carretera que sube por la Sierra de San Martín ofrece varios puntos con vistas panorámicas de la selva tropical, los volcanes y, en días despejados, la laguna y el Golfo. Es zona de la Reserva de la Biósfera Los Tuxtlas, ideal para senderismo y avistamiento de aves.',
-    coords: [18.5667, -95.2],
-    rating: 4.2,
-    precio: 'bajo',
-    precioMxn: 'Acceso libre por carretera. Tours guiados de senderismo aparte.',
-    duracionSugerida: '2-4 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1454942901704-3c44c11b2ad1?w=800&q=80',
-    tags: ['mirador', 'senderismo', 'aventura', 'naturaleza', 'foto', 'volcan'],
-    ideal: ['amigos', 'pareja', 'solo'],
-    abierto: { dias: 'Todos los días', horario: 'Horas de luz' },
-    comoLlegar: 'Por la carretera que sube de San Andrés Tuxtla hacia la sierra y la costa.',
-    tip: 'Ve temprano: las nubes suelen cubrir la sierra después del mediodía. Lleva suéter, arriba refresca.',
-    verificado: false,
-  },
-
-  // ─────────────── SANTIAGO TUXTLA ───────────────
   {
     id: 'cabeza-cobata',
     nombre: 'Cabeza Olmeca de Cobata',
@@ -416,7 +242,7 @@ export const LUGARES: Lugar[] = [
     ideal: ['solo', 'pareja', 'familia'],
     abierto: { dias: 'Martes a domingo', horario: '09:00 - 17:00' },
     comoLlegar: 'En la plaza central de Santiago Tuxtla, junto a la Cabeza Olmeca de Cobata.',
-    verificado: false,
+    verificado: true,
   },
   {
     id: 'tres-zapotes',
@@ -439,42 +265,27 @@ export const LUGARES: Lugar[] = [
     comoLlegar: 'En la localidad de Tres Zapotes, al oeste de Santiago Tuxtla. Se llega por carretera estatal desde el centro.',
     tip: 'Es el sitio más alejado de la región; conviene combinarlo con la visita al centro de Santiago Tuxtla el mismo día.',
     verificado: true,
-  },
-  {
-    id: 'centro-santiago',
-    nombre: 'Centro histórico de Santiago Tuxtla',
-    categoria: 'Cultura',
-    municipio: 'Santiago Tuxtla',
-    descripcionCorta: 'El más antiguo de los tres pueblos, esencia colonial.',
-    descripcion:
-      'Santiago Tuxtla es la más antigua de las tres ciudades de Los Tuxtlas. Su centro conserva la parroquia, el quiosco y el ambiente de pueblo tradicional veracruzano. Es punto de partida para conocer la herencia olmeca de la región.',
-    coords: [18.4658, -95.2986],
-    rating: 4.2,
-    precio: 'bajo',
-    precioMxn: 'Acceso gratuito.',
-    duracionSugerida: '1-2 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1512813195386-6cf811ad3542?w=800&q=80',
-    tags: ['centro', 'colonial', 'cultura', 'historia', 'paseo', 'tradición'],
-    ideal: ['solo', 'pareja', 'familia', 'amigos'],
-    abierto: { dias: 'Todos los días', horario: 'Abierto las 24 horas' },
-    comoLlegar: 'Centro de Santiago Tuxtla, sobre la carretera federal 180.',
-    verificado: false,
-  },
+  }
 ];
 
-export const CATEGORIAS: { id: Categoria; emoji: string; color: string }[] = [
-  { id: 'Naturaleza', emoji: '🌳', color: 'bg-jungle-100 text-jungle-800' },
-  { id: 'Aventura', emoji: '🥾', color: 'bg-orange-100 text-orange-800' },
-  { id: 'Cultura', emoji: '🏛️', color: 'bg-amber-100 text-amber-800' },
-  { id: 'Gastronomia', emoji: '🍤', color: 'bg-red-100 text-red-800' },
-  { id: 'Hospedaje', emoji: '🛏️', color: 'bg-blue-100 text-blue-800' },
-  { id: 'Playa', emoji: '🏖️', color: 'bg-cyan-100 text-cyan-800' },
-];
 
-// Bounding box de Los Tuxtlas (para pre-cache de tiles del mapa)
+// ─── Configuración geográfica ───────────────────────────────────
+export const LOS_TUXTLAS_CENTER: [number, number] = [18.45, -95.18];
 export const LOS_TUXTLAS_BOUNDS: [[number, number], [number, number]] = [
   [18.35, -95.5],
   [18.7, -94.95],
 ];
-export const LOS_TUXTLAS_CENTER: [number, number] = [18.45, -95.18];
+
+// ─── Categorías con color y emoji ───────────────────────────────
+export const CATEGORIAS: {
+  id: Categoria;
+  emoji: string;
+  color: string;
+}[] = [
+  { id: 'Naturaleza', emoji: '🌿', color: 'bg-jungle-100 text-jungle-800' },
+  { id: 'Aventura',   emoji: '🥾', color: 'bg-amber-100 text-amber-800' },
+  { id: 'Cultura',    emoji: '🏛️',  color: 'bg-purple-100 text-purple-800' },
+  { id: 'Gastronomia', emoji: '🍽️', color: 'bg-red-100 text-red-800' },
+  { id: 'Hospedaje',  emoji: '🛏️',  color: 'bg-blue-100 text-blue-800' },
+  { id: 'Playa',      emoji: '🏖️',  color: 'bg-sky-100 text-sky-800' },
+];

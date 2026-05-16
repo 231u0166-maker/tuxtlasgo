@@ -128,17 +128,12 @@ export default function AppShell() {
           </div>
         )}
         {tab === 'mapa' && (
-          // Cuando hay un detalle abierto, bloqueamos los eventos de
-          // toque del mapa para que Leaflet no interfiera con el scroll
-          // del PlaceDetail que está encima.
-          <div style={{ pointerEvents: lugarSeleccionado ? 'none' : 'auto', height: '100%' }}>
-            <MapScreen
-              onVerLugar={verLugar}
-              rutaResaltada={rutaVisible?.geometria}
-              paradasResaltadas={rutaVisible?.paradas}
-              onLimpiarRuta={() => setRutaVisible(null)}
-            />
-          </div>
+          <MapScreen
+            onVerLugar={verLugar}
+            rutaResaltada={rutaVisible?.geometria}
+            paradasResaltadas={rutaVisible?.paradas}
+            onLimpiarRuta={() => setRutaVisible(null)}
+          />
         )}
         {tab === 'chat' && (
           <ChatAssistant
@@ -166,12 +161,29 @@ export default function AppShell() {
       />
 
       {lugarSeleccionado && (
-        <PlaceDetail
-          lugar={lugarSeleccionado}
-          onClose={() => setLugarSeleccionado(null)}
-          onVerEnMapa={verEnMapa}
-        />
+        <>
+          {/* Capa de bloqueo: captura TODOS los eventos táctiles antes
+              de que lleguen al mapa de Leaflet. Sin esto, Leaflet sigue
+              procesando toques aunque el modal esté encima visualmente. */}
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9998,
+              touchAction: 'none',
+            }}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <PlaceDetail
+            lugar={lugarSeleccionado}
+            onClose={() => setLugarSeleccionado(null)}
+            onVerEnMapa={verEnMapa}
+          />
+        </>
       )}
     </div>
   );
-}
+}                   

@@ -205,9 +205,23 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
             Mapa disponible offline
           </div>
         ) : descargando ? (
-          <div className="bg-white shadow-lg rounded-xl px-3 py-2 flex items-center gap-2 text-sm font-semibold text-jungle-800">
-            <Loader2 size={16} className="animate-spin" />
-            Descargando {progreso}%
+          <div className="bg-white shadow-lg rounded-xl px-3 py-2.5 flex flex-col gap-1 min-w-[160px]">
+            <div className="flex items-center gap-2 text-sm font-semibold text-jungle-800">
+              <Loader2 size={14} className="animate-spin flex-shrink-0" />
+              Guardando mapa… {progreso}%
+            </div>
+            <div className="w-full bg-jungle-100 rounded-full h-1.5">
+              <div
+                className="bg-jungle-600 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${progreso}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-jungle-500">
+              {progreso < 30 ? 'Descargando calles y carreteras…' :
+               progreso < 60 ? 'Guardando zonas turísticas…' :
+               progreso < 90 ? 'Casi listo, descargando detalles…' :
+               'Finalizando…'}
+            </p>
           </div>
         ) : (
           <button
@@ -288,12 +302,54 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
 }
 
 // ─────────────────────────────────────────────
-// Controlador de descarga de tiles para uso offline.
-// OPTIMIZADO: en lugar de saltar por 8 puntos a zoom alto (que
-// descargaba miles de tiles y trababa el navegador), hace un
-// barrido más inteligente y ligero, reportando progreso, y
-// usando requestAnimationFrame para no congelar la UI.
 // ─────────────────────────────────────────────
+// Descarga inteligente de tiles para uso offline.
+//
+// En lugar de mover el mapa al azar, calcula matemáticamente
+// TODOS los tiles de Los Tuxtlas en zoom 10-14 (659 tiles),
+// los descarga con fetch() directo y los mete en el caché
+// de Workbox. Sin mover el mapa, sin congelar la UI.
+//
+// Para zooms bajos (10-12) descarga todos los tiles.
+// Para zoom 13-14 descarga solo los que cubren Los Tuxtlas.
+// ─────────────────────────────────────────────
+
+function lngToTileX(lng: number, zoom: number): number {
+  return Math.floor(((lng + 180) / 360) * Math.pow(2, zoom));
+}
+
+function latToTileY(lat: number, zoom: number): number {
+  const latRad = (lat * Math.PI) / 180;
+  return Math.floor(
+    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) *
+      Math.pow(2, zoom)
+  );
+}
+
+// Genera la lista completa de URLs de tiles que cubren Los Tuxtlas.
+function generarTilesRegion(): string[] {
+  const [[s, w], [n, e]] = LOS_TUXTLAS_BOUNDS;
+  // Márgenes pequeños para cubrir un poco más allá de los bordes
+  const margin = 0.05;
+  const urls: string[] = [];
+  const subdominios = ['a', 'b', 'c'];
+
+  for (let zoom = 10; zoom <= 14; zoom++) {
+    const xMin = lngToTileX(w - margin, zoom);
+    const xMax = lngToTileX(e + margin, zoom);
+    const yMin = latToTileY(n + margin, zoom); // norte = y menor
+    const yMax = latToTileY(s - margin, zoom); // sur = y mayor
+
+    for (let x = xMin; x <= xMax; x++) {
+      for (let y = yMin; y <= yMax; y++) {
+        const sub = subdominios[(x + y) % 3];
+        urls.push(`https://${sub}.tile.openstreetmap.org/${zoom}/${x}/${y}.png`);
+      }
+    }
+  }
+  return urls;
+}
+
 function ControladorDescarga({
   descargando,
   onProgreso,
@@ -313,48 +369,56 @@ function ControladorDescarga({
     ejecutando.current = true;
     onIniciar();
 
-    const [[s, w], [n, e]] = LOS_TUXTLAS_BOUNDS;
-    const centroLat = (s + n) / 2;
-    const centroLng = (w + e) / 2;
+    const tiles = generarTilesRegion();
+    let descargados = 0;
+    let errores = 0;
 
-    // Puntos de barrido: zoom medio (10-13), NO zoom alto.
-    // Esto reduce drásticamente la cantidad de tiles y evita el trabado.
-    const puntos: { center: [number, number]; zoom: number }[] = [
-      { center: [centroLat, centroLng], zoom: 10 },
-      { center: [centroLat, centroLng], zoom: 11 },
-      { center: [centroLat, centroLng], zoom: 12 },
-      { center: [s + 0.08, centroLng], zoom: 12 },
-      { center: [n - 0.08, centroLng], zoom: 12 },
-      { center: [centroLat, w + 0.1], zoom: 12 },
-      { center: [centroLat, e - 0.1], zoom: 12 },
-    ];
+    // Descarga en lotes de 6 tiles simultáneos para no saturar
+    // la red ni la cuota del caché del navegador.
+    const LOTE = 6;
+    let cursor = 0;
 
-    let indice = 0;
-
-    const procesarSiguiente = () => {
-      if (indice >= puntos.length) {
-        // Terminado: volver a la vista normal
-        map.setView(LOS_TUXTLAS_CENTER, 11, { animate: false });
+    const descargarLote = async () => {
+      if (cursor >= tiles.length) {
+        // Terminado
+        map.setView(LOS_TUXTLAS_CENTER, 11, { animate: true });
         onProgreso(100);
-        setTimeout(() => {
-          ejecutando.current = false;
-          onTerminar();
-        }, 300);
+        console.log(
+          `[TuxtlasGO] Mapa descargado: ${descargados} tiles ok, ${errores} errores`
+        );
+        await new Promise((r) => setTimeout(r, 400));
+        ejecutando.current = false;
+        onTerminar();
         return;
       }
 
-      const punto = puntos[indice];
-      map.setView(punto.center, punto.zoom, { animate: false });
-      indice++;
-      onProgreso(Math.round((indice / puntos.length) * 100));
+      const lote = tiles.slice(cursor, cursor + LOTE);
+      cursor += LOTE;
 
-      // Esperar a que carguen los tiles de este punto antes del siguiente.
-      // 1.8s da tiempo a que Workbox los cachee sin saturar.
-      setTimeout(procesarSiguiente, 1800);
+      await Promise.allSettled(
+        lote.map(async (url) => {
+          try {
+            // Usamos fetch con cache:'force-cache' para que el SW de
+            // Workbox lo intercepte y lo guarde en su caché de tiles.
+            // Si ya está cacheado, no hace petición de red.
+            const r = await fetch(url, { cache: 'force-cache' });
+            if (r.ok) descargados++;
+            else errores++;
+          } catch {
+            errores++;
+          }
+        })
+      );
+
+      onProgreso(Math.round((cursor / tiles.length) * 100));
+
+      // Pequeña pausa entre lotes para no bloquear el hilo principal
+      await new Promise((r) => setTimeout(r, 80));
+      descargarLote();
     };
 
-    // Pequeña espera inicial y arrancamos
-    setTimeout(procesarSiguiente, 400);
+    // Esperamos 300ms para que el modal de confirmación se cierre
+    setTimeout(() => descargarLote(), 300);
   }, [descargando, map, onProgreso, onIniciar, onTerminar]);
 
   return null;

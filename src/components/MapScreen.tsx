@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Download, CheckCircle2, Loader2, X } from 'lucide-react';
+import { Download, CheckCircle2, Loader2, X, Compass } from 'lucide-react';
 import {
   LUGARES,
   LOS_TUXTLAS_BOUNDS,
@@ -151,6 +151,9 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
             eventHandlers={{ click: () => onVerLugar(lugar) }}
           />
         ))}
+        {/* Botón de brújula/reset: regresa al centro de Los Tuxtlas */}
+        <ResetearVista />
+
         {/* Trazado de la ruta del día sobre las carreteras (si hay) */}
         {rutaResaltada && rutaResaltada.length >= 2 && (
           <>
@@ -200,9 +203,9 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
       {/* Botón de descarga de mapa offline */}
       <div className="absolute top-3 right-3 z-30">
         {tilesListos ? (
-          <div className="bg-white shadow-lg rounded-xl px-3 py-2 flex items-center gap-2 text-sm font-semibold text-jungle-800">
-            <CheckCircle2 size={16} className="text-jungle-600" />
-            Mapa disponible offline
+          <div className="bg-white shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-jungle-800">
+            <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
+            <span className="hidden sm:inline">Mapa disponible </span>offline ✓
           </div>
         ) : descargando ? (
           <div className="bg-white shadow-lg rounded-xl px-3 py-2.5 flex flex-col gap-1 min-w-[160px]">
@@ -226,10 +229,10 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
         ) : (
           <button
             onClick={() => setMostrarAyuda(true)}
-            className="bg-white hover:bg-jungle-50 shadow-lg rounded-xl px-3 py-2 flex items-center gap-2 text-sm font-semibold text-jungle-900"
+            className="bg-white hover:bg-jungle-50 shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-jungle-900"
           >
-            <Download size={16} />
-            Descargar mapa
+            <Download size={14} className="flex-shrink-0" />
+            <span className="hidden xs:inline">Descargar </span>mapa
           </button>
         )}
       </div>
@@ -314,6 +317,24 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
 // Para zoom 13-14 descarga solo los que cubren Los Tuxtlas.
 // ─────────────────────────────────────────────
 
+// Botón de brújula/reset: regresa el mapa al centro de Los Tuxtlas.
+// El turista lo usa cuando el mapa se desconfiguró o está muy zoomado.
+function ResetearVista() {
+  const map = useMap();
+  return (
+    <div style={{ position: 'absolute', bottom: '140px', right: '12px', zIndex: 1000 }}>
+      <button
+        onClick={() => map.setView(LOS_TUXTLAS_CENTER, 11, { animate: true })}
+        className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border border-jungle-100"
+        title="Regresar a Los Tuxtlas"
+        aria-label="Regresar al centro del mapa"
+      >
+        <Compass size={20} />
+      </button>
+    </div>
+  );
+}
+
 function lngToTileX(lng: number, zoom: number): number {
   return Math.floor(((lng + 180) / 360) * Math.pow(2, zoom));
 }
@@ -380,8 +401,8 @@ function ControladorDescarga({
 
     const descargarLote = async () => {
       if (cursor >= tiles.length) {
-        // Terminado
-        map.setView(LOS_TUXTLAS_CENTER, 11, { animate: true });
+        // Terminado — NO movemos la vista, el usuario está viendo el mapa
+        // donde lo dejó. El botón de brújula le permite regresar si quiere.
         onProgreso(100);
         console.log(
           `[TuxtlasGO] Mapa descargado: ${descargados} tiles ok, ${errores} errores`

@@ -1,14 +1,7 @@
 // ============================================================
-// CATÁLOGO DE LUGARES — LOS TUXTLAS, VERACRUZ
-// ============================================================
-// Información verificada con fuentes públicas (gobierno municipal
-// de San Andrés Tuxtla, México Desconocido, El Universal, INAH,
-// sitios oficiales de turismo) a mayo 2026.
-//
-// IMPORTANTE para el equipo: los campos `precioMxn`, `abierto` y
-// `verificado` deben corroborarse en campo antes de la versión
-// final. Los marcados con verificado:true tienen fuente pública;
-// los verificado:false son estimaciones a confirmar.
+// BASE DE DATOS DE LUGARES — Los Tuxtlas, Veracruz
+// Información verificada directamente con los establecimientos.
+// Imágenes reales proporcionadas por cada lugar.
 // ============================================================
 
 export type Categoria =
@@ -25,267 +18,266 @@ export interface Lugar {
   id: string;
   nombre: string;
   categoria: Categoria;
-  municipio: 'Catemaco' | 'San Andrés Tuxtla' | 'Santiago Tuxtla';
-  descripcion: string;
+  municipio: string;
   descripcionCorta: string;
-  coords: [number, number]; // [lat, lng]
+  descripcion: string;
+  coords: [number, number];
   rating: number;
   precio: Presupuesto;
   precioMxn: string;
   duracionSugerida: string;
   imagen: string;
+  imagenesExtra?: string[];
   tags: string[];
-  ideal: ('solo' | 'pareja' | 'familia' | 'amigos')[];
+  ideal: string[];
   abierto: { dias: string; horario: string };
-  comoLlegar: string;
-  tip?: string; // consejo práctico para el turista
+  comoLlegar?: string;
+  tip?: string;
+  verificado: boolean;
+  contacto?: string;
   destacado?: boolean;
-  verificado: boolean; // true = info con fuente pública
 }
 
 export const LUGARES: Lugar[] = [
-  // ─────────────── CATEMACO ───────────────
   {
-    id: 'laguna-catemaco',
-    nombre: 'Laguna de Catemaco',
-    categoria: 'Naturaleza',
+    id: 'margiros',
+    nombre: 'Restaurante Margiros',
+    categoria: 'Gastronomia',
     municipio: 'Catemaco',
-    descripcionCorta: 'El tercer cuerpo de agua más grande de México, rodeado de selva.',
+    descripcionCorta: 'Desayunos, almuerzos y postres en ambiente relajado y a la moda.',
     descripcion:
-      'Laguna de origen volcánico de unos 73 km². Es el corazón turístico de Los Tuxtlas. Desde el malecón salen los paseos en lancha que recorren las islas, los manantiales y la reserva de Nanciyaga. Sus aguas albergan especies endémicas y son famosas por los tegogolos, un caracol de río que se come guisado.',
-    coords: [18.4178, -95.1006],
-    rating: 4.7,
-    precio: 'bajo',
-    precioMxn: 'Acceso gratuito. Paseo en lancha colectivo desde $50/persona; lancha privada $700–$1,200.',
-    duracionSugerida: '2-4 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
-    tags: ['agua', 'paseo', 'lancha', 'foto', 'tranquilo', 'naturaleza', 'islas'],
-    ideal: ['solo', 'pareja', 'familia', 'amigos'],
-    abierto: { dias: 'Todos los días', horario: '06:00 - 19:00' },
-    comoLlegar: 'En el centro de Catemaco. El malecón es el punto de partida de las lanchas.',
-    tip: 'Contrata la lancha directamente con los lancheros certificados del malecón y acuerda el precio antes de subir. Todos hacen el mismo recorrido.',
-    destacado: true,
-    verificado: true,
-  },
-  {
-    id: 'nanciyaga',
-    nombre: 'Reserva Ecológica Nanciyaga',
-    categoria: 'Aventura',
-    municipio: 'Catemaco',
-    descripcionCorta: 'Selva tropical, temazcal prehispánico y manantiales minerales.',
-    descripcion:
-      'Reserva privada de 35 hectáreas a orillas de la laguna, pionera del ecoturismo en México. Ofrece recorrido guiado por la selva con réplicas de esculturas olmecas, baño de barro mineral, manantial de agua cristalina, kayak, temazcal prehispánico y limpia espiritual con chamán. Fue escenario de la película "Medicine Man" con Sean Connery.',
-    coords: [18.4319, -95.0875],
-    rating: 4.6,
-    precio: 'medio',
-    precioMxn: 'Entrada y recorrido guiado ~$150/persona. Temazcal desde $550. Limpia con chamán ~$150.',
-    duracionSugerida: '2-3 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80',
-    tags: ['selva', 'spa', 'temazcal', 'experiencia', 'wellness', 'naturaleza', 'cultura'],
-    ideal: ['pareja', 'amigos', 'familia'],
-    abierto: { dias: 'Todos los días', horario: '09:00 - 17:00' },
-    comoLlegar: 'Carretera Catemaco–Coyame km 7, unos 15 min del centro. Se llega en auto o en lancha desde el malecón.',
-    tip: 'La entrada a Nanciyaga NO está incluida en el paseo de lancha; se paga aparte. El lanchero te espera mientras haces el recorrido.',
-    destacado: true,
-    verificado: true,
-  },
-  {
-    id: 'isla-monos',
-    nombre: 'Isla de los Monos',
-    categoria: 'Naturaleza',
-    municipio: 'Catemaco',
-    descripcionCorta: 'Colonia de monos macacos en una isla de la laguna.',
-    descripcion:
-      'Pequeña isla habitada por una colonia de monos macacos introducidos por la Universidad Veracruzana con fines de investigación. Se observa desde la lancha durante el recorrido por la laguna. También se visitan la Isla de los Monos Araña y la Isla de las Garzas.',
-    coords: [18.4225, -95.0941],
+      'Ven y disfruta de deliciosos desayunos, almuerzos, cenas y exquisitos postres en un ambiente relajado, agradable y a la moda. El espacio es ideal para compartir con familia, amigos o grupos, además de ser perfecto para venir con niños. Cocina variada con opciones para todos los gustos.',
+    coords: [18.417520483844594, -95.1106156249393],
     rating: 4.3,
-    precio: 'bajo',
-    precioMxn: 'Incluido en el paseo de lancha por la laguna.',
-    duracionSugerida: '30-45 min',
-    imagen:
-      'https://images.unsplash.com/photo-1540206395-68808572332f?w=800&q=80',
-    tags: ['fauna', 'monos', 'familia', 'foto', 'lancha', 'naturaleza'],
-    ideal: ['familia', 'pareja', 'amigos'],
-    abierto: { dias: 'Todos los días', horario: '07:00 - 17:00' },
-    comoLlegar: 'Solo se accede en lancha desde el malecón de Catemaco, como parte del recorrido por la laguna.',
-    tip: 'No se recomienda llevar fruta para los monos: altera sus hábitos alimenticios. Obsérvalos sin hacer ruido.',
+    precio: 'medio',
+    precioMxn: '$100 – $300 por persona',
+    duracionSugerida: '1-2 horas',
+    imagen: '/lugares/margiros_1.jpg',
+    imagenesExtra: ['/lugares/margiros_2.jpg', '/lugares/margiros_3.jpg', '/lugares/margiros_4.jpg'],
+    tags: ['restaurante', 'desayunos', 'postres', 'familiar', 'cafe', 'niños'],
+    ideal: ['familia', 'pareja', 'amigos', 'solo'],
+    abierto: { dias: 'Todos los días', horario: '8:00 am – 8:00 pm' },
+    comoLlegar: 'Ubicado en el centro de Catemaco. A unas cuadras del malecón principal.',
+    tip: 'Ideal para iniciar el día con un buen desayuno antes de explorar la laguna.',
     verificado: true,
   },
   {
-    id: 'malecon-catemaco',
-    nombre: 'Malecón de Catemaco',
-    categoria: 'Cultura',
+    id: 'palapas-gorel',
+    nombre: 'Palapas Gorel',
+    categoria: 'Gastronomia',
     municipio: 'Catemaco',
-    descripcionCorta: 'El paseo junto a la laguna, corazón social del pueblo.',
+    descripcionCorta: 'Ambiente moderno al aire libre con café, cócteles y vista al lago.',
     descripcion:
-      'Paseo peatonal frente a la laguna. Es donde se contratan los recorridos en lancha, se prueban los tegogolos y la mojarra, y se ve el atardecer. Hay mercado de artesanías, restaurantes y la presencia de los famosos brujos y chamanes de Catemaco.',
-    coords: [18.42, -95.1175],
-    rating: 4.4,
-    precio: 'bajo',
-    precioMxn: 'Acceso gratuito.',
+      'Disfruta de deliciosos desayunos, brunch, almuerzos, cenas y postres en un ambiente moderno, agradable e informal. Contamos con espacios al aire libre, servicio a la mesa y opciones para llevar, ideales para cualquier ocasión. Gran selección de cervezas, cócteles y bebidas. Espacio accesible para personas en silla de ruedas. Aceptamos tarjetas de débito y crédito.',
+    coords: [18.416796367952177, -95.1168500723642],
+    rating: 4.2,
+    precio: 'medio',
+    precioMxn: '$100 – $200 por persona',
     duracionSugerida: '1-2 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1530541930197-ff16ac917b0e?w=800&q=80',
-    tags: ['malecón', 'paseo', 'atardecer', 'comida', 'centro', 'cultura', 'artesanías'],
-    ideal: ['solo', 'pareja', 'familia', 'amigos'],
-    abierto: { dias: 'Todos los días', horario: 'Abierto las 24 horas' },
-    comoLlegar: 'En pleno centro de Catemaco, frente a la laguna.',
-    tip: 'Si te interesa una limpia, espera a hacerla en Nanciyaga o busca en el mercado cerca de la iglesia. Evita a quienes cobran de más a los turistas.',
+    imagen: '/lugares/palapas-gorel_1.jpg',
+    imagenesExtra: ['/lugares/palapas-gorel_2.jpg', '/lugares/palapas-gorel_3.jpg', '/lugares/palapas-gorel_4.jpg'],
+    tags: ['restaurante', 'cafe', 'brunch', 'cocteles', 'aire libre', 'accesible', 'tarjetas'],
+    ideal: ['pareja', 'amigos', 'familia', 'solo'],
+    abierto: { dias: 'Todos los días', horario: '9:00 am – 6:00 pm' },
+    comoLlegar: 'Sobre el malecón de Catemaco, con vista a la laguna.',
+    tip: 'Pide un coctel mientras ves el atardecer sobre la laguna de Catemaco.',
+    verificado: true,
+  },
+  {
+    id: 'bicicleta-cafe',
+    nombre: 'La Bicicleta Café',
+    categoria: 'Gastronomia',
+    municipio: 'San Andrés Tuxtla',
+    descripcionCorta: 'Café de especialidad, postres y cenas en ambiente moderno hasta la madrugada.',
+    descripcion:
+      'Vive una experiencia única en un ambiente moderno, relajado y acogedor, perfecto para desayunar, almorzar, cenar o simplemente disfrutar un delicioso café y postres irresistibles. Excelente café y gran selección de tés, barra de ensaladas y bocadillos, vinos, cervezas y bebidas. Servicio de comidas hasta la madrugada. Espacios al aire libre, Wi-Fi gratis, atención a la mesa, entrega a domicilio y pedidos desde el automóvil.',
+    coords: [18.447271893129827, -95.21339306274265],
+    rating: 4.5,
+    precio: 'medio',
+    precioMxn: '$100 – $200 por persona',
+    duracionSugerida: '1-2 horas',
+    imagen: '/lugares/bicicleta-cafe_1.jpg',
+    imagenesExtra: ['/lugares/bicicleta-cafe_2.jpg', '/lugares/bicicleta-cafe_3.jpg', '/lugares/bicicleta-cafe_4.jpg'],
+    tags: ['cafe', 'postres', 'wifi', 'nocturno', 'moderno', 'domicilio', 'aire libre'],
+    ideal: ['pareja', 'amigos', 'solo'],
+    abierto: { dias: 'Todos los días', horario: '7:00 am – 11:00 pm' },
+    comoLlegar: 'En el centro de San Andrés Tuxtla. Con estacionamiento cercano.',
+    tip: 'Ideal para trabajar con Wi-Fi o para una cena tardía después de explorar la región.',
     verificado: true,
   },
   {
     id: 'eyipantla',
-    nombre: 'Salto de Eyipantla',
+    destacado: true,
+    nombre: 'Cascada El Salto de Eyipantla',
     categoria: 'Naturaleza',
     municipio: 'San Andrés Tuxtla',
-    descripcionCorta: 'Cascada imponente de unos 50 m, escenario de cine.',
+    descripcionCorta: 'Una de las cascadas más impresionantes de Veracruz, en plena selva tropical.',
     descripcion:
-      'Una de las cascadas más espectaculares de Veracruz, de aproximadamente 40 m de ancho por 50 m de alto, alimentada por el Río Grande de Catemaco. Su nombre significa "salto de tres chorros" en náhuatl. Fue escenario de la película Apocalypto. Cuenta con miradores, puente colgante y un camino de 244 escalones para bajar a la base.',
-    coords: [18.5497, -95.1183],
-    rating: 4.7,
+      'Déjate sorprender por una de las cascadas más impresionantes de Veracruz, rodeada de naturaleza, aire puro y paisajes espectaculares. El Salto de Eyipantla es el destino perfecto para vivir una aventura inolvidable, tomar fotografías increíbles y disfrutar de la tranquilidad de la selva tropical de Los Tuxtlas. Cascada majestuosa con 50 metros de caída libre, ideal para paseos y exploración, con ambiente relajante lleno de vida.',
+    coords: [18.384366685863235, -95.2067848675075],
+    rating: 4.8,
     precio: 'bajo',
-    precioMxn: 'Entrada principal ~$50/persona. Acceso a la base de la cascada ~$5. Estacionamiento ~$20.',
-    duracionSugerida: '1-2 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=800&q=80',
-    tags: ['cascada', 'foto', 'aventura', 'caminata', 'familia', 'naturaleza'],
-    ideal: ['solo', 'pareja', 'familia', 'amigos'],
-    abierto: { dias: 'Lunes a domingo', horario: '07:00 - 19:00' },
-    comoLlegar: 'En la localidad de Eyipantla, a unos 6 km al norte de San Andrés Tuxtla. Se llega por la carretera que cruza el pueblo de Comoapan.',
-    tip: 'Lleva calzado cómodo, gorra, bloqueador y repelente. Hay guías locales que trabajan por propina.',
-    destacado: true,
+    precioMxn: 'Entrada ~$50 por persona',
+    duracionSugerida: '2-3 horas',
+    imagen: '/lugares/eyipantla_1.jpg',
+    imagenesExtra: ['/lugares/eyipantla_2.jpg', '/lugares/eyipantla_3.jpg'],
+    tags: ['cascada', 'naturaleza', 'selva', 'fotografía', 'aventura', 'caminata'],
+    ideal: ['familia', 'pareja', 'amigos', 'solo'],
+    abierto: { dias: 'Todos los días', horario: '7:00 am – 7:00 pm' },
+    comoLlegar: 'A 14 km de San Andrés Tuxtla por la carretera a Catemaco. Hay colectivos y taxis.',
+    tip: 'Ve en la mañana para evitar las nubes y aprovechar la mejor luz para fotos.',
     verificado: true,
   },
   {
-    id: 'museo-tabaco',
-    nombre: 'San Andrés Tuxtla y sus fábricas de puros',
-    categoria: 'Cultura',
+    id: 'cerro-venado',
+    nombre: 'Cerro del Venado',
+    categoria: 'Aventura',
     municipio: 'San Andrés Tuxtla',
-    descripcionCorta: 'La capital del puro: tabaco artesanal de fama mundial.',
+    descripcionCorta: 'Caminatas y vistas panorámicas únicas de San Andrés Tuxtla y la región.',
     descripcion:
-      'San Andrés Tuxtla es famosa por su tradición tabacalera. En el centro de la ciudad se pueden visitar fábricas de puros donde se observa el proceso artesanal de elaboración, desde la hoja hasta el puro terminado. El tabaco de la región es reconocido internacionalmente.',
-    coords: [18.4475, -95.2131],
+      'Vive una experiencia increíble rodeado de naturaleza, paisajes espectaculares y aire fresco en uno de los lugares más especiales de la región de Los Tuxtlas. El Cerro del Venado es perfecto para quienes buscan aventura, tranquilidad y vistas impresionantes de San Andrés Tuxtla y sus alrededores. Ideal para caminatas y exploración, contacto directo con la naturaleza, paisajes increíbles para fotografías y vistas panorámicas únicas.',
+    coords: [18.466474605234186, -95.19529216639516],
     rating: 4.4,
     precio: 'bajo',
-    precioMxn: 'Las visitas a fábricas suelen ser gratuitas o de bajo costo.',
-    duracionSugerida: '1 hora',
-    imagen:
-      'https://images.unsplash.com/photo-1527795631526-7e7c0c2cefb8?w=800&q=80',
-    tags: ['cultura', 'tabaco', 'puros', 'artesanal', 'tradición', 'centro'],
-    ideal: ['solo', 'pareja', 'amigos'],
-    abierto: { dias: 'Lunes a sábado', horario: '09:00 - 18:00 (varía por fábrica)' },
-    comoLlegar: 'En el centro de San Andrés Tuxtla. Varias fábricas están en el primer cuadro de la ciudad.',
-    tip: 'Pregunta en el centro por las fábricas que ofrecen recorrido; algunas permiten ver el proceso completo.',
+    precioMxn: 'Acceso libre',
+    duracionSugerida: '2-4 horas',
+    imagen: '/lugares/cerro-venado_1.jpg',
+    imagenesExtra: ['/lugares/cerro-venado_2.jpg', '/lugares/cerro-venado_3.jpg'],
+    tags: ['senderismo', 'aventura', 'vistas', 'naturaleza', 'fotografía', 'gratuito'],
+    ideal: ['amigos', 'pareja', 'solo'],
+    abierto: { dias: 'Todos los días', horario: 'Recomendado de 7:00 am – 4:00 pm' },
+    comoLlegar: 'Al norte de San Andrés Tuxtla. Consulta con lugareños para llegar al sendero de acceso.',
+    tip: 'Lleva agua, calzado cómodo y protector solar. El ascenso toma aproximadamente 1 hora.',
     verificado: true,
   },
   {
-    id: 'sontecomapan',
-    nombre: 'Laguna de Sontecomapan',
-    categoria: 'Naturaleza',
-    municipio: 'San Andrés Tuxtla',
-    descripcionCorta: 'Manglar costero donde la laguna se encuentra con el mar.',
+    id: 'moyotera',
+    nombre: 'La Moyotera Restaurant-Bar',
+    categoria: 'Gastronomia',
+    municipio: 'Catemaco',
+    descripcionCorta: 'Mariscos, cortes y atardeceres sobre la laguna de Catemaco.',
     descripcion:
-      'Sistema lagunar conectado al Golfo de México a través de una barra. Se recorre en lancha entre manglares hasta La Barra, donde el agua se vuelve apta para nadar. Es zona de avistamiento de aves y de una rica biodiversidad costera.',
-    coords: [18.5217, -95.0383],
+      'Establecimiento moderno y familiar ubicado a las orillas de la icónica Laguna de Catemaco. Destaca por ofrecer una propuesta culinaria de sazón casero enfocada en pescados, mariscos y cortes de carne. Especialidades de la casa: pulpo a la parrilla, mojarra al chilpaya y la tradicional "Torta Moyotera" de pierna horneada. Principal atractivo: vistas panorámicas a los atardeceres de la laguna desde sus terrazas, ambiente con música en vivo frecuente y servicio accesible para personas con movilidad reducida.',
+    coords: [18.417465227339232, -95.09915892735273],
+    rating: 4.6,
+    precio: 'medio',
+    precioMxn: '$200 – $300 por persona',
+    duracionSugerida: '1-2 horas',
+    imagen: '/lugares/moyotera_1.jpg',
+    imagenesExtra: ['/lugares/moyotera_2.jpg', '/lugares/moyotera_3.jpg', '/lugares/moyotera_4.jpg'],
+    tags: ['mariscos', 'cortes', 'laguna', 'atardecer', 'música en vivo', 'accesible', 'terraza'],
+    ideal: ['pareja', 'familia', 'amigos'],
+    abierto: { dias: 'Todos los días', horario: '9:00 am – 9:00 pm' },
+    comoLlegar: 'A orillas de la Laguna de Catemaco, sobre el boulevard principal.',
+    tip: 'Pide mesa en la terraza para ver el atardecer sobre la laguna. Los viernes hay música en vivo.',
+    verificado: true,
+  },
+  {
+    id: 'nanciyaga',
+    destacado: true,
+    nombre: 'Reserva Ecológica Nanciyaga',
+    categoria: 'Naturaleza',
+    municipio: 'Catemaco',
+    descripcionCorta: 'Santuario de selva tropical, kayak, monos y rituales prehispánicos.',
+    descripcion:
+      'Santuario natural de 4 hectáreas que resguarda el fragmento de selva tropical húmeda más al norte del continente americano. Combina educación ambiental, misticismo prehispánico y turismo sustentable. Sus senderos de madera guían entre árboles centenarios, esculturas prehispánicas réplica y un manantial de agua mineral potable. Principales atractivos: paseos en kayak hacia islas habitadas por monos, aplicación de barro mineral en la piel y contacto con chamanes locales para rituales de sanación. Escenario de las películas Apocalypto y El Curandero de la Selva.',
+    coords: [18.447322230653032, -95.06840705458495],
+    rating: 4.7,
+    precio: 'medio',
+    precioMxn: 'Entrada general $80. Hospedaje desde $1,600 – $2,200 por noche',
+    duracionSugerida: '3-4 horas (o pernocta)',
+    imagen: '/lugares/nanciyaga_1.jpg',
+    imagenesExtra: ['/lugares/nanciyaga_2.jpg', '/lugares/nanciyaga_3.jpg', '/lugares/nanciyaga_4.jpg'],
+    tags: ['selva', 'naturaleza', 'kayak', 'monos', 'ritual', 'chamán', 'barro mineral', 'hospedaje'],
+    ideal: ['pareja', 'familia', 'amigos', 'solo'],
+    abierto: { dias: 'Todos los días', horario: '9:00 am – 7:00 pm' },
+    comoLlegar: 'A 7 km de Catemaco por la carretera hacia Sontecomapan. Se puede llegar en taxi o lancha.',
+    tip: 'Reserva el temazcal con anticipación. Si te hospedas, la experiencia al amanecer en la selva es única.',
+    verificado: true,
+  },
+  {
+    id: 'sirena-olmeca',
+    nombre: 'Sirena Olmeca Restaurant-Cabañas',
+    categoria: 'Hospedaje',
+    municipio: 'Catemaco',
+    descripcionCorta: 'Complejo rústico donde el mar abierto se encuentra con la laguna.',
+    descripcion:
+      'Complejo rústico-turístico ubicado en un punto geográfico privilegiado donde el mar abierto se encuentra con la laguna. Diseñado para el descanso y la desconexión total, a unos 45 minutos de la cabecera municipal de Catemaco. Ideal para quienes buscan alejarse del ruido y conectar con la naturaleza costera de Los Tuxtlas. Combina restaurante con cocina regional y cabañas para pernoctar.',
+    coords: [18.55679693485654, -94.98990925409747],
+    rating: 4.4,
+    precio: 'medio',
+    precioMxn: 'Restaurante: $150 – $350 por persona. Hospedaje: $800 – $1,200 por noche',
+    duracionSugerida: 'Día completo o pernocta',
+    imagen: '/lugares/sirena-olmeca_1.jpg',
+    imagenesExtra: ['/lugares/sirena-olmeca_2.jpg', '/lugares/sirena-olmeca_3.jpg', '/lugares/sirena-olmeca_4.jpg'],
+    tags: ['hospedaje', 'cabañas', 'restaurante', 'mar', 'laguna', 'desconexión', 'rústico'],
+    ideal: ['pareja', 'familia', 'amigos'],
+    abierto: { dias: 'Todos los días', horario: '9:00 am – 6:00 pm' },
+    comoLlegar: 'A 45 minutos de Catemaco por carretera costera. Consulta la ruta antes de salir, es camino rural.',
+    tip: 'Lleva provisiones adicionales. El paisaje donde se juntan el mar y la laguna es único en la región.',
+    verificado: true,
+  },
+  {
+    id: 'hechizo-amor',
+    destacado: true,
+    nombre: 'Hechizo de Amor',
+    categoria: 'Gastronomia',
+    municipio: 'Catemaco',
+    descripcionCorta: 'Rooftop bar con licores artesanales y los mejores atardeceres del lago.',
+    descripcion:
+      'Exclusivo y acogedor bar-restaurante de concepto rooftop (terraza elevada) con una de las vistas más románticas y espectaculares hacia los atardeceres del Lago de Catemaco. Principal distintivo: elaboración de ginebras, vermuts y licores artesanales saborizados con frutas e ingredientes de la región. Destaca su emblemática combinación preparada con chagalapoli, un fruto silvestre endémico de Los Tuxtlas similar al arándano.',
+    coords: [18.416833541065614, -95.10844901405396],
+    rating: 4.6,
+    precio: 'medio',
+    precioMxn: '$200 – $300 por persona',
+    duracionSugerida: '1-2 horas',
+    imagen: '/lugares/hechizo-amor_1.jpg',
+    imagenesExtra: ['/lugares/hechizo-amor_2.jpg', '/lugares/hechizo-amor_3.jpg', '/lugares/hechizo-amor_4.jpg'],
+    tags: ['bar', 'rooftop', 'cocteles', 'artesanal', 'atardecer', 'romántico', 'laguna', 'gin'],
+    ideal: ['pareja', 'amigos'],
+    abierto: { dias: 'Lunes a domingo', horario: '12:00 pm – 11:00 pm' },
+    comoLlegar: 'En el centro de Catemaco, cerca del malecón. Busca la entrada al rooftop.',
+    tip: 'Llega antes de las 6 pm para conseguir la mejor mesa con vista al atardecer. Prueba el coctel de chagalapoli.',
+    verificado: true,
+  },
+  {
+    id: 'jungla-balneario',
+    destacado: true,
+    nombre: 'La Jungla Balneario',
+    categoria: 'Naturaleza',
+    municipio: 'Catemaco',
+    descripcionCorta: 'Balneario natural con albercas de manantial, tobogán y vista al lago.',
+    descripcion:
+      'Paradisíaco balneario rústico y sustentable rodeado por la selva tropical húmeda. Gran atractivo: sistema de albercas alimentadas con agua fría y cristalina que brota directamente de nacimientos y manantiales naturales. Cuenta con un gran tobogán que desciende entre los árboles, columpios, palapas, un muelle con acceso directo al lago y área de chapoteaderos en los niveles inferiores que regalan majestuosas vistas panorámicas del agua. Camping disponible.',
+    coords: [18.445602822737182, -95.06774472891604],
     rating: 4.5,
     precio: 'bajo',
-    precioMxn: 'Paseo en lancha desde ~$200 (varía por recorrido y grupo).',
-    duracionSugerida: '3-4 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1502780402662-acc01917cf9b?w=800&q=80',
-    tags: ['manglar', 'aves', 'lancha', 'naturaleza', 'tranquilo', 'agua'],
-    ideal: ['solo', 'pareja', 'familia'],
-    abierto: { dias: 'Todos los días', horario: '07:00 - 17:00' },
-    comoLlegar: 'Pueblo de Sontecomapan, a unos 18 km de Catemaco rumbo a la costa.',
+    precioMxn: 'Entrada general $60 por persona. Camping desde $100 por noche',
+    duracionSugerida: '3-5 horas',
+    imagen: '/lugares/jungla-balneario_1.jpg',
+    imagenesExtra: ['/lugares/jungla-balneario_2.jpg', '/lugares/jungla-balneario_3.jpg', '/lugares/jungla-balneario_4.jpg'],
+    tags: ['balneario', 'alberca', 'manantial', 'tobogán', 'selva', 'camping', 'lago', 'familias', 'niños'],
+    ideal: ['familia', 'amigos', 'pareja'],
+    abierto: { dias: 'Lunes a domingo', horario: '8:00 am – 6:00 pm' },
+    comoLlegar: 'A pocos kilómetros de Catemaco en dirección a Nanciyaga. Hay señalización en la carretera.',
+    tip: 'El agua de los manantiales es muy fría — perfecta para el calor. Llega temprano los fines de semana.',
     verificado: true,
   },
-  {
-    id: 'cabeza-cobata',
-    nombre: 'Cabeza Olmeca de Cobata',
-    categoria: 'Cultura',
-    municipio: 'Santiago Tuxtla',
-    descripcionCorta: 'La cabeza olmeca más grande conocida, en la plaza central.',
-    descripcion:
-      'Monumental cabeza olmeca encontrada en el cerro Cobata, considerada la más grande de las cabezas olmecas conocidas. Está expuesta en la plaza central de Santiago Tuxtla, junto al quiosco, y es el símbolo del pueblo.',
-    coords: [18.4683, -95.3],
-    rating: 4.4,
-    precio: 'bajo',
-    precioMxn: 'Acceso gratuito.',
-    duracionSugerida: '30 min',
-    imagen:
-      'https://images.unsplash.com/photo-1564507592333-c60657eea523?w=800&q=80',
-    tags: ['arqueología', 'olmeca', 'cultura', 'historia', 'foto', 'centro'],
-    ideal: ['solo', 'pareja', 'familia', 'amigos'],
-    abierto: { dias: 'Todos los días', horario: 'Abierto las 24 horas' },
-    comoLlegar: 'En la plaza central de Santiago Tuxtla, frente al Museo Tuxteco.',
-    destacado: true,
-    verificado: true,
-  },
-  {
-    id: 'museo-tuxteco',
-    nombre: 'Museo Tuxteco',
-    categoria: 'Cultura',
-    municipio: 'Santiago Tuxtla',
-    descripcionCorta: 'Piezas olmecas originales en el centro de Santiago.',
-    descripcion:
-      'Museo regional con piezas arqueológicas auténticas de las culturas olmeca y de la región. Entre sus piezas más destacadas está el "Señor de Matacapan". También expone sobre la historia del tabaco y la caña de azúcar en la región.',
-    coords: [18.467, -95.2987],
-    rating: 4.4,
-    precio: 'bajo',
-    precioMxn: 'Entrada ~$60/persona (confirmar en campo).',
-    duracionSugerida: '1 hora',
-    imagen:
-      'https://images.unsplash.com/photo-1564399579883-451a5d44ec08?w=800&q=80',
-    tags: ['museo', 'olmeca', 'cultura', 'historia', 'educativo', 'centro'],
-    ideal: ['solo', 'pareja', 'familia'],
-    abierto: { dias: 'Martes a domingo', horario: '09:00 - 17:00' },
-    comoLlegar: 'En la plaza central de Santiago Tuxtla, junto a la Cabeza Olmeca de Cobata.',
-    verificado: true,
-  },
-  {
-    id: 'tres-zapotes',
-    nombre: 'Zona Arqueológica Tres Zapotes',
-    categoria: 'Cultura',
-    municipio: 'Santiago Tuxtla',
-    descripcionCorta: 'Sitio olmeca tardío con museo de sitio, en el campo tuxteco.',
-    descripcion:
-      'Sitio arqueológico que fue un importante centro olmeca tardío y epi-olmeca, contemporáneo de La Venta. Cuenta con un museo de sitio que resguarda estelas, una cabeza colosal y la famosa Estela C, con uno de los registros de cuenta larga más antiguos de Mesoamérica.',
-    coords: [18.4683, -95.4408],
-    rating: 4.2,
-    precio: 'bajo',
-    precioMxn: 'Entrada $145. Nacionales y residentes en México: $80.',
-    duracionSugerida: '1-2 horas',
-    imagen:
-      'https://images.unsplash.com/photo-1583425423320-0b6f1d2c2c1f?w=800&q=80',
-    tags: ['arqueología', 'olmeca', 'historia', 'cultura', 'museo', 'educativo'],
-    ideal: ['solo', 'pareja', 'familia'],
-    abierto: { dias: 'Martes a domingo', horario: '09:00 - 17:00' },
-    comoLlegar: 'En la localidad de Tres Zapotes, al oeste de Santiago Tuxtla. Se llega por carretera estatal desde el centro.',
-    tip: 'Es el sitio más alejado de la región; conviene combinarlo con la visita al centro de Santiago Tuxtla el mismo día.',
-    verificado: true,
-  }
 ];
 
-
-// ─── Configuración geográfica ───────────────────────────────────
+// ─── Configuración geográfica ────────────────────────────────
 export const LOS_TUXTLAS_CENTER: [number, number] = [18.45, -95.18];
 export const LOS_TUXTLAS_BOUNDS: [[number, number], [number, number]] = [
   [18.35, -95.5],
   [18.7, -94.95],
 ];
 
-// ─── Categorías con color y emoji ───────────────────────────────
-export const CATEGORIAS: {
-  id: Categoria;
-  emoji: string;
-  color: string;
-}[] = [
-  { id: 'Naturaleza', emoji: '🌿', color: 'bg-jungle-100 text-jungle-800' },
+// ─── Categorías con color y emoji ────────────────────────────
+export const CATEGORIAS: { id: Categoria; emoji: string; color: string }[] = [
+  { id: 'Naturaleza',  emoji: '🌿', color: 'bg-jungle-100 text-jungle-800' },
   { id: 'Aventura',   emoji: '🥾', color: 'bg-amber-100 text-amber-800' },
   { id: 'Cultura',    emoji: '🏛️',  color: 'bg-purple-100 text-purple-800' },
-  { id: 'Gastronomia', emoji: '🍽️', color: 'bg-red-100 text-red-800' },
+  { id: 'Gastronomia',emoji: '🍽️', color: 'bg-red-100 text-red-800' },
   { id: 'Hospedaje',  emoji: '🛏️',  color: 'bg-blue-100 text-blue-800' },
   { id: 'Playa',      emoji: '🏖️',  color: 'bg-sky-100 text-sky-800' },
 ];

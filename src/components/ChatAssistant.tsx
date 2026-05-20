@@ -300,9 +300,11 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
       {/* Header */}
       <div className="bg-gradient-to-br from-jungle-800 to-jungle-950 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center">
-            <Sparkles size={18} />
-          </div>
+          <img
+            src="/logo-tuxtlasgo.png"
+            alt="TuxtlasGO"
+            className="h-8 w-auto object-contain brightness-0 invert"
+          />
           <div>
             <div className="font-display font-bold leading-tight">
               Guía TuxtlasGO

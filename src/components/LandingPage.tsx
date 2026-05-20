@@ -18,19 +18,11 @@ export default function LandingPage() {
       {/* NAV */}
       <header className="bg-white/80 backdrop-blur-md border-b border-jungle-100 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-jungle-600 to-jungle-800 flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-white" strokeWidth={2.5} />
-            </div>
-            <div>
-              <div className="font-display font-bold text-lg leading-none text-jungle-900">
-                TuxtlasGO
-              </div>
-              <div className="text-[10px] text-jungle-700 leading-none mt-0.5">
-                Los Tuxtlas, Veracruz
-              </div>
-            </div>
-          </div>
+          <img
+            src="/logo-tuxtlasgo.png"
+            alt="TuxtlasGO"
+            className="h-10 w-auto object-contain"
+          />
           <div className="flex items-center gap-3">
             <Link
               to="/prestador"
@@ -210,7 +202,7 @@ export default function LandingPage() {
 
       <footer className="bg-jungle-950 text-jungle-100 py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm space-y-2">
-          <div className="font-display font-bold text-lg">TuxtlasGO</div>
+          <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-8 w-auto object-contain brightness-0 invert" />
           <div className="opacity-70">
             Proyecto InnovaTecNM 2026 · ITSSAT · Folio 68894-17
           </div>

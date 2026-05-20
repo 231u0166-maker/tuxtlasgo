@@ -1,10 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#16a34a"/>
-      <stop offset="1" stop-color="#14532d"/>
-    </linearGradient>
-  </defs>
-  <rect width="100" height="100" rx="22" fill="url(#g)"/>
-  <path d="M50 18 C36 18 26 28 26 42 c0 18 24 40 24 40 s24 -22 24 -40 c0 -14 -10 -24 -24 -24 z M50 36 a8 8 0 1 1 0 16 a8 8 0 0 1 0 -16 z" fill="#ffffff"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAACaklEQVR42u2WT2udRRTGn+fMvH96TZoQSiEmRrqINaCFoqsWpPgVXOrOz+VncO0ym3Ztod0EEYQWriRpw725973vzJzHRUKiiNebRMzmntUwDJzfOeeZZ4aDz+4JtxiGW44lwBLgRgDkLQHQADmQZgAEBPsfAUhgdirUA+rex+Y5QKORdF0ziVdN3nfC3rM6b+/FdDz08k1b21NY/f2PJ8GvMZV4peRTYedxVbYextn+D13sWgsbHyI8+WqQEUkkBfDy/CJt4aJWTDtr/ZNv2/5gv9dovakGXwx09NNJLlNnux5ob1OFilARPAuhtptpgAAkiEAikEgod2LZNMadCtVxmW19vYa1h40rOUlCLm9WY7ex+8FMfgMRugvZmNtVm7iLAkhDP/y1+O6XNU5/nqSjV6fx3aRv+pZmIzcE9ACyBJAQoOtpQALqaPpks8oHv6cWZJADsWYcvi6dNhJW7rump2aj36bT5hCMM2VUpIFVP87o3qfrjYAAioSVhvru8ztuBeHPdRSgHb7InL4TMNaoGbrCcSECkaaoUifQiNAsdsP/WYQCYs2+IxSSjEIFQSAgo4tI3jBXYx/gTHe2/SgUkv7mZY4MYEmgRcydxNxb4ILKwHrLEgVToAOAAgBBdDkCQ+qkjz41bT6wOD5Eae+CNOCX57mevJfNg5jrA4GgMggCHul0CIQxCzC6jCStWHCMT2AStL5FlAKoCLT/xgd0Lg5drC7rOVsT8AQ2K5QXwTMYG2o2llk1fwSLOCHPMfi3PVygIVRAPxEvXHMi/lvyK78Fc9sk/KXlJBaxgeWPaAmwBFgCLAHwB6ljM2SR+mQqAAAAAElFTkSuQmCC" width="32" height="32"/></svg>

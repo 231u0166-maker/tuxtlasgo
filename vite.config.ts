@@ -11,38 +11,45 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: [
         'favicon.svg',
-        'icons/icon-192.png',
-        'icons/icon-512.png',
-        'icons/apple-touch-icon.png',
+        'favicon.ico',
+        'logo-tuxtlasgo.png',
+        'icons/*.png',
       ],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,json}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Cuando el navegador rechaza por cuota, workbox limpia sus cachés.
+        // Sin esto, un QuotaExceeded congela el service worker.
         runtimeCaching: [
           {
-            // Tiles del mapa de OpenStreetMap (a, b, c subdominios)
+            // Tiles de OpenStreetMap. Bajamos a 800 entradas (suficiente
+            // para cubrir Los Tuxtlas a varios zooms) y solo cacheamos
+            // respuestas 200 — nada de respuestas opacas/error.
             urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'osm-tiles',
               expiration: {
-                maxEntries: 3000,
-                maxAgeSeconds: 60 * 60 * 24 * 60, // 60 días
+                maxEntries: 800,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+                purgeOnQuotaError: true,
               },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheableResponse: { statuses: [200] },
             },
           },
           {
-            // Imágenes de Unsplash usadas como fotos de lugares
+            // Imágenes de Unsplash. 60 entradas, solo 200 OK (los 404 no
+            // se cachean, así no llenan el almacenamiento del navegador).
             urlPattern: /^https:\/\/images\.unsplash\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'place-images',
               expiration: {
-                maxEntries: 200,
+                maxEntries: 60,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
+                purgeOnQuotaError: true,
               },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],
@@ -61,24 +68,15 @@ export default defineConfig({
         lang: 'es-MX',
         categories: ['travel', 'navigation', 'lifestyle'],
         icons: [
-          {
-            src: 'icons/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: 'icons/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: 'icons/icon-512-maskable.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
+          { src: 'icons/icon-72.png',   sizes: '72x72',   type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-96.png',   sizes: '96x96',   type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-128.png',  sizes: '128x128', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-144.png',  sizes: '144x144', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-152.png',  sizes: '152x152', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-192.png',  sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-384.png',  sizes: '384x384', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png',  sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       devOptions: {

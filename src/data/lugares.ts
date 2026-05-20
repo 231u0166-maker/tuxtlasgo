@@ -7,10 +7,9 @@
 export type Categoria =
   | 'Naturaleza'
   | 'Aventura'
-  | 'Cultura'
   | 'Gastronomia'
   | 'Hospedaje'
-  | 'Playa';
+;
 
 export type Presupuesto = 'bajo' | 'medio' | 'alto';
 
@@ -276,8 +275,6 @@ export const LOS_TUXTLAS_BOUNDS: [[number, number], [number, number]] = [
 export const CATEGORIAS: { id: Categoria; emoji: string; color: string }[] = [
   { id: 'Naturaleza',  emoji: '🌿', color: 'bg-jungle-100 text-jungle-800' },
   { id: 'Aventura',   emoji: '🥾', color: 'bg-amber-100 text-amber-800' },
-  { id: 'Cultura',    emoji: '🏛️',  color: 'bg-purple-100 text-purple-800' },
   { id: 'Gastronomia',emoji: '🍽️', color: 'bg-red-100 text-red-800' },
   { id: 'Hospedaje',  emoji: '🛏️',  color: 'bg-blue-100 text-blue-800' },
-  { id: 'Playa',      emoji: '🏖️',  color: 'bg-sky-100 text-sky-800' },
 ];

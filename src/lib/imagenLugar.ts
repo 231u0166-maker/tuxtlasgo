@@ -27,12 +27,10 @@ interface EstiloCategoria {
 // Paleta visual por categoría (alineada con el tema "jungle/sun"
 // que ya usa la app). Cada categoría tiene su personalidad.
 const ESTILOS: Record<Categoria, EstiloCategoria> = {
-  Naturaleza: { colorInicio: '#047857', colorFin: '#064e3b', icono: '🌿' },
-  Aventura: { colorInicio: '#d97706', colorFin: '#92400e', icono: '⛰️' },
-  Cultura: { colorInicio: '#7c3aed', colorFin: '#5b21b6', icono: '🏛️' },
+  Naturaleza:  { colorInicio: '#047857', colorFin: '#064e3b', icono: '🌿' },
+  Aventura:    { colorInicio: '#d97706', colorFin: '#92400e', icono: '⛰️' },
   Gastronomia: { colorInicio: '#dc2626', colorFin: '#991b1b', icono: '🍽️' },
-  Playa: { colorInicio: '#0284c7', colorFin: '#075985', icono: '🏖️' },
-  Hospedaje: { colorInicio: '#475569', colorFin: '#1e293b', icono: '🛏️' },
+  Hospedaje:   { colorInicio: '#475569', colorFin: '#1e293b', icono: '🛏️' },
 };
 
 // Acorta nombres largos para que quepan en el placeholder.

@@ -117,23 +117,6 @@ const INTENT_KEYWORDS: { intent: string; words: string[] }[] = [
     ],
   },
   {
-    intent: 'cultura',
-    words: [
-      'museo', 'museos', 'historia', 'historico', 'historica', 'olmeca',
-      'olmecas', 'cultura', 'cultural', 'arqueologia', 'arqueologico',
-      'arqueologica', 'ruinas', 'prehispanico', 'prehispanica', 'estela',
-      'iglesia', 'iglesias', 'basilica', 'templo', 'tabaco', 'puro', 'puros',
-      'cigarro', 'tradicion', 'tradicional', 'cabeza', 'monumento', 'artesania',
-    ],
-  },
-  {
-    intent: 'playa',
-    words: [
-      'playa', 'playas', 'mar', 'mares', 'oceano', 'arena', 'oleaje', 'costa',
-      'costas', 'balneario', 'nadar', 'orilla', 'broncear',
-    ],
-  },
-  {
     intent: 'monos',
     words: [
       'mono', 'monos', 'chango', 'changos', 'mico', 'fauna', 'macaco',
@@ -387,10 +370,8 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
       const orden: Record<Categoria, number> = {
         Aventura: 1,
         Naturaleza: 2,
-        Cultura: 3,
-        Playa: 4,
-        Gastronomia: 5,
-        Hospedaje: 6,
+        Gastronomia: 3,
+        Hospedaje: 4,
       };
       return orden[a.categoria] - orden[b.categoria];
     });
@@ -497,8 +478,6 @@ export function responderTextoLibre(
     hospedaje: 'Hospedaje',
     naturaleza: 'Naturaleza',
     aventura: 'Aventura',
-    cultura: 'Cultura',
-    playa: 'Playa',
   };
   const cat = mapaIntentCat[intent];
 

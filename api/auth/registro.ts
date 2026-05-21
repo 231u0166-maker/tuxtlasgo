@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 
 function getPool() {
   return new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     max: 1,
   });

@@ -1,4 +1,7 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import AuthModal from './AuthModal';
+import { getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import {
   MapPin,
   WifiOff,
@@ -11,6 +14,8 @@ import {
 import OfflineIndicator from './OfflineIndicator';
 
 export default function LandingPage() {
+  const [mostrarAuth, setMostrarAuth] = useState(false);
+  const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal());
   return (
     <div className="min-h-screen bg-gradient-to-b from-jungle-50 via-white to-jungle-50">
       <OfflineIndicator />
@@ -211,6 +216,15 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+      {mostrarAuth && (
+        <AuthModal
+          onClose={() => setMostrarAuth(false)}
+          onSuccess={(u) => {
+            setUsuario(u);
+            setMostrarAuth(false);
+          }}
+        />
+      )}
     </div>
   );
 }

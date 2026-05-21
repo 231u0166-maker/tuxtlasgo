@@ -1,6 +1,8 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Briefcase } from 'lucide-react';
+import { ArrowLeft, Briefcase, User, LogOut } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import AuthModal from './AuthModal';
+import { getUsuarioLocal, apiLogout, type UsuarioSesion } from '../lib/auth';
 import BottomNav, { type Tab } from './BottomNav';
 import ExploreScreen from './ExploreScreen';
 import MapScreen from './MapScreen';
@@ -21,6 +23,8 @@ interface RutaVisible {
 
 export default function AppShell() {
   const [tab, setTab] = useState<Tab>('explorar');
+  const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal());
+  const [mostrarAuth, setMostrarAuth] = useState(false);
   const [lugarSeleccionado, setLugarSeleccionado] = useState<Lugar | null>(null);
   const [rutaVisible, setRutaVisible] = useState<RutaVisible | null>(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
@@ -90,6 +94,29 @@ export default function AppShell() {
           <Briefcase size={13} />
           Soy prestador
         </Link>
+        {usuario ? (
+          <div className="flex items-center gap-1">
+            <div className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 border border-jungle-200">
+              <User size={13} />
+              <span className="max-w-[80px] truncate">{usuario.nombre.split(' ')[0]}</span>
+            </div>
+            <button
+              onClick={async () => { await apiLogout(); setUsuario(null); }}
+              className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-600 hover:text-red-500 border border-jungle-200"
+              title="Cerrar sesión"
+            >
+              <LogOut size={13} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setMostrarAuth(true)}
+            className="bg-jungle-700 text-white shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold hover:bg-jungle-800"
+          >
+            <User size={13} />
+            Entrar
+          </button>
+        )}
       </div>
 
       {/* Toast de error de ruta (cuando se usó fallback de líneas rectas) */}
@@ -192,6 +219,12 @@ export default function AppShell() {
             onVerEnMapa={verEnMapa}
           />
         </>
+      )}
+      {mostrarAuth && (
+        <AuthModal
+          onClose={() => setMostrarAuth(false)}
+          onSuccess={(u) => { setUsuario(u); setMostrarAuth(false); }}
+        />
       )}
     </div>
   );

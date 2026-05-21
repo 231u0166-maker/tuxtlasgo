@@ -4,7 +4,6 @@ import LandingPage from './components/LandingPage';
 import AppShell from './components/AppShell';
 import ProviderPanel from './components/ProviderPanel';
 import AdminPanel from './components/AdminPanel';
-import AuthScreen from './components/AuthScreen';
 import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
 import { setCatalogoExtendido } from './lib/chatbot';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
@@ -32,11 +31,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LandingPage usuario={usuario} onUsuario={setUsuario} />} />
-        <Route path="/auth" element={
-          usuario ? <Navigate to="/app" replace /> : <AuthScreen onSuccess={(u) => setUsuario(u)} />
-        } />
-        <Route path="/app" element={<AppShell usuario={usuario} onUsuario={setUsuario} />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/app" element={<AppShell />} />
         <Route path="/prestador" element={<ProviderPanel />} />
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -34,7 +34,7 @@ import OfflineIndicator from './OfflineIndicator';
 //  3. Vista de administrador (aprobar / rechazar)
 // ============================================================
 
-type Vista = 'inicio' | 'registrar' | 'consultar' | 'admin';
+type Vista = 'inicio' | 'registrar' | 'consultar';
 
 export default function ProviderPanel() {
   const [vista, setVista] = useState<Vista>('inicio');
@@ -74,7 +74,6 @@ export default function ProviderPanel() {
         {vista === 'consultar' && (
           <ConsultarEstado onVolver={() => setVista('inicio')} />
         )}
-        {vista === 'admin' && <PanelAdmin onVolver={() => setVista('inicio')} />}
       </main>
     </div>
   );
@@ -141,22 +140,7 @@ function PantallaInicio({ onElegir }: { onElegir: (v: Vista) => void }) {
         </div>
       </button>
 
-      <button
-        onClick={() => onElegir('admin')}
-        className="w-full bg-white hover:bg-jungle-50 border-2 border-jungle-200 text-jungle-900 p-5 rounded-2xl text-left flex items-center gap-4"
-      >
-        <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-          <ShieldCheck size={24} className="text-amber-600" />
-        </div>
-        <div>
-          <div className="font-display font-bold text-lg">
-            Panel de administración
-          </div>
-          <div className="text-sm text-jungle-600">
-            Para el equipo de TuxtlasGO: revisar y aprobar servicios.
-          </div>
-        </div>
-      </button>
+
     </div>
   );
 }

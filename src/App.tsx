@@ -1,34 +1,45 @@
-import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './components/LandingPage';
 import AppShell from './components/AppShell';
 import ProviderPanel from './components/ProviderPanel';
+import AdminPanel from './components/AdminPanel';
+import AuthScreen from './components/AuthScreen';
 import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
 import { setCatalogoExtendido } from './lib/chatbot';
+import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
 
 export default function App() {
+  const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal);
+  const [listo, setListo] = useState(false);
+
   useEffect(() => {
-    // Al arrancar la app: seed inicial + cargar prestadores aprobados
-    // en el catálogo del motor para que aparezcan en recomendaciones,
-    // rutas y búsquedas del asistente, no solo en el mapa.
     (async () => {
       try {
         await seedDemoSiVacio();
         const aprobados = await listarServiciosAprobadosComoLugares();
         setCatalogoExtendido(aprobados);
       } catch (err) {
-        console.error('[TuxtlasGO] Error inicializando catálogo:', err);
+        console.error('[TuxtlasGO] Error inicializando:', err);
+      } finally {
+        setListo(true);
       }
     })();
   }, []);
 
+  if (!listo) return null;
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/app" element={<AppShell />} />
+        <Route path="/" element={<LandingPage usuario={usuario} onUsuario={setUsuario} />} />
+        <Route path="/auth" element={
+          usuario ? <Navigate to="/app" replace /> : <AuthScreen onSuccess={(u) => setUsuario(u)} />
+        } />
+        <Route path="/app" element={<AppShell usuario={usuario} onUsuario={setUsuario} />} />
         <Route path="/prestador" element={<ProviderPanel />} />
-        <Route path="*" element={<LandingPage />} />
+        <Route path="/admin" element={<AdminPanel />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

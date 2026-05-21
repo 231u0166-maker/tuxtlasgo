@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSQL, cors } from '../_db';
+import { getSQL, cors } from '../db';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'tuxtlasgo2026';
 

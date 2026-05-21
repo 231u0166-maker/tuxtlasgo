@@ -1,8 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   X, Eye, EyeOff, Loader2, CheckCircle2, Copy,
-  ChevronDown, ChevronUp, MapPin, Camera, Lock, Mail, User, Building2
+  ChevronDown, ChevronUp, MapPin, Lock, Mail, User, Building2, Navigation
 } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
 import { apiLogin, apiRegistro, apiRecuperar, type UsuarioSesion } from '../lib/auth';
 
 type Vista = 'login' | 'registro' | 'recuperar' | 'codigo';
@@ -10,6 +12,26 @@ type Vista = 'login' | 'registro' | 'recuperar' | 'codigo';
 interface Props {
   onClose: () => void;
   onSuccess: (usuario: UsuarioSesion) => void;
+}
+
+const TUXTLAS_CENTER: [number, number] = [18.45, -95.18];
+
+// Ícono personalizado para el marcador del prestador
+const iconoPrestador = L.divIcon({
+  html: `<div style="background:#15803d;color:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:14px;">📍</div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+  className: '',
+});
+
+// Componente interno para capturar clicks en el mapa
+function ClickCaptor({ onUbicacion }: { onUbicacion: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onUbicacion(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
 }
 
 export default function AuthModal({ onClose, onSuccess }: Props) {
@@ -22,6 +44,10 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
   const [codigoCopiado, setCodigoCopiado] = useState(false);
   const [usuarioRegistrado, setUsuarioRegistrado] = useState<UsuarioSesion | null>(null);
 
+  // Ubicación en mapa
+  const [ubicacion, setUbicacion] = useState<[number, number] | null>(null);
+  const [ubicacionGuardada, setUbicacionGuardada] = useState(false);
+
   // Campos login
   const [correoLogin, setCorreoLogin] = useState('');
   const [passLogin, setPassLogin] = useState('');
@@ -33,8 +59,6 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
   const [passConf, setPassConf] = useState('');
   const [terminos, setTerminos] = useState(false);
   const [nombreNegocio, setNombreNegocio] = useState('');
-  const [fotosArchivos, setFotosArchivos] = useState<File[]>([]);
-  const inputFotos = useRef<HTMLInputElement>(null);
 
   // Campos recuperar
   const [correoRec, setCorreoRec] = useState('');
@@ -58,6 +82,7 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
     if (passReg !== passConf) return setError('Las contraseñas no coinciden');
     if (passReg.length < 6) return setError('La contraseña debe tener mínimo 6 caracteres');
     if (!terminos) return setError('Debes aceptar los términos y condiciones');
+    if (esPrestador && !ubicacionGuardada) return setError('Marca tu ubicación en el mapa antes de continuar');
     setCargando(true);
     const res = await apiRegistro({
       nombre,
@@ -67,6 +92,14 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
     });
     setCargando(false);
     if (res.ok && res.usuario) {
+      // Guardar coordenadas en localStorage para usarlas en el panel del prestador
+      if (esPrestador && ubicacion) {
+        try {
+          localStorage.setItem('prestador-lat', String(ubicacion[0]));
+          localStorage.setItem('prestador-lng', String(ubicacion[1]));
+          localStorage.setItem('prestador-nombre-negocio', nombreNegocio);
+        } catch {}
+      }
       setCodigoMostrado(res.codigoRecuperacion ?? '');
       setUsuarioRegistrado(res.usuario);
       setVista('codigo');
@@ -85,42 +118,30 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
     else setError(res.error ?? 'Correo o código incorrectos');
   }
 
-  function agregarFotos(e: React.ChangeEvent<HTMLInputElement>) {
-    const archivos = Array.from(e.target.files ?? []);
-    setFotosArchivos(prev => [...prev, ...archivos].slice(0, 5));
-  }
-
   function copiarCodigo() {
     navigator.clipboard.writeText(codigoMostrado).catch(() => {});
     setCodigoCopiado(true);
     setTimeout(() => setCodigoCopiado(false), 2000);
   }
 
-  // ─── CÓDIGO DE RECUPERACIÓN ───────────────────────────
+  // ─── CÓDIGO DE RECUPERACIÓN ───
   if (vista === 'codigo') {
     return (
       <div style={{ position:'fixed',inset:0,zIndex:9999,backgroundColor:'rgba(2,44,22,0.97)',display:'flex',alignItems:'flex-end' }}>
-        <div className="bg-white w-full rounded-t-3xl p-6 pb-10 max-h-[90vh] overflow-y-auto">
+        <div className="bg-white w-full rounded-t-3xl p-6 pb-10">
           <div className="text-center mb-6">
             <div className="w-16 h-16 bg-jungle-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <CheckCircle2 size={32} className="text-jungle-600" />
             </div>
-            <h2 className="font-display font-extrabold text-2xl text-jungle-950">
-              ¡Cuenta creada!
-            </h2>
-            <p className="text-jungle-600 mt-1 text-sm">
-              Bienvenido a TuxtlasGO, {usuarioRegistrado?.nombre.split(' ')[0]}
-            </p>
+            <h2 className="font-display font-extrabold text-2xl text-jungle-950">¡Cuenta creada!</h2>
+            <p className="text-jungle-600 mt-1 text-sm">Bienvenido, {usuarioRegistrado?.nombre.split(' ')[0]}</p>
           </div>
-
           <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 mb-6">
             <div className="flex items-center gap-2 mb-2">
               <Lock size={16} className="text-amber-600" />
               <p className="text-xs font-bold text-amber-900">Guarda tu código de recuperación</p>
             </div>
-            <p className="text-xs text-amber-700 mb-3">
-              Si olvidas tu contraseña, necesitarás este código. <strong>No lo podrás ver de nuevo.</strong>
-            </p>
+            <p className="text-xs text-amber-700 mb-3">Si olvidas tu contraseña lo necesitarás. <strong>No lo podrás ver de nuevo.</strong></p>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-white border border-amber-200 rounded-xl px-4 py-3 text-base font-bold text-center text-jungle-900 tracking-widest">
                 {codigoMostrado}
@@ -130,11 +151,8 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
               </button>
             </div>
           </div>
-
-          <button
-            onClick={() => { if (usuarioRegistrado) onSuccess(usuarioRegistrado); else onClose(); }}
-            className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl transition-colors"
-          >
+          <button onClick={() => { if (usuarioRegistrado) onSuccess(usuarioRegistrado); else onClose(); }}
+            className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl transition-colors">
             Ya lo guardé — Entrar a la app
           </button>
         </div>
@@ -144,42 +162,34 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
 
   return (
     <div style={{ position:'fixed',inset:0,zIndex:9999,backgroundColor:'rgba(2,44,22,0.97)',display:'flex',alignItems:'flex-end' }}>
-      <div className="bg-white w-full rounded-t-3xl max-h-[92vh] overflow-y-auto" style={{ WebkitOverflowScrolling:'touch', touchAction:'pan-y' }}>
-        {/* Header */}
+      <div className="bg-white w-full rounded-t-3xl max-h-[92vh] overflow-y-scroll" style={{ WebkitOverflowScrolling:'touch' }}>
+
+        {/* Header sticky */}
         <div className="sticky top-0 bg-white border-b border-jungle-100 px-6 py-4 flex items-center justify-between rounded-t-3xl z-10">
           <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-8 w-auto object-contain" />
-          <button onClick={onClose} className="text-jungle-400 hover:text-jungle-700 p-1">
-            <X size={22} />
-          </button>
+          <button onClick={onClose} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={22} /></button>
         </div>
 
-        <div className="px-6 py-6 pb-10">
+        <div className="px-6 py-6 pb-12">
 
-          {/* ─── RECUPERAR CONTRASEÑA ─── */}
+          {/* ─── RECUPERAR ─── */}
           {vista === 'recuperar' && (
             <div>
               <button onClick={() => { setVista('login'); setError(''); setRecuperado(false); }}
-                className="text-xs text-jungle-600 underline mb-5 block">
-                ← Volver al inicio de sesión
-              </button>
-
+                className="text-xs text-jungle-600 underline mb-5 block">← Volver al inicio de sesión</button>
               {recuperado ? (
                 <div className="text-center py-6">
                   <CheckCircle2 size={40} className="text-jungle-600 mx-auto mb-3" />
                   <h3 className="font-display font-bold text-lg text-jungle-950 mb-2">¡Contraseña actualizada!</h3>
                   <p className="text-sm text-jungle-600 mb-5">Ya puedes iniciar sesión con tu nueva contraseña.</p>
                   <button onClick={() => { setVista('login'); setRecuperado(false); setError(''); }}
-                    className="bg-jungle-700 text-white font-bold px-8 py-3 rounded-2xl">
-                    Iniciar sesión
-                  </button>
+                    className="bg-jungle-700 text-white font-bold px-8 py-3 rounded-2xl">Iniciar sesión</button>
                 </div>
               ) : (
                 <>
                   <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">Recuperar contraseña</h2>
-                  <p className="text-sm text-jungle-600 mb-6">Ingresa tu correo y el código de recuperación que guardaste al crear tu cuenta.</p>
-
+                  <p className="text-sm text-jungle-600 mb-6">Ingresa tu correo y el código de recuperación que guardaste.</p>
                   {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
-
                   <form onSubmit={handleRecuperar} className="space-y-4">
                     <div>
                       <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Correo electrónico</label>
@@ -218,9 +228,7 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
             <div>
               <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">Iniciar sesión</h2>
               <p className="text-sm text-jungle-600 mb-6">Ingresa tus datos para continuar</p>
-
               {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
-
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Correo electrónico</label>
@@ -234,9 +242,7 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold text-jungle-700">Contraseña</label>
                     <button type="button" onClick={() => { setVista('recuperar'); setError(''); }}
-                      className="text-xs text-jungle-600 underline">
-                      ¿Olvidaste tu contraseña?
-                    </button>
+                      className="text-xs text-jungle-600 underline">¿Olvidaste tu contraseña?</button>
                   </div>
                   <div className="relative">
                     <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
@@ -254,12 +260,9 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
                   Iniciar sesión
                 </button>
               </form>
-
               <p className="text-center text-sm text-jungle-600 mt-6">
                 ¿No tienes cuenta?{' '}
-                <button onClick={() => { setVista('registro'); setError(''); }} className="font-bold text-jungle-800 underline">
-                  Regístrate aquí
-                </button>
+                <button onClick={() => { setVista('registro'); setError(''); }} className="font-bold text-jungle-800 underline">Regístrate aquí</button>
               </p>
             </div>
           )}
@@ -269,11 +272,9 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
             <div>
               <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">Crear cuenta</h2>
               <p className="text-sm text-jungle-600 mb-6">Completa los datos para registrarte</p>
-
               {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
 
               <form onSubmit={handleRegistro} className="space-y-4">
-                {/* Nombre */}
                 <div>
                   <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Nombre completo <span className="text-red-500">*</span></label>
                   <div className="relative">
@@ -282,8 +283,6 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
                       className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                   </div>
                 </div>
-
-                {/* Correo */}
                 <div>
                   <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Correo electrónico <span className="text-red-500">*</span></label>
                   <div className="relative">
@@ -292,8 +291,6 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
                       className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                   </div>
                 </div>
-
-                {/* Contraseña */}
                 <div>
                   <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Contraseña <span className="text-red-500">*</span></label>
                   <div className="relative">
@@ -306,8 +303,6 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
                     </button>
                   </div>
                 </div>
-
-                {/* Confirmar contraseña */}
                 <div>
                   <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Confirmar contraseña <span className="text-red-500">*</span></label>
                   <div className="relative">
@@ -315,9 +310,7 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
                     <input type="password" value={passConf} onChange={e => setPassConf(e.target.value)} required placeholder="Repite tu contraseña"
                       className={`w-full border rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 ${passConf && passReg !== passConf ? 'border-red-300 bg-red-50' : 'border-jungle-200'}`} />
                   </div>
-                  {passConf && passReg !== passConf && (
-                    <p className="text-xs text-red-500 mt-1">Las contraseñas no coinciden</p>
-                  )}
+                  {passConf && passReg !== passConf && <p className="text-xs text-red-500 mt-1">Las contraseñas no coinciden</p>}
                 </div>
 
                 {/* Checkbox prestador */}
@@ -338,13 +331,11 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
 
                   {esPrestador && (
                     <div className="px-4 pb-4 space-y-3 border-t border-jungle-100 pt-3">
-                      {/* Promo badge */}
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                         <p className="text-xs font-bold text-amber-800 mb-1">🎁 ¡1 mes GRATIS de promoción!</p>
-                        <p className="text-xs text-amber-700">Incluye: hasta 5 fotos · visibilidad en el mapa · comentarios de turistas. Sujeto a validación.</p>
+                        <p className="text-xs text-amber-700">Visibilidad en el mapa · recomendaciones de la IA · perfil verificado. Sujeto a validación.</p>
                       </div>
 
-                      {/* Nombre negocio */}
                       <div>
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre de empresa o servicio <span className="text-red-500">*</span></label>
                         <div className="relative">
@@ -354,34 +345,50 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
                         </div>
                       </div>
 
-                      {/* Fotos */}
+                      {/* Mini mapa de ubicación */}
                       <div>
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                          Fotos de tu servicio <span className="text-red-500">*</span>
-                          <span className="text-jungle-400 font-normal"> ({fotosArchivos.length}/5 fotos · JPG/PNG · máx 5MB c/u)</span>
+                          <MapPin size={11} className="inline mr-1" />
+                          Marca tu ubicación en el mapa <span className="text-red-500">*</span>
                         </label>
-                        <button type="button" onClick={() => inputFotos.current?.click()}
-                          className="w-full border-2 border-dashed border-jungle-200 rounded-xl py-4 flex flex-col items-center gap-1 text-jungle-500 hover:border-jungle-400 hover:bg-jungle-50 transition-colors">
-                          <Camera size={22} />
-                          <span className="text-xs font-medium">Agregar fotos</span>
-                          <span className="text-[10px] text-jungle-400">Muestra el exterior, interior, platillos, habitaciones…</span>
-                        </button>
-                        <input ref={inputFotos} type="file" accept="image/*" multiple className="hidden" onChange={agregarFotos} />
-                        {fotosArchivos.length > 0 && (
-                          <div className="flex gap-1.5 mt-2 flex-wrap">
-                            {fotosArchivos.map((f, i) => (
-                              <div key={i} className="relative w-14 h-14 rounded-lg overflow-hidden border border-jungle-200">
-                                <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
-                                <button type="button" onClick={() => setFotosArchivos(prev => prev.filter((_, j) => j !== i))}
-                                  className="absolute top-0 right-0 bg-red-500 text-white w-4 h-4 flex items-center justify-center rounded-bl text-xs">×</button>
-                              </div>
-                            ))}
+                        <p className="text-[10px] text-jungle-500 mb-2">Toca el mapa donde está tu negocio para colocar el marcador</p>
+                        <div className="rounded-xl overflow-hidden border-2 border-jungle-200" style={{ height: '220px', position: 'relative' }}>
+                          <MapContainer
+                            center={TUXTLAS_CENTER}
+                            zoom={11}
+                            style={{ height: '100%', width: '100%' }}
+                            zoomControl={true}
+                            attributionControl={false}
+                          >
+                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                            <ClickCaptor onUbicacion={(lat, lng) => {
+                              setUbicacion([lat, lng]);
+                              setUbicacionGuardada(false);
+                            }} />
+                            {ubicacion && (
+                              <Marker position={ubicacion} icon={iconoPrestador} />
+                            )}
+                          </MapContainer>
+                        </div>
+
+                        {ubicacion && !ubicacionGuardada && (
+                          <button type="button"
+                            onClick={() => setUbicacionGuardada(true)}
+                            className="w-full mt-2 bg-jungle-600 hover:bg-jungle-700 text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors">
+                            <Navigation size={13} />
+                            Guardar ubicación
+                          </button>
+                        )}
+                        {ubicacionGuardada && (
+                          <div className="mt-2 flex items-center gap-2 bg-jungle-50 border border-jungle-200 rounded-xl px-3 py-2">
+                            <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
+                            <p className="text-xs text-jungle-700 font-medium">
+                              Ubicación guardada ({ubicacion![0].toFixed(4)}, {ubicacion![1].toFixed(4)})
+                            </p>
+                            <button type="button" onClick={() => { setUbicacionGuardada(false); setUbicacion(null); }}
+                              className="ml-auto text-[10px] text-jungle-500 underline">cambiar</button>
                           </div>
                         )}
-                        <p className="text-[10px] text-jungle-400 mt-1.5 flex items-center gap-1">
-                          <MapPin size={10} />
-                          Estas fotos serán revisadas por nuestro equipo para validar tu servicio. Te notificaremos en 24-48 hrs.
-                        </p>
                       </div>
                     </div>
                   )}
@@ -392,7 +399,7 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
                   <input type="checkbox" checked={terminos} onChange={e => setTerminos(e.target.checked)}
                     className="mt-0.5 w-4 h-4 rounded border-jungle-300 text-jungle-600" />
                   <span className="text-xs text-jungle-600">
-                    Acepto los <button type="button" className="text-jungle-800 underline font-semibold">términos y condiciones</button> del sistema
+                    Acepto los <span className="text-jungle-800 underline font-semibold">términos y condiciones</span> del sistema
                   </span>
                 </label>
 
@@ -405,13 +412,10 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
 
               <p className="text-center text-sm text-jungle-600 mt-6">
                 ¿Ya tienes cuenta?{' '}
-                <button onClick={() => { setVista('login'); setError(''); }} className="font-bold text-jungle-800 underline">
-                  Inicia sesión
-                </button>
+                <button onClick={() => { setVista('login'); setError(''); }} className="font-bold text-jungle-800 underline">Inicia sesión</button>
               </p>
             </div>
           )}
-
         </div>
       </div>
     </div>

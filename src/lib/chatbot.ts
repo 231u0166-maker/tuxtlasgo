@@ -372,6 +372,9 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
         Naturaleza: 2,
         Gastronomia: 3,
         Hospedaje: 4,
+        Comercio: 5,
+        Cooperativa: 6,
+        Otro: 7,
       };
       return orden[a.categoria] - orden[b.categoria];
     });

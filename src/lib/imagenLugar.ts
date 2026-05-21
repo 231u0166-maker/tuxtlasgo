@@ -31,6 +31,9 @@ const ESTILOS: Record<Categoria, EstiloCategoria> = {
   Aventura:    { colorInicio: '#d97706', colorFin: '#92400e', icono: '⛰️' },
   Gastronomia: { colorInicio: '#dc2626', colorFin: '#991b1b', icono: '🍽️' },
   Hospedaje:   { colorInicio: '#475569', colorFin: '#1e293b', icono: '🛏️' },
+  Comercio:    { colorInicio: '#ea580c', colorFin: '#9a3412', icono: '🛍️' },
+  Cooperativa: { colorInicio: '#0d9488', colorFin: '#134e4a', icono: '🤝' },
+  Otro:        { colorInicio: '#6b7280', colorFin: '#1f2937', icono: '⭐' },
 };
 
 // Acorta nombres largos para que quepan en el placeholder.

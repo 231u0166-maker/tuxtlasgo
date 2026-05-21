@@ -9,6 +9,9 @@ export type Categoria =
   | 'Aventura'
   | 'Gastronomia'
   | 'Hospedaje'
+  | 'Comercio'
+  | 'Cooperativa'
+  | 'Otro'
 ;
 
 export type Presupuesto = 'bajo' | 'medio' | 'alto';
@@ -277,4 +280,7 @@ export const CATEGORIAS: { id: Categoria; emoji: string; color: string }[] = [
   { id: 'Aventura',   emoji: '🥾', color: 'bg-amber-100 text-amber-800' },
   { id: 'Gastronomia',emoji: '🍽️', color: 'bg-red-100 text-red-800' },
   { id: 'Hospedaje',  emoji: '🛏️',  color: 'bg-blue-100 text-blue-800' },
+  { id: 'Comercio',   emoji: '🛍️',  color: 'bg-orange-100 text-orange-800' },
+  { id: 'Cooperativa',emoji: '🤝',  color: 'bg-teal-100 text-teal-800' },
+  { id: 'Otro',       emoji: '⭐',  color: 'bg-gray-100 text-gray-700' },
 ];

@@ -486,27 +486,77 @@ function ConsultarEstado({ onVolver }: { onVolver: () => void }) {
 
 // ─────────────── PANEL DE ADMINISTRACIÓN ───────────────
 function PanelAdmin({ onVolver }: { onVolver: () => void }) {
-  const [filtro, setFiltro] = useState<EstadoServicio | 'todos'>('pendiente');
+  const [filtro, setFiltro] = useState<'pendiente' | 'aprobado' | 'rechazado' | 'todos'>('pendiente');
+  const [servicios, setServicios] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(false);
+  const [pass, setPass] = useState('');
+  const [autenticado, setAutenticado] = useState(false);
+  const [errorAuth, setErrorAuth] = useState('');
 
-  const servicios = useLiveQuery(
-    () => db.prestadores.orderBy('creadoEn').reverse().toArray(),
-    []
-  );
+  const ADMIN_PWD = 'tuxtlasgo2026';
 
-  const serviciosFiltrados =
-    servicios?.filter((s) => filtro === 'todos' || s.estado === filtro) ?? [];
+  async function cargarServicios(estado: string) {
+    setCargando(true);
+    try {
+      const res = await fetch(`/api/servicios/admin?estado=${estado === 'todos' ? 'pendiente' : estado}`, {
+        headers: { 'X-Admin-Password': ADMIN_PWD }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (estado === 'todos') {
+          // Cargar todos los estados
+          const [r1, r2, r3] = await Promise.all([
+            fetch('/api/servicios/admin?estado=pendiente', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
+            fetch('/api/servicios/admin?estado=aprobado', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
+            fetch('/api/servicios/admin?estado=rechazado', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
+          ]);
+          setServicios([...(r1.servicios||[]), ...(r2.servicios||[]), ...(r3.servicios||[])]);
+        } else {
+          setServicios(data.servicios || []);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setCargando(false);
+  }
 
   async function aprobar(id: number) {
-    await cambiarEstadoServicio(id, 'aprobado');
+    try {
+      await fetch('/api/servicios/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        body: JSON.stringify({ servicioId: id, accion: 'aprobar' })
+      });
+      cargarServicios(filtro);
+    } catch (err) { console.error(err); }
   }
 
   async function rechazar(id: number) {
-    const motivo = prompt(
-      'Motivo del rechazo (lo verá el prestador al consultar su código):'
-    );
-    if (motivo === null) return; // canceló
-    await cambiarEstadoServicio(id, 'rechazado', motivo || 'No especificado');
+    const motivo = prompt('Motivo del rechazo (lo verá el prestador):');
+    if (motivo === null) return;
+    try {
+      await fetch('/api/servicios/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        body: JSON.stringify({ servicioId: id, accion: 'rechazar', motivoRechazo: motivo || 'No especificado' })
+      });
+      cargarServicios(filtro);
+    } catch (err) { console.error(err); }
   }
+
+  function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (pass === ADMIN_PWD) {
+      setAutenticado(true);
+      setErrorAuth('');
+      cargarServicios('pendiente');
+    } else {
+      setErrorAuth('Contraseña incorrecta');
+    }
+  }
+
+  const serviciosFiltrados = servicios;
 
   return (
     <div>

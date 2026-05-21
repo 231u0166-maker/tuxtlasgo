@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql, cors, getToken, verificarSesion } from '../_db';
+import { getSQL, cors, getToken, verificarSesion } from '../_db';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -12,6 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!usuario) return res.status(401).json({ error: 'Sesión inválida' });
 
   if (req.method === 'GET') {
+    const sql = getSQL();
     let servicio = null;
     if (usuario.tipo === 'prestador') {
       const rows = await sql`SELECT * FROM servicios WHERE usuario_id = ${usuario.id} ORDER BY creado_en DESC LIMIT 1`;
@@ -24,6 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'DELETE') {
+    const sql = getSQL();
     await sql`DELETE FROM sesiones WHERE token = ${token}`;
     return res.status(200).json({ ok: true, mensaje: 'Sesión cerrada' });
   }

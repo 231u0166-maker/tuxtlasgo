@@ -3,7 +3,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export type { VercelRequest, VercelResponse };
 
-export const sql = neon(process.env.DATABASE_URL!);
+// Crear conexión dentro de la función para asegurar que DATABASE_URL esté disponible
+export function getSQL() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL no configurada');
+  return neon(url);
+}
 
 export interface Usuario {
   id: number;
@@ -28,6 +33,7 @@ export function cors(res: VercelResponse) {
 
 export async function verificarSesion(token: string): Promise<Usuario | null> {
   try {
+    const sql = getSQL();
     const rows = await sql`
       SELECT u.id, u.nombre, u.correo, u.tipo, u.foto_url
       FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id

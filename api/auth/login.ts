@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import bcrypt from 'bcryptjs';
-import { sql, generarCodigo, cors } from '../_db';
+import { getSQL, generarCodigo, cors } from '../_db';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -8,6 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
   try {
+    const sql = getSQL();
     const { correo, password } = req.body;
     if (!correo || !password) return res.status(400).json({ error: 'Correo y contraseña requeridos' });
 
@@ -28,6 +29,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (err) {
     console.error('[login]', err);
-    return res.status(500).json({ error: 'Error interno del servidor' });
+    return res.status(500).json({ error: 'Error interno: ' + String(err) });
   }
 }

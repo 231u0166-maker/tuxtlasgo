@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import bcrypt from 'bcryptjs';
-import { sql, cors } from '../_db';
+import { getSQL, cors } from '../_db';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -8,11 +8,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
   try {
+    const sql = getSQL();
     const { correo, codigoRecuperacion, nuevaPassword } = req.body;
     if (!correo || !codigoRecuperacion || !nuevaPassword)
       return res.status(400).json({ error: 'Faltan datos' });
-    if (nuevaPassword.length < 6)
-      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
 
     const rows = await sql`SELECT id FROM usuarios WHERE correo = ${correo.toLowerCase().trim()} AND codigo_recuperacion = ${codigoRecuperacion.toUpperCase().trim()}`;
     if (rows.length === 0) return res.status(401).json({ error: 'Correo o código incorrectos' });
@@ -24,6 +23,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, mensaje: 'Contraseña actualizada. Inicia sesión.' });
   } catch (err) {
     console.error('[recuperar]', err);
-    return res.status(500).json({ error: 'Error interno' });
+    return res.status(500).json({ error: 'Error interno: ' + String(err) });
   }
 }

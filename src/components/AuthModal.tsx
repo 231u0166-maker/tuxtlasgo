@@ -1,5 +1,8 @@
-import { useState } from 'react';
-import { X, Eye, EyeOff, Loader2, CheckCircle2, Copy } from 'lucide-react';
+import { useState, useRef } from 'react';
+import {
+  X, Eye, EyeOff, Loader2, CheckCircle2, Copy,
+  ChevronDown, ChevronUp, MapPin, Camera, Lock, Mail, User, Building2
+} from 'lucide-react';
 import { apiLogin, apiRegistro, apiRecuperar, type UsuarioSesion } from '../lib/auth';
 
 type Vista = 'login' | 'registro' | 'recuperar' | 'codigo';
@@ -13,7 +16,11 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
   const [vista, setVista] = useState<Vista>('login');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
-  const [verPassword, setVerPassword] = useState(false);
+  const [verPass, setVerPass] = useState(false);
+  const [esPrestador, setEsPrestador] = useState(false);
+  const [codigoMostrado, setCodigoMostrado] = useState('');
+  const [codigoCopiado, setCodigoCopiado] = useState(false);
+  const [usuarioRegistrado, setUsuarioRegistrado] = useState<UsuarioSesion | null>(null);
 
   // Campos login
   const [correoLogin, setCorreoLogin] = useState('');
@@ -23,16 +30,17 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
   const [nombre, setNombre] = useState('');
   const [correoReg, setCorreoReg] = useState('');
   const [passReg, setPassReg] = useState('');
-  const [tipo, setTipo] = useState<'turista' | 'prestador'>('turista');
-  const [codigoMostrado, setCodigoMostrado] = useState('');
-  const [codigoCopiado, setCodigoCopiado] = useState(false);
+  const [passConf, setPassConf] = useState('');
+  const [terminos, setTerminos] = useState(false);
+  const [nombreNegocio, setNombreNegocio] = useState('');
+  const [fotosArchivos, setFotosArchivos] = useState<File[]>([]);
+  const inputFotos = useRef<HTMLInputElement>(null);
 
   // Campos recuperar
   const [correoRec, setCorreoRec] = useState('');
   const [codigoRec, setCodigoRec] = useState('');
   const [passNueva, setPassNueva] = useState('');
-
-  const limpiarError = () => setError('');
+  const [recuperado, setRecuperado] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -40,25 +48,30 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
     setCargando(true);
     const res = await apiLogin({ correo: correoLogin, password: passLogin });
     setCargando(false);
-    if (res.ok && res.usuario) {
-      onSuccess(res.usuario);
-    } else {
-      setError(res.error ?? 'Error al iniciar sesión');
-    }
+    if (res.ok && res.usuario) onSuccess(res.usuario);
+    else setError(res.error ?? 'Correo o contraseña incorrectos');
   }
 
   async function handleRegistro(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (passReg !== passConf) return setError('Las contraseñas no coinciden');
+    if (passReg.length < 6) return setError('La contraseña debe tener mínimo 6 caracteres');
+    if (!terminos) return setError('Debes aceptar los términos y condiciones');
     setCargando(true);
-    const res = await apiRegistro({ nombre, correo: correoReg, password: passReg, tipo });
+    const res = await apiRegistro({
+      nombre,
+      correo: correoReg,
+      password: passReg,
+      tipo: esPrestador ? 'prestador' : 'turista',
+    });
     setCargando(false);
     if (res.ok && res.usuario) {
       setCodigoMostrado(res.codigoRecuperacion ?? '');
+      setUsuarioRegistrado(res.usuario);
       setVista('codigo');
-      // El usuario ya quedó logueado, lo pasamos al padre cuando cierre el modal del código
     } else {
-      setError(res.error ?? 'Error al registrarse');
+      setError(res.error ?? 'Error al crear la cuenta');
     }
   }
 
@@ -66,18 +79,15 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
     e.preventDefault();
     setError('');
     setCargando(true);
-    const res = await apiRecuperar({
-      correo: correoRec,
-      codigoRecuperacion: codigoRec,
-      nuevaPassword: passNueva,
-    });
+    const res = await apiRecuperar({ correo: correoRec, codigoRecuperacion: codigoRec, nuevaPassword: passNueva });
     setCargando(false);
-    if (res.ok) {
-      setVista('login');
-      setError('');
-    } else {
-      setError(res.error ?? 'Error al recuperar contraseña');
-    }
+    if (res.ok) setRecuperado(true);
+    else setError(res.error ?? 'Correo o código incorrectos');
+  }
+
+  function agregarFotos(e: React.ChangeEvent<HTMLInputElement>) {
+    const archivos = Array.from(e.target.files ?? []);
+    setFotosArchivos(prev => [...prev, ...archivos].slice(0, 5));
   }
 
   function copiarCodigo() {
@@ -86,43 +96,46 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
     setTimeout(() => setCodigoCopiado(false), 2000);
   }
 
-  // ─── PANTALLA: CÓDIGO DE RECUPERACIÓN ────────────────────
+  // ─── CÓDIGO DE RECUPERACIÓN ───────────────────────────
   if (vista === 'codigo') {
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.97)', display: 'flex', alignItems: 'flex-end' }}>
-        <div className="bg-white w-full rounded-t-3xl p-6 pb-8">
+      <div style={{ position:'fixed',inset:0,zIndex:9999,backgroundColor:'rgba(2,44,22,0.97)',display:'flex',alignItems:'flex-end' }}>
+        <div className="bg-white w-full rounded-t-3xl p-6 pb-10 max-h-[90vh] overflow-y-auto">
           <div className="text-center mb-6">
-            <div className="w-14 h-14 bg-jungle-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <CheckCircle2 size={28} className="text-jungle-700" />
+            <div className="w-16 h-16 bg-jungle-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <CheckCircle2 size={32} className="text-jungle-600" />
             </div>
-            <h2 className="font-display font-extrabold text-xl text-jungle-950">¡Cuenta creada!</h2>
-            <p className="text-sm text-jungle-700 mt-1">Bienvenido a TuxtlasGO 🌿</p>
+            <h2 className="font-display font-extrabold text-2xl text-jungle-950">
+              ¡Cuenta creada!
+            </h2>
+            <p className="text-jungle-600 mt-1 text-sm">
+              Bienvenido a TuxtlasGO, {usuarioRegistrado?.nombre.split(' ')[0]}
+            </p>
           </div>
 
-          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 mb-5">
-            <p className="text-xs font-bold text-amber-900 mb-1">⚠️ Guarda este código ahora</p>
-            <p className="text-xs text-amber-800 mb-3">
-              Si olvidas tu contraseña, lo necesitarás para recuperar tu cuenta.
-              <strong> No lo podrás ver de nuevo.</strong>
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Lock size={16} className="text-amber-600" />
+              <p className="text-xs font-bold text-amber-900">Guarda tu código de recuperación</p>
+            </div>
+            <p className="text-xs text-amber-700 mb-3">
+              Si olvidas tu contraseña, necesitarás este código. <strong>No lo podrás ver de nuevo.</strong>
             </p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 bg-white border border-amber-200 rounded-xl px-4 py-3 text-lg font-bold text-center text-jungle-900 tracking-widest">
+              <code className="flex-1 bg-white border border-amber-200 rounded-xl px-4 py-3 text-base font-bold text-center text-jungle-900 tracking-widest">
                 {codigoMostrado}
               </code>
-              <button
-                onClick={copiarCodigo}
-                className="bg-amber-500 text-white p-3 rounded-xl"
-              >
+              <button onClick={copiarCodigo} className="bg-amber-500 hover:bg-amber-600 text-white p-3 rounded-xl transition-colors">
                 {codigoCopiado ? <CheckCircle2 size={18} /> : <Copy size={18} />}
               </button>
             </div>
           </div>
 
           <button
-            onClick={onClose}
-            className="w-full bg-jungle-700 text-white font-bold py-3.5 rounded-2xl"
+            onClick={() => { if (usuarioRegistrado) onSuccess(usuarioRegistrado); else onClose(); }}
+            className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl transition-colors"
           >
-            Ya lo guardé, continuar
+            Ya lo guardé — Entrar a la app
           </button>
         </div>
       </div>
@@ -130,212 +143,276 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.97)', display: 'flex', alignItems: 'flex-end' }}>
-      <div className="bg-white w-full rounded-t-3xl p-6 pb-8 max-h-[90vh] overflow-y-auto">
+    <div style={{ position:'fixed',inset:0,zIndex:9999,backgroundColor:'rgba(2,44,22,0.97)',display:'flex',alignItems:'flex-end' }}>
+      <div className="bg-white w-full rounded-t-3xl max-h-[92vh] overflow-y-auto" style={{ WebkitOverflowScrolling:'touch', touchAction:'pan-y' }}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="sticky top-0 bg-white border-b border-jungle-100 px-6 py-4 flex items-center justify-between rounded-t-3xl z-10">
           <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-8 w-auto object-contain" />
           <button onClick={onClose} className="text-jungle-400 hover:text-jungle-700 p-1">
             <X size={22} />
           </button>
         </div>
 
-        {/* Tabs */}
-        {vista !== 'recuperar' && (
-          <div className="flex bg-jungle-50 rounded-xl p-1 mb-6">
-            <button
-              onClick={() => { setVista('login'); limpiarError(); }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                vista === 'login' ? 'bg-white text-jungle-900 shadow-sm' : 'text-jungle-600'
-              }`}
-            >
-              Iniciar sesión
-            </button>
-            <button
-              onClick={() => { setVista('registro'); limpiarError(); }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                vista === 'registro' ? 'bg-white text-jungle-900 shadow-sm' : 'text-jungle-600'
-              }`}
-            >
-              Crear cuenta
-            </button>
-          </div>
-        )}
+        <div className="px-6 py-6 pb-10">
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">
-            {error}
-          </div>
-        )}
-
-        {/* ─── LOGIN ─── */}
-        {vista === 'login' && (
-          <form onSubmit={handleLogin} className="space-y-4">
+          {/* ─── RECUPERAR CONTRASEÑA ─── */}
+          {vista === 'recuperar' && (
             <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Correo electrónico</label>
-              <input
-                type="email"
-                value={correoLogin}
-                onChange={e => setCorreoLogin(e.target.value)}
-                placeholder="tu@correo.com"
-                required
-                className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Contraseña</label>
-              <div className="relative">
-                <input
-                  type={verPassword ? 'text' : 'password'}
-                  value={passLogin}
-                  onChange={e => setPassLogin(e.target.value)}
-                  placeholder="Tu contraseña"
-                  required
-                  className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 pr-12"
-                />
-                <button type="button" onClick={() => setVerPassword(!verPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-jungle-400">
-                  {verPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={cargando}
-              className="w-full bg-jungle-700 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              {cargando ? <Loader2 size={18} className="animate-spin" /> : null}
-              Iniciar sesión
-            </button>
-            <button
-              type="button"
-              onClick={() => { setVista('recuperar'); limpiarError(); }}
-              className="w-full text-center text-xs text-jungle-600 underline"
-            >
-              ¿Olvidaste tu contraseña?
-            </button>
-          </form>
-        )}
-
-        {/* ─── REGISTRO ─── */}
-        {vista === 'registro' && (
-          <form onSubmit={handleRegistro} className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre completo</label>
-              <input
-                type="text"
-                value={nombre}
-                onChange={e => setNombre(e.target.value)}
-                placeholder="Tu nombre"
-                required
-                minLength={2}
-                className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Correo electrónico</label>
-              <input
-                type="email"
-                value={correoReg}
-                onChange={e => setCorreoReg(e.target.value)}
-                placeholder="tu@correo.com"
-                required
-                className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Contraseña</label>
-              <div className="relative">
-                <input
-                  type={verPassword ? 'text' : 'password'}
-                  value={passReg}
-                  onChange={e => setPassReg(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
-                  required
-                  minLength={6}
-                  className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 pr-12"
-                />
-                <button type="button" onClick={() => setVerPassword(!verPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-jungle-400">
-                  {verPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-2 block">¿Cómo usarás la app?</label>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setTipo('turista')}
-                  className={`flex-1 py-3 rounded-xl border-2 text-sm font-semibold transition-colors ${
-                    tipo === 'turista'
-                      ? 'border-jungle-600 bg-jungle-50 text-jungle-900'
-                      : 'border-jungle-100 text-jungle-500'
-                  }`}
-                >
-                  🗺️ Soy turista
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTipo('prestador')}
-                  className={`flex-1 py-3 rounded-xl border-2 text-sm font-semibold transition-colors ${
-                    tipo === 'prestador'
-                      ? 'border-jungle-600 bg-jungle-50 text-jungle-900'
-                      : 'border-jungle-100 text-jungle-500'
-                  }`}
-                >
-                  🏪 Soy prestador
-                </button>
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={cargando}
-              className="w-full bg-jungle-700 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              {cargando ? <Loader2 size={18} className="animate-spin" /> : null}
-              Crear cuenta
-            </button>
-          </form>
-        )}
-
-        {/* ─── RECUPERAR ─── */}
-        {vista === 'recuperar' && (
-          <form onSubmit={handleRecuperar} className="space-y-4">
-            <div>
-              <button onClick={() => setVista('login')} className="text-xs text-jungle-600 underline mb-3 block">
-                ← Volver al login
+              <button onClick={() => { setVista('login'); setError(''); setRecuperado(false); }}
+                className="text-xs text-jungle-600 underline mb-5 block">
+                ← Volver al inicio de sesión
               </button>
-              <h3 className="font-display font-bold text-lg text-jungle-950 mb-1">Recuperar contraseña</h3>
-              <p className="text-xs text-jungle-600 mb-4">
-                Ingresa tu correo y el código de recuperación que recibiste al crear tu cuenta.
+
+              {recuperado ? (
+                <div className="text-center py-6">
+                  <CheckCircle2 size={40} className="text-jungle-600 mx-auto mb-3" />
+                  <h3 className="font-display font-bold text-lg text-jungle-950 mb-2">¡Contraseña actualizada!</h3>
+                  <p className="text-sm text-jungle-600 mb-5">Ya puedes iniciar sesión con tu nueva contraseña.</p>
+                  <button onClick={() => { setVista('login'); setRecuperado(false); setError(''); }}
+                    className="bg-jungle-700 text-white font-bold px-8 py-3 rounded-2xl">
+                    Iniciar sesión
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">Recuperar contraseña</h2>
+                  <p className="text-sm text-jungle-600 mb-6">Ingresa tu correo y el código de recuperación que guardaste al crear tu cuenta.</p>
+
+                  {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
+
+                  <form onSubmit={handleRecuperar} className="space-y-4">
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Correo electrónico</label>
+                      <div className="relative">
+                        <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
+                        <input type="email" value={correoRec} onChange={e => setCorreoRec(e.target.value)} required placeholder="tu@email.com"
+                          className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Código de recuperación</label>
+                      <input type="text" value={codigoRec} onChange={e => setCodigoRec(e.target.value.toUpperCase())} required placeholder="REC-XXXXXXXX"
+                        className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Nueva contraseña</label>
+                      <div className="relative">
+                        <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
+                        <input type="password" value={passNueva} onChange={e => setPassNueva(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres"
+                          className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                      </div>
+                    </div>
+                    <button type="submit" disabled={cargando}
+                      className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
+                      {cargando && <Loader2 size={18} className="animate-spin" />}
+                      Cambiar contraseña
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ─── LOGIN ─── */}
+          {vista === 'login' && (
+            <div>
+              <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">Iniciar sesión</h2>
+              <p className="text-sm text-jungle-600 mb-6">Ingresa tus datos para continuar</p>
+
+              {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Correo electrónico</label>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
+                    <input type="email" value={correoLogin} onChange={e => setCorreoLogin(e.target.value)} required placeholder="tu@email.com"
+                      className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-jungle-700">Contraseña</label>
+                    <button type="button" onClick={() => { setVista('recuperar'); setError(''); }}
+                      className="text-xs text-jungle-600 underline">
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
+                    <input type={verPass ? 'text' : 'password'} value={passLogin} onChange={e => setPassLogin(e.target.value)} required placeholder="Tu contraseña"
+                      className="w-full border border-jungle-200 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                    <button type="button" onClick={() => setVerPass(!verPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-jungle-400">
+                      {verPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+                <button type="submit" disabled={cargando}
+                  className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors mt-2">
+                  {cargando && <Loader2 size={18} className="animate-spin" />}
+                  Iniciar sesión
+                </button>
+              </form>
+
+              <p className="text-center text-sm text-jungle-600 mt-6">
+                ¿No tienes cuenta?{' '}
+                <button onClick={() => { setVista('registro'); setError(''); }} className="font-bold text-jungle-800 underline">
+                  Regístrate aquí
+                </button>
               </p>
             </div>
+          )}
+
+          {/* ─── REGISTRO ─── */}
+          {vista === 'registro' && (
             <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Correo electrónico</label>
-              <input type="email" value={correoRec} onChange={e => setCorreoRec(e.target.value)}
-                placeholder="tu@correo.com" required
-                className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+              <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">Crear cuenta</h2>
+              <p className="text-sm text-jungle-600 mb-6">Completa los datos para registrarte</p>
+
+              {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
+
+              <form onSubmit={handleRegistro} className="space-y-4">
+                {/* Nombre */}
+                <div>
+                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Nombre completo <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
+                    <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} required minLength={2} placeholder="Tu nombre y apellido"
+                      className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                  </div>
+                </div>
+
+                {/* Correo */}
+                <div>
+                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Correo electrónico <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
+                    <input type="email" value={correoReg} onChange={e => setCorreoReg(e.target.value)} required placeholder="tu@email.com"
+                      className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                  </div>
+                </div>
+
+                {/* Contraseña */}
+                <div>
+                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Contraseña <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
+                    <input type={verPass ? 'text' : 'password'} value={passReg} onChange={e => setPassReg(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres"
+                      className="w-full border border-jungle-200 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                    <button type="button" onClick={() => setVerPass(!verPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-jungle-400">
+                      {verPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirmar contraseña */}
+                <div>
+                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Confirmar contraseña <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
+                    <input type="password" value={passConf} onChange={e => setPassConf(e.target.value)} required placeholder="Repite tu contraseña"
+                      className={`w-full border rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 ${passConf && passReg !== passConf ? 'border-red-300 bg-red-50' : 'border-jungle-200'}`} />
+                  </div>
+                  {passConf && passReg !== passConf && (
+                    <p className="text-xs text-red-500 mt-1">Las contraseñas no coinciden</p>
+                  )}
+                </div>
+
+                {/* Checkbox prestador */}
+                <div className={`border-2 rounded-2xl overflow-hidden transition-colors ${esPrestador ? 'border-jungle-500 bg-jungle-50' : 'border-jungle-100'}`}>
+                  <button type="button" onClick={() => setEsPrestador(!esPrestador)}
+                    className="w-full flex items-center justify-between p-4 text-left">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${esPrestador ? 'bg-jungle-600 border-jungle-600' : 'border-jungle-300'}`}>
+                        {esPrestador && <CheckCircle2 size={12} className="text-white" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-jungle-900">¿Eres proveedor de servicios?</p>
+                        <p className="text-xs text-jungle-500">Hotel, restaurante, ecoturismo u otro servicio turístico</p>
+                      </div>
+                    </div>
+                    {esPrestador ? <ChevronUp size={18} className="text-jungle-600 flex-shrink-0" /> : <ChevronDown size={18} className="text-jungle-400 flex-shrink-0" />}
+                  </button>
+
+                  {esPrestador && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-jungle-100 pt-3">
+                      {/* Promo badge */}
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                        <p className="text-xs font-bold text-amber-800 mb-1">🎁 ¡1 mes GRATIS de promoción!</p>
+                        <p className="text-xs text-amber-700">Incluye: hasta 5 fotos · visibilidad en el mapa · comentarios de turistas. Sujeto a validación.</p>
+                      </div>
+
+                      {/* Nombre negocio */}
+                      <div>
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre de empresa o servicio <span className="text-red-500">*</span></label>
+                        <div className="relative">
+                          <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-jungle-400" />
+                          <input type="text" value={nombreNegocio} onChange={e => setNombreNegocio(e.target.value)} placeholder="Ej: Hotel Lago Encantado"
+                            className="w-full border border-jungle-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                        </div>
+                      </div>
+
+                      {/* Fotos */}
+                      <div>
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">
+                          Fotos de tu servicio <span className="text-red-500">*</span>
+                          <span className="text-jungle-400 font-normal"> ({fotosArchivos.length}/5 fotos · JPG/PNG · máx 5MB c/u)</span>
+                        </label>
+                        <button type="button" onClick={() => inputFotos.current?.click()}
+                          className="w-full border-2 border-dashed border-jungle-200 rounded-xl py-4 flex flex-col items-center gap-1 text-jungle-500 hover:border-jungle-400 hover:bg-jungle-50 transition-colors">
+                          <Camera size={22} />
+                          <span className="text-xs font-medium">Agregar fotos</span>
+                          <span className="text-[10px] text-jungle-400">Muestra el exterior, interior, platillos, habitaciones…</span>
+                        </button>
+                        <input ref={inputFotos} type="file" accept="image/*" multiple className="hidden" onChange={agregarFotos} />
+                        {fotosArchivos.length > 0 && (
+                          <div className="flex gap-1.5 mt-2 flex-wrap">
+                            {fotosArchivos.map((f, i) => (
+                              <div key={i} className="relative w-14 h-14 rounded-lg overflow-hidden border border-jungle-200">
+                                <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
+                                <button type="button" onClick={() => setFotosArchivos(prev => prev.filter((_, j) => j !== i))}
+                                  className="absolute top-0 right-0 bg-red-500 text-white w-4 h-4 flex items-center justify-center rounded-bl text-xs">×</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-[10px] text-jungle-400 mt-1.5 flex items-center gap-1">
+                          <MapPin size={10} />
+                          Estas fotos serán revisadas por nuestro equipo para validar tu servicio. Te notificaremos en 24-48 hrs.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Términos */}
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input type="checkbox" checked={terminos} onChange={e => setTerminos(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-jungle-300 text-jungle-600" />
+                  <span className="text-xs text-jungle-600">
+                    Acepto los <button type="button" className="text-jungle-800 underline font-semibold">términos y condiciones</button> del sistema
+                  </span>
+                </label>
+
+                <button type="submit" disabled={cargando || (passConf !== '' && passReg !== passConf)}
+                  className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
+                  {cargando && <Loader2 size={18} className="animate-spin" />}
+                  {esPrestador ? 'Enviar solicitud de registro' : 'Crear cuenta'}
+                </button>
+              </form>
+
+              <p className="text-center text-sm text-jungle-600 mt-6">
+                ¿Ya tienes cuenta?{' '}
+                <button onClick={() => { setVista('login'); setError(''); }} className="font-bold text-jungle-800 underline">
+                  Inicia sesión
+                </button>
+              </p>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Código de recuperación</label>
-              <input type="text" value={codigoRec} onChange={e => setCodigoRec(e.target.value.toUpperCase())}
-                placeholder="REC-XXXXXXXX" required
-                className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-jungle-400 tracking-widest" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nueva contraseña</label>
-              <input type="password" value={passNueva} onChange={e => setPassNueva(e.target.value)}
-                placeholder="Mínimo 6 caracteres" required minLength={6}
-                className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-            </div>
-            <button type="submit" disabled={cargando}
-              className="w-full bg-jungle-700 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60">
-              {cargando ? <Loader2 size={18} className="animate-spin" /> : null}
-              Cambiar contraseña
-            </button>
-          </form>
-        )}
+          )}
+
+        </div>
       </div>
     </div>
   );

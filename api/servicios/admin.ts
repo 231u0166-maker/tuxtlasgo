@@ -1,84 +1,36 @@
-// api/servicios/admin.ts
-// GET  /api/servicios/admin          → lista servicios pendientes
-// POST /api/servicios/admin          → aprobar o rechazar un servicio
-// Requiere header: X-Admin-Password: tuxtlasgo2026
-
-import { sql, jsonRes } from '../_db';
-
-export const config = { runtime: 'edge' };
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql, cors } from '../_db';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'tuxtlasgo2026';
 
-function verificarAdmin(req: Request): boolean {
-  return req.headers.get('x-admin-password') === ADMIN_PASSWORD;
-}
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  cors(res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-export default async function handler(req: Request) {
-  if (req.method === 'OPTIONS') return jsonRes({});
+  if (req.headers['x-admin-password'] !== ADMIN_PASSWORD)
+    return res.status(401).json({ error: 'Contraseña de administrador incorrecta' });
 
-  if (!verificarAdmin(req)) {
-    return jsonRes({ error: 'Contraseña de administrador incorrecta' }, 401);
-  }
-
-  // GET — listar todos los servicios con info del usuario
   if (req.method === 'GET') {
-    const url = new URL(req.url);
-    const estado = url.searchParams.get('estado') ?? 'pendiente';
-
+    const estado = (req.query.estado as string) ?? 'pendiente';
     const rows = await sql`
-      SELECT
-        s.id, s.nombre, s.categoria, s.municipio, s.descripcion,
-        s.precio, s.contacto, s.lat, s.lng,
-        s.estado, s.codigo_seguimiento, s.motivo_rechazo,
-        s.creado_en,
-        u.nombre AS usuario_nombre,
-        u.correo AS usuario_correo
-      FROM servicios s
-      JOIN usuarios u ON u.id = s.usuario_id
-      WHERE s.estado = ${estado}
-      ORDER BY s.creado_en DESC
+      SELECT s.*, u.nombre AS usuario_nombre, u.correo AS usuario_correo
+      FROM servicios s JOIN usuarios u ON u.id = s.usuario_id
+      WHERE s.estado = ${estado} ORDER BY s.creado_en DESC
     `;
-
-    return jsonRes({ ok: true, servicios: rows, total: rows.length });
+    return res.status(200).json({ ok: true, servicios: rows, total: rows.length });
   }
 
-  // POST — aprobar o rechazar
   if (req.method === 'POST') {
-    const { servicioId, accion, motivoRechazo } = await req.json();
-
-    if (!servicioId || !['aprobar', 'rechazar'].includes(accion)) {
-      return jsonRes({ error: 'Datos inválidos' }, 400);
-    }
-    if (accion === 'rechazar' && !motivoRechazo?.trim()) {
-      return jsonRes({ error: 'El motivo de rechazo es requerido' }, 400);
-    }
+    const { servicioId, accion, motivoRechazo } = req.body;
+    if (!servicioId || !['aprobar','rechazar'].includes(accion)) return res.status(400).json({ error: 'Datos inválidos' });
+    if (accion === 'rechazar' && !motivoRechazo?.trim()) return res.status(400).json({ error: 'El motivo es requerido' });
 
     const nuevoEstado = accion === 'aprobar' ? 'aprobado' : 'rechazado';
+    await sql`UPDATE servicios SET estado = ${nuevoEstado}, motivo_rechazo = ${accion === 'rechazar' ? motivoRechazo.trim() : null}, notificado = FALSE, actualizado_en = NOW() WHERE id = ${servicioId}`;
 
-    await sql`
-      UPDATE servicios
-      SET
-        estado = ${nuevoEstado},
-        motivo_rechazo = ${accion === 'rechazar' ? motivoRechazo.trim() : null},
-        notificado = FALSE,
-        actualizado_en = NOW()
-      WHERE id = ${servicioId}
-    `;
-
-    // Obtener el servicio actualizado para confirmar
-    const rows = await sql`
-      SELECT s.nombre, s.estado, s.codigo_seguimiento, u.nombre AS usuario
-      FROM servicios s
-      JOIN usuarios u ON u.id = s.usuario_id
-      WHERE s.id = ${servicioId}
-    `;
-
-    return jsonRes({
-      ok: true,
-      servicio: rows[0],
-      mensaje: `Servicio "${rows[0]?.nombre}" ${nuevoEstado} correctamente.`,
-    });
+    const rows = await sql`SELECT s.nombre, s.estado, s.codigo_seguimiento, u.nombre AS usuario FROM servicios s JOIN usuarios u ON u.id = s.usuario_id WHERE s.id = ${servicioId}`;
+    return res.status(200).json({ ok: true, servicio: rows[0], mensaje: `Servicio ${nuevoEstado} correctamente.` });
   }
 
-  return jsonRes({ error: 'Método no permitido' }, 405);
+  return res.status(405).json({ error: 'Método no permitido' });
 }

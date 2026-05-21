@@ -1,57 +1,29 @@
-// api/auth/recuperar.ts
-// POST /api/auth/recuperar
-// Recupera la contraseña usando el código de recuperación
-
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import bcrypt from 'bcryptjs';
-import { sql, jsonRes } from '../_db';
+import { sql, cors } from '../_db';
 
-export const config = { runtime: 'edge' };
-
-export default async function handler(req: Request) {
-  if (req.method === 'OPTIONS') return jsonRes({});
-  if (req.method !== 'POST') return jsonRes({ error: 'Método no permitido' }, 405);
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  cors(res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
   try {
-    const { correo, codigoRecuperacion, nuevaPassword } = await req.json();
+    const { correo, codigoRecuperacion, nuevaPassword } = req.body;
+    if (!correo || !codigoRecuperacion || !nuevaPassword)
+      return res.status(400).json({ error: 'Faltan datos' });
+    if (nuevaPassword.length < 6)
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
 
-    if (!correo || !codigoRecuperacion || !nuevaPassword) {
-      return jsonRes({ error: 'Faltan datos requeridos' }, 400);
-    }
-    if (nuevaPassword.length < 6) {
-      return jsonRes({ error: 'La contraseña debe tener al menos 6 caracteres' }, 400);
-    }
+    const rows = await sql`SELECT id FROM usuarios WHERE correo = ${correo.toLowerCase().trim()} AND codigo_recuperacion = ${codigoRecuperacion.toUpperCase().trim()}`;
+    if (rows.length === 0) return res.status(401).json({ error: 'Correo o código incorrectos' });
 
-    // Verificar que el código corresponda al correo
-    const rows = await sql`
-      SELECT id FROM usuarios
-      WHERE correo = ${correo.toLowerCase().trim()}
-        AND codigo_recuperacion = ${codigoRecuperacion.toUpperCase().trim()}
-    `;
-
-    if (rows.length === 0) {
-      return jsonRes({ error: 'Correo o código de recuperación incorrectos' }, 401);
-    }
-
-    const usuarioId = (rows[0] as any).id;
     const hash = await bcrypt.hash(nuevaPassword, 10);
+    await sql`UPDATE usuarios SET password = ${hash}, actualizado_en = NOW() WHERE id = ${(rows[0] as any).id}`;
+    await sql`DELETE FROM sesiones WHERE usuario_id = ${(rows[0] as any).id}`;
 
-    // Actualizar contraseña
-    await sql`
-      UPDATE usuarios
-      SET password = ${hash}, actualizado_en = NOW()
-      WHERE id = ${usuarioId}
-    `;
-
-    // Cerrar todas las sesiones activas por seguridad
-    await sql`DELETE FROM sesiones WHERE usuario_id = ${usuarioId}`;
-
-    return jsonRes({
-      ok: true,
-      mensaje: 'Contraseña actualizada correctamente. Inicia sesión con tu nueva contraseña.',
-    });
-
+    return res.status(200).json({ ok: true, mensaje: 'Contraseña actualizada. Inicia sesión.' });
   } catch (err) {
     console.error('[recuperar]', err);
-    return jsonRes({ error: 'Error interno del servidor' }, 500);
+    return res.status(500).json({ error: 'Error interno' });
   }
 }

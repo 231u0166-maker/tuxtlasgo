@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
-import AuthModal from './AuthModal';
-import { getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
+import { useState, useEffect } from 'react';
+import { type UsuarioSesion } from '../lib/auth';
 import {
   MapPin,
   WifiOff,
@@ -13,9 +12,12 @@ import {
 } from 'lucide-react';
 import OfflineIndicator from './OfflineIndicator';
 
-export default function LandingPage() {
-  const [mostrarAuth, setMostrarAuth] = useState(false);
-  const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal());
+interface LandingProps {
+  usuario?: UsuarioSesion | null;
+  onUsuario?: (u: UsuarioSesion) => void;
+}
+
+export default function LandingPage({ usuario = null }: LandingProps) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-jungle-50 via-white to-jungle-50">
       <OfflineIndicator />
@@ -87,38 +89,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="relative">
-            <div className="aspect-[4/5] rounded-3xl bg-gradient-to-br from-jungle-200 via-jungle-300 to-jungle-500 shadow-2xl shadow-jungle-700/20 overflow-hidden relative">
-              <img
-                src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80"
-                alt="Laguna de Catemaco"
-                className="w-full h-full object-cover mix-blend-multiply opacity-90"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-jungle-950/60 via-transparent to-transparent" />
-              <div className="absolute bottom-6 left-6 right-6 text-white">
-                <div className="text-xs font-medium opacity-90">DESTINO DEL DÍA</div>
-                <div className="font-display font-bold text-2xl">
-                  Laguna de Catemaco
-                </div>
-                <div className="text-sm opacity-80 mt-1">
-                  ⭐ 4.8 · Naturaleza · 2-4 hrs
-                </div>
-              </div>
-            </div>
-            {/* Decorative offline card */}
-            <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-xl p-4 flex items-center gap-3 max-w-[240px]">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                <WifiOff className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <div className="font-bold text-sm text-jungle-900">Modo avión</div>
-                <div className="text-xs text-jungle-700">
-                  Funciona igual sin internet
-                </div>
-              </div>
-            </div>
-          </div>
+          <CarruselHero />
         </div>
       </section>
 
@@ -216,15 +187,48 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
-      {mostrarAuth && (
-        <AuthModal
-          onClose={() => setMostrarAuth(false)}
-          onSuccess={(u) => {
-            setUsuario(u);
-            setMostrarAuth(false);
-          }}
-        />
-      )}
+    </div>
+  );
+}
+
+// ─── Carrusel ────────────────────────────────────────────────
+function CarruselHero() {
+  const [actual, setActual] = useState(0);
+  const total = 18;
+  const slides = Array.from({ length: total }, (_, i) =>
+    `/slides/slide_${String(i + 1).padStart(2, '0')}.jpg`
+  );
+
+  useEffect(() => {
+    const t = setInterval(() => setActual(p => (p + 1) % total), 3500);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="relative">
+      <div className="aspect-[4/5] rounded-3xl shadow-2xl shadow-jungle-700/20 overflow-hidden relative bg-jungle-200">
+        {slides.map((src, i) => (
+          <img key={i} src={src} alt={`Los Tuxtlas ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'}
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            style={{ opacity: i === actual ? 1 : 0 }} />
+        ))}
+        <div className="absolute inset-0 bg-gradient-to-t from-jungle-950/50 via-transparent to-transparent" />
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+          {slides.map((_, i) => (
+            <button key={i} onClick={() => setActual(i)}
+              className={`rounded-full transition-all duration-300 ${i === actual ? 'w-4 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/50'}`} />
+          ))}
+        </div>
+      </div>
+      <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-xl p-4 flex items-center gap-3 max-w-[220px]">
+        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+          <WifiOff className="w-5 h-5 text-amber-600" />
+        </div>
+        <div>
+          <div className="font-bold text-sm text-jungle-900">Modo avión</div>
+          <div className="text-xs text-jungle-700">Funciona igual sin internet</div>
+        </div>
+      </div>
     </div>
   );
 }

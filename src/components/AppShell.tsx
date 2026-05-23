@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Briefcase, User, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import AuthModal from './AuthModal';
-import { getUsuarioLocal, apiLogout, type UsuarioSesion } from '../lib/auth';
+import { apiLogout, type UsuarioSesion } from '../lib/auth';
 import BottomNav, { type Tab } from './BottomNav';
 import ExploreScreen from './ExploreScreen';
+import { getCatalogoActivo } from '../lib/chatbot';
 import MapScreen from './MapScreen';
 import ChatAssistant from './ChatAssistant';
 import FavoritesScreen from './FavoritesScreen';
@@ -21,10 +21,13 @@ interface RutaVisible {
   paradas: { coord: Coord; orden: number }[];
 }
 
-export default function AppShell() {
+interface AppShellProps {
+  usuario?: UsuarioSesion | null;
+  onUsuario?: (u: UsuarioSesion | null) => void;
+}
+
+export default function AppShell({ usuario = null, onUsuario }: AppShellProps) {
   const [tab, setTab] = useState<Tab>('explorar');
-  const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal());
-  const [mostrarAuth, setMostrarAuth] = useState(false);
   const [lugarSeleccionado, setLugarSeleccionado] = useState<Lugar | null>(null);
   const [rutaVisible, setRutaVisible] = useState<RutaVisible | null>(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
@@ -101,7 +104,7 @@ export default function AppShell() {
               <span className="max-w-[80px] truncate">{usuario.nombre.split(' ')[0]}</span>
             </div>
             <button
-              onClick={async () => { await apiLogout(); setUsuario(null); }}
+              onClick={async () => { await apiLogout(); onUsuario?.(null); }}
               className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-600 hover:text-red-500 border border-jungle-200"
               title="Cerrar sesión"
             >
@@ -109,13 +112,13 @@ export default function AppShell() {
             </button>
           </div>
         ) : (
-          <button
-            onClick={() => setMostrarAuth(true)}
+          <Link
+            to="/auth"
             className="bg-jungle-700 text-white shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold hover:bg-jungle-800"
           >
             <User size={13} />
             Entrar
-          </button>
+          </Link>
         )}
       </div>
 
@@ -151,7 +154,7 @@ export default function AppShell() {
       <main className="flex-1 overflow-hidden min-h-0">
         {tab === 'explorar' && (
           <div className="h-full overflow-y-auto">
-            <ExploreScreen onVerLugar={verLugar} />
+            <ExploreScreen onVerLugar={verLugar} lugares={getCatalogoActivo()} />
           </div>
         )}
         {tab === 'mapa' && (
@@ -220,12 +223,7 @@ export default function AppShell() {
           />
         </>
       )}
-      {mostrarAuth && (
-        <AuthModal
-          onClose={() => setMostrarAuth(false)}
-          onSuccess={(u) => { setUsuario(u); setMostrarAuth(false); }}
-        />
-      )}
+
     </div>
   );
 }

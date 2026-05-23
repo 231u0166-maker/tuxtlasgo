@@ -6,18 +6,21 @@ import { OfflineReadyBadge } from './OfflineIndicator';
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
+  lugares?: Lugar[];
 }
 
-export default function ExploreScreen({ onVerLugar }: Props) {
+export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Props) {
   const [busqueda, setBusqueda] = useState('');
   const [catActiva, setCatActiva] = useState<Categoria | 'todas'>('todas');
+
+  const todosLugares = lugaresProps ?? LUGARES;
 
   const filtrados = useMemo(() => {
     const q = busqueda
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
-    return LUGARES.filter((l) => {
+    return todosLugares.filter((l) => {
       if (catActiva !== 'todas' && l.categoria !== catActiva) return false;
       if (!q) return true;
       const haystack = `${l.nombre} ${l.descripcionCorta} ${l.municipio} ${l.tags.join(' ')}`
@@ -28,7 +31,7 @@ export default function ExploreScreen({ onVerLugar }: Props) {
     });
   }, [busqueda, catActiva]);
 
-  const destacados = LUGARES.filter((l) => l.destacado);
+  const destacados = todosLugares.filter((l) => l.destacado);
 
   return (
     <div className="pb-24">
@@ -41,7 +44,7 @@ export default function ExploreScreen({ onVerLugar }: Props) {
           <OfflineReadyBadge />
         </div>
         <p className="text-sm text-jungle-100 opacity-90 mb-5">
-          {LUGARES.length} lugares verificados, listos para tu próxima aventura.
+          {todosLugares.length} lugares verificados, listos para tu próxima aventura.
         </p>
 
         {/* Buscador */}

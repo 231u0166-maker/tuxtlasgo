@@ -141,7 +141,7 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
   // ─── CÓDIGO DE RECUPERACIÓN ───
   if (vista === 'codigo') {
     return (
-      <div style={{ position:'fixed',inset:0,zIndex:9999,backgroundColor:'rgba(2,44,22,0.97)',display:'flex',alignItems:'flex-end' }}>
+      <div className="auth-modal-overlay" style={{ position:'fixed',inset:0,zIndex:9999,backgroundColor:'rgba(2,44,22,0.97)',display:'flex',alignItems:'flex-end' }}>
         <div className="bg-white w-full rounded-t-3xl p-6 pb-10">
           <div className="text-center mb-6">
             <div className="w-16 h-16 bg-jungle-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -175,7 +175,7 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
   }
 
   return (
-    <div style={{ position:'fixed',inset:0,zIndex:9999,backgroundColor:'rgba(2,44,22,0.97)',display:'flex',alignItems:'flex-end' }}>
+    <div className="auth-modal-overlay" style={{ position:'fixed',inset:0,zIndex:9999,backgroundColor:'rgba(2,44,22,0.97)',display:'flex',alignItems:'flex-end' }}>
       <div className="bg-white w-full rounded-t-3xl max-h-[92vh] overflow-y-scroll" style={{ WebkitOverflowScrolling:'touch' }}>
 
         {/* Header sticky */}

@@ -196,7 +196,7 @@ function CarruselHero() {
   const [actual, setActual] = useState(0);
   const total = 18;
   const slides = Array.from({ length: total }, (_, i) =>
-    `/slides/slide_${String(i + 1).padStart(2, '0')}.jpg`
+    `/img/slide_${String(i + 1).padStart(2, '0')}.jpg`
   );
 
   useEffect(() => {

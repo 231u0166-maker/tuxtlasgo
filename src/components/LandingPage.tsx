@@ -57,7 +57,7 @@ export default function LandingPage({ usuario = null }: LandingProps) {
               Plataforma turística inteligente
             </div>
             <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-6xl text-jungle-950 leading-tight">
-              Tu guÍA sin limites
+              Tu guÍA 
               <br />
               Los Tuxtlas,
               <br />

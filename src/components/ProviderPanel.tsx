@@ -210,9 +210,13 @@ function RegistrarServicio({ onVolver }: { onVolver: () => void }) {
     if (!validar()) return;
     setEnviando(true);
     try {
-      // Intentar primero con la API de Neon (si hay sesión activa)
+      // Solo usar API si hay sesión Y el usuario es de tipo prestador
       const token = localStorage.getItem('tuxtlasgo-token');
-      if (token) {
+      const usuarioRaw = localStorage.getItem('tuxtlasgo-usuario');
+      const esPrestadorLogueado = token && usuarioRaw &&
+        JSON.parse(usuarioRaw).tipo === 'prestador';
+
+      if (esPrestadorLogueado) {
         const res = await fetch('/api/servicios/registro', {
           method: 'POST',
           headers: {
@@ -236,14 +240,13 @@ function RegistrarServicio({ onVolver }: { onVolver: () => void }) {
           setEnviando(false);
           return;
         }
-        // Si falla por token inválido, caer al local
-        if (res.status !== 401) {
-          alert(data.error || 'Error al registrar. Intenta de nuevo.');
-          setEnviando(false);
-          return;
-        }
+        // Si falla, mostrar error específico
+        alert(data.error || 'Error al registrar. Intenta de nuevo.');
+        setEnviando(false);
+        return;
       }
-      // Fallback: guardar en IndexedDB local
+
+      // Sin sesión de prestador → guardar en IndexedDB local
       const { codigo } = await registrarServicio({
         nombreNegocio: datos.nombreNegocio.trim(),
         categoria: datos.categoria,

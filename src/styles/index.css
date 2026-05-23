@@ -76,3 +76,21 @@ body {
 .offline-badge {
   animation: ping-soft 2s infinite;
 }
+/* ─── DESKTOP: centrar app como móvil (fix QA) ─── */
+@media (min-width: 640px) {
+  body {
+    background: #052e16;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  #root {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    position: relative;
+    background: #f0fdf4;
+    box-shadow: 0 0 80px rgba(0, 0, 0, 0.6);
+  }
+}

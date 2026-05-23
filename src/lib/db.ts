@@ -38,7 +38,7 @@ export interface ServicioPrestador {
   estado: EstadoServicio;
   motivoRechazo?: string;
   // Código de seguimiento para que el prestador consulte su estado
-  codigoSeguimiento: string;
+  codigoSeguimiento?: string;
   foto?: string;
 }
 

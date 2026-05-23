@@ -210,13 +210,20 @@ function RegistrarServicio({ onVolver }: { onVolver: () => void }) {
     if (!validar()) return;
     setEnviando(true);
     try {
-      // Solo usar API si hay sesión Y el usuario es de tipo prestador
-      const token = localStorage.getItem('tuxtlasgo-token');
-      const usuarioRaw = localStorage.getItem('tuxtlasgo-usuario');
-      const esPrestadorLogueado = token && usuarioRaw &&
-        JSON.parse(usuarioRaw).tipo === 'prestador';
+      // Verificar si hay sesión de prestador
+      let token = '';
+      let esPrestador = false;
+      try {
+        const t = localStorage.getItem('tuxtlasgo-token');
+        const u = localStorage.getItem('tuxtlasgo-usuario');
+        if (t && u && JSON.parse(u).tipo === 'prestador') {
+          token = t;
+          esPrestador = true;
+        }
+      } catch {}
 
-      if (esPrestadorLogueado) {
+      if (esPrestador && token) {
+        // Prestador logueado → guardar en Neon (aparece en panel admin)
         const res = await fetch('/api/servicios/registro', {
           method: 'POST',
           headers: {
@@ -228,7 +235,7 @@ function RegistrarServicio({ onVolver }: { onVolver: () => void }) {
             categoria: datos.categoria,
             municipio: datos.municipio,
             descripcion: datos.descripcion.trim(),
-            precio: datos.precio.trim(),
+            precio: datos.precio.trim() || 'A consultar',
             contacto: datos.contacto.trim(),
             lat: datos.ubicacionLat,
             lng: datos.ubicacionLng,
@@ -236,29 +243,38 @@ function RegistrarServicio({ onVolver }: { onVolver: () => void }) {
         });
         const data = await res.json();
         if (data.ok && data.servicio?.codigo_seguimiento) {
+          // También guardar local como respaldo
+          await registrarServicio({
+            nombreNegocio: datos.nombreNegocio.trim(),
+            categoria: datos.categoria,
+            municipio: datos.municipio,
+            descripcion: datos.descripcion.trim(),
+            precio: datos.precio.trim() || 'A consultar',
+            contacto: datos.contacto.trim(),
+            ubicacionLat: datos.ubicacionLat,
+            ubicacionLng: datos.ubicacionLng,
+          }).catch(() => {});
           setResultado({ codigo: data.servicio.codigo_seguimiento });
-          setEnviando(false);
           return;
         }
-        // Si falla, mostrar error específico
-        alert(data.error || 'Error al registrar. Intenta de nuevo.');
-        setEnviando(false);
-        return;
+        // Si Neon falla, caer a local
+        console.warn('[TuxtlasGO] Neon falló, guardando local:', data.error);
       }
 
-      // Sin sesión de prestador → guardar en IndexedDB local
+      // Sin sesión o fallback → guardar solo en IndexedDB local
       const { codigo } = await registrarServicio({
         nombreNegocio: datos.nombreNegocio.trim(),
         categoria: datos.categoria,
         municipio: datos.municipio,
         descripcion: datos.descripcion.trim(),
-        precio: datos.precio.trim(),
+        precio: datos.precio.trim() || 'A consultar',
         contacto: datos.contacto.trim(),
         ubicacionLat: datos.ubicacionLat,
         ubicacionLng: datos.ubicacionLng,
       });
       setResultado({ codigo });
     } catch (e) {
+      console.error('[handleSubmit]', e);
       alert('Hubo un problema al guardar. Intenta de nuevo.');
     } finally {
       setEnviando(false);

@@ -61,7 +61,7 @@ export default function LandingPage({ usuario = null }: LandingProps) {
               <br />
               Los Tuxtlas,
               <br />
-              <span className="text-jungle-700">incluso sin internet.</span>
+              <span className="text-jungle-700">sin limites.</span>
             </h1>
             <p className="text-lg text-jungle-800/80 max-w-md">
               Rutas personalizadas con IA, mapa offline y prestadores locales

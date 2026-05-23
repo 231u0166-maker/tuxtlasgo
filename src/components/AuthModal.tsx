@@ -92,12 +92,26 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
     });
     setCargando(false);
     if (res.ok && res.usuario) {
-      // Guardar coordenadas en localStorage para usarlas en el panel del prestador
-      if (esPrestador && ubicacion) {
+      if (esPrestador && ubicacion && nombreNegocio.trim() && res.token) {
         try {
           localStorage.setItem('prestador-lat', String(ubicacion[0]));
           localStorage.setItem('prestador-lng', String(ubicacion[1]));
-          localStorage.setItem('prestador-nombre-negocio', nombreNegocio);
+          localStorage.setItem('prestador-nombre-negocio', nombreNegocio.trim());
+          // Registrar servicio en Neon automáticamente
+          fetch('/api/servicios/registro', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${res.token}` },
+            body: JSON.stringify({
+              nombre: nombreNegocio.trim(),
+              categoria: 'Otro',
+              municipio: 'Catemaco',
+              descripcion: `Servicio turístico de ${nombreNegocio.trim()} en Los Tuxtlas.`,
+              precio: 'A consultar',
+              contacto: correoReg,
+              lat: ubicacion[0],
+              lng: ubicacion[1],
+            }),
+          }).catch(() => {});
         } catch {}
       }
       setCodigoMostrado(res.codigoRecuperacion ?? '');

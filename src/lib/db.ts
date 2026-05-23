@@ -249,7 +249,7 @@ export async function guardarRuta(
     creadaEn: Date.now(),
     dias,
     prefsJson: JSON.stringify(prefs),
-  });
+  }); 
 }
 
 // Verifica si el mapa ya fue descargado para uso offline.

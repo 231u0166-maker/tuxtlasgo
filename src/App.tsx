@@ -16,8 +16,25 @@ export default function App() {
     (async () => {
       try {
         await seedDemoSiVacio();
-        const aprobados = await listarServiciosAprobadosComoLugares();
-        setCatalogoExtendido(aprobados);
+        // Cargar servicios aprobados locales (IndexedDB)
+        const aprobadosLocal = await listarServiciosAprobadosComoLugares();
+        setCatalogoExtendido(aprobadosLocal);
+
+        // También traer servicios aprobados desde Neon (en paralelo)
+        try {
+          const res = await fetch('/api/servicios/aprobados');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.lugares?.length > 0) {
+              // Combinar: locales + Neon (sin duplicados por id)
+              const idsLocales = new Set(aprobadosLocal.map((l: any) => l.id));
+              const nuevosDeNeon = data.lugares.filter((l: any) => !idsLocales.has(l.id));
+              setCatalogoExtendido([...aprobadosLocal, ...nuevosDeNeon]);
+            }
+          }
+        } catch {
+          // Sin internet o error → solo catálogo local
+        }
       } catch (err) {
         console.error('[TuxtlasGO] Error inicializando:', err);
       } finally {

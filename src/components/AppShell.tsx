@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Briefcase, User, LogOut } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import {
+  ArrowLeft, Briefcase, User, LogOut,
+  Compass, Map, MessageCircle, Heart, TreePine,
+} from 'lucide-react';
+import { useState } from 'react';
 import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import AuthModal from './AuthModal';
 import BottomNav, { type Tab } from './BottomNav';
@@ -14,13 +17,17 @@ import OfflineIndicator from './OfflineIndicator';
 import type { Lugar } from '../data/lugares';
 import { obtenerRutaPorCarretera, type Coord } from '../lib/routing';
 
-// Ruta visible en el mapa: las paradas numeradas + la geometría del
-// trazado por carretera (polyline). Cuando el usuario sale del tab de
-// mapa o pide otra ruta, se limpia.
 interface RutaVisible {
   geometria: Coord[];
   paradas: { coord: Coord; orden: number }[];
 }
+
+const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
+  { id: 'explorar',  label: 'Explorar',    icon: Compass },
+  { id: 'mapa',      label: 'Mapa',         icon: Map },
+  { id: 'chat',      label: 'Asistente IA', icon: MessageCircle },
+  { id: 'favoritos', label: 'Mis lugares',  icon: Heart },
+];
 
 export default function AppShell() {
   const [tab, setTab] = useState<Tab>('explorar');
@@ -32,183 +39,207 @@ export default function AppShell() {
   const [errorRuta, setErrorRuta] = useState<string | null>(null);
 
   const verLugar = (l: Lugar) => setLugarSeleccionado(l);
-  const verEnMapa = () => {
-    setLugarSeleccionado(null);
-    setTab('mapa');
-  };
+  const verEnMapa = () => { setLugarSeleccionado(null); setTab('mapa'); };
 
-  // Llamado desde el chat cuando hay una ruta del día lista para visualizar.
-  // Calcula el trazado por carretera (online la 1ra vez, cache después) y
-  // cambia al tab de mapa con la ruta dibujada.
   const verRutaEnMapa = async (lugares: Lugar[]) => {
     if (lugares.length < 2) return;
     setCargandoRuta(true);
     setErrorRuta(null);
     setLugarSeleccionado(null);
-
-    const paradas = lugares.map((l, i) => ({
-      coord: l.coords as Coord,
-      orden: i + 1,
-    }));
-
+    const paradas = lugares.map((l, i) => ({ coord: l.coords as Coord, orden: i + 1 }));
     try {
-      const ruta = await obtenerRutaPorCarretera(
-        lugares.map((l) => l.coords as Coord)
-      );
+      const ruta = await obtenerRutaPorCarretera(lugares.map((l) => l.coords as Coord));
       setRutaVisible({ geometria: ruta.geometria, paradas });
       setTab('mapa');
     } catch (err) {
-      // Fallback: si OSRM no responde (sin internet y sin caché),
-      // mostramos líneas rectas conectando los puntos. Es menos
-      // bonito pero NUNCA deja al usuario sin algo en pantalla.
-      console.warn('[TuxtlasGO] OSRM no disponible, usando líneas rectas:', err);
-      setRutaVisible({
-        geometria: lugares.map((l) => l.coords as Coord),
-        paradas,
-      });
-      setErrorRuta(
-        'Trazado aproximado (sin internet). Conéctate una vez para guardar la ruta real.'
-      );
+      console.warn('[TuxtlasGO] OSRM no disponible:', err);
+      setRutaVisible({ geometria: lugares.map((l) => l.coords as Coord), paradas });
+      setErrorRuta('Trazado aproximado (sin internet). Conéctate una vez para guardar la ruta real.');
       setTab('mapa');
     } finally {
       setCargandoRuta(false);
     }
   };
 
+  const cambiarTab = (nuevoTab: Tab) => {
+    if (nuevoTab !== 'mapa' && rutaVisible) setRutaVisible(null);
+    setTab(nuevoTab);
+  };
+
   return (
-    <div className="flex flex-col bg-jungle-50 h-screen [height:100dvh]">
+    /* ── Layout raíz ── mobile: column flex  |  desktop: row flex ── */
+    <div className="flex flex-col lg:flex-row bg-jungle-50 h-screen [height:100dvh]">
       <OfflineIndicator />
 
-      {/* Mini header con "atrás" + acceso a panel del prestador */}
-      <div className="absolute top-3 left-3 z-30 flex items-center gap-2">
-        <Link
-          to="/"
-          className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-900 hover:bg-white"
-          aria-label="Volver al inicio"
-        >
-          <ArrowLeft size={18} />
-        </Link>
-        <Link
-          to="/prestador"
-          className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 hover:bg-white border border-jungle-200"
-        >
-          <Briefcase size={13} />
-          Soy prestador
-        </Link>
-        {usuario ? (
-          <div className="flex items-center gap-1">
-            <div className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 border border-jungle-200">
-              <User size={13} />
-              <span className="max-w-[80px] truncate">{usuario.nombre.split(' ')[0]}</span>
-            </div>
-            <button
-              onClick={async () => { await apiLogout(); setUsuario(null); }}
-              className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-600 hover:text-red-500 border border-jungle-200"
-              title="Cerrar sesión"
-            >
-              <LogOut size={13} />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setMostrarAuth(true)}
-            className="bg-jungle-700 text-white shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold hover:bg-jungle-800"
+      {/* ══════════════ SIDEBAR (solo desktop) ══════════════ */}
+      <aside className="hidden lg:flex flex-col w-56 xl:w-64 flex-shrink-0 bg-jungle-900 text-white">
+        {/* Logo */}
+        <div className="px-5 py-5 border-b border-jungle-700/50">
+          <Link to="/" className="flex items-center gap-2 group">
+            <TreePine size={22} className="text-amber-400" />
+            <span className="font-display font-extrabold text-lg tracking-tight group-hover:text-amber-300 transition-colors">
+              TuxtlasGO
+            </span>
+          </Link>
+          <p className="text-[11px] text-jungle-400 mt-0.5">Los Tuxtlas, Veracruz</p>
+        </div>
+
+        {/* Nav items */}
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            const activo = t.id === tab;
+            return (
+              <button
+                key={t.id}
+                onClick={() => cambiarTab(t.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  activo
+                    ? 'bg-jungle-700 text-white shadow-sm'
+                    : 'text-jungle-300 hover:bg-jungle-800 hover:text-white'
+                }`}
+              >
+                <Icon size={18} strokeWidth={activo ? 2.5 : 2} />
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Acciones de usuario */}
+        <div className="px-3 py-4 border-t border-jungle-700/50 space-y-2">
+          <Link
+            to="/prestador"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all"
           >
-            <User size={13} />
-            Entrar
-          </button>
+            <Briefcase size={16} />
+            Portal prestadores
+          </Link>
+
+          {usuario ? (
+            <div className="flex items-center gap-2 px-3 py-2">
+              <User size={15} className="text-jungle-400 flex-shrink-0" />
+              <span className="text-sm text-jungle-200 truncate flex-1">{usuario.nombre.split(' ')[0]}</span>
+              <button
+                onClick={async () => { await apiLogout(); setUsuario(null); }}
+                className="text-jungle-400 hover:text-red-400 transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setMostrarAuth(true)}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-jungle-950 transition-colors"
+            >
+              <User size={16} />
+              Iniciar sesión
+            </button>
+          )}
+        </div>
+      </aside>
+
+      {/* ══════════════ ÁREA PRINCIPAL ══════════════ */}
+      <div className="flex flex-col flex-1 min-w-0 min-h-0">
+
+        {/* Header flotante móvil (solo mobile, en desktop no aparece) */}
+        <div className="absolute top-3 left-3 z-30 flex items-center gap-2 lg:hidden">
+          <Link
+            to="/"
+            className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-900 hover:bg-white"
+          >
+            <ArrowLeft size={18} />
+          </Link>
+          <Link
+            to="/prestador"
+            className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 hover:bg-white border border-jungle-200"
+          >
+            <Briefcase size={13} /> Soy prestador
+          </Link>
+          {usuario ? (
+            <div className="flex items-center gap-1">
+              <div className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 border border-jungle-200">
+                <User size={13} />
+                <span className="max-w-[80px] truncate">{usuario.nombre.split(' ')[0]}</span>
+              </div>
+              <button
+                onClick={async () => { await apiLogout(); setUsuario(null); }}
+                className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-600 hover:text-red-500 border border-jungle-200"
+              >
+                <LogOut size={13} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setMostrarAuth(true)}
+              className="bg-jungle-700 text-white shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold hover:bg-jungle-800"
+            >
+              <User size={13} /> Entrar
+            </button>
+          )}
+        </div>
+
+        {/* Toast error ruta */}
+        {errorRuta && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 bg-amber-100 border border-amber-300 text-amber-900 text-xs px-3 py-2 rounded-lg shadow-md max-w-xs text-center">
+            {errorRuta}
+            <button onClick={() => setErrorRuta(null)} className="ml-2 font-bold">×</button>
+          </div>
         )}
+
+        {/* Overlay carga ruta */}
+        {cargandoRuta && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+            <div className="bg-white rounded-2xl px-6 py-5 shadow-xl flex flex-col items-center gap-3 max-w-xs">
+              <div className="w-8 h-8 border-2 border-jungle-200 border-t-jungle-700 rounded-full animate-spin" />
+              <div className="text-sm font-semibold text-jungle-900">Calculando ruta…</div>
+              <div className="text-xs text-jungle-600 text-center">
+                Trazando el camino por carretera. Se guardará para usarse sin internet.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Contenido principal */}
+        <main className="flex-1 overflow-hidden min-h-0">
+          {tab === 'explorar' && (
+            <div className="h-full overflow-y-auto">
+              <ExploreScreen onVerLugar={verLugar} lugares={getCatalogoActivo()} />
+            </div>
+          )}
+          {tab === 'mapa' && (
+            <MapScreen
+              onVerLugar={verLugar}
+              rutaResaltada={rutaVisible?.geometria}
+              paradasResaltadas={rutaVisible?.paradas}
+              onLimpiarRuta={() => setRutaVisible(null)}
+            />
+          )}
+          <div style={{ display: tab === 'chat' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+            <ChatAssistant onVerLugar={verLugar} onVerRutaEnMapa={verRutaEnMapa} />
+          </div>
+          {tab === 'favoritos' && (
+            <div className="h-full overflow-y-auto">
+              <FavoritesScreen
+                onVerLugar={verLugar}
+                onVerRutaEnMapa={(lugares) => { verRutaEnMapa(lugares); setTab('mapa'); }}
+              />
+            </div>
+          )}
+        </main>
+
+        {/* Bottom nav solo en móvil */}
+        <div className="lg:hidden">
+          <BottomNav activa={tab} onChange={cambiarTab} />
+        </div>
       </div>
 
-      {/* Toast de error de ruta (cuando se usó fallback de líneas rectas) */}
-      {errorRuta && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 bg-amber-100 border border-amber-300 text-amber-900 text-xs px-3 py-2 rounded-lg shadow-md max-w-xs text-center">
-          {errorRuta}
-          <button
-            onClick={() => setErrorRuta(null)}
-            className="ml-2 font-bold"
-            aria-label="Cerrar aviso"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Overlay de carga mientras se calcula la ruta */}
-      {cargandoRuta && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
-          <div className="bg-white rounded-2xl px-6 py-5 shadow-xl flex flex-col items-center gap-3 max-w-xs">
-            <div className="w-8 h-8 border-3 border-jungle-200 border-t-jungle-700 rounded-full animate-spin" />
-            <div className="text-sm font-semibold text-jungle-900">
-              Calculando ruta…
-            </div>
-            <div className="text-xs text-jungle-600 text-center">
-              Trazando el camino por carretera. Se guardará para usarse sin internet.
-            </div>
-          </div>
-        </div>
-      )}
-
-      <main className="flex-1 overflow-hidden min-h-0">
-        {tab === 'explorar' && (
-          <div className="h-full overflow-y-auto">
-            <ExploreScreen onVerLugar={verLugar} lugares={getCatalogoActivo()} />
-          </div>
-        )}
-        {tab === 'mapa' && (
-          <MapScreen
-            onVerLugar={verLugar}
-            rutaResaltada={rutaVisible?.geometria}
-            paradasResaltadas={rutaVisible?.paradas}
-            onLimpiarRuta={() => setRutaVisible(null)}
-          />
-        )}
-        {/* ChatAssistant SIEMPRE montado — solo se oculta visualmente.
-             Así el estado del chat (mensajes, ruta, preferencias) nunca
-             se pierde al cambiar de tab. */}
-        <div style={{ display: tab === 'chat' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
-          <ChatAssistant
-            onVerLugar={verLugar}
-            onVerRutaEnMapa={verRutaEnMapa}
-          />
-        </div>
-        {tab === 'favoritos' && (
-          <div className="h-full overflow-y-auto">
-            <FavoritesScreen
-              onVerLugar={verLugar}
-              onVerRutaEnMapa={(lugares) => {
-                verRutaEnMapa(lugares);
-                setTab('mapa');
-              }}
-            />
-          </div>
-        )}
-      </main>
-
-      <BottomNav
-        activa={tab}
-        onChange={(nuevoTab) => {
-          // Al cambiar de tab limpiamos la ruta resaltada del mapa,
-          // para que no quede "fantasma" al volver al mapa más tarde.
-          if (nuevoTab !== 'mapa' && rutaVisible) {
-            setRutaVisible(null);
-          }
-          setTab(nuevoTab);
-        }}
-      />
-
+      {/* PlaceDetail overlay */}
       {lugarSeleccionado && (
         <>
-          {/* Capa de bloqueo: captura TODOS los eventos táctiles antes
-              de que lleguen al mapa de Leaflet. Sin esto, Leaflet sigue
-              procesando toques aunque el modal esté encima visualmente. */}
           <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 9998,
-              touchAction: 'none',
-            }}
+            style={{ position: 'fixed', inset: 0, zIndex: 9998, touchAction: 'none' }}
             onTouchStart={(e) => e.stopPropagation()}
             onTouchMove={(e) => e.stopPropagation()}
             onTouchEnd={(e) => e.stopPropagation()}

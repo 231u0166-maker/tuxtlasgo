@@ -31,7 +31,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
   };
 
   return (
-    <div className="pb-24">
+    <div className="pb-24 lg:pb-6">
       <header className="bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 pt-6 pb-5 rounded-b-3xl">
         <h1 className="font-display font-extrabold text-2xl">Mis lugares</h1>
         <p className="text-sm text-jungle-100 opacity-90 mb-4">

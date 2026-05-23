@@ -34,11 +34,11 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
   const destacados = todosLugares.filter((l) => l.destacado);
 
   return (
-    <div className="pb-24">
+    <div className="pb-24 lg:pb-8">
       {/* Hero compacto */}
-      <div className="bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 pt-6 pb-8 rounded-b-3xl">
+      <div className="bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 lg:px-8 pt-6 lg:pt-8 pb-8 rounded-b-3xl">
         <div className="flex items-center justify-between mb-1">
-          <h1 className="font-display font-extrabold text-2xl">
+          <h1 className="font-display font-extrabold text-2xl lg:text-3xl">
             Descubre Los Tuxtlas
           </h1>
           <OfflineReadyBadge />
@@ -64,7 +64,7 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
       </div>
 
       {/* Categorías */}
-      <div className="px-4 mt-5">
+      <div className="px-4 lg:px-8 mt-5">
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scroll-smooth snap-x">
           <CategoryChip
             label="Todos"
@@ -86,7 +86,7 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
 
       {/* Destacados (solo cuando no hay búsqueda activa) */}
       {!busqueda && catActiva === 'todas' && (
-        <section className="px-4 mt-6">
+        <section className="px-4 lg:px-8 mt-6">
           <h2 className="font-display font-bold text-lg text-jungle-950 mb-3">
             Destacados
           </h2>
@@ -101,7 +101,7 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
       )}
 
       {/* Grid */}
-      <section className="px-4 mt-6">
+      <section className="px-4 lg:px-8 mt-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-display font-bold text-lg text-jungle-950">
             {catActiva === 'todas'
@@ -122,7 +122,7 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtrados.map((l) => (
               <PlaceCard key={l.id} lugar={l} onClick={() => onVerLugar(l)} />
             ))}

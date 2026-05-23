@@ -207,11 +207,43 @@ function RegistrarServicio({ onVolver }: { onVolver: () => void }) {
   }
 
   async function handleSubmit() {
-    if (!validar()) {
-      return;
-    }
+    if (!validar()) return;
     setEnviando(true);
     try {
+      // Intentar primero con la API de Neon (si hay sesión activa)
+      const token = localStorage.getItem('tuxtlasgo-token');
+      if (token) {
+        const res = await fetch('/api/servicios/registro', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            nombre: datos.nombreNegocio.trim(),
+            categoria: datos.categoria,
+            municipio: datos.municipio,
+            descripcion: datos.descripcion.trim(),
+            precio: datos.precio.trim(),
+            contacto: datos.contacto.trim(),
+            lat: datos.ubicacionLat,
+            lng: datos.ubicacionLng,
+          }),
+        });
+        const data = await res.json();
+        if (data.ok && data.servicio?.codigo_seguimiento) {
+          setResultado({ codigo: data.servicio.codigo_seguimiento });
+          setEnviando(false);
+          return;
+        }
+        // Si falla por token inválido, caer al local
+        if (res.status !== 401) {
+          alert(data.error || 'Error al registrar. Intenta de nuevo.');
+          setEnviando(false);
+          return;
+        }
+      }
+      // Fallback: guardar en IndexedDB local
       const { codigo } = await registrarServicio({
         nombreNegocio: datos.nombreNegocio.trim(),
         categoria: datos.categoria,

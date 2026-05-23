@@ -290,9 +290,22 @@ export function filtrarLugaresConRazones(
     return { lugar, score, razones };
   });
 
+  // Si el usuario eligió intereses específicos, excluir lugares que no
+  // coincidan. Gastronomía siempre se permite (mínimo 1 por día para
+  // que la ruta sea práctica). Si no hay intereses, incluir todo.
+  const tieneIntereses = prefs.intereses.length > 0;
+
   return scored
     .sort((a, b) => b.score - a.score)
-    .filter((s) => s.score > 3);
+    .filter((s) => {
+      if (s.score <= 0) return false;
+      if (!tieneIntereses) return s.score > 3;
+      // Con intereses: solo incluir si coincide con algún interés
+      // O si es Gastronomía (siempre útil en una ruta)
+      const coincideInteres = prefs.intereses.includes(s.lugar.categoria);
+      const esGastronomia = s.lugar.categoria === 'Gastronomia';
+      return coincideInteres || esGastronomia;
+    });
 }
 
 // Versión simple (solo lugares, sin razones)

@@ -2,7 +2,7 @@
 // Usa Firebase Storage para subir, Neon para guardar las URLs
 import { useState, useRef, useCallback } from 'react';
 import { Upload, X, ImagePlus, CheckCircle2, AlertCircle, Loader2, GripVertical } from 'lucide-react';
-import { subirFoto, eliminarFoto } from '../lib/cloudinary';
+import { subirFoto } from '../lib/cloudinary';
 import { getToken } from '../lib/auth';
 
 interface Props {
@@ -13,7 +13,8 @@ interface Props {
 
 interface FotoLocal {
   id: string;
-  url?: string;           // URL de Firebase (cuando está subida)
+  url?: string;           // URL de Cloudinary (cuando está subida)
+  publicId?: string;      // public_id de Cloudinary (para borrar)
   preview?: string;       // URL local (mientras sube)
   progreso: number;       // 0-100
   error?: string;
@@ -55,12 +56,12 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
   }
 
   // ── Eliminar URL de Neon ──
-  async function eliminarUrlDeNeon(url: string): Promise<boolean> {
+  async function eliminarUrlDeNeon(url: string, publicId?: string): Promise<boolean> {
     try {
       const res = await fetch('/api/servicios/fotos', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, publicId }),
       });
       const data = await res.json();
       return data.ok;
@@ -106,6 +107,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
         );
 
         if (url) {
+          setFotos((prev) => prev.map((f) => (f.id === id ? { ...f, publicId: publicId } : f)));
           const ok = await guardarUrlEnNeon(url);
           setFotos((prev) =>
             prev.map((f) =>
@@ -128,10 +130,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
       foto.cancelar?.();
     }
     if (foto.url) {
-      await Promise.all([
-        eliminarFoto(foto.url),
-        eliminarUrlDeNeon(foto.url),
-      ]);
+      await eliminarUrlDeNeon(foto.url, foto.publicId);
       onFotosActualizadas?.(fotasSubidas.filter((f) => f.url !== foto.url).map((f) => f.url!));
     }
     setFotos((prev) => prev.filter((f) => f.id !== foto.id));

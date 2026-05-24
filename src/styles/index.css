@@ -78,12 +78,4 @@ body {
 }
 /* Desktop: sin fondo verde, app full width */
 
-/* ─── Modal de auth: contenido centrado en desktop ─── */
-@media (min-width: 640px) {
-  .auth-modal-overlay {
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    width: 430px !important;
-    max-width: 430px !important;
-  }
-}
+/* Modal: overlay full-screen, card centrada via Tailwind lg: clases */

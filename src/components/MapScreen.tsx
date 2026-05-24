@@ -54,7 +54,6 @@ function getIcono(categoria: string): L.DivIcon {
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   filtroCategorias?: string[];
-  lugarResaltado?: Lugar | null;
   // Lista de coordenadas que dibuja una ruta sobre las carreteras.
   // Si se pasa, se renderiza como polyline verde y el mapa hace zoom
   // para encuadrarla completa.
@@ -120,7 +119,7 @@ function getIconoResaltado(categoria: string): L.DivIcon {
   });
 }
 
-export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada, paradasResaltadas, onLimpiarRuta, lugarResaltado }: Props) {
+export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada, paradasResaltadas, onLimpiarRuta }: Props) {
   const [serviciosPrestadores, setServiciosPrestadores] = useState<Lugar[]>([]);
   const [descargando, setDescargando] = useState(false);
   const [progreso, setProgreso] = useState(0);
@@ -218,9 +217,6 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
             />
             <AjustarVistaARuta puntos={rutaResaltada} />
           </>
-        )}
-        {lugarResaltado && (
-          <FlyToLugar coords={lugarResaltado.coords as [number, number]} />
         )}
         {/* Paradas numeradas de la ruta del día */}
         {paradasResaltadas?.map((p) => (

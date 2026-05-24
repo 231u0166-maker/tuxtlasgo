@@ -35,14 +35,47 @@ export default function AppShell() {
   const [mostrarAuth, setMostrarAuth] = useState(false);
   const [lugarSeleccionado, setLugarSeleccionado] = useState<Lugar | null>(null);
   const [rutaVisible, setRutaVisible] = useState<RutaVisible | null>(null);
-  const [lugarResaltado, setLugarResaltado] = useState<any>(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
   const [errorRuta, setErrorRuta] = useState<string | null>(null);
 
   const verLugar = (l: Lugar) => setLugarSeleccionado(l);
-  const verEnMapa = () => {
-    if (lugarSeleccionado) setLugarResaltado(lugarSeleccionado);
+  const verEnMapa = async () => {
+    if (!lugarSeleccionado) return;
+    const destino = lugarSeleccionado;
     setLugarSeleccionado(null);
+    setCargandoRuta(true);
+    setErrorRuta(null);
+
+    const paradas = [{ coord: destino.coords as Coord, orden: 1 }];
+
+    // Intentar obtener ubicación del usuario
+    const obtenerOrigen = (): Promise<Coord | null> =>
+      new Promise((res) => {
+        if (!navigator.geolocation) return res(null);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => res([pos.coords.latitude, pos.coords.longitude]),
+          () => res(null),
+          { timeout: 4000 }
+        );
+      });
+
+    const origen = await obtenerOrigen();
+    const coords: Coord[] = origen
+      ? [origen, destino.coords as Coord]
+      : [destino.coords as Coord];
+
+    try {
+      if (coords.length >= 2) {
+        const ruta = await obtenerRutaPorCarretera(coords);
+        setRutaVisible({ geometria: ruta.geometria, paradas });
+      } else {
+        setRutaVisible({ geometria: coords, paradas });
+      }
+    } catch {
+      setRutaVisible({ geometria: coords, paradas });
+      setErrorRuta('Trazado aproximado. Conéctate para ver la ruta real.');
+    }
+    setCargandoRuta(false);
     setTab('mapa');
   };
 
@@ -68,7 +101,6 @@ export default function AppShell() {
 
   const cambiarTab = (nuevoTab: Tab) => {
     if (nuevoTab !== 'mapa' && rutaVisible) setRutaVisible(null);
-    if (nuevoTab !== 'mapa') setLugarResaltado(null);
     setTab(nuevoTab);
   };
 

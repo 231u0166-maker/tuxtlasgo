@@ -30,7 +30,6 @@ export function subirFoto(
   formData.append('upload_preset', UPLOAD_PRESET);
   formData.append('folder', `servicios/${codigoServicio}`);
   // Transformación automática: redimensionar a máx 1200px, calidad auto
-  formData.append('transformation', 'c_limit,w_1200,h_1200,q_auto,f_auto');
   formData.append('tags', `tuxtlasgo,servicio,${codigoServicio}`);
 
   // Progreso
@@ -47,7 +46,7 @@ export function subirFoto(
       try {
         const data = JSON.parse(xhr.responseText);
         // URL con transformación WebP automática (mejor para PWA)
-        const url = data.secure_url.replace('/upload/', '/upload/c_limit,w_1200,q_auto,f_auto/');
+        const url = data.secure_url;
         onProgreso({ porcentaje: 100, url, publicId: data.public_id });
       } catch {
         onProgreso({ porcentaje: 0, error: 'Respuesta inválida del servidor' });

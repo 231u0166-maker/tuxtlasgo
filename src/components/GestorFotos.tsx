@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Upload, X, ImagePlus, CheckCircle2, AlertCircle, Loader2, GripVertical } from 'lucide-react';
 import { subirFoto } from '../lib/cloudinary';
+import { recargarCatalogo } from '../App';
 import { getToken } from '../lib/auth';
 
 interface Props {
@@ -115,6 +116,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
                 : f
             )
           );
+          if (ok) recargarCatalogo().catch(() => {});
           URL.revokeObjectURL(preview);
         }
       });
@@ -265,7 +267,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
       {/* Tip */}
       {fotasSubidas.length > 0 && fotasSubidas.length < 3 && (
         <p className="text-xs text-jungle-500 bg-jungle-50 rounded-xl px-3 py-2">
-          💡 Los servicios con 3 o más fotos reciben un 40% más de visitas. ¡Agrega más!
+            Los servicios con 3 o más fotos reciben un 40% más de visitas. ¡Agrega más!
         </p>
       )}
     </div>

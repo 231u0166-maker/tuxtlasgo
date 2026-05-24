@@ -98,11 +98,28 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
   const [tilesListos, setTilesListos] = useState(false);
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
 
-  // Cargar prestadores aprobados al montar
+  // Cargar prestadores aprobados al montar (local + Neon)
   useEffect(() => {
-    listarServiciosAprobadosComoLugares()
-      .then(setServiciosPrestadores)
-      .catch(console.error);
+    (async () => {
+      try {
+        const local = await listarServiciosAprobadosComoLugares();
+        setServiciosPrestadores(local);
+        // También traer desde Neon para tener fotos y datos actualizados
+        const res = await fetch('/api/servicios/aprobados');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && data.lugares?.length > 0) {
+            const idsLocales = new Set(local.map((l: any) => l.id));
+            const deNeon = data.lugares.filter((l: any) => !idsLocales.has(l.id));
+            setServiciosPrestadores([...local, ...deNeon]);
+          }
+        }
+      } catch {
+        listarServiciosAprobadosComoLugares()
+          .then(setServiciosPrestadores)
+          .catch(console.error);
+      }
+    })();
   }, []);
 
   useEffect(() => {

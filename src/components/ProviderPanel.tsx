@@ -13,6 +13,7 @@ import { CATEGORIAS, LOS_TUXTLAS_CENTER } from '../data/lugares';
 import { getToken, getUsuarioLocal } from '../lib/auth';
 import OfflineIndicator from './OfflineIndicator';
 import GestorFotos from './GestorFotos';
+import { recargarCatalogo } from '../App';
 
 // ============================================================
 // PANEL DEL PRESTADOR — v2 (fix QA 23/05)
@@ -132,6 +133,9 @@ function MiServicio({ onVolver }: { onVolver: () => void }) {
   const [fotos, setFotos] = useState<string[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [editForm, setEditForm] = useState({ nombre:'', categoria:'', municipio:'', descripcion:'', precio:'', contacto:'' });
 
   async function cargar() {
     setCargando(true);
@@ -157,6 +161,14 @@ function MiServicio({ onVolver }: { onVolver: () => void }) {
         const srv = { ...data.servicio, estado: (data.servicio.estado ?? '').trim().toLowerCase() };
         setServicio(srv);
         setFotos(data.servicio?.fotos ?? []);
+        setEditForm({
+          nombre: srv.nombre ?? '',
+          categoria: srv.categoria ?? '',
+          municipio: srv.municipio ?? '',
+          descripcion: srv.descripcion ?? '',
+          precio: srv.precio ?? '',
+          contacto: srv.contacto ?? '',
+        });
       } else {
         // No tiene servicio en Neon todavía
         setServicio(null);
@@ -174,6 +186,30 @@ function MiServicio({ onVolver }: { onVolver: () => void }) {
     aprobado: 'bg-green-100 text-green-800',
     rechazado: 'bg-red-100 text-red-700',
   };
+
+  async function guardarEdicion() {
+    setGuardando(true);
+    try {
+      const res = await fetch('/api/servicios/editar', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify(editForm),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const updated = { ...servicio, ...data.servicio, estado: (data.servicio.estado ?? servicio.estado).trim().toLowerCase() };
+        setServicio(updated);
+        setEditando(false);
+        await recargarCatalogo();
+      } else {
+        alert(data.error ?? 'Error al guardar');
+      }
+    } catch {
+      alert('Sin conexión');
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   return (
     <div>
@@ -221,9 +257,12 @@ function MiServicio({ onVolver }: { onVolver: () => void }) {
           <div className="bg-white rounded-2xl border border-jungle-100 p-5">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <h2 className="font-display font-bold text-xl text-jungle-950 mb-1">
-                  {servicio.nombre}
-                </h2>
+                {editando ? (
+                  <input value={editForm.nombre} onChange={e => setEditForm({...editForm, nombre: e.target.value})}
+                    className="font-display font-bold text-xl text-jungle-950 border-b-2 border-jungle-400 bg-transparent focus:outline-none w-full mb-1" />
+                ) : (
+                  <h2 className="font-display font-bold text-xl text-jungle-950 mb-1">{servicio.nombre}</h2>
+                )}
                 <p className="text-xs text-jungle-500 font-mono">{servicio.codigo_seguimiento}</p>
               </div>
               <span className={`text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0 ${colores[servicio.estado] || 'bg-gray-100 text-gray-600'}`}>
@@ -231,19 +270,76 @@ function MiServicio({ onVolver }: { onVolver: () => void }) {
               </span>
             </div>
 
-            <div className="flex flex-wrap gap-3 text-xs text-jungle-600 mb-3">
-              <span className="flex items-center gap-1"><Store size={11} />{servicio.categoria}</span>
-              <span className="flex items-center gap-1"><MapPin size={11} />{servicio.municipio}</span>
-              {servicio.precio && <span>{servicio.precio}</span>}
-              {servicio.contacto && (
-                <span className="flex items-center gap-1"><Phone size={11} />{servicio.contacto}</span>
-              )}
-            </div>
-
-            {servicio.descripcion && (
-              <p className="text-sm text-jungle-700 bg-jungle-50 rounded-xl px-3 py-2.5">
-                {servicio.descripcion}
-              </p>
+            {editando ? (
+              <div className="space-y-3 mb-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-semibold text-jungle-600 mb-1 block">Categoría</label>
+                    <select value={editForm.categoria} onChange={e => setEditForm({...editForm, categoria: e.target.value})}
+                      className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm border-0 focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                      {['Gastronomia','Naturaleza','Aventura','Hospedaje','Cultura','Transporte','Comercio','Cooperativa','Otro'].map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-jungle-600 mb-1 block">Municipio</label>
+                    <select value={editForm.municipio} onChange={e => setEditForm({...editForm, municipio: e.target.value})}
+                      className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm border-0 focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                      {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-jungle-600 mb-1 block">Descripción</label>
+                  <textarea value={editForm.descripcion} onChange={e => setEditForm({...editForm, descripcion: e.target.value})}
+                    rows={3} className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm border-0 focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-semibold text-jungle-600 mb-1 block">Precio</label>
+                    <input value={editForm.precio} onChange={e => setEditForm({...editForm, precio: e.target.value})}
+                      className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm border-0 focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-jungle-600 mb-1 block">Contacto</label>
+                    <input value={editForm.contacto} onChange={e => setEditForm({...editForm, contacto: e.target.value})}
+                      className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm border-0 focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={guardarEdicion} disabled={guardando}
+                    className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-2.5 rounded-xl text-sm font-semibold">
+                    {guardando ? 'Guardando...' : '💾 Guardar cambios'}
+                  </button>
+                  <button onClick={() => setEditando(false)}
+                    className="px-4 bg-jungle-100 hover:bg-jungle-200 text-jungle-700 py-2.5 rounded-xl text-sm font-semibold">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-3 text-xs text-jungle-600 mb-3">
+                  <span className="flex items-center gap-1"><Store size={11} />{servicio.categoria}</span>
+                  <span className="flex items-center gap-1"><MapPin size={11} />{servicio.municipio}</span>
+                  {servicio.precio && <span>{servicio.precio}</span>}
+                  {servicio.contacto && (
+                    <span className="flex items-center gap-1"><Phone size={11} />{servicio.contacto}</span>
+                  )}
+                </div>
+                {servicio.descripcion && (
+                  <p className="text-sm text-jungle-700 bg-jungle-50 rounded-xl px-3 py-2.5 mb-3">
+                    {servicio.descripcion}
+                  </p>
+                )}
+                <button onClick={() => setEditando(true)}
+                  className="w-full flex items-center justify-center gap-2 border border-jungle-200 hover:bg-jungle-50 text-jungle-700 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                  <Edit3 size={14} /> Editar información del servicio
+                </button>
+              </>
             )}
 
             {servicio.estado === 'rechazado' && servicio.motivo_rechazo && (

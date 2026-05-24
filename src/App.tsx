@@ -8,6 +8,27 @@ import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
 import { setCatalogoExtendido } from './lib/chatbot';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
 
+// Función global para recargar catálogo (usada por GestorFotos y ProviderPanel)
+export async function recargarCatalogo() {
+  try {
+    const aprobadosLocal = await listarServiciosAprobadosComoLugares();
+    const res = await fetch('/api/servicios/aprobados');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.ok && data.lugares?.length > 0) {
+        const idsLocales = new Set(aprobadosLocal.map((l: any) => l.id));
+        const nuevosDeNeon = data.lugares.filter((l: any) => !idsLocales.has(l.id));
+        setCatalogoExtendido([...aprobadosLocal, ...nuevosDeNeon]);
+        return [...aprobadosLocal, ...nuevosDeNeon];
+      }
+    }
+    setCatalogoExtendido(aprobadosLocal);
+    return aprobadosLocal;
+  } catch {
+    return [];
+  }
+}
+
 export default function App() {
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal);
   const [listo, setListo] = useState(false);
@@ -16,25 +37,7 @@ export default function App() {
     (async () => {
       try {
         await seedDemoSiVacio();
-        // Cargar servicios aprobados locales (IndexedDB)
-        const aprobadosLocal = await listarServiciosAprobadosComoLugares();
-        setCatalogoExtendido(aprobadosLocal);
-
-        // También traer servicios aprobados desde Neon (en paralelo)
-        try {
-          const res = await fetch('/api/servicios/aprobados');
-          if (res.ok) {
-            const data = await res.json();
-            if (data.ok && data.lugares?.length > 0) {
-              // Combinar: locales + Neon (sin duplicados por id)
-              const idsLocales = new Set(aprobadosLocal.map((l: any) => l.id));
-              const nuevosDeNeon = data.lugares.filter((l: any) => !idsLocales.has(l.id));
-              setCatalogoExtendido([...aprobadosLocal, ...nuevosDeNeon]);
-            }
-          }
-        } catch {
-          // Sin internet o error → solo catálogo local
-        }
+        await recargarCatalogo();
       } catch (err) {
         console.error('[TuxtlasGO] Error inicializando:', err);
       } finally {

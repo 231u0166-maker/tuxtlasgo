@@ -94,7 +94,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
       ]);
 
       // Subir a Firebase
-      const cancelar = subirFoto(archivo, codigoSeguimiento, async ({ porcentaje, url, error }) => {
+      const cancelar = subirFoto(archivo, codigoSeguimiento, async ({ porcentaje, url, publicId, error }) => {
         if (error) {
           setFotos((prev) =>
             prev.map((f) => (f.id === id ? { ...f, subiendo: false, error } : f))
@@ -107,12 +107,11 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
         );
 
         if (url) {
-          setFotos((prev) => prev.map((f) => (f.id === id ? { ...f, publicId: publicId } : f)));
           const ok = await guardarUrlEnNeon(url);
           setFotos((prev) =>
             prev.map((f) =>
               f.id === id
-                ? { ...f, url, preview: undefined, subiendo: false, progreso: 100, error: ok ? undefined : 'Error al guardar en base de datos' }
+                ? { ...f, url, publicId: publicId ?? undefined, preview: undefined, subiendo: false, progreso: 100, error: ok ? undefined : 'Error al guardar en base de datos' }
                 : f
             )
           );

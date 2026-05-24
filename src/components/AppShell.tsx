@@ -35,11 +35,16 @@ export default function AppShell() {
   const [mostrarAuth, setMostrarAuth] = useState(false);
   const [lugarSeleccionado, setLugarSeleccionado] = useState<Lugar | null>(null);
   const [rutaVisible, setRutaVisible] = useState<RutaVisible | null>(null);
+  const [lugarResaltado, setLugarResaltado] = useState<any>(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
   const [errorRuta, setErrorRuta] = useState<string | null>(null);
 
   const verLugar = (l: Lugar) => setLugarSeleccionado(l);
-  const verEnMapa = () => { setLugarSeleccionado(null); setTab('mapa'); };
+  const verEnMapa = () => {
+    if (lugarSeleccionado) setLugarResaltado(lugarSeleccionado);
+    setLugarSeleccionado(null);
+    setTab('mapa');
+  };
 
   const verRutaEnMapa = async (lugares: Lugar[]) => {
     if (lugares.length < 2) return;
@@ -63,6 +68,7 @@ export default function AppShell() {
 
   const cambiarTab = (nuevoTab: Tab) => {
     if (nuevoTab !== 'mapa' && rutaVisible) setRutaVisible(null);
+    if (nuevoTab !== 'mapa') setLugarResaltado(null);
     setTab(nuevoTab);
   };
 

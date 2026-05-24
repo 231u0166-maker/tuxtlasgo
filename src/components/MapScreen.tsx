@@ -54,6 +54,7 @@ function getIcono(categoria: string): L.DivIcon {
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   filtroCategorias?: string[];
+  lugarResaltado?: Lugar | null;
   // Lista de coordenadas que dibuja una ruta sobre las carreteras.
   // Si se pasa, se renderiza como polyline verde y el mapa hace zoom
   // para encuadrarla completa.
@@ -91,7 +92,35 @@ function AjustarVistaARuta({ puntos }: { puntos: [number, number][] }) {
   return null;
 }
 
-export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada, paradasResaltadas, onLimpiarRuta }: Props) {
+// Vuela suavemente al lugar resaltado y hace zoom en él
+function FlyToLugar({ coords }: { coords: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(coords, 16, { duration: 1.2 });
+  }, [coords, map]);
+  return null;
+}
+
+// Icono pulsante para el lugar resaltado
+function getIconoResaltado(categoria: string): L.DivIcon {
+  const color = COLORES_CATEGORIA[categoria] || '#15803d';
+  const emoji = CATEGORIAS.find((c) => c.id === categoria)?.emoji || '📍';
+  return L.divIcon({
+    html: `<div style="position:relative">
+      <div style="width:44px;height:44px;background:white;border:4px solid ${color};border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.4)">
+        <div style="transform:rotate(45deg);font-size:18px">${emoji}</div>
+      </div>
+      <div style="position:absolute;top:-6px;left:-6px;width:56px;height:56px;border-radius:50%;border:3px solid ${color};opacity:0.4;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></div>
+    </div>
+    <style>@keyframes ping{75%,100%{transform:scale(1.8);opacity:0}}</style>`,
+    className: '',
+    iconSize: [44, 44],
+    iconAnchor: [22, 44],
+    popupAnchor: [0, -44],
+  });
+}
+
+export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada, paradasResaltadas, onLimpiarRuta, lugarResaltado }: Props) {
   const [serviciosPrestadores, setServiciosPrestadores] = useState<Lugar[]>([]);
   const [descargando, setDescargando] = useState(false);
   const [progreso, setProgreso] = useState(0);

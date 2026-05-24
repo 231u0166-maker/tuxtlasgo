@@ -324,7 +324,16 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   if (recomendadosConScore.length === 0) return [];
 
   const recomendados = recomendadosConScore.map((s) => s.lugar);
-  const seleccion = recomendados.slice(0, prefs.dias * 4);
+  // Mezcla con sesgo: toma más del top pero también incluye variedad
+  // Así no siempre salen los mismos lugares aunque el score sea el mismo
+  const topFijo = recomendados.slice(0, Math.ceil(prefs.dias * 2));
+  const resto = recomendados.slice(Math.ceil(prefs.dias * 2));
+  // Barajar el resto para variedad
+  for (let i = resto.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [resto[i], resto[j]] = [resto[j], resto[i]];
+  }
+  const seleccion = [...topFijo, ...resto].slice(0, prefs.dias * 5);
 
   // Agrupar por municipio (para minimizar traslados)
   const porMunicipio: Record<string, Lugar[]> = {};
@@ -333,9 +342,20 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
     porMunicipio[l.municipio].push(l);
   });
 
-  const municipios = Object.keys(porMunicipio).sort(
-    (a, b) => porMunicipio[b].length - porMunicipio[a].length
-  );
+  // Distribuir municipios equitativamente — no siempre Catemaco primero
+  // Ordenar por variedad: el municipio con menos días asignados va primero
+  const todosMunicipios = Object.keys(porMunicipio);
+  // Si hay varios municipios, rotar empezando por el que no sea Catemaco
+  // para dar variedad al turista
+  const municipios = todosMunicipios.sort((a, b) => {
+    // Priorizar municipios con más lugares disponibles pero rotar
+    const diff = porMunicipio[b].length - porMunicipio[a].length;
+    // Si la diferencia es pequeña (<=1), mezclar para no siempre Catemaco
+    if (Math.abs(diff) <= 1) {
+      return Math.random() > 0.5 ? 1 : -1;
+    }
+    return diff;
+  });
 
   const dias: DiaRuta[] = [];
   const lugaresPorDia = 3;
@@ -461,11 +481,15 @@ export function responderTextoLibre(
 
   // Saludo
   if (intent === 'saludo') {
+    const saludos = [
+      '¡Hola! ¿En qué te puedo ayudar? Pregúntame por lugares, comida, hospedaje, cómo moverte o pídeme una ruta a tu medida.',
+      '¡Buenas! Estoy aquí. Puedo recomendarte qué ver, dónde comer, cómo llegar a cualquier lugar de Los Tuxtlas, o armarte una ruta completa.',
+      '¡Hola de nuevo! ¿Qué necesitas saber de Los Tuxtlas?',
+    ];
     return {
       id: crypto.randomUUID(),
       role: 'bot',
-      texto:
-        '¡Hola de nuevo! Pregúntame lo que necesites. Puedo recomendarte lugares, decirte dónde comer, cómo llegar, qué llevar, cuál es la mejor época para visitar, o armarte una ruta nueva. ¿Qué buscas?',
+      texto: saludos[Math.floor(Math.random() * saludos.length)],
       timestamp: Date.now(),
     };
   }
@@ -533,9 +557,19 @@ export function responderTextoLibre(
 
     // Si además había un dato de conocimiento (ej: "dónde comer comida típica"),
     // lo anteponemos al listado de lugares.
+    const introsMunicipio = [
+      `Estas son mis recomendaciones de ${cat.toLowerCase()} en ${municipioMencionado}:`,
+      `En ${municipioMencionado} hay buenas opciones de ${cat.toLowerCase()}, mira:`,
+      `Para ${cat.toLowerCase()} en ${municipioMencionado} te sugiero esto:`,
+    ];
+    const introsGeneral = [
+      `Mira estas opciones de ${cat.toLowerCase()} en Los Tuxtlas:`,
+      `Para ${cat.toLowerCase()} en la región te recomiendo:`,
+      `Estas son mis sugerencias de ${cat.toLowerCase()}:`,
+    ];
     let textoIntro = municipioMencionado
-      ? `Esto es lo que te recomiendo de ${cat.toLowerCase()} en ${municipioMencionado}:`
-      : `Mira estas opciones de ${cat.toLowerCase()} en Los Tuxtlas:`;
+      ? introsMunicipio[Math.floor(Math.random() * introsMunicipio.length)]
+      : introsGeneral[Math.floor(Math.random() * introsGeneral.length)];
     if (conocimiento) {
       textoIntro = `${conocimiento.respuesta}\n\n${textoIntro}`;
     }
@@ -571,10 +605,15 @@ export function responderTextoLibre(
     )
       .sort((a, b) => b.rating - a.rating)
       .slice(0, 3);
+    const introsMuni = [
+      `Lo más destacado de ${municipioMencionado}:`,
+      `En ${municipioMencionado} no te puedes perder esto:`,
+      `Mis recomendaciones para ${municipioMencionado}:`,
+    ];
     return {
       id: crypto.randomUUID(),
       role: 'bot',
-      texto: `Esto es lo más destacado de ${municipioMencionado}:`,
+      texto: introsMuni[Math.floor(Math.random() * introsMuni.length)],
       lugares: delMunicipio,
       timestamp: Date.now(),
     };
@@ -590,12 +629,16 @@ export function responderTextoLibre(
     };
   }
 
-  // Default — no entendió
+  // Default — no entendió — respuesta variada
+  const defaultRespuestas = [
+    '¿Qué tienes en mente? Puedo recomendarte lugares, decirte dónde comer, qué ver en Catemaco, San Andrés o Santiago, cómo moverte, o armarte una ruta completa.',
+    'Cuéntame más. ¿Buscas algo de naturaleza, comida típica, aventura, hospedaje? O si quieres te armo una ruta personalizada.',
+    'No te entendí del todo. Prueba preguntándome: "¿dónde comer en Catemaco?", "qué hacer en San Andrés", "lugares de naturaleza" o simplemente dime qué día llegas.',
+  ];
   return {
     id: crypto.randomUUID(),
     role: 'bot',
-    texto:
-      'No estoy seguro de haber entendido. Puedo ayudarte con: lugares qué visitar, dónde comer, cómo llegar y moverte, qué llevar, mejor época para visitar, seguridad, o info de un municipio (Catemaco, San Andrés, Santiago). También puedo armarte una ruta nueva.',
+    texto: defaultRespuestas[Math.floor(Math.random() * defaultRespuestas.length)],
     opciones: [{ label: '🔄 Armar nueva ruta', valor: '__restart__' }],
     timestamp: Date.now(),
   };

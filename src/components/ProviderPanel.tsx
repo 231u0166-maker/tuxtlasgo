@@ -160,7 +160,10 @@ function MiServicio({ onVolver }: { onVolver: () => void }) {
         // Normalizar estado por si viene con espacios o distinto case
         const srv = { ...data.servicio, estado: (data.servicio.estado ?? '').trim().toLowerCase() };
         setServicio(srv);
-        setFotos(data.servicio?.fotos ?? []);
+        const fotosRaw = data.servicio?.fotos;
+        const fotasArr = typeof fotosRaw === 'string' ? (() => { try { return JSON.parse(fotosRaw); } catch { return []; } })() : (fotosRaw ?? []);
+        setFotos(fotasArr);
+        setEditando(false);
         setEditForm({
           nombre: srv.nombre ?? '',
           categoria: srv.categoria ?? '',

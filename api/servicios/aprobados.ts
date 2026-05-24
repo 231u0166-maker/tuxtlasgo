@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const rows = await pool.query(`
       SELECT s.id, s.nombre, s.categoria, s.municipio, s.descripcion,
-             s.precio, s.contacto, s.lat, s.lng, s.codigo_seguimiento,
+             s.precio, s.contacto, s.lat, s.lng, s.codigo_seguimiento, s.fotos,
              u.nombre AS propietario
       FROM servicios s
       JOIN usuarios u ON u.id = s.usuario_id
@@ -53,7 +53,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       precio: 'medio',
       precioMxn: s.precio || 'Consultar precio',
       duracionSugerida: '1-2 horas',
-      imagen: '/logo-tuxtlasgo.png',
+      imagen: (() => {
+        try {
+          const f = typeof s.fotos === 'string' ? JSON.parse(s.fotos) : (s.fotos ?? []);
+          return f.length > 0 ? f[0] : '/logo-tuxtlasgo.png';
+        } catch { return '/logo-tuxtlasgo.png'; }
+      })(),
+      imagenesExtra: (() => {
+        try {
+          const f = typeof s.fotos === 'string' ? JSON.parse(s.fotos) : (s.fotos ?? []);
+          return f.length > 1 ? f.slice(1) : [];
+        } catch { return []; }
+      })(),
       tags: [s.categoria.toLowerCase(), s.municipio.toLowerCase()],
       ideal: ['familia', 'pareja', 'amigos', 'solo'],
       abierto: { dias: 'Consultar horario', horario: 'Consultar' },

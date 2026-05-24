@@ -40,6 +40,12 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
   const [error, setError] = useState('');
   const [verPass, setVerPass] = useState(false);
   const [esPrestador, setEsPrestador] = useState(false);
+  // Paso 2 del registro de prestador
+  const [categoria, setCategoria] = useState('Gastronomia');
+  const [municipio, setMunicipio] = useState('Catemaco');
+  const [descripcion, setDescripcion] = useState('');
+  const [precio, setPrecio] = useState('');
+  const [contacto, setContacto] = useState('');
   const [codigoMostrado, setCodigoMostrado] = useState('');
   const [codigoCopiado, setCodigoCopiado] = useState(false);
   const [usuarioRegistrado, setUsuarioRegistrado] = useState<UsuarioSesion | null>(null);
@@ -103,11 +109,11 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${res.token}` },
             body: JSON.stringify({
               nombre: nombreNegocio.trim(),
-              categoria: 'Otro',
-              municipio: 'Catemaco',
-              descripcion: `Servicio turístico de ${nombreNegocio.trim()} en Los Tuxtlas.`,
-              precio: 'A consultar',
-              contacto: correoReg,
+              categoria,
+              municipio,
+              descripcion: descripcion.trim() || `Servicio turístico de ${nombreNegocio.trim()} en Los Tuxtlas.`,
+              precio: precio.trim() || 'A consultar',
+              contacto: contacto.trim() || correoReg,
               lat: ubicacion[0],
               lng: ubicacion[1],
             }),
@@ -356,6 +362,50 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
                           <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-jungle-400" />
                           <input type="text" value={nombreNegocio} onChange={e => setNombreNegocio(e.target.value)} placeholder="Ej: Hotel Lago Encantado"
                             className="w-full border border-jungle-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                        </div>
+                      </div>
+
+                      {/* Categoría y Municipio */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría <span className="text-red-500">*</span></label>
+                          <select value={categoria} onChange={e => setCategoria(e.target.value)}
+                            className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                            {['Gastronomia','Naturaleza','Aventura','Hospedaje','Cultura','Transporte','Comercio','Cooperativa','Otro'].map(c => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio <span className="text-red-500">*</span></label>
+                          <select value={municipio} onChange={e => setMunicipio(e.target.value)}
+                            className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                            {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Descripción */}
+                      <div>
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Descripción <span className="text-red-500">*</span></label>
+                        <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)}
+                          placeholder="¿Qué ofreces? ¿Qué te hace especial? (mín. 20 caracteres)" rows={3}
+                          className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+                      </div>
+
+                      {/* Precio y Contacto */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
+                          <input type="text" value={precio} onChange={e => setPrecio(e.target.value)}
+                            placeholder="$200 MXN" className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp o correo</label>
+                          <input type="text" value={contacto} onChange={e => setContacto(e.target.value)}
+                            placeholder="9521234567" className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                         </div>
                       </div>
 

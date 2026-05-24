@@ -12,6 +12,7 @@ import {
 import { CATEGORIAS, LOS_TUXTLAS_CENTER } from '../data/lugares';
 import { getToken, getUsuarioLocal } from '../lib/auth';
 import OfflineIndicator from './OfflineIndicator';
+import GestorFotos from './GestorFotos';
 
 // ============================================================
 // PANEL DEL PRESTADOR — v2 (fix QA 23/05)
@@ -22,7 +23,7 @@ import OfflineIndicator from './OfflineIndicator';
 //  4. mi-servicio → vista del prestador logueado (sin código)
 // ============================================================
 
-type Vista = 'inicio' | 'registrar' | 'consultar' | 'mi-servicio';
+type Vista = 'inicio' | 'consultar' | 'mi-servicio';
 
 export default function ProviderPanel() {
   const [vista, setVista] = useState<Vista>('inicio');
@@ -53,7 +54,6 @@ export default function ProviderPanel() {
 
       <main className="max-w-3xl mx-auto px-4 py-5 pb-12">
         {vista === 'inicio'       && <PantallaInicio onElegir={setVista} esPrestador={esPrestador} />}
-        {vista === 'registrar'    && <RegistrarServicio onVolver={() => setVista('inicio')} />}
         {vista === 'consultar'    && <ConsultarEstado onVolver={() => setVista('inicio')} />}
         {vista === 'mi-servicio'  && <MiServicio onVolver={() => setVista('inicio')} />}
       </main>
@@ -100,20 +100,13 @@ function PantallaInicio({
         </button>
       )}
 
-      <button
-        onClick={() => onElegir('registrar')}
-        className="w-full bg-white hover:bg-jungle-50 border-2 border-jungle-200 text-jungle-900 p-5 rounded-2xl text-left flex items-center gap-4"
-      >
-        <div className="w-12 h-12 rounded-xl bg-jungle-100 flex items-center justify-center flex-shrink-0">
-          <Plus size={24} className="text-jungle-700" />
+      {/* Registro solo desde la app — no desde aquí */}
+      {!esPrestador && (
+        <div className="w-full bg-jungle-50 border-2 border-dashed border-jungle-200 text-jungle-700 p-5 rounded-2xl text-center">
+          <p className="font-semibold text-sm mb-1">¿Quieres registrar tu servicio?</p>
+          <p className="text-xs text-jungle-500">Crea tu cuenta desde la app marcando <strong>"¿Eres proveedor?"</strong> y llena tu información.</p>
         </div>
-        <div>
-          <div className="font-display font-bold text-lg">Registrar mi servicio</div>
-          <div className="text-sm text-jungle-600">
-            Agrega tu negocio: hospedaje, comida, tours, transporte...
-          </div>
-        </div>
-      </button>
+      )}
 
       <button
         onClick={() => onElegir('consultar')}
@@ -136,6 +129,7 @@ function PantallaInicio({
 // ─────────────── MI SERVICIO (prestador logueado) ───────────────
 function MiServicio({ onVolver }: { onVolver: () => void }) {
   const [servicio, setServicio] = useState<any>(null);
+  const [fotos, setFotos] = useState<string[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
@@ -159,7 +153,10 @@ function MiServicio({ onVolver }: { onVolver: () => void }) {
       }
       const data = await res.json();
       if (data.ok && data.servicio) {
-        setServicio(data.servicio);
+        // Normalizar estado por si viene con espacios o distinto case
+        const srv = { ...data.servicio, estado: (data.servicio.estado ?? '').trim().toLowerCase() };
+        setServicio(srv);
+        setFotos(data.servicio?.fotos ?? []);
       } else {
         // No tiene servicio en Neon todavía
         setServicio(null);
@@ -265,6 +262,27 @@ function MiServicio({ onVolver }: { onVolver: () => void }) {
             {servicio.estado === 'aprobado' && (
               <div className="mt-3 bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-800">
                 ✅ Tu servicio ya es visible en el mapa y la IA lo recomienda a los turistas.
+              </div>
+            )}
+
+            {/* Subir fotos solo cuando está aprobado */}
+            {servicio.estado === 'aprobado' && (
+              <div className="mt-4 pt-4 border-t border-jungle-100">
+                <GestorFotos
+                  codigoSeguimiento={servicio.codigo_seguimiento}
+                  fotosIniciales={fotos}
+                  onFotosActualizadas={(nuevasFotos) => setFotos(nuevasFotos)}
+                />
+              </div>
+            )}
+
+            {/* Mensaje si pendiente: no puede subir fotos todavía */}
+            {servicio.estado === 'pendiente' && (
+              <div className="mt-4 pt-4 border-t border-jungle-100">
+                <div className="flex items-center gap-2 text-jungle-500 text-xs bg-jungle-50 rounded-xl p-3">
+                  <span>📸</span>
+                  <span>Podrás subir fotos una vez que tu servicio sea aprobado.</span>
+                </div>
               </div>
             )}
           </div>

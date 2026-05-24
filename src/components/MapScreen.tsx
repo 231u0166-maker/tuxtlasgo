@@ -219,6 +219,9 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
             <AjustarVistaARuta puntos={rutaResaltada} />
           </>
         )}
+        {lugarResaltado && (
+          <FlyToLugar coords={lugarResaltado.coords as [number, number]} />
+        )}
         {/* Paradas numeradas de la ruta del día */}
         {paradasResaltadas?.map((p) => (
           <Marker

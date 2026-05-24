@@ -323,17 +323,30 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   const recomendadosConScore = filtrarLugaresConRazones(prefs);
   if (recomendadosConScore.length === 0) return [];
 
-  const recomendados = recomendadosConScore.map((s) => s.lugar);
-  // Mezcla con sesgo: toma más del top pero también incluye variedad
-  // Así no siempre salen los mismos lugares aunque el score sea el mismo
-  const topFijo = recomendados.slice(0, Math.ceil(prefs.dias * 2));
-  const resto = recomendados.slice(Math.ceil(prefs.dias * 2));
-  // Barajar el resto para variedad
-  for (let i = resto.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [resto[i], resto[j]] = [resto[j], resto[i]];
+  // Agrupar por score — respetar categoría/precio del usuario
+  // Solo barajar entre lugares con el MISMO score (empates)
+  // Así siempre salen los que corresponden al perfil del usuario
+  const porScore: Record<number, typeof recomendadosConScore> = {};
+  for (const s of recomendadosConScore) {
+    const key = Math.round(s.score * 10); // agrupar con 1 decimal de precisión
+    if (!porScore[key]) porScore[key] = [];
+    porScore[key].push(s);
   }
-  const seleccion = [...topFijo, ...resto].slice(0, prefs.dias * 5);
+  // Barajar dentro de cada grupo de score igual
+  for (const grupo of Object.values(porScore)) {
+    for (let i = grupo.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [grupo[i], grupo[j]] = [grupo[j], grupo[i]];
+    }
+  }
+  // Reconstruir lista ordenada por score (de mayor a menor)
+  const recomendados = Object.keys(porScore)
+    .map(Number)
+    .sort((a, b) => b - a)
+    .flatMap(k => porScore[k])
+    .map(s => s.lugar);
+
+  const seleccion = recomendados.slice(0, prefs.dias * 5);
 
   // Agrupar por municipio (para minimizar traslados)
   const porMunicipio: Record<string, Lugar[]> = {};

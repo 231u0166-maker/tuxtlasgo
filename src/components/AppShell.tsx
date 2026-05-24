@@ -72,8 +72,8 @@ export default function AppShell() {
         setRutaVisible({ geometria: coords, paradas });
       }
     } catch {
+      // Sin internet → línea recta silenciosa, sin mostrar error
       setRutaVisible({ geometria: coords, paradas });
-      setErrorRuta('Trazado aproximado. Conéctate para ver la ruta real.');
     }
     setCargandoRuta(false);
     setTab('mapa');
@@ -91,8 +91,8 @@ export default function AppShell() {
       setTab('mapa');
     } catch (err) {
       console.warn('[TuxtlasGO] OSRM no disponible:', err);
+      // Línea recta entre paradas — silencioso, sin toast de error
       setRutaVisible({ geometria: lugares.map((l) => l.coords as Coord), paradas });
-      setErrorRuta('Trazado aproximado (sin internet). Conéctate una vez para guardar la ruta real.');
       setTab('mapa');
     } finally {
       setCargandoRuta(false);

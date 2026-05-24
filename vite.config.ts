@@ -38,8 +38,7 @@ export default defineConfig({
             },
           },
           {
-            // Imágenes de Unsplash. 60 entradas, solo 200 OK (los 404 no
-            // se cachean, así no llenan el almacenamiento del navegador).
+            // Imágenes de Unsplash
             urlPattern: /^https:\/\/images\.unsplash\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
@@ -47,6 +46,36 @@ export default defineConfig({
               expiration: {
                 maxEntries: 60,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
+                purgeOnQuotaError: true,
+              },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            // Fotos de prestadores en Cloudinary — caché offline
+            urlPattern: /^https:\/\/res\.cloudinary\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'cloudinary-fotos',
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 60,
+                purgeOnQuotaError: true,
+              },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            // API de servicios aprobados — NetworkFirst para tener datos frescos
+            // pero fallback a caché si no hay internet
+            urlPattern: /\/api\/servicios\/aprobados/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-servicios',
+              networkTimeoutSeconds: 5,
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24,
                 purgeOnQuotaError: true,
               },
               cacheableResponse: { statuses: [200] },

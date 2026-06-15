@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, RotateCcw, MapPin, BookmarkPlus, CheckCircle2 } from 'lucide-react';
+import { Send, RotateCcw, MapPin, BookmarkPlus, CheckCircle2 } from 'lucide-react';
+import { useLLM } from '../hooks/useLLM';
 import type { Lugar } from '../data/lugares';
 import type { Categoria, Presupuesto } from '../data/lugares';
 import {
@@ -23,9 +24,9 @@ import { guardarRuta, mapaDescargado } from '../lib/db';
 // Conversa con el usuario en dos modos:
 //  - Flujo guiado: pregunta días, intereses, presupuesto, grupo
 //    y arma una ruta personalizada explicando su razonamiento.
-//  - Texto libre: responde preguntas sueltas sobre lugares,
-//    comida, transporte, clima, etc.
-// Todo corre offline con el motor de lib/chatbot.ts
+//  - Texto libre: responde preguntas sueltas. Si el dispositivo
+//    soporta IA (WebGPU), usa el LLM offline; si no, cae al motor
+//    de reglas de lib/chatbot.ts. Ambos funcionan sin internet.
 // ============================================================
 
 interface Props {
@@ -60,10 +61,15 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
   });
   const [input, setInput] = useState('');
   const [escribiendo, setEscribiendo] = useState(false);
+  // Mientras el LLM genera, bloqueamos el envío para no encimar streams
+  const [generandoIA, setGenerandoIA] = useState(false);
   // Set de índices de mensajes cuya ruta ya fue guardada
   const [rutasGuardadas, setRutasGuardadas] = useState<Set<number>>(new Set());
   // Si el mapa NO está descargado, mostramos un aviso al ver la ruta
   const [mostrarAvisoMapa, setMostrarAvisoMapa] = useState(false);
+
+  // Hook del LLM offline (detección + carga + streaming)
+  const llm = useLLM();
 
   // Preferencias que se van armando durante el flujo guiado
   const [prefsParcial, setPrefsParcial] = useState<Partial<PreferenciasUsuario>>(
@@ -175,6 +181,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
         presupuesto: prefsParcial.presupuesto ?? 'medio',
         grupo: valor as GrupoViaje,
       };
+      setPrefsParcial(prefsCompletas);
       setEstado('generando');
       generarYMostrarRuta(prefsCompletas);
       return;
@@ -203,9 +210,8 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
       {
         id: crypto.randomUUID(),
         role: 'bot',
-        texto: `¡Listo! Te armé una ruta de ${dias.length} ${
-          dias.length === 1 ? 'día' : 'días'
-        } pensada para ti. Aquí va, día por día:`,
+        texto: `¡Listo! Te armé una ruta de ${dias.length} ${dias.length === 1 ? 'día' : 'días'
+          } pensada para ti. Aquí va, día por día:`,
         timestamp: Date.now(),
       },
       600
@@ -249,22 +255,67 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
   }
 
   // ─────────── Envío de texto libre ───────────
-  function enviarTexto() {
+  async function enviarTexto() {
     const texto = input.trim();
-    if (!texto) return;
+    if (!texto || generandoIA) return; // no encimar mientras genera
     agregarUsuario(texto);
     setInput('');
 
-    // Durante el flujo guiado, el texto libre se interpreta igual
-    // pero damos prioridad a seguir el flujo si está a medias.
     if (estado === 'libre' || estado === 'generando') {
-      const respuesta = responderTextoLibre(texto, null);
-      responderBot(respuesta, 600);
+      setGenerandoIA(true);
+      try {
+        // ¿Podemos usar el LLM? Si está soportado pero aún no cargado,
+        // lo preparamos AHORA (la primera vez descarga el modelo).
+        let puedeUsarIA = llm.listo;
+        if (llm.estado === 'inactivo') {
+          setEscribiendo(true);
+          puedeUsarIA = await llm.activar(); // usamos el booleano, no el estado viejo
+        }
+
+        if (puedeUsarIA) {
+          // Streaming: mostramos los puntitos hasta el primer token,
+          // luego creamos la burbuja y la vamos llenando en vivo.
+          setEscribiendo(true);
+          let primerToken = true;
+          let msgId = '';
+          await llm.responder(
+            texto,
+            mensajes,
+            (acc) => {
+              if (primerToken) {
+                primerToken = false;
+                setEscribiendo(false);
+                msgId = crypto.randomUUID();
+                setMensajes((prev) => [
+                  ...prev,
+                  { id: msgId, role: 'bot', texto: acc, timestamp: Date.now() },
+                ]);
+              } else {
+                setMensajes((prev) =>
+                  prev.map((m) => (m.id === msgId ? { ...m, texto: acc } : m))
+                );
+              }
+            },
+            prefsParcial
+          );
+        } else {
+          // Sin WebGPU o error → motor de reglas de siempre
+          setEscribiendo(false);
+          responderBot(responderTextoLibre(texto, null), 400);
+        }
+      } catch (err) {
+        // Si algo truena a media respuesta, no dejamos la burbuja a medias:
+        // caemos al motor de reglas.
+        console.error('Error generando con LLM:', err);
+        setEscribiendo(false);
+        responderBot(responderTextoLibre(texto, null), 200);
+      } finally {
+        setEscribiendo(false);
+        setGenerandoIA(false);
+      }
     } else {
-      // Si el usuario escribe en vez de tocar botones, lo guiamos
-      const respuesta = responderTextoLibre(texto, null);
-      responderBot(respuesta, 600);
-      // Y le recordamos que puede usar los botones
+      // Si el usuario escribe en vez de tocar botones durante el flujo
+      responderBot(responderTextoLibre(texto, null), 600);
       setTimeout(() => {
         setMensajes((prev) => [
           ...prev,
@@ -325,6 +376,22 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
         </button>
       </div>
 
+      {/* Barra de descarga del modelo de IA (solo la primera vez) */}
+      {llm.estado === 'cargando' && (
+        <div className="bg-jungle-100 px-4 py-2 flex-shrink-0 border-b border-jungle-200">
+          <div className="flex items-center justify-between text-xs text-jungle-800 mb-1">
+            <span>✨ Preparando la IA por primera vez…</span>
+            <span className="font-bold">{Math.round(llm.progreso * 100)}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-jungle-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-jungle-600 transition-all duration-300"
+              style={{ width: `${Math.round(llm.progreso * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Mensajes */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-3">
         {mensajes.map((msg) => (
@@ -383,17 +450,18 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && enviarTexto()}
-            placeholder="Escribe tu pregunta..."
+            placeholder={generandoIA ? 'Pensando…' : 'Escribe tu pregunta...'}
+            disabled={generandoIA}
             inputMode="text"
             enterKeyHint="send"
             autoComplete="off"
             autoCorrect="on"
             autoCapitalize="sentences"
-            className="flex-1 bg-jungle-50 rounded-full px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0"
+            className="flex-1 bg-jungle-50 rounded-full px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0 disabled:opacity-60"
           />
           <button
             onClick={enviarTexto}
-            disabled={!input.trim()}
+            disabled={!input.trim() || generandoIA}
             className="w-10 h-10 rounded-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white flex items-center justify-center flex-shrink-0"
             aria-label="Enviar"
           >
@@ -432,11 +500,10 @@ function Burbuja({
       <div className={`max-w-[85%] ${esBot ? '' : 'items-end'}`}>
         {/* Texto del mensaje */}
         <div
-          className={`px-4 py-2.5 text-sm whitespace-pre-line ${
-            esBot
-              ? 'bg-white text-jungle-900 rounded-2xl rounded-tl-sm border border-jungle-100'
-              : 'bg-jungle-700 text-white rounded-2xl rounded-tr-sm'
-          }`}
+          className={`px-4 py-2.5 text-sm whitespace-pre-line ${esBot
+            ? 'bg-white text-jungle-900 rounded-2xl rounded-tl-sm border border-jungle-100'
+            : 'bg-jungle-700 text-white rounded-2xl rounded-tr-sm'
+            }`}
         >
           {mensaje.texto}
         </div>
@@ -453,13 +520,12 @@ function Burbuja({
                 <button
                   key={op.valor}
                   onClick={() => onOpcion(op.valor, op.label)}
-                  className={`text-sm px-3 py-2 rounded-xl font-medium transition-colors border ${
-                    esDone
-                      ? 'bg-jungle-700 text-white border-jungle-700 hover:bg-jungle-800'
-                      : seleccionado
+                  className={`text-sm px-3 py-2 rounded-xl font-medium transition-colors border ${esDone
+                    ? 'bg-jungle-700 text-white border-jungle-700 hover:bg-jungle-800'
+                    : seleccionado
                       ? 'bg-jungle-600 text-white border-jungle-600'
                       : 'bg-white text-jungle-800 border-jungle-200 hover:bg-jungle-50'
-                  }`}
+                    }`}
                 >
                   {seleccionado ? '✓ ' : ''}
                   {op.label}

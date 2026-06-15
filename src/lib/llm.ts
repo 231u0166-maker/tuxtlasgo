@@ -1,0 +1,261 @@
+// ============================================================
+// MOTOR LLM OFFLINE — TuxtlasGO (capa de GENERACIÓN del RAG)
+// ============================================================
+// Corre un LLM cuantizado 100% en el dispositivo vía WebLLM
+// (WebGPU con fallback a WASM). El modelo SOLO redacta: los datos
+// (lugares, precios, horarios) los aporta tu motor de reglas ya
+// existente, que actúa como capa de RECUPERACIÓN. Así el LLM nunca
+// inventa precios ni horarios de prestadores reales.
+//
+//   Recuperación  ──►  tu motor (scoring + conocimiento + catálogo)
+//   Generación    ──►  este módulo (LLM redacta en español natural)
+//
+// Instalación:
+//   npm i @mlc-ai/web-llm
+// ============================================================
+
+import * as webllm from '@mlc-ai/web-llm';
+import { Lugar } from '../data/lugares';
+import {
+  getCatalogoActivo,
+  detectarIntent,
+  detectarMunicipio,
+  type MensajeChat,
+  type PreferenciasUsuario,
+} from './chatbot';
+import { buscarConocimiento } from './conocimiento';
+
+// ─────────────── CONFIGURACIÓN DE MODELO ───────────────
+// Default: ligero y rápido en gama media (~0.8 GB).
+// Upgrade para mejor español si el dispositivo aguanta:
+//   'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'  (~1.0 GB)
+//   'Llama-3.2-3B-Instruct-q4f16_1-MLC'  (~1.7 GB, mejor calidad)
+// NO usar modelos de razonamiento (R1-Distill / modos "thinking").
+export const MODELO_DEFECTO = 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
+
+let engine: webllm.MLCEngineInterface | null = null;
+let modeloCargado: string | null = null;
+
+// ─────────────── DETECCIÓN DE CAPACIDAD ───────────────
+export function soportaWebGPU(): boolean {
+  return typeof navigator !== 'undefined' && 'gpu' in navigator;
+}
+
+export function llmListo(): boolean {
+  return engine !== null;
+}
+
+// ─────────────── CARGA DEL MODELO ───────────────
+// Llamar una sola vez (idealmente con WiFi). WebLLM cachea el
+// modelo en Cache Storage, así que las siguientes veces es
+// instantáneo y funciona offline.
+export async function inicializarLLM(
+  onProgress?: (info: { progreso: number; texto: string }) => void,
+  modelo: string = MODELO_DEFECTO
+): Promise<void> {
+  if (engine && modeloCargado === modelo) return;
+
+  if (!soportaWebGPU()) {
+    throw new Error('SIN_WEBGPU');
+  }
+
+  engine = await webllm.CreateMLCEngine(modelo, {
+    initProgressCallback: (rep: webllm.InitProgressReport) => {
+      onProgress?.({ progreso: rep.progress ?? 0, texto: rep.text ?? '' });
+    },
+  });
+  modeloCargado = modelo;
+}
+
+// ============================================================
+// RECUPERACIÓN — reutiliza tu motor de reglas como "retriever"
+// ============================================================
+interface ContextoRecuperado {
+  lugares: Lugar[];
+  conocimiento: string | null;
+}
+
+const MAPA_INTENT_CAT: Record<string, Lugar['categoria']> = {
+  comida: 'Gastronomia',
+  hospedaje: 'Hospedaje',
+  naturaleza: 'Naturaleza',
+  aventura: 'Aventura',
+};
+
+function recuperarContexto(
+  texto: string,
+  prefs?: Partial<PreferenciasUsuario>,
+  k = 4
+): ContextoRecuperado {
+  const catalogo = getCatalogoActivo();
+  const intent = detectarIntent(texto);
+  const municipio = detectarMunicipio(texto);
+  const cat = MAPA_INTENT_CAT[intent];
+
+  let candidatos = catalogo;
+
+  // 1) Filtro por categoría detectada en la pregunta
+  if (cat) {
+    candidatos = candidatos.filter((l) => l.categoria === cat);
+  }
+  // 2) Si no hubo categoría en la pregunta pero el turista declaró
+  //    intereses en el flujo guiado, úsalos para acotar.
+  else if (prefs?.intereses && prefs.intereses.length > 0) {
+    const enIntereses = candidatos.filter((l) =>
+      prefs.intereses!.includes(l.categoria)
+    );
+    if (enIntereses.length > 0) candidatos = enIntereses;
+  }
+
+  // 3) Filtro por municipio si lo mencionó y hay resultados
+  if (municipio) {
+    const enMuni = candidatos.filter((l) => l.municipio === municipio);
+    if (enMuni.length > 0) candidatos = enMuni;
+  }
+
+  // 4) Si quedó vacío, cae a lo destacado / mejor valorado
+  if (candidatos.length === 0) {
+    candidatos = catalogo.filter((l) => l.destacado || l.rating >= 4.5);
+  }
+
+  const lugares = [...candidatos]
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, k);
+
+  const hit = buscarConocimiento(texto);
+  const conocimiento = hit ? hit.respuesta : null;
+
+  return { lugares, conocimiento };
+}
+
+// ─────────────── ARMADO DEL CONTEXTO PARA EL PROMPT ───────────────
+function lugarAFicha(l: Lugar): string {
+  const partes = [
+    `- ${l.nombre} (${l.categoria}, ${l.municipio})`,
+    `  ${l.descripcionCorta}`,
+    `  Precio: ${l.precioMxn} · Horario: ${l.abierto.dias} ${l.abierto.horario}`,
+    l.tip ? `  Tip: ${l.tip}` : '',
+    l.comoLlegar ? `  Cómo llegar: ${l.comoLlegar}` : '',
+  ];
+  return partes.filter(Boolean).join('\n');
+}
+
+function prefsATexto(prefs?: Partial<PreferenciasUsuario>): string | null {
+  if (!prefs) return null;
+  const p: string[] = [];
+  if (prefs.dias) p.push(`${prefs.dias} día(s) de viaje`);
+  if (prefs.intereses?.length) p.push(`intereses: ${prefs.intereses.join(', ')}`);
+  if (prefs.presupuesto) p.push(`presupuesto ${prefs.presupuesto}`);
+  if (prefs.grupo) p.push(`viaja: ${prefs.grupo}`);
+  return p.length ? p.join(' · ') : null;
+}
+
+function construirContextoTexto(
+  ctx: ContextoRecuperado,
+  prefs?: Partial<PreferenciasUsuario>
+): string {
+  const bloques: string[] = [];
+
+  const prefsTxt = prefsATexto(prefs);
+  if (prefsTxt) bloques.push('PERFIL DEL TURISTA:\n' + prefsTxt);
+
+  if (ctx.lugares.length > 0) {
+    bloques.push(
+      'LUGARES DISPONIBLES (usa SOLO estos):\n' +
+        ctx.lugares.map(lugarAFicha).join('\n\n')
+    );
+  }
+  if (ctx.conocimiento) {
+    bloques.push('DATO VERIFICADO:\n' + ctx.conocimiento);
+  }
+  return (
+    bloques.join('\n\n') || 'No hay lugares que coincidan con la consulta.'
+  );
+}
+
+// ─────────────── PROMPT DEL SISTEMA (la "correa corta") ───────────────
+const SYSTEM_PROMPT = `Eres la guía local de TuxtlasGO, una app turística de la región de Los Tuxtlas, Veracruz (Catemaco, San Andrés Tuxtla y Santiago Tuxtla).
+
+REGLAS ESTRICTAS:
+- Responde SIEMPRE en español, cálido y breve (máximo 4-5 frases).
+- Escribe en texto plano. NO uses markdown, ni asteriscos, ni almohadillas, ni viñetas con símbolos.
+- Usa ÚNICAMENTE la información del CONTEXTO. NUNCA inventes lugares, precios, horarios ni contactos.
+- Si mencionas lugares, usa su nombre EXACTO tal como aparece en el contexto.
+- Si el turista pide algo que no está en el contexto, dilo con honestidad y ofrece lo que sí hay.
+- No des información médica, legal ni de seguridad que no esté en el contexto.`;
+
+// ─────────────── LIMPIEZA DE MARKDOWN (por si el modelo resbala) ───────────────
+export function limpiarMarkdown(t: string): string {
+  return t
+    .replace(/\*+/g, '')      // quita ** y *
+    .replace(/`+/g, '')       // quita backticks
+    .replace(/^#{1,6}\s+/gm, '') // quita encabezados markdown
+    .replace(/^\s*[-•]\s+/gm, '• '); // normaliza viñetas
+}
+
+// ─────────────── GENERACIÓN (streaming) ───────────────
+export async function* responderConLLMStream(
+  texto: string,
+  historial: MensajeChat[] = [],
+  prefs?: Partial<PreferenciasUsuario>
+): AsyncGenerator<string, void, unknown> {
+  if (!engine) throw new Error('LLM_NO_INICIALIZADO');
+
+  const ctx = recuperarContexto(texto, prefs);
+  const contextoTexto = construirContextoTexto(ctx, prefs);
+
+  // Historial reciente SOLO de mensajes de texto (sin bloques de
+  // ruta/lugares/opciones, que saturan el contexto de un modelo chico)
+  const historialReciente = historial
+    .filter(
+      (m) => !m.rutaDia && !m.lugares && !m.opciones && m.texto.trim().length > 0
+    )
+    .slice(-6)
+    .map((m) => ({
+      role: (m.role === 'bot' ? 'assistant' : 'user') as 'assistant' | 'user',
+      content: m.texto,
+    }));
+
+  const messages: webllm.ChatCompletionMessageParam[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...historialReciente,
+    {
+      role: 'user',
+      content: `CONTEXTO:\n${contextoTexto}\n\nPREGUNTA DEL TURISTA: ${texto}`,
+    },
+  ];
+
+  const stream = await engine.chat.completions.create({
+    messages,
+    temperature: 0.3, // bajo = se apega al contexto, menos alucinación
+    max_tokens: 350,
+    stream: true,
+  });
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content ?? '';
+    if (delta) yield delta;
+  }
+}
+
+// ─────────────── VERSIÓN NO-STREAMING (conveniencia) ───────────────
+export async function responderConLLM(
+  texto: string,
+  historial: MensajeChat[] = [],
+  prefs?: Partial<PreferenciasUsuario>
+): Promise<string> {
+  let salida = '';
+  for await (const frag of responderConLLMStream(texto, historial, prefs)) {
+    salida += frag;
+  }
+  return limpiarMarkdown(salida);
+}
+
+// ─────────────── LIMPIEZA ───────────────
+export async function descargarLLM(): Promise<void> {
+  if (engine) {
+    await engine.unload();
+    engine = null;
+    modeloCargado = null;
+  }
+}

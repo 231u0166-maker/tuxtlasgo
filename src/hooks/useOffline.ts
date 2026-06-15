@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-
+// ...dentro de ChatAssistant, junto a los demás useState:
 export function useOffline(): boolean {
   const [offline, setOffline] = useState(
     typeof navigator !== 'undefined' ? !navigator.onLine : false

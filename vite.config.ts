@@ -17,7 +17,7 @@ export default defineConfig({
       ],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,json}'],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         // Cuando el navegador rechaza por cuota, workbox limpia sus cachés.
         // Sin esto, un QuotaExceeded congela el service worker.
         runtimeCaching: [

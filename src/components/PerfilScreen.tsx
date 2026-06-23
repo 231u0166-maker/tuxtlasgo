@@ -1,30 +1,26 @@
 // ============================================================
 // PERFIL DE USUARIO — TuxtlasGO (Módulo 1)
 // ============================================================
-// Pantalla unificada para turistas y prestadores.
+// Turista:   foto de perfil · nombre · bio · álbum de fotos
+// Prestador: foto · todos los campos del servicio (horario,
+//            comoLlegar, tip, idealPara) · galería · preview
 //
-// Turista:   foto · nombre · bio · Favoritos / Rutas
-// Prestador: foto · todos los campos del servicio (incluye
-//            horario, comoLlegar, tip, idealPara) · galería
-//            · previsualización del PlaceCard tal como lo
-//            ve el turista.
-//
-// Ruta: /perfil  (ver App.tsx)
+// Favoritos y Rutas NO están aquí — viven en el tab
+// "Mis lugares" de AppShell (sin duplicidad).
+// Ruta: tab 'perfil' en AppShell  (+ /perfil como URL directa)
 // ============================================================
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  ArrowLeft, Camera, Edit3, Save, X, MapPin, Clock,
-  Phone, Loader2, CheckCircle2, Star, Heart, Route,
-  Store, RefreshCw, Eye,
+  ArrowLeft, Camera, Edit3, Save, Clock, Phone,
+  Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
 } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
-import { subirFoto } from '../lib/cloudinary';
-import { db, listarFavoritos, servicioComoLugar } from '../lib/db';
+import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
+import { servicioComoLugar } from '../lib/db';
 import GestorFotos from './GestorFotos';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
-import { getCatalogoActivo } from '../lib/chatbot';
 
 // ─────────────── TIPOS ───────────────
 interface ServicioAPI {
@@ -82,14 +78,12 @@ const COLORES_ESTADO: Record<string, string> = {
   rechazado: 'bg-red-100   text-red-700',
 };
 
-// Helper: parsear fotos (pueden venir como array o como string JSON)
 function parseFotos(raw: string[] | string | undefined): string[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
   try { return JSON.parse(raw); } catch { return []; }
 }
 
-// Helper: parsear ideal_para
 function parseIdeal(raw: string[] | string | undefined): string[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
@@ -126,10 +120,9 @@ export default function PerfilScreen({ onVolver }: Props) {
 }
 
 // ============================================================
-// PERFIL TURISTA
+// PERFIL TURISTA — simplificado
+// Tiene: foto de perfil · nombre · bio · álbum de fotos
 // ============================================================
-type TabTurista = 'favoritos' | 'rutas';
-
 function PerfilTurista({
   usuario,
   onVolver,
@@ -137,33 +130,34 @@ function PerfilTurista({
   usuario: UsuarioSesion;
   onVolver: () => void;
 }) {
-  const [tab, setTab]           = useState<TabTurista>('favoritos');
-  const [editando, setEditando] = useState(false);
-  const [guardando, setGuardando] = useState(false);
-  const [form, setForm]         = useState<FormUsuario>({ nombre: usuario.nombre, bio: '' });
+  const [editando, setEditando]     = useState(false);
+  const [guardando, setGuardando]   = useState(false);
+  const [form, setForm]             = useState<FormUsuario>({ nombre: usuario.nombre, bio: '' });
   const [fotoSubiendo, setFotoSubiendo] = useState(false);
-  const [favoritos, setFavoritos] = useState<Lugar[]>([]);
-  const [rutas, setRutas]       = useState<any[]>([]);
-  const inputFotoRef            = useRef<HTMLInputElement>(null);
+  const [fotoPerfil, setFotoPerfil] = useState(usuario.foto_url ?? '');
+  // Álbum de fotos del turista
+  const [album, setAlbum]           = useState<string[]>([]);
+  const [subiendoAlbum, setSubiendoAlbum] = useState(false);
+  const inputFotoRef    = useRef<HTMLInputElement>(null);
+  const inputAlbumRef   = useRef<HTMLInputElement>(null);
 
-  // Cargar favoritos y rutas desde IndexedDB (funciona offline)
-  useEffect(() => {
-    listarFavoritos(getCatalogoActivo()).then(setFavoritos).catch(() => {});
-    db.rutas.toArray().then(setRutas).catch(() => {});
-  }, []);
-
-  // Cargar bio actual desde el servidor
+  // Cargar bio y fotos desde el servidor
   useEffect(() => {
     const token = getToken();
     if (!token) return;
     fetch('/api/auth/perfil', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => {
-        if (d.ok) setForm({ nombre: d.usuario.nombre, bio: d.usuario.bio ?? '' });
+        if (d.ok) {
+          setForm({ nombre: d.usuario.nombre, bio: d.usuario.bio ?? '' });
+          setAlbum(parseFotos(d.usuario.fotos));
+          if (d.usuario.foto_url) setFotoPerfil(d.usuario.foto_url);
+        }
       })
       .catch(() => {});
   }, []);
 
+  // Guarda nombre y bio
   async function guardar() {
     setGuardando(true);
     try {
@@ -184,58 +178,88 @@ function PerfilTurista({
     setGuardando(false);
   }
 
-  async function cambiarFoto(e: React.ChangeEvent<HTMLInputElement>) {
+  // Sube foto de perfil
+  async function cambiarFotoPerfil(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setFotoSubiendo(true);
     try {
-      // subirFoto es callback-based, la envolvemos en Promise
       const url = await new Promise<string>((resolve, reject) => {
-        subirFoto(file, 'perfil-usuario', (p) => {
+        subirFoto(file, `turista-${usuario.id}`, (p: ProgresoSubida) => {
           if (p.url) resolve(p.url);
           if (p.error) reject(new Error(p.error));
         });
       });
       await fetch('/api/auth/perfil', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ foto_url: url }),
       });
+      setFotoPerfil(url);
       setUsuarioLocal({ ...usuario, foto_url: url });
-      window.location.reload(); // refresca el avatar en AppShell
-    } catch { /* error de subida */ }
+    } catch { /* error subida */ }
     setFotoSubiendo(false);
+    e.target.value = '';
   }
 
-  const fotoUrl = usuario.foto_url;
+  // Sube foto al álbum
+  async function agregarAlAlbum(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSubiendoAlbum(true);
+    try {
+      const url = await new Promise<string>((resolve, reject) => {
+        subirFoto(file, `album-${usuario.id}`, (p: ProgresoSubida) => {
+          if (p.url) resolve(p.url);
+          if (p.error) reject(new Error(p.error));
+        });
+      });
+      const nuevasfotos = [...album, url];
+      setAlbum(nuevasfotos);
+      // Guarda en el servidor
+      await fetch('/api/auth/perfil', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ fotos: JSON.stringify(nuevasfotos) }),
+      });
+    } catch { /* error subida */ }
+    setSubiendoAlbum(false);
+    e.target.value = '';
+  }
+
+  // Elimina foto del álbum
+  async function eliminarFotoAlbum(url: string) {
+    const nuevasfotos = album.filter(f => f !== url);
+    setAlbum(nuevasfotos);
+    await fetch('/api/auth/perfil', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify({ fotos: JSON.stringify(nuevasfotos) }),
+    }).catch(() => {});
+  }
+
   const iniciales = usuario.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <div className="min-h-screen bg-jungle-50 pb-10">
       {/* Header */}
-      <div className="bg-gradient-to-br from-jungle-800 to-jungle-950 px-4 pt-5 pb-20 relative">
-        <button
-          onClick={onVolver}
-          className="flex items-center gap-1 text-jungle-200 hover:text-white text-sm mb-4"
-        >
-          <ArrowLeft size={16} /> Inicio
-        </button>
-        <div className="text-right">
+      <div className="bg-gradient-to-br from-jungle-800 to-jungle-950 px-4 pt-5 pb-24">
+        <div className="flex items-center justify-between">
+          <button onClick={onVolver} className="flex items-center gap-1 text-jungle-200 hover:text-white text-sm">
+            <ArrowLeft size={16} /> Inicio
+          </button>
           <span className="text-xs bg-jungle-700 text-jungle-200 px-2.5 py-1 rounded-full font-semibold uppercase tracking-wide">
             Turista
           </span>
         </div>
       </div>
 
-      {/* Avatar flotante */}
-      <div className="px-4 -mt-14 mb-4 flex items-end gap-4">
-        <div className="relative flex-shrink-0">
-          {fotoUrl ? (
+      {/* Avatar centrado flotante */}
+      <div className="flex flex-col items-center -mt-16 mb-5 px-4">
+        <div className="relative mb-3">
+          {fotoPerfil ? (
             <img
-              src={fotoUrl}
+              src={fotoPerfil}
               alt={usuario.nombre}
               className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg"
             />
@@ -254,42 +278,34 @@ function PerfilTurista({
               : <Camera size={14} className="text-jungle-700" />
             }
           </button>
+          <input ref={inputFotoRef} type="file" accept="image/*" className="hidden" onChange={cambiarFotoPerfil} />
+        </div>
+
+        {/* Nombre — centrado, wrapping correcto */}
+        {editando ? (
           <input
-            ref={inputFotoRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={cambiarFoto}
+            value={form.nombre}
+            onChange={e => setForm({ ...form, nombre: e.target.value })}
+            className="font-display font-bold text-xl text-jungle-950 border-b-2 border-jungle-400 bg-transparent focus:outline-none text-center w-full max-w-xs"
           />
-        </div>
-        <div className="pb-1 flex-1">
-          {editando ? (
-            <input
-              value={form.nombre}
-              onChange={e => setForm({ ...form, nombre: e.target.value })}
-              className="font-display font-bold text-xl text-jungle-950 border-b-2 border-jungle-400 bg-transparent focus:outline-none w-full"
-            />
-          ) : (
-            <h1 className="font-display font-bold text-xl text-jungle-950 leading-tight">
-              {form.nombre}
-            </h1>
-          )}
-          <p className="text-sm text-jungle-500">{usuario.correo}</p>
-        </div>
+        ) : (
+          <h1 className="font-display font-bold text-xl text-jungle-950 text-center leading-snug max-w-xs">
+            {form.nombre}
+          </h1>
+        )}
+        <p className="text-sm text-jungle-500 mt-0.5">{usuario.correo}</p>
       </div>
 
-      {/* Bio + edición */}
+      {/* Bio + editar */}
       <div className="px-4 mb-4">
         <div className="bg-white rounded-2xl border border-jungle-100 p-4">
           {editando ? (
             <>
-              <label className="text-xs font-semibold text-jungle-600 mb-1.5 block">
-                Sobre mí
-              </label>
+              <label className="text-xs font-semibold text-jungle-600 mb-1.5 block">Sobre mí</label>
               <textarea
                 value={form.bio}
                 onChange={e => setForm({ ...form, bio: e.target.value })}
-                placeholder="Cuéntales a los demás sobre ti… tus intereses, de dónde eres, qué buscas en un viaje."
+                placeholder="Cuéntales a los demás sobre ti…"
                 rows={3}
                 maxLength={300}
                 className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none"
@@ -300,10 +316,7 @@ function PerfilTurista({
                   disabled={guardando}
                   className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
                 >
-                  {guardando
-                    ? <Loader2 size={15} className="animate-spin" />
-                    : <Save size={15} />
-                  }
+                  {guardando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                   Guardar
                 </button>
                 <button
@@ -318,9 +331,7 @@ function PerfilTurista({
             <>
               <p className="text-sm text-jungle-700 leading-relaxed">
                 {form.bio || (
-                  <span className="text-jungle-400 italic">
-                    Sin descripción todavía. ¡Cuéntanos sobre ti!
-                  </span>
+                  <span className="text-jungle-400 italic">Sin descripción todavía. ¡Cuéntanos sobre ti!</span>
                 )}
               </p>
               <button
@@ -334,88 +345,46 @@ function PerfilTurista({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="px-4 mb-4 flex gap-2">
-        {([
-          { id: 'favoritos' as TabTurista, label: '❤️ Favoritos', count: favoritos.length },
-          { id: 'rutas'     as TabTurista, label: '🗺️ Rutas',     count: rutas.length },
-        ]).map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-              tab === t.id
-                ? 'bg-jungle-700 text-white'
-                : 'bg-white text-jungle-700 border border-jungle-100'
-            }`}
-          >
-            {t.label}
-            {t.count > 0 && (
-              <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-                tab === t.id ? 'bg-jungle-600 text-jungle-100' : 'bg-jungle-100 text-jungle-600'
-              }`}>
-                {t.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Contenido de tabs */}
+      {/* Álbum de fotos */}
       <div className="px-4">
-        {tab === 'favoritos' && (
-          <div className="space-y-2">
-            {favoritos.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-jungle-100 p-8 text-center text-jungle-400">
-                <Heart size={32} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Aún no tienes favoritos guardados.</p>
-                <p className="text-xs mt-1">Toca el ❤️ en cualquier lugar para guardarlo aquí.</p>
-              </div>
-            ) : favoritos.map((l) => (
-              <div
-                key={l.id}
-                className="bg-white rounded-xl border border-jungle-100 p-3 flex gap-3 items-center"
-              >
-                <img
-                  src={l.imagen}
-                  alt={l.nombre}
-                  className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-jungle-950 text-sm truncate">{l.nombre}</p>
-                  <p className="text-xs text-jungle-500 flex items-center gap-1 mt-0.5">
-                    <MapPin size={10} /> {l.municipio}
-                    {l.rating > 0 && <><span>·</span><Star size={10} className="fill-amber-400 text-amber-400" />{l.rating}</>}
-                  </p>
-                </div>
-              </div>
-            ))}
+        <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-jungle-900 text-sm">📷 Mis fotos</h2>
+            <button
+              onClick={() => inputAlbumRef.current?.click()}
+              disabled={subiendoAlbum}
+              className="flex items-center gap-1.5 text-xs font-semibold text-jungle-600 hover:text-jungle-900 bg-jungle-50 px-3 py-1.5 rounded-full border border-jungle-100"
+            >
+              {subiendoAlbum
+                ? <Loader2 size={13} className="animate-spin" />
+                : <ImagePlus size={13} />
+              }
+              {subiendoAlbum ? 'Subiendo…' : 'Agregar'}
+            </button>
+            <input ref={inputAlbumRef} type="file" accept="image/*" className="hidden" onChange={agregarAlAlbum} />
           </div>
-        )}
 
-        {tab === 'rutas' && (
-          <div className="space-y-2">
-            {rutas.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-jungle-100 p-8 text-center text-jungle-400">
-                <Route size={32} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Aún no tienes rutas guardadas.</p>
-                <p className="text-xs mt-1">Genera una ruta en el Asistente y toca "Guardar".</p>
-              </div>
-            ) : rutas.map((r) => (
-              <div
-                key={r.id}
-                className="bg-white rounded-xl border border-jungle-100 p-4"
-              >
-                <p className="font-semibold text-jungle-950 text-sm">{r.nombre}</p>
-                <p className="text-xs text-jungle-500 mt-0.5">
-                  {new Date(r.creadoEn).toLocaleDateString('es-MX', {
-                    day: 'numeric', month: 'long', year: 'numeric',
-                  })}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
+          {album.length === 0 ? (
+            <div className="text-center py-8 text-jungle-300">
+              <ImagePlus size={32} className="mx-auto mb-2" />
+              <p className="text-sm text-jungle-400">Aún no tienes fotos. ¡Comparte tu experiencia en Los Tuxtlas!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {album.map((url, i) => (
+                <div key={i} className="relative aspect-square">
+                  <img src={url} alt="" className="w-full h-full object-cover rounded-xl" />
+                  <button
+                    onClick={() => eliminarFotoAlbum(url)}
+                    className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center"
+                  >
+                    <X size={12} className="text-white" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -529,7 +498,6 @@ function PerfilPrestador({
     }));
   }
 
-  // Previsualización del PlaceCard — construimos un Lugar temporal
   function buildPreview(): Lugar {
     return servicioComoLugar({
       id: servicio?.id,
@@ -569,16 +537,10 @@ function PerfilPrestador({
       >
         <div className="absolute inset-0 bg-jungle-950/40" />
         <div className="relative z-10 px-4 pt-5 flex items-center justify-between">
-          <button
-            onClick={onVolver}
-            className="flex items-center gap-1 text-white/80 hover:text-white text-sm"
-          >
+          <button onClick={onVolver} className="flex items-center gap-1 text-white/80 hover:text-white text-sm">
             <ArrowLeft size={16} /> Inicio
           </button>
-          <button
-            onClick={cargar}
-            className="text-white/70 hover:text-white"
-          >
+          <button onClick={cargar} className="text-white/70 hover:text-white">
             <RefreshCw size={16} />
           </button>
         </div>
@@ -588,11 +550,7 @@ function PerfilPrestador({
       <div className="px-4 -mt-12 mb-5 flex items-end gap-4">
         <div className="relative flex-shrink-0">
           {fotoUrl ? (
-            <img
-              src={fotoUrl}
-              alt={usuario.nombre}
-              className="w-20 h-20 rounded-full border-4 border-white object-cover shadow-lg"
-            />
+            <img src={fotoUrl} alt={usuario.nombre} className="w-20 h-20 rounded-full border-4 border-white object-cover shadow-lg" />
           ) : (
             <div className="w-20 h-20 rounded-full border-4 border-white bg-jungle-600 flex items-center justify-center shadow-lg">
               <span className="text-white font-bold text-xl">{iniciales}</span>
@@ -600,17 +558,13 @@ function PerfilPrestador({
           )}
         </div>
         <div className="pb-1 flex-1 min-w-0">
-          <h1 className="font-display font-bold text-lg text-jungle-950 leading-tight truncate">
+          <h1 className="font-display font-bold text-lg text-jungle-950 leading-tight break-words">
             {servicio?.nombre ?? usuario.nombre}
           </h1>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-jungle-500">
-              {servicio?.categoria ?? 'Prestador de servicio'}
-            </span>
+            <span className="text-xs text-jungle-500">{servicio?.categoria ?? 'Prestador de servicio'}</span>
             {servicio && (
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${colorEstado}`}>
-                {labelEstado}
-              </span>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${colorEstado}`}>{labelEstado}</span>
             )}
           </div>
         </div>
@@ -627,9 +581,7 @@ function PerfilPrestador({
 
       {!cargando && error && (
         <div className="px-4">
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-700">
-            {error}
-          </div>
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-700">{error}</div>
         </div>
       )}
 
@@ -637,12 +589,8 @@ function PerfilPrestador({
         <div className="px-4">
           <div className="bg-white rounded-2xl border border-jungle-100 p-8 text-center">
             <Store size={36} className="mx-auto text-jungle-200 mb-3" />
-            <p className="text-jungle-600 font-medium mb-1">
-              Aún no tienes un servicio registrado.
-            </p>
-            <p className="text-sm text-jungle-400 mb-4">
-              Ve al Portal de Prestadores para registrar tu negocio.
-            </p>
+            <p className="text-jungle-600 font-medium mb-1">Aún no tienes un servicio registrado.</p>
+            <p className="text-sm text-jungle-400 mb-4">Ve al Portal de Prestadores para registrar tu negocio.</p>
           </div>
         </div>
       )}
@@ -660,9 +608,7 @@ function PerfilPrestador({
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
-                  tab === t.id
-                    ? 'bg-jungle-700 text-white'
-                    : 'bg-white text-jungle-700 border border-jungle-100'
+                  tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
                 }`}
               >
                 {t.label}
@@ -671,18 +617,15 @@ function PerfilPrestador({
           </div>
 
           <div className="px-4">
-            {/* ── TAB: Mi Servicio ───────────────────────────────── */}
+            {/* ── TAB: Mi Servicio ── */}
             {tab === 'servicio' && (
               <div className="bg-white rounded-2xl border border-jungle-100 p-4 space-y-4">
-                {/* Éxito */}
                 {exito && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2 text-sm text-green-800">
                     <CheckCircle2 size={16} className="text-green-600 flex-shrink-0" />
                     Cambios guardados. Tu PlaceCard ya refleja la info actualizada.
                   </div>
                 )}
-
-                {/* Rechazado */}
                 {servicio.estado === 'rechazado' && servicio.motivo_rechazo && (
                   <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
                     <strong>Motivo de rechazo:</strong> {servicio.motivo_rechazo}
@@ -690,227 +633,123 @@ function PerfilPrestador({
                 )}
 
                 {editando ? (
-                  /* ── FORMA DE EDICIÓN COMPLETA ────────────────── */
                   <div className="space-y-4">
-                    {/* Nombre */}
                     <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                        Nombre del negocio <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        value={form.nombre}
-                        onChange={e => setForm({ ...form, nombre: e.target.value })}
-                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                      />
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre del negocio <span className="text-red-500">*</span></label>
+                      <input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
+                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                     </div>
-
-                    {/* Categoría + Municipio */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                          Categoría
-                        </label>
-                        <select
-                          value={form.categoria}
-                          onChange={e => setForm({ ...form, categoria: e.target.value })}
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                        >
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría</label>
+                        <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
                           {['Gastronomia','Naturaleza','Aventura','Hospedaje','Cultura','Transporte','Comercio','Cooperativa','Otro'].map(c => (
                             <option key={c} value={c}>{c}</option>
                           ))}
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                          Municipio
-                        </label>
-                        <select
-                          value={form.municipio}
-                          onChange={e => setForm({ ...form, municipio: e.target.value })}
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                        >
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
+                        <select value={form.municipio} onChange={e => setForm({ ...form, municipio: e.target.value })}
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
                           {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
                             <option key={m} value={m}>{m}</option>
                           ))}
                         </select>
                       </div>
                     </div>
-
-                    {/* Descripción */}
                     <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                        Descripción <span className="text-red-500">*</span>
-                        <span className="text-jungle-400 font-normal ml-1">(mín. 20 caracteres)</span>
-                      </label>
-                      <textarea
-                        value={form.descripcion}
-                        onChange={e => setForm({ ...form, descripcion: e.target.value })}
-                        rows={4}
-                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none"
-                      />
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Descripción <span className="text-red-500">*</span></label>
+                      <textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}
+                        rows={4} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
                     </div>
-
-                    {/* Precio + Contacto */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                          Precio aproximado
-                        </label>
-                        <input
-                          value={form.precio}
-                          onChange={e => setForm({ ...form, precio: e.target.value })}
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
+                        <input value={form.precio} onChange={e => setForm({ ...form, precio: e.target.value })}
                           placeholder="$200 MXN"
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                        />
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                          WhatsApp / correo
-                        </label>
-                        <input
-                          value={form.contacto}
-                          onChange={e => setForm({ ...form, contacto: e.target.value })}
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp / correo</label>
+                        <input value={form.contacto} onChange={e => setForm({ ...form, contacto: e.target.value })}
                           placeholder="9521234567"
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                        />
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                       </div>
                     </div>
-
-                    {/* Horario + Días */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                          <Clock size={11} className="inline mr-1" />
-                          Horario
-                        </label>
-                        <input
-                          value={form.horario}
-                          onChange={e => setForm({ ...form, horario: e.target.value })}
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
+                        <input value={form.horario} onChange={e => setForm({ ...form, horario: e.target.value })}
                           placeholder="9:00 am – 6:00 pm"
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                        />
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                          Días abierto
-                        </label>
-                        <input
-                          value={form.dias_abierto}
-                          onChange={e => setForm({ ...form, dias_abierto: e.target.value })}
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Días abierto</label>
+                        <input value={form.dias_abierto} onChange={e => setForm({ ...form, dias_abierto: e.target.value })}
                           placeholder="Todos los días"
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                        />
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                       </div>
                     </div>
-
-                    {/* Duración */}
                     <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                        Duración sugerida de visita
-                      </label>
-                      <input
-                        value={form.duracion}
-                        onChange={e => setForm({ ...form, duracion: e.target.value })}
-                        placeholder="ej: 2-3 horas, Día completo, Día completo o pernocta"
-                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                      />
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
+                      <input value={form.duracion} onChange={e => setForm({ ...form, duracion: e.target.value })}
+                        placeholder="ej: 2-3 horas, Día completo"
+                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                     </div>
-
-                    {/* Cómo llegar */}
                     <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                        <MapPin size={11} className="inline mr-1" />
-                        Cómo llegar
-                      </label>
-                      <textarea
-                        value={form.como_llegar}
-                        onChange={e => setForm({ ...form, como_llegar: e.target.value })}
-                        placeholder="ej: A 45 minutos de Catemaco por carretera costera. Es camino rural."
-                        rows={2}
-                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none"
-                      />
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Cómo llegar</label>
+                      <textarea value={form.como_llegar} onChange={e => setForm({ ...form, como_llegar: e.target.value })}
+                        placeholder="ej: A 45 minutos de Catemaco por carretera costera."
+                        rows={2} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
                     </div>
-
-                    {/* Tip / Consejo */}
                     <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                        💡 Consejo para el visitante
-                      </label>
-                      <input
-                        value={form.tip}
-                        onChange={e => setForm({ ...form, tip: e.target.value })}
-                        placeholder="ej: Lleva efectivo, no siempre hay señal en la zona."
-                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                      />
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">💡 Consejo para el visitante</label>
+                      <input value={form.tip} onChange={e => setForm({ ...form, tip: e.target.value })}
+                        placeholder="ej: Lleva efectivo, no siempre hay señal."
+                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                     </div>
-
-                    {/* Ideal para */}
                     <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-2 block">
-                        Ideal para
-                      </label>
+                      <label className="text-xs font-semibold text-jungle-700 mb-2 block">Ideal para</label>
                       <div className="flex flex-wrap gap-2">
                         {IDEAL_OPCIONES.map(op => (
-                          <button
-                            key={op.id}
-                            type="button"
-                            onClick={() => toggleIdeal(op.id)}
+                          <button key={op.id} type="button" onClick={() => toggleIdeal(op.id)}
                             className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${
-                              form.ideal_para.includes(op.id)
-                                ? 'bg-jungle-600 text-white border-jungle-600'
-                                : 'bg-white text-jungle-700 border-jungle-200'
-                            }`}
-                          >
+                              form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
+                            }`}>
                             {op.label}
                           </button>
                         ))}
                       </div>
                     </div>
-
-                    {/* Botones guardar/cancelar */}
                     <div className="flex gap-3 pt-2">
-                      <button
-                        onClick={guardar}
-                        disabled={guardando}
-                        className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                      >
-                        {guardando
-                          ? <Loader2 size={16} className="animate-spin" />
-                          : <Save size={16} />
-                        }
+                      <button onClick={guardar} disabled={guardando}
+                        className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+                        {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                         Guardar cambios
                       </button>
-                      <button
-                        onClick={() => setEditando(false)}
-                        className="px-5 bg-jungle-100 hover:bg-jungle-200 text-jungle-700 py-3 rounded-xl text-sm font-semibold"
-                      >
+                      <button onClick={() => setEditando(false)}
+                        className="px-5 bg-jungle-100 hover:bg-jungle-200 text-jungle-700 py-3 rounded-xl text-sm font-semibold">
                         Cancelar
                       </button>
                     </div>
                   </div>
-
                 ) : (
-                  /* ── VISTA DE SÓLO LECTURA ────────────────────── */
                   <div className="space-y-3">
-                    <InfoFila icono={<Store size={14} />}   label="Categoría"   valor={servicio.categoria} />
-                    <InfoFila icono={<MapPin size={14} />}  label="Municipio"   valor={servicio.municipio} />
-                    <InfoFila icono={<Phone size={14} />}   label="Contacto"    valor={servicio.contacto} />
-                    <InfoFila icono={null}                  label="Precio"      valor={servicio.precio} />
-                    <InfoFila icono={<Clock size={14} />}   label="Horario"     valor={servicio.horario
-                      ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}`
-                      : undefined}
-                    />
+                    <InfoFila icono={<Store size={14} />}  label="Categoría"   valor={servicio.categoria} />
+                    <InfoFila icono={null}                 label="Municipio"   valor={servicio.municipio} />
+                    <InfoFila icono={<Phone size={14} />}  label="Contacto"    valor={servicio.contacto} />
+                    <InfoFila icono={null}                 label="Precio"      valor={servicio.precio} />
+                    <InfoFila icono={<Clock size={14} />}  label="Horario"
+                      valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
                     <InfoFila icono={null}  label="Duración"    valor={servicio.duracion} />
                     <InfoFila icono={null}  label="Cómo llegar" valor={servicio.como_llegar} />
                     <InfoFila icono={null}  label="Consejo"     valor={servicio.tip} />
-
-                    {/* Descripción */}
                     <div className="bg-jungle-50 rounded-xl p-3">
                       <p className="text-xs font-semibold text-jungle-500 mb-1">Descripción</p>
                       <p className="text-sm text-jungle-800">{servicio.descripcion}</p>
                     </div>
-
-                    {/* Ideal para */}
                     {parseIdeal(servicio.ideal_para).length > 0 && (
                       <div>
                         <p className="text-xs font-semibold text-jungle-500 mb-1.5">Ideal para</p>
@@ -918,31 +757,20 @@ function PerfilPrestador({
                           {parseIdeal(servicio.ideal_para).map(id => {
                             const op = IDEAL_OPCIONES.find(o => o.id === id);
                             return op ? (
-                              <span key={id} className="text-xs px-2.5 py-1 bg-jungle-100 text-jungle-700 rounded-full font-medium">
-                                {op.label}
-                              </span>
+                              <span key={id} className="text-xs px-2.5 py-1 bg-jungle-100 text-jungle-700 rounded-full font-medium">{op.label}</span>
                             ) : null;
                           })}
                         </div>
                       </div>
                     )}
-
-                    {/* Código */}
                     <div className="bg-jungle-50 rounded-xl p-3 flex items-center gap-3">
                       <div>
-                        <p className="text-[10px] text-jungle-500 uppercase tracking-wide font-semibold">
-                          Código de seguimiento
-                        </p>
-                        <p className="font-display font-bold text-lg text-jungle-900 tracking-wider">
-                          {servicio.codigo_seguimiento}
-                        </p>
+                        <p className="text-[10px] text-jungle-500 uppercase tracking-wide font-semibold">Código de seguimiento</p>
+                        <p className="font-display font-bold text-lg text-jungle-900 tracking-wider">{servicio.codigo_seguimiento}</p>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => setEditando(true)}
-                      className="w-full flex items-center justify-center gap-2 border border-jungle-200 hover:bg-jungle-50 text-jungle-700 py-3 rounded-xl text-sm font-semibold transition-colors"
-                    >
+                    <button onClick={() => setEditando(true)}
+                      className="w-full flex items-center justify-center gap-2 border border-jungle-200 hover:bg-jungle-50 text-jungle-700 py-3 rounded-xl text-sm font-semibold transition-colors">
                       <Edit3 size={15} /> Editar información del servicio
                     </button>
                   </div>
@@ -950,15 +778,11 @@ function PerfilPrestador({
               </div>
             )}
 
-            {/* ── TAB: Fotos ─────────────────────────────────────── */}
+            {/* ── TAB: Fotos ── */}
             {tab === 'fotos' && (
               <div className="bg-white rounded-2xl border border-jungle-100 p-4">
                 {servicio.estado === 'aprobado' ? (
-                  <GestorFotos
-                    codigoSeguimiento={servicio.codigo_seguimiento}
-                    fotosIniciales={fotos}
-                    onFotosActualizadas={setFotos}
-                  />
+                  <GestorFotos codigoSeguimiento={servicio.codigo_seguimiento} fotosIniciales={fotos} onFotosActualizadas={setFotos} />
                 ) : (
                   <div className="text-center py-8 text-jungle-400">
                     <p className="text-sm font-medium mb-1">Fotos disponibles cuando el servicio sea aprobado.</p>
@@ -968,12 +792,10 @@ function PerfilPrestador({
               </div>
             )}
 
-            {/* ── TAB: Preview ───────────────────────────────────── */}
+            {/* ── TAB: Preview ── */}
             {tab === 'preview' && (
               <div>
-                <p className="text-xs text-jungle-500 mb-3 text-center">
-                  Así verá el turista tu servicio en la app
-                </p>
+                <p className="text-xs text-jungle-500 mb-3 text-center">Así verá el turista tu servicio en la app</p>
                 <PreviewCard lugar={buildPreview()} />
               </div>
             )}
@@ -984,17 +806,14 @@ function PerfilPrestador({
   );
 }
 
-// ─────────────── COMPONENTES AUXILIARES ───────────────
-
+// ─────────────── AUXILIARES ───────────────
 function InfoFila({ icono, label, valor }: { icono: React.ReactNode; label: string; valor?: string | null }) {
   if (!valor) return null;
   return (
     <div className="flex items-start gap-2">
       <span className="text-jungle-400 mt-0.5 flex-shrink-0 w-4">{icono}</span>
       <div>
-        <p className="text-[10px] text-jungle-400 uppercase tracking-wide font-semibold leading-none mb-0.5">
-          {label}
-        </p>
+        <p className="text-[10px] text-jungle-400 uppercase tracking-wide font-semibold leading-none mb-0.5">{label}</p>
         <p className="text-sm text-jungle-800">{valor}</p>
       </div>
     </div>
@@ -1006,11 +825,7 @@ function PreviewCard({ lugar }: { lugar: Lugar }) {
   return (
     <div className="bg-white rounded-2xl border border-jungle-100 overflow-hidden shadow-sm">
       <div className="relative h-44">
-        <img
-          src={lugar.imagen}
-          alt={lugar.nombre}
-          className="w-full h-full object-cover"
-        />
+        <img src={lugar.imagen} alt={lugar.nombre} className="w-full h-full object-cover" />
         <div className="absolute top-3 left-3 flex gap-2">
           {cat && (
             <span className="bg-white/90 text-jungle-800 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
@@ -1027,12 +842,7 @@ function PreviewCard({ lugar }: { lugar: Lugar }) {
       <div className="p-4 space-y-3">
         <div>
           <h2 className="font-display font-bold text-xl text-jungle-950">{lugar.nombre}</h2>
-          <div className="flex items-center gap-2 text-sm text-jungle-500 mt-0.5">
-            {lugar.rating > 0 && (
-              <><Star size={13} className="fill-amber-400 text-amber-400" /><span>{lugar.rating}</span><span>·</span></>
-            )}
-            <MapPin size={13} /><span>{lugar.municipio}</span>
-          </div>
+          <p className="text-sm text-jungle-500 mt-0.5">{lugar.municipio}</p>
         </div>
         <p className="text-sm text-jungle-700">{lugar.descripcionCorta}</p>
         <div className="grid grid-cols-2 gap-2">
@@ -1072,9 +882,7 @@ function PreviewCard({ lugar }: { lugar: Lugar }) {
               {lugar.ideal.map(id => {
                 const op = IDEAL_OPCIONES.find(o => o.id === id);
                 return op ? (
-                  <span key={id} className="text-xs bg-jungle-100 text-jungle-700 px-2.5 py-1 rounded-full font-medium">
-                    {op.label}
-                  </span>
+                  <span key={id} className="text-xs bg-jungle-100 text-jungle-700 px-2.5 py-1 rounded-full font-medium">{op.label}</span>
                 ) : null;
               })}
             </div>

@@ -23,10 +23,10 @@ interface RutaVisible {
 }
 
 const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
-  { id: 'explorar',  label: 'Explorar',    icon: Compass },
-  { id: 'mapa',      label: 'Mapa',         icon: Map },
-  { id: 'chat',      label: 'Asistente IA', icon: MessageCircle },
-  { id: 'favoritos', label: 'Mis lugares',  icon: Heart },
+  { id: 'explorar', label: 'Explorar', icon: Compass },
+  { id: 'mapa', label: 'Mapa', icon: Map },
+  { id: 'chat', label: 'Asistente IA', icon: MessageCircle },
+  { id: 'favoritos', label: 'Mis lugares', icon: Heart },
 ];
 
 export default function AppShell() {
@@ -131,11 +131,10 @@ export default function AppShell() {
               <button
                 key={t.id}
                 onClick={() => cambiarTab(t.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  activo
-                    ? 'bg-jungle-700 text-white shadow-sm'
-                    : 'text-jungle-300 hover:bg-jungle-800 hover:text-white'
-                }`}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${activo
+                  ? 'bg-jungle-700 text-white shadow-sm'
+                  : 'text-jungle-300 hover:bg-jungle-800 hover:text-white'
+                  }`}
               >
                 <Icon size={18} strokeWidth={activo ? 2.5 : 2} />
                 {t.label}
@@ -152,6 +151,10 @@ export default function AppShell() {
           >
             <Briefcase size={16} />
             Portal prestadores
+          </Link>
+
+          <Link to="/perfil" className="text-xs text-jungle-300 hover:text-white underline">
+            Mi perfil
           </Link>
 
           {usuario ? (
@@ -174,7 +177,11 @@ export default function AppShell() {
               <User size={16} />
               Iniciar sesión
             </button>
+
+
+
           )}
+
         </div>
       </aside>
 

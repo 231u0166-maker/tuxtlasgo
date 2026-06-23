@@ -40,6 +40,14 @@ export interface ServicioPrestador {
   // Código de seguimiento para que el prestador consulte su estado
   codigoSeguimiento?: string;
   foto?: string;
+  // ── Campos para PlaceCard completa (Módulo 1) ──────────────
+  // Sin estos, servicioComoLugar() rellena con "Consultar" genérico
+  horario?: string;       // ej: "9:00 am – 6:00 pm"
+  diasAbierto?: string;  // ej: "Todos los días"
+  duracion?: string;      // ej: "2-3 horas"
+  comoLlegar?: string;   // Indicaciones de cómo llegar
+  tip?: string;           // Consejo insider para el turista
+  idealPara?: string[];  // ej: ['pareja', 'familia', 'grupos', 'solo']
 }
 
 // Geometría de una ruta calculada por OSRM, cacheada para uso offline
@@ -152,6 +160,10 @@ export async function cambiarEstadoServicio(
 
 // Convierte un servicio aprobado en objeto Lugar (para mapa/explorar)
 export function servicioComoLugar(s: ServicioPrestador): Lugar {
+  // Imagen principal: primero la foto de perfil del servicio, luego placeholder
+  const imagenPrincipal = s.foto
+    ?? 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80';
+
   return {
     id: `prestador-${s.id}`,
     nombre: s.nombreNegocio,
@@ -163,16 +175,20 @@ export function servicioComoLugar(s: ServicioPrestador): Lugar {
     coords: [s.ubicacionLat, s.ubicacionLng],
     rating: 0,
     precio: 'medio',
-    precioMxn: s.precio,
-    duracionSugerida: 'Variable',
-    imagen:
-      'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80',
+    precioMxn: s.precio || 'Consultar precio',
+    // ── Campos enriquecidos (Módulo 1) ───────────────────────
+    duracionSugerida: s.duracion     || 'Variable',
+    imagen: imagenPrincipal,
     tags: ['prestador local', s.categoria.toLowerCase()],
-    ideal: ['solo', 'pareja', 'familia', 'amigos'],
-    abierto: { dias: 'Consultar con el prestador', horario: 'Consultar' },
-    comoLlegar: `En ${s.municipio}. Contacto: ${s.contacto}`,
-    tip: 'Servicio registrado por un prestador local de Los Tuxtlas.',
-    verificado: false,
+    ideal: s.idealPara              || ['solo', 'pareja', 'familia', 'amigos'],
+    abierto: {
+      dias:    s.diasAbierto || 'Consultar disponibilidad',
+      horario: s.horario     || 'Consultar horario',
+    },
+    comoLlegar: s.comoLlegar || `En ${s.municipio}. Contacto: ${s.contacto}`,
+    tip: s.tip,
+    verificado: s.estado === 'aprobado',
+    contacto: s.contacto,
   };
 }
 

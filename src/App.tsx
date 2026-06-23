@@ -4,6 +4,7 @@ import LandingPage from './components/LandingPage';
 import AppShell from './components/AppShell';
 import ProviderPanel from './components/ProviderPanel';
 import AdminPanel from './components/AdminPanel';
+import PerfilScreen from './components/PerfilScreen';
 import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
 import { setCatalogoExtendido } from './lib/chatbot';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="/app" element={<AppShell />} />
         <Route path="/prestador" element={<ProviderPanel />} />
         <Route path="/admin" element={<AdminPanel />} />
+        <Route path="/perfil" element={<PerfilScreen onVolver={() => window.history.back()} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

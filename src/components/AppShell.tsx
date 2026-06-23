@@ -120,6 +120,9 @@ export default function AppShell() {
             </span>
           </Link>
           <p className="text-[11px] text-jungle-400 mt-0.5">Los Tuxtlas, Veracruz</p>
+          <Link to="/perfil" className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all"  >
+            Mi perfil
+          </Link>
         </div>
 
         {/* Nav items */}
@@ -165,12 +168,6 @@ export default function AppShell() {
                 title="Cerrar sesión"
               >
                 <LogOut size={15} />
-
-                {/* Linea por si va por las dudas */}
-                <Link to="/perfil" className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all"  >
-                  Mi perfil
-                </Link>
-
               </button>
             </div>
           ) : (

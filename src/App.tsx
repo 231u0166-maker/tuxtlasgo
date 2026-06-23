@@ -4,7 +4,6 @@ import LandingPage from './components/LandingPage';
 import AppShell from './components/AppShell';
 import ProviderPanel from './components/ProviderPanel';
 import AdminPanel from './components/AdminPanel';
-import PerfilScreen from './components/PerfilScreen';
 import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
 import { setCatalogoExtendido } from './lib/chatbot';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
@@ -32,9 +31,12 @@ export async function recargarCatalogo() {
     if (res.ok) {
       const data = await res.json();
       if (data.ok && data.lugares?.length > 0) {
-        const idsLocales = new Set(aprobadosLocal.map((l: any) => l.id));
-        const nuevosDeNeon = data.lugares.filter((l: any) => !idsLocales.has(l.id));
-        const todos = [...aprobadosLocal, ...nuevosDeNeon];
+        // Neon gana para IDs compartidos — sus datos son siempre más frescos
+        // que los de IndexedDB local (que pueden estar desactualizados tras una edición).
+        // Los de IndexedDB solo aportan servicios que Neon todavía no conoce (raro).
+        const idsNeon = new Set(data.lugares.map((l: any) => l.id));
+        const soloLocales = aprobadosLocal.filter((l: any) => !idsNeon.has(l.id));
+        const todos = [...data.lugares, ...soloLocales];
         setCatalogoExtendido(todos);
         precachearImagenes(todos).catch(() => {});
         return todos;
@@ -73,7 +75,6 @@ export default function App() {
         <Route path="/app" element={<AppShell />} />
         <Route path="/prestador" element={<ProviderPanel />} />
         <Route path="/admin" element={<AdminPanel />} />
-        <Route path="/perfil" element={<PerfilScreen onVolver={() => window.history.back()} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

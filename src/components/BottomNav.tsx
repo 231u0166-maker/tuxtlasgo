@@ -1,6 +1,6 @@
-import { Compass, Map, MessageCircle, Heart } from 'lucide-react';
+import { Compass, Map, MessageCircle, Heart, User } from 'lucide-react';
 
-export type Tab = 'explorar' | 'mapa' | 'chat' | 'favoritos';
+export type Tab = 'explorar' | 'mapa' | 'chat' | 'favoritos' | 'perfil';
 
 interface Props {
   activa: Tab;
@@ -12,6 +12,7 @@ const tabs: { id: Tab; label: string; icon: typeof Compass }[] = [
   { id: 'mapa', label: 'Mapa', icon: Map },
   { id: 'chat', label: 'Asistente', icon: MessageCircle },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },
+  { id: 'perfil', label: "Mi Perfil", icon: User } // nuevo para el perfil
 ];
 
 export default function BottomNav({ activa, onChange }: Props) {
@@ -28,9 +29,8 @@ export default function BottomNav({ activa, onChange }: Props) {
             <button
               key={t.id}
               onClick={() => onChange(t.id)}
-              className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${
-                activo ? 'text-jungle-700' : 'text-jungle-500 hover:text-jungle-700'
-              }`}
+              className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${activo ? 'text-jungle-700' : 'text-jungle-500 hover:text-jungle-700'
+                }`}
             >
               <Icon
                 size={22}

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
-  ArrowLeft, Briefcase, User, LogOut,
-  Compass, Map, MessageCircle, Heart, TreePine,
+  ArrowLeft, Briefcase, LogOut,
+  Compass, Map, MessageCircle, Heart, TreePine, User
 } from 'lucide-react';
 import { useState } from 'react';
 import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
@@ -16,6 +16,8 @@ import PlaceDetail from './PlaceDetail';
 import OfflineIndicator from './OfflineIndicator';
 import type { Lugar } from '../data/lugares';
 import { obtenerRutaPorCarretera, type Coord } from '../lib/routing';
+import PerfilScreen from './PerfilScreen';
+
 
 interface RutaVisible {
   geometria: Coord[];
@@ -27,6 +29,7 @@ const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
   { id: 'mapa', label: 'Mapa', icon: Map },
   { id: 'chat', label: 'Asistente IA', icon: MessageCircle },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },
+  { id: 'perfil', label: "Mi Perfil", icon: User }
 ];
 
 export default function AppShell() {
@@ -120,9 +123,7 @@ export default function AppShell() {
             </span>
           </Link>
           <p className="text-[11px] text-jungle-400 mt-0.5">Los Tuxtlas, Veracruz</p>
-          <Link to="/perfil" className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all"  >
-            Mi perfil
-          </Link>
+
         </div>
 
         {/* Nav items */}
@@ -245,6 +246,13 @@ export default function AppShell() {
 
         {/* Contenido principal */}
         <main className="flex-1 overflow-hidden min-h-0">
+          {/*para eacceder y poder entrar al perfil*/}
+          {tab === 'perfil' && (
+            <div className="h-full overflow-y-auto">
+              <PerfilScreen onVolver={() => setTab('explorar')} />
+            </div>
+          )}
+
           {tab === 'explorar' && (
             <div className="h-full overflow-y-auto">
               <ExploreScreen onVerLugar={verLugar} lugares={getCatalogoActivo()} />
@@ -269,6 +277,9 @@ export default function AppShell() {
               />
             </div>
           )}
+
+
+
         </main>
 
         {/* Bottom nav solo en móvil */}

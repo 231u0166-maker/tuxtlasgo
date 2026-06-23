@@ -165,6 +165,12 @@ export default function AppShell() {
                 title="Cerrar sesión"
               >
                 <LogOut size={15} />
+
+                {/* Linea por si va por las dudas */}
+                <Link to="/perfil" className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all"  >
+                  Mi perfil
+                </Link>
+
               </button>
             </div>
           ) : (
@@ -176,9 +182,6 @@ export default function AppShell() {
               Iniciar sesión
             </button>
           )}
-          <Link to="/perfil" className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all"  >
-            Mi perfil
-          </Link>
         </div>
       </aside>
 

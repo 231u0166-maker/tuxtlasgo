@@ -153,9 +153,7 @@ export default function AppShell() {
             Portal prestadores
           </Link>
 
-          <Link to="/perfil" className="text-xs text-jungle-300 hover:text-white underline">
-            Mi perfil
-          </Link>
+
 
           {usuario ? (
             <div className="flex items-center gap-2 px-3 py-2">
@@ -177,11 +175,10 @@ export default function AppShell() {
               <User size={16} />
               Iniciar sesión
             </button>
-
-
-
           )}
-
+          <Link to="/perfil" className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all"  >
+            Mi perfil
+          </Link>
         </div>
       </aside>
 

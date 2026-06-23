@@ -66,15 +66,15 @@ interface FormUsuario {
 }
 
 const IDEAL_OPCIONES = [
-  { id: 'pareja',  label: '💕 Parejas' },
+  { id: 'pareja', label: '💕 Parejas' },
   { id: 'familia', label: '👨‍👩‍👧 Familias' },
-  { id: 'grupos',  label: '🎉 Grupos' },
-  { id: 'solo',    label: '🧭 Viajeros solos' },
+  { id: 'grupos', label: '🎉 Grupos' },
+  { id: 'solo', label: '🧭 Viajeros solos' },
 ];
 
 const COLORES_ESTADO: Record<string, string> = {
   pendiente: 'bg-amber-100 text-amber-800',
-  aprobado:  'bg-green-100 text-green-800',
+  aprobado: 'bg-green-100 text-green-800',
   rechazado: 'bg-red-100   text-red-700',
 };
 
@@ -116,7 +116,7 @@ export default function PerfilScreen({ onVolver }: Props) {
 
   return usuario.tipo === 'prestador'
     ? <PerfilPrestador usuario={usuario} onVolver={onVolver} />
-    : <PerfilTurista   usuario={usuario} onVolver={onVolver} />;
+    : <PerfilTurista usuario={usuario} onVolver={onVolver} />;
 }
 
 // ============================================================
@@ -130,16 +130,16 @@ function PerfilTurista({
   usuario: UsuarioSesion;
   onVolver: () => void;
 }) {
-  const [editando, setEditando]     = useState(false);
-  const [guardando, setGuardando]   = useState(false);
-  const [form, setForm]             = useState<FormUsuario>({ nombre: usuario.nombre, bio: '' });
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [form, setForm] = useState<FormUsuario>({ nombre: usuario.nombre, bio: '' });
   const [fotoSubiendo, setFotoSubiendo] = useState(false);
   const [fotoPerfil, setFotoPerfil] = useState(usuario.foto_url ?? '');
   // Álbum de fotos del turista
-  const [album, setAlbum]           = useState<string[]>([]);
+  const [album, setAlbum] = useState<string[]>([]);
   const [subiendoAlbum, setSubiendoAlbum] = useState(false);
-  const inputFotoRef    = useRef<HTMLInputElement>(null);
-  const inputAlbumRef   = useRef<HTMLInputElement>(null);
+  const inputFotoRef = useRef<HTMLInputElement>(null);
+  const inputAlbumRef = useRef<HTMLInputElement>(null);
 
   // Cargar bio y fotos desde el servidor
   useEffect(() => {
@@ -154,7 +154,7 @@ function PerfilTurista({
           if (d.usuario.foto_url) setFotoPerfil(d.usuario.foto_url);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Guarda nombre y bio
@@ -235,7 +235,7 @@ function PerfilTurista({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
       body: JSON.stringify({ fotos: JSON.stringify(nuevasfotos) }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
 
   const iniciales = usuario.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -402,15 +402,15 @@ function PerfilPrestador({
   usuario: UsuarioSesion;
   onVolver: () => void;
 }) {
-  const [tab, setTab]             = useState<TabPrestador>('servicio');
-  const [servicio, setServicio]   = useState<ServicioAPI | null>(null);
-  const [fotos, setFotos]         = useState<string[]>([]);
-  const [cargando, setCargando]   = useState(true);
-  const [error, setError]         = useState('');
-  const [editando, setEditando]   = useState(false);
+  const [tab, setTab] = useState<TabPrestador>('servicio');
+  const [servicio, setServicio] = useState<ServicioAPI | null>(null);
+  const [fotos, setFotos] = useState<string[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [editando, setEditando] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [exito, setExito]         = useState(false);
-  const [form, setForm]           = useState<FormServicio>({
+  const [exito, setExito] = useState(false);
+  const [form, setForm] = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
     duracion: '', como_llegar: '', tip: '', ideal_para: [],
@@ -434,18 +434,18 @@ function PerfilPrestador({
         setServicio(srv);
         setFotos(parseFotos(srv.fotos));
         setForm({
-          nombre:      srv.nombre      ?? '',
-          categoria:   srv.categoria   ?? '',
-          municipio:   srv.municipio   ?? '',
+          nombre: srv.nombre ?? '',
+          categoria: srv.categoria ?? '',
+          municipio: srv.municipio ?? '',
           descripcion: srv.descripcion ?? '',
-          precio:      srv.precio      ?? '',
-          contacto:    srv.contacto    ?? '',
-          horario:     srv.horario     ?? '',
+          precio: srv.precio ?? '',
+          contacto: srv.contacto ?? '',
+          horario: srv.horario ?? '',
           dias_abierto: srv.dias_abierto ?? '',
-          duracion:    srv.duracion    ?? '',
+          duracion: srv.duracion ?? '',
           como_llegar: srv.como_llegar ?? '',
-          tip:         srv.tip         ?? '',
-          ideal_para:  parseIdeal(srv.ideal_para),
+          tip: srv.tip ?? '',
+          ideal_para: parseIdeal(srv.ideal_para),
         });
       } else {
         setServicio(null);
@@ -501,32 +501,32 @@ function PerfilPrestador({
   function buildPreview(): Lugar {
     return servicioComoLugar({
       id: servicio?.id,
-      nombreNegocio: form.nombre  || servicio?.nombre  || 'Mi Negocio',
-      categoria:     form.categoria || 'Gastronomia',
-      municipio:     form.municipio || 'Catemaco',
-      descripcion:   form.descripcion || 'Descripción del servicio.',
-      precio:        form.precio   || '',
-      contacto:      form.contacto || '',
-      ubicacionLat:  servicio?.lat ?? 18.42,
-      ubicacionLng:  servicio?.lng ?? -95.11,
-      creadoEn:      Date.now(),
-      estado:        (servicio?.estado ?? 'pendiente') as any,
-      horario:       form.horario      || undefined,
-      diasAbierto:   form.dias_abierto || undefined,
-      duracion:      form.duracion     || undefined,
-      comoLlegar:    form.como_llegar  || undefined,
-      tip:           form.tip          || undefined,
-      idealPara:     form.ideal_para.length ? form.ideal_para : undefined,
-      foto:          fotos[0]          || undefined,
+      nombreNegocio: form.nombre || servicio?.nombre || 'Mi Negocio',
+      categoria: form.categoria || 'Gastronomia',
+      municipio: form.municipio || 'Catemaco',
+      descripcion: form.descripcion || 'Descripción del servicio.',
+      precio: form.precio || '',
+      contacto: form.contacto || '',
+      ubicacionLat: servicio?.lat ?? 18.42,
+      ubicacionLng: servicio?.lng ?? -95.11,
+      creadoEn: Date.now(),
+      estado: (servicio?.estado ?? 'pendiente') as any,
+      horario: form.horario || undefined,
+      diasAbierto: form.dias_abierto || undefined,
+      duracion: form.duracion || undefined,
+      comoLlegar: form.como_llegar || undefined,
+      tip: form.tip || undefined,
+      idealPara: form.ideal_para.length ? form.ideal_para : undefined,
+      foto: fotos[0] || undefined,
     });
   }
 
-  const fotoUrl    = usuario.foto_url;
-  const iniciales  = usuario.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const fotoUrl = usuario.foto_url;
+  const iniciales = usuario.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const colorEstado = servicio ? (COLORES_ESTADO[servicio.estado] ?? 'bg-gray-100 text-gray-600') : '';
   const labelEstado = servicio?.estado === 'pendiente' ? '⏳ En revisión'
-                    : servicio?.estado === 'aprobado'  ? '✅ Aprobado'
-                    : '❌ Rechazado';
+    : servicio?.estado === 'aprobado' ? '✅ Aprobado'
+      : '❌ Rechazado';
 
   return (
     <div className="min-h-screen bg-jungle-50 pb-10">
@@ -546,27 +546,29 @@ function PerfilPrestador({
         </div>
       </div>
 
-      {/* Avatar + nombre + estado */}
-      <div className="px-4 -mt-12 mb-5 flex items-end gap-4">
-        <div className="relative flex-shrink-0">
+      {/* Avatar centrado + nombre + estado */}
+      <div className="flex flex-col items-center -mt-14 mb-5 px-4">
+        <div className="relative mb-3">
           {fotoUrl ? (
-            <img src={fotoUrl} alt={usuario.nombre} className="w-20 h-20 rounded-full border-4 border-white object-cover shadow-lg" />
+            <img src={fotoUrl} alt={usuario.nombre} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
           ) : (
-            <div className="w-20 h-20 rounded-full border-4 border-white bg-jungle-600 flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl">{iniciales}</span>
+            <div className="w-24 h-24 rounded-full border-4 border-white bg-jungle-600 flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold text-2xl">{iniciales}</span>
             </div>
           )}
         </div>
-        <div className="pb-1 flex-1 min-w-0">
-          <h1 className="font-display font-bold text-lg text-jungle-950 leading-tight break-words">
-            {servicio?.nombre ?? usuario.nombre}
-          </h1>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-jungle-500">{servicio?.categoria ?? 'Prestador de servicio'}</span>
-            {servicio && (
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${colorEstado}`}>{labelEstado}</span>
-            )}
-          </div>
+        <h1 className="font-display font-bold text-xl text-jungle-950 text-center leading-snug max-w-xs break-words">
+          {servicio?.nombre ?? usuario.nombre}
+        </h1>
+        <div className="flex items-center gap-2 mt-1 flex-wrap justify-center">
+          <span className="text-xs text-jungle-500">
+            {servicio?.categoria ?? 'Prestador de servicio'}
+          </span>
+          {servicio && (
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${colorEstado}`}>
+              {labelEstado}
+            </span>
+          )}
         </div>
       </div>
 
@@ -601,15 +603,14 @@ function PerfilPrestador({
           <div className="px-4 mb-4 flex gap-2">
             {([
               { id: 'servicio' as TabPrestador, label: '📋 Mi Servicio' },
-              { id: 'fotos'    as TabPrestador, label: '📸 Fotos' },
-              { id: 'preview'  as TabPrestador, label: '👁️ Preview' },
+              { id: 'fotos' as TabPrestador, label: '📸 Fotos' },
+              { id: 'preview' as TabPrestador, label: '👁️ Preview' },
             ]).map(t => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
-                  tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
-                }`}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-colors ${tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
+                  }`}
               >
                 {t.label}
               </button>
@@ -644,7 +645,7 @@ function PerfilPrestador({
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría</label>
                         <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
                           className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                          {['Gastronomia','Naturaleza','Aventura','Hospedaje','Cultura','Transporte','Comercio','Cooperativa','Otro'].map(c => (
+                          {['Gastronomia', 'Naturaleza', 'Aventura', 'Hospedaje', 'Cultura', 'Transporte', 'Comercio', 'Cooperativa', 'Otro'].map(c => (
                             <option key={c} value={c}>{c}</option>
                           ))}
                         </select>
@@ -653,7 +654,7 @@ function PerfilPrestador({
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
                         <select value={form.municipio} onChange={e => setForm({ ...form, municipio: e.target.value })}
                           className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                          {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
+                          {['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'].map(m => (
                             <option key={m} value={m}>{m}</option>
                           ))}
                         </select>
@@ -715,9 +716,8 @@ function PerfilPrestador({
                       <div className="flex flex-wrap gap-2">
                         {IDEAL_OPCIONES.map(op => (
                           <button key={op.id} type="button" onClick={() => toggleIdeal(op.id)}
-                            className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${
-                              form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
-                            }`}>
+                            className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
+                              }`}>
                             {op.label}
                           </button>
                         ))}
@@ -737,15 +737,15 @@ function PerfilPrestador({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <InfoFila icono={<Store size={14} />}  label="Categoría"   valor={servicio.categoria} />
-                    <InfoFila icono={null}                 label="Municipio"   valor={servicio.municipio} />
-                    <InfoFila icono={<Phone size={14} />}  label="Contacto"    valor={servicio.contacto} />
-                    <InfoFila icono={null}                 label="Precio"      valor={servicio.precio} />
-                    <InfoFila icono={<Clock size={14} />}  label="Horario"
+                    <InfoFila icono={<Store size={14} />} label="Categoría" valor={servicio.categoria} />
+                    <InfoFila icono={null} label="Municipio" valor={servicio.municipio} />
+                    <InfoFila icono={<Phone size={14} />} label="Contacto" valor={servicio.contacto} />
+                    <InfoFila icono={null} label="Precio" valor={servicio.precio} />
+                    <InfoFila icono={<Clock size={14} />} label="Horario"
                       valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
-                    <InfoFila icono={null}  label="Duración"    valor={servicio.duracion} />
-                    <InfoFila icono={null}  label="Cómo llegar" valor={servicio.como_llegar} />
-                    <InfoFila icono={null}  label="Consejo"     valor={servicio.tip} />
+                    <InfoFila icono={null} label="Duración" valor={servicio.duracion} />
+                    <InfoFila icono={null} label="Cómo llegar" valor={servicio.como_llegar} />
+                    <InfoFila icono={null} label="Consejo" valor={servicio.tip} />
                     <div className="bg-jungle-50 rounded-xl p-3">
                       <p className="text-xs font-semibold text-jungle-500 mb-1">Descripción</p>
                       <p className="text-sm text-jungle-800">{servicio.descripcion}</p>

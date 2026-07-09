@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from 'react';
 import type { MensajeChat, PreferenciasUsuario } from '../lib/chatbot';
+import { getCatalogoActivo } from '../lib/chatbot';
 import {
   soportaWebGPU,
   inicializarLLM,
@@ -15,6 +16,7 @@ import {
   limpiarMarkdown,
   MODELO_DEFECTO,
 } from '../lib/llm';
+import { inicializarEmbeddings, indexarCatalogo } from '../lib/embeddings';
 
 export type EstadoLLM =
   | 'inactivo'     // soportado pero aún no descargado
@@ -44,6 +46,16 @@ export function useLLM() {
       try {
         await inicializarLLM(({ progreso }) => setProgreso(progreso), modelo);
         setEstado('listo');
+
+        // Memoria semántica (embeddings): modelo ligero (~30MB) que corre
+        // en WASM sin requerir WebGPU. Se carga e indexa en segundo plano
+        // — si tarda o falla, el chat sigue funcionando solo con LLM +
+        // reglas, no bloquea la conversación (ver embeddingsListo() en
+        // llm.ts, que degrada con gracia si aún no está listo).
+        inicializarEmbeddings()
+          .then(() => indexarCatalogo(getCatalogoActivo()))
+          .catch((e) => console.warn('Embeddings no disponibles:', e));
+
         return true;
       } catch (e) {
         setEstado(String(e).includes('SIN_WEBGPU') ? 'sin_soporte' : 'error');

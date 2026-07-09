@@ -260,10 +260,10 @@ export function filtrarLugaresConRazones(
         prefs.grupo === 'pareja'
           ? 'es ideal para parejas'
           : prefs.grupo === 'familia'
-          ? 'funciona bien en familia'
-          : prefs.grupo === 'amigos'
-          ? 'es buen plan con amigos'
-          : 'se disfruta viajando solo';
+            ? 'funciona bien en familia'
+            : prefs.grupo === 'amigos'
+              ? 'es buen plan con amigos'
+              : 'se disfruta viajando solo';
       razones.push(grupoTexto);
     }
 
@@ -277,6 +277,18 @@ export function filtrarLugaresConRazones(
     if (lugar.destacado) {
       score += 1.5;
       razones.push('es un imperdible de Los Tuxtlas');
+    }
+
+    // Bonus Premium: prestadores con plan activo ($89 MXN/mes) ganan
+    // posicionamiento prioritario. Es un empate-rompedor deliberadamente
+    // moderado (menor que rating o match de interés/grupo): sube en el
+    // orden entre opciones ya relevantes, pero nunca hace que la IA
+    // recomiende algo que no le sirve al turista solo porque pagó.
+    // Ese balance es lo que hace la recomendación defendible ante el
+    // usuario y es la base del "algoritmo de recomendaciones por cada
+    // prestador que pague 89 pesos" del módulo de Prestador de Servicios.
+    if (lugar.premium) {
+      score += 2;
     }
 
     // Penalización por presupuesto
@@ -451,10 +463,10 @@ function armarResumen(
     prefs.grupo === 'pareja'
       ? 'pensado para disfrutarse en pareja'
       : prefs.grupo === 'familia'
-      ? 'diseñado para un día en familia'
-      : prefs.grupo === 'amigos'
-      ? 'ideal para un día con amigos'
-      : 'a tu propio ritmo';
+        ? 'diseñado para un día en familia'
+        : prefs.grupo === 'amigos'
+          ? 'ideal para un día con amigos'
+          : 'a tu propio ritmo';
   return `Día ${numDia} · ${municipio} — ${tiposTexto}, ${conQuien}.`;
 }
 
@@ -462,10 +474,9 @@ function armarRazonamiento(lugares: Lugar[], prefs: PreferenciasUsuario): string
   const primero = lugares[0];
   const partes: string[] = [];
   partes.push(
-    `Te puse ${primero.nombre} para empezar porque ${
-      primero.categoria === 'Aventura' || primero.categoria === 'Naturaleza'
-        ? 'conviene aprovechar la mañana para actividad al aire libre'
-        : 'es un buen arranque de día'
+    `Te puse ${primero.nombre} para empezar porque ${primero.categoria === 'Aventura' || primero.categoria === 'Naturaleza'
+      ? 'conviene aprovechar la mañana para actividad al aire libre'
+      : 'es un buen arranque de día'
     }.`
   );
   const tieneGastronomia = lugares.some((l) => l.categoria === 'Gastronomia');
@@ -561,9 +572,8 @@ export function responderTextoLibre(
       return {
         id: crypto.randomUUID(),
         role: 'bot',
-        texto: `No tengo registrado nada de ${cat.toLowerCase()}${
-          municipioMencionado ? ` en ${municipioMencionado}` : ''
-        } por ahora. Prueba con otra categoría o municipio.`,
+        texto: `No tengo registrado nada de ${cat.toLowerCase()}${municipioMencionado ? ` en ${municipioMencionado}` : ''
+          } por ahora. Prueba con otra categoría o municipio.`,
         timestamp: Date.now(),
       };
     }

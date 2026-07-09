@@ -48,6 +48,13 @@ export interface ServicioPrestador {
   comoLlegar?: string;   // Indicaciones de cómo llegar
   tip?: string;           // Consejo insider para el turista
   idealPara?: string[];  // ej: ['pareja', 'familia', 'grupos', 'solo']
+  // ── Plan Premium $89 MXN/mes (Módulo 2 — monetización) ─────
+  // Beneficio contratado: posicionamiento prioritario en el
+  // algoritmo de recomendación de la IA. Se factura aparte del
+  // 6% de comisión por reservación (ver Etp_Reg_Plan_Neg).
+  premium?: boolean;
+  premiumDesde?: number;
+  premiumHasta?: number; // permite manejar vencimiento/renovación
 }
 
 // Geometría de una ruta calculada por OSRM, cacheada para uso offline
@@ -59,11 +66,22 @@ export interface RutaCacheada {
   calculadaEn: number;
 }
 
+// Vector semántico cacheado de un lugar/prestador (memoria vectorizada
+// offline — ver src/lib/embeddings.ts). Se recalcula solo si `texto`
+// cambia, así que registrar/editar un prestador lo re-indexa solo.
+export interface VectorLugar {
+  id: string; // mismo id que Lugar.id
+  texto: string; // snapshot del texto usado para generar el vector
+  vector: number[]; // 384 dimensiones (Xenova/all-MiniLM-L6-v2)
+  actualizadoEn: number;
+}
+
 class TuxtlasDB extends Dexie {
   favoritos!: Table<Favorito, string>;
   rutas!: Table<RutaGuardada, number>;
   prestadores!: Table<ServicioPrestador, number>;
   rutasCache!: Table<RutaCacheada, string>;
+  vectores!: Table<VectorLugar, string>;
 
   constructor() {
     super('tuxtlasgo-db');
@@ -85,6 +103,15 @@ class TuxtlasDB extends Dexie {
       rutas: '++id, creadaEn',
       prestadores: '++id, municipio, creadoEn, estado, codigoSeguimiento',
       rutasCache: 'clave, calculadaEn',
+    });
+    // v4: tabla vectores (memoria semántica offline) + índice por
+    // `premium` para poder listar/filtrar suscriptores del plan $89.
+    this.version(4).stores({
+      favoritos: 'id, agregadoEn',
+      rutas: '++id, creadaEn',
+      prestadores: '++id, municipio, creadoEn, estado, codigoSeguimiento, premium',
+      rutasCache: 'clave, calculadaEn',
+      vectores: 'id, actualizadoEn',
     });
   }
 }
@@ -189,6 +216,7 @@ export function servicioComoLugar(s: ServicioPrestador): Lugar {
     tip: s.tip,
     verificado: s.estado === 'aprobado',
     contacto: s.contacto,
+    premium: !!s.premium && (!s.premiumHasta || s.premiumHasta > Date.now()),
   };
 }
 

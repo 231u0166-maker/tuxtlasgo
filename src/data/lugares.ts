@@ -38,6 +38,9 @@ export interface Lugar {
   verificado: boolean;
   contacto?: string;
   destacado?: boolean;
+  // Prestador con plan Premium activo ($89 MXN/mes) → prioridad en
+  // el algoritmo de recomendación de la IA (ver chatbot.ts, llm.ts).
+  premium?: boolean;
 }
 
 export const LUGARES: Lugar[] = [

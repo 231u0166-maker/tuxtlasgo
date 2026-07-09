@@ -7,6 +7,7 @@ import AdminPanel from './components/AdminPanel';
 import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
 import { setCatalogoExtendido } from './lib/chatbot';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
+import { embeddingsListo, indexarCatalogo } from './lib/embeddings';
 
 // Función global para recargar catálogo (usada por GestorFotos y ProviderPanel)
 // Pre-cachea imágenes de Cloudinary para que estén disponibles offline
@@ -39,10 +40,15 @@ export async function recargarCatalogo() {
         const todos = [...data.lugares, ...soloLocales];
         setCatalogoExtendido(todos);
         precachearImagenes(todos).catch(() => {});
+        // Si la IA ya está activa en esta sesión, re-indexa en segundo
+        // plano para que un prestador recién aprobado aparezca de
+        // inmediato en la búsqueda semántica (no solo tras recargar).
+        if (embeddingsListo()) indexarCatalogo(todos).catch(() => {});
         return todos;
       }
     }
     setCatalogoExtendido(aprobadosLocal);
+    if (embeddingsListo()) indexarCatalogo(aprobadosLocal).catch(() => {});
     return aprobadosLocal;
   } catch {
     return [];

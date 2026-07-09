@@ -24,6 +24,7 @@ import {
   type PreferenciasUsuario,
 } from './chatbot';
 import { buscarConocimiento } from './conocimiento';
+import { buscarSemantico, embeddingsListo } from './embeddings';
 
 // ─────────────── CONFIGURACIÓN DE MODELO ───────────────
 // Default: ligero y rápido en gama media (~0.8 GB).
@@ -82,11 +83,23 @@ const MAPA_INTENT_CAT: Record<string, Lugar['categoria']> = {
   aventura: 'Aventura',
 };
 
-function recuperarContexto(
+// Orden final de candidatos: rating + pequeño empate a favor de Premium.
+// Mismo criterio que chatbot.ts (filtrarLugaresConRazones), aplicado
+// aquí también para que el modo LLM y el modo sin-LLM recomienden con
+// la misma lógica de negocio.
+function ordenarConBoostPremium(lugares: Lugar[]): Lugar[] {
+  return [...lugares].sort((a, b) => {
+    const scoreA = a.rating + (a.premium ? 0.4 : 0);
+    const scoreB = b.rating + (b.premium ? 0.4 : 0);
+    return scoreB - scoreA;
+  });
+}
+
+async function recuperarContexto(
   texto: string,
   prefs?: Partial<PreferenciasUsuario>,
   k = 4
-): ContextoRecuperado {
+): Promise<ContextoRecuperado> {
   const catalogo = getCatalogoActivo();
   const intent = detectarIntent(texto);
   const municipio = detectarMunicipio(texto);
@@ -113,14 +126,30 @@ function recuperarContexto(
     if (enMuni.length > 0) candidatos = enMuni;
   }
 
-  // 4) Si quedó vacío, cae a lo destacado / mejor valorado
+  // 4) HÍBRIDO — si el filtro por palabras clave se quedó corto (o el
+  //    turista escribió algo que no matchea ningún intent/keyword,
+  //    p. ej. "algo tranquilo y barato para el fin de semana"), se
+  //    complementa con búsqueda SEMÁNTICA sobre el texto libre. Esto
+  //    es lo que hace que el motor "no siempre diga lo mismo" y
+  //    escale automáticamente con prestadores nuevos sin necesidad de
+  //    curar palabras clave a mano por cada registro.
+  if (candidatos.length < k && embeddingsListo()) {
+    const semanticos = await buscarSemantico(texto, catalogo, k * 2);
+    const idsYaIncluidos = new Set(candidatos.map((l) => l.id));
+    for (const { lugar } of semanticos) {
+      if (!idsYaIncluidos.has(lugar.id)) {
+        candidatos = [...candidatos, lugar];
+        idsYaIncluidos.add(lugar.id);
+      }
+    }
+  }
+
+  // 5) Si aun así quedó vacío, cae a lo destacado / mejor valorado
   if (candidatos.length === 0) {
     candidatos = catalogo.filter((l) => l.destacado || l.rating >= 4.5);
   }
 
-  const lugares = [...candidatos]
-    .sort((a, b) => b.rating - a.rating)
-    .slice(0, k);
+  const lugares = ordenarConBoostPremium(candidatos).slice(0, k);
 
   const hit = buscarConocimiento(texto);
   const conocimiento = hit ? hit.respuesta : null;
@@ -131,7 +160,7 @@ function recuperarContexto(
 // ─────────────── ARMADO DEL CONTEXTO PARA EL PROMPT ───────────────
 function lugarAFicha(l: Lugar): string {
   const partes = [
-    `- ${l.nombre} (${l.categoria}, ${l.municipio})`,
+    `- ${l.nombre}${l.premium ? ' [Socio Premium TuxtlasGO]' : ''} (${l.categoria}, ${l.municipio})`,
     `  ${l.descripcionCorta}`,
     `  Precio: ${l.precioMxn} · Horario: ${l.abierto.dias} ${l.abierto.horario}`,
     l.tip ? `  Tip: ${l.tip}` : '',
@@ -201,7 +230,7 @@ export async function* responderConLLMStream(
 ): AsyncGenerator<string, void, unknown> {
   if (!engine) throw new Error('LLM_NO_INICIALIZADO');
 
-  const ctx = recuperarContexto(texto, prefs);
+  const ctx = await recuperarContexto(texto, prefs);
   const contextoTexto = construirContextoTexto(ctx, prefs);
 
   // Historial reciente SOLO de mensajes de texto (sin bloques de

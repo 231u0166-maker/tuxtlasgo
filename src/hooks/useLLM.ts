@@ -6,7 +6,7 @@
 // limpiamente al motor de reglas de siempre.
 // ============================================================
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { MensajeChat, PreferenciasUsuario } from '../lib/chatbot';
 import { getCatalogoActivo } from '../lib/chatbot';
 import {
@@ -19,25 +19,36 @@ import {
 import { inicializarEmbeddings, indexarCatalogo } from '../lib/embeddings';
 
 export type EstadoLLM =
+  | 'verificando'  // aún no sabemos si el dispositivo soporta IA avanzada
   | 'inactivo'     // soportado pero aún no descargado
   | 'cargando'     // descargando/compilando el modelo
   | 'listo'        // corriendo, puede responder
-  | 'sin_soporte'  // el dispositivo no tiene WebGPU
+  | 'sin_soporte'  // el dispositivo no tiene un adaptador WebGPU real
   | 'error';
 
 export function useLLM() {
-  const [estado, setEstado] = useState<EstadoLLM>(
-    soportaWebGPU() ? 'inactivo' : 'sin_soporte'
-  );
-  // 0..1 — para una barra de progreso durante la descarga
+  const [estado, setEstado] = useState<EstadoLLM>('verificando');
+  // 0..1 — se conserva por si algún día se quiere mostrar, pero la UI
+  // actual ya no depende de esto (ver nota en ChatAssistant.tsx).
   const [progreso, setProgreso] = useState(0);
+
+  // Verifica soporte real (requestAdapter, no solo 'gpu' in navigator)
+  // apenas se monta el hook, para que el estado inicial ya sea correcto
+  // y no dependamos de que el usuario escriba algo primero.
+  useEffect(() => {
+    let cancelado = false;
+    soportaWebGPU().then((soportado) => {
+      if (!cancelado) setEstado((e) => (e === 'verificando' ? (soportado ? 'inactivo' : 'sin_soporte') : e));
+    });
+    return () => { cancelado = true; };
+  }, []);
 
   // Dispara la descarga del modelo. Devuelve true si quedó listo.
   // (Devolver el booleano evita leer estado de React desactualizado
   //  justo después del await.)
   const activar = useCallback(
     async (modelo: string = MODELO_DEFECTO): Promise<boolean> => {
-      if (!soportaWebGPU()) {
+      if (!(await soportaWebGPU())) {
         setEstado('sin_soporte');
         return false;
       }
@@ -58,6 +69,9 @@ export function useLLM() {
 
         return true;
       } catch (e) {
+        // Log explícito — antes este error se perdía en silencio y
+        // parecía que "no pasaba nada" en vez de fallar de verdad.
+        console.error('[TuxtlasGO IA] No se pudo activar el LLM:', e);
         setEstado(String(e).includes('SIN_WEBGPU') ? 'sin_soporte' : 'error');
         return false;
       }

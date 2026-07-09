@@ -145,7 +145,23 @@ export function detectarIntent(texto: string): string {
   // Tokeniza el texto y compara contra las palabras clave de cada
   // intención TOLERANDO errores ortográficos (vía el módulo PLN).
   const tokens = tokenizar(texto);
+
+  // 'saludo' y 'agradecimiento' disparan una respuesta de plantilla fija
+  // ("¡Con gusto! Para eso estoy...", etc.). Un saludo o agradecimiento
+  // real suele ser una frase corta. Si el mensaje es largo o lleva una
+  // negación, es más probable que sea una queja o instrucción compleja
+  // que de casualidad contiene la palabra "gracias" o "hola" en medio
+  // (ej. "no funcionas como deberia gracias") — en ese caso NO
+  // queremos responder con un "¡de nada!" fuera de lugar.
+  const esCorto = tokens.length <= 6;
+  const tieneNegacion = ['no', 'nunca', 'nada', 'mal'].some((n) =>
+    tokens.includes(n)
+  );
+
   for (const { intent, words } of INTENT_KEYWORDS) {
+    if ((intent === 'saludo' || intent === 'agradecimiento') && (!esCorto || tieneNegacion)) {
+      continue;
+    }
     if (words.some((w) => contieneClave(tokens, w))) return intent;
   }
   return 'desconocido';

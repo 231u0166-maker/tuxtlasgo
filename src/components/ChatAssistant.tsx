@@ -67,6 +67,9 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
   const [rutasGuardadas, setRutasGuardadas] = useState<Set<number>>(new Set());
   // Si el mapa NO está descargado, mostramos un aviso al ver la ruta
   const [mostrarAvisoMapa, setMostrarAvisoMapa] = useState(false);
+  // Para avisar UNA sola vez por sesión que se está usando el modo
+  // clásico (sin LLM) — nunca a media conversación en cada mensaje.
+  const avisoModoClasicoMostrado = useRef(false);
 
   // Hook del LLM offline (detección + carga + streaming)
   const llm = useLLM();
@@ -255,79 +258,92 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
   }
 
   // ─────────── Envío de texto libre ───────────
+  // IMPORTANTE: antes, si el usuario escribía texto libre MIENTRAS el
+  // flujo guiado esperaba un botón (días/intereses/presupuesto/grupo),
+  // el mensaje se iba SIEMPRE al motor de reglas y el LLM nunca se
+  // llegaba a activar — porque solo se intentaba cuando `estado` ya
+  // era 'libre'. Como en una conversación real casi nadie empieza
+  // tocando botones (la gente escribe), esto hacía que el LLM pareciera
+  // "no arrancar" y además producía respuestas duplicadas idénticas
+  // (la plantilla fija de "no entendí" + el aviso de botones, una y
+  // otra vez). Ahora el texto libre SIEMPRE intenta LLM (o reglas como
+  // respaldo) sin importar en qué paso del flujo guiado estemos — los
+  // botones siguen ahí como atajo, pero ya no son la única puerta.
   async function enviarTexto() {
     const texto = input.trim();
     if (!texto || generandoIA) return; // no encimar mientras genera
     agregarUsuario(texto);
     setInput('');
 
-    if (estado === 'libre' || estado === 'generando') {
-      setGenerandoIA(true);
-      try {
-        // ¿Podemos usar el LLM? Si está soportado pero aún no cargado,
-        // lo preparamos AHORA (la primera vez descarga el modelo).
-        let puedeUsarIA = llm.listo;
-        if (llm.estado === 'inactivo') {
-          setEscribiendo(true);
-          puedeUsarIA = await llm.activar(); // usamos el booleano, no el estado viejo
-        }
-
-        if (puedeUsarIA) {
-          // Streaming: mostramos los puntitos hasta el primer token,
-          // luego creamos la burbuja y la vamos llenando en vivo.
-          setEscribiendo(true);
-          let primerToken = true;
-          let msgId = '';
-          await llm.responder(
-            texto,
-            mensajes,
-            (acc) => {
-              if (primerToken) {
-                primerToken = false;
-                setEscribiendo(false);
-                msgId = crypto.randomUUID();
-                setMensajes((prev) => [
-                  ...prev,
-                  { id: msgId, role: 'bot', texto: acc, timestamp: Date.now() },
-                ]);
-              } else {
-                setMensajes((prev) =>
-                  prev.map((m) => (m.id === msgId ? { ...m, texto: acc } : m))
-                );
-              }
-            },
-            prefsParcial
-          );
-        } else {
-          // Sin WebGPU o error → motor de reglas de siempre
-          setEscribiendo(false);
-          responderBot(responderTextoLibre(texto, null), 400);
-        }
-      } catch (err) {
-        // Si algo truena a media respuesta, no dejamos la burbuja a medias:
-        // caemos al motor de reglas.
-        console.error('Error generando con LLM:', err);
-        setEscribiendo(false);
-        responderBot(responderTextoLibre(texto, null), 200);
-      } finally {
-        setEscribiendo(false);
-        setGenerandoIA(false);
+    setGenerandoIA(true);
+    try {
+      // ¿Podemos usar el LLM? Si está soportado pero aún no cargado,
+      // lo preparamos AHORA (la primera vez descarga el modelo).
+      let puedeUsarIA = llm.listo;
+      if (llm.estado === 'inactivo' || llm.estado === 'verificando') {
+        setEscribiendo(true);
+        puedeUsarIA = await llm.activar(); // usamos el booleano, no el estado viejo
       }
-    } else {
-      // Si el usuario escribe en vez de tocar botones durante el flujo
-      responderBot(responderTextoLibre(texto, null), 600);
-      setTimeout(() => {
-        setMensajes((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: 'bot',
-            texto:
-              'Por cierto, si quieres que te arme una ruta completa, puedes usar los botones de arriba para responderme. 🙂',
-            timestamp: Date.now(),
+
+      if (puedeUsarIA) {
+        // Streaming: mostramos los puntitos hasta el primer token,
+        // luego creamos la burbuja y la vamos llenando en vivo.
+        setEscribiendo(true);
+        let primerToken = true;
+        let msgId = '';
+        await llm.responder(
+          texto,
+          mensajes,
+          (acc) => {
+            if (primerToken) {
+              primerToken = false;
+              setEscribiendo(false);
+              msgId = crypto.randomUUID();
+              setMensajes((prev) => [
+                ...prev,
+                { id: msgId, role: 'bot', texto: acc, timestamp: Date.now() },
+              ]);
+            } else {
+              setMensajes((prev) =>
+                prev.map((m) => (m.id === msgId ? { ...m, texto: acc } : m))
+              );
+            }
           },
-        ]);
-      }, 1300);
+          prefsParcial
+        );
+      } else {
+        // Sin adaptador WebGPU real o error al cargar → motor de reglas.
+        // Avisamos UNA vez por sesión (no en cada mensaje) para que quede
+        // claro que se está en modo clásico y no parezca que "no pasó nada".
+        setEscribiendo(false);
+        responderBot(responderTextoLibre(texto, null), 400);
+        if (!avisoModoClasicoMostrado.current && (llm.estado === 'sin_soporte' || llm.estado === 'error')) {
+          avisoModoClasicoMostrado.current = true;
+          setTimeout(() => {
+            setMensajes((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: 'bot',
+                texto:
+                  llm.estado === 'sin_soporte'
+                    ? '💡 Este dispositivo no tiene soporte de IA avanzada (WebGPU) — sigo funcionando con el asistente clásico offline, sin problema.'
+                    : '💡 No pude cargar el modelo de IA avanzada en este dispositivo — sigo funcionando con el asistente clásico offline.',
+                timestamp: Date.now(),
+              },
+            ]);
+          }, 900);
+        }
+      }
+    } catch (err) {
+      // Si algo truena a media respuesta, no dejamos la burbuja a medias:
+      // caemos al motor de reglas.
+      console.error('Error generando con LLM:', err);
+      setEscribiendo(false);
+      responderBot(responderTextoLibre(texto, null), 200);
+    } finally {
+      setEscribiendo(false);
+      setGenerandoIA(false);
     }
   }
 
@@ -376,21 +392,10 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
         </button>
       </div>
 
-      {/* Barra de descarga del modelo de IA (solo la primera vez) */}
-      {llm.estado === 'cargando' && (
-        <div className="bg-jungle-100 px-4 py-2 flex-shrink-0 border-b border-jungle-200">
-          <div className="flex items-center justify-between text-xs text-jungle-800 mb-1">
-            <span>✨ Preparando la IA por primera vez…</span>
-            <span className="font-bold">{Math.round(llm.progreso * 100)}%</span>
-          </div>
-          <div className="w-full h-1.5 bg-jungle-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-jungle-600 transition-all duration-300"
-              style={{ width: `${Math.round(llm.progreso * 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
+      {/* Nota: antes había aquí una barra de progreso de descarga del
+          modelo. Se quitó a propósito — el indicador de "escribiendo"
+          (los tres puntitos de abajo) ya cubre la espera de forma más
+          discreta, sin números de porcentaje que puedan confundir. */}
 
       {/* Mensajes */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-3">
@@ -425,7 +430,10 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
         ))}
 
         {escribiendo && (
-          <div className="flex items-center gap-1.5 px-4 py-3 bg-white rounded-2xl rounded-tl-sm w-fit border border-jungle-100">
+          <div className="flex items-center gap-2 px-4 py-3 bg-white rounded-2xl rounded-tl-sm w-fit border border-jungle-100">
+            {llm.estado === 'cargando' && (
+              <span className="text-xs text-jungle-500">Preparando IA…</span>
+            )}
             <span
               className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
               style={{ animationDelay: '0ms' }}

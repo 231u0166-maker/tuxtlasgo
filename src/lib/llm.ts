@@ -38,8 +38,30 @@ let engine: webllm.MLCEngineInterface | null = null;
 let modeloCargado: string | null = null;
 
 // ─────────────── DETECCIÓN DE CAPACIDAD ───────────────
-export function soportaWebGPU(): boolean {
-  return typeof navigator !== 'undefined' && 'gpu' in navigator;
+// `'gpu' in navigator` NO es suficiente: en muchas laptops (sobre todo
+// con gráficos Intel integrados en Windows) el objeto navigator.gpu
+// existe, pero requestAdapter() devuelve null porque el driver está
+// en la lista de bloqueo de Chrome. Si solo revisas la presencia del
+// objeto, la app cree que sí hay soporte, intenta cargar el modelo,
+// truena, y cae al motor de reglas SIN avisar por qué — que es
+// exactamente el síntoma de "en PC no arranca" que se reportó en
+// campo. Por eso este chequeo es real: pide el adaptador de verdad.
+let cacheSoporte: boolean | null = null;
+
+export async function soportaWebGPU(): Promise<boolean> {
+  if (cacheSoporte !== null) return cacheSoporte;
+  if (typeof navigator === 'undefined' || !('gpu' in navigator)) {
+    cacheSoporte = false;
+    return false;
+  }
+  try {
+    const adapter = await (navigator as any).gpu.requestAdapter();
+    cacheSoporte = adapter !== null;
+    return cacheSoporte;
+  } catch {
+    cacheSoporte = false;
+    return false;
+  }
 }
 
 export function llmListo(): boolean {
@@ -56,16 +78,24 @@ export async function inicializarLLM(
 ): Promise<void> {
   if (engine && modeloCargado === modelo) return;
 
-  if (!soportaWebGPU()) {
+  if (!(await soportaWebGPU())) {
     throw new Error('SIN_WEBGPU');
   }
 
-  engine = await webllm.CreateMLCEngine(modelo, {
-    initProgressCallback: (rep: webllm.InitProgressReport) => {
-      onProgress?.({ progreso: rep.progress ?? 0, texto: rep.text ?? '' });
-    },
-  });
-  modeloCargado = modelo;
+  try {
+    engine = await webllm.CreateMLCEngine(modelo, {
+      initProgressCallback: (rep: webllm.InitProgressReport) => {
+        onProgress?.({ progreso: rep.progress ?? 0, texto: rep.text ?? '' });
+      },
+    });
+    modeloCargado = modelo;
+  } catch (e) {
+    // No tragarse el error real: esto es lo que hay que ver en consola
+    // para diagnosticar por qué falló en un dispositivo específico
+    // (memoria insuficiente, adaptador perdido a medio arranque, etc.)
+    console.error('[TuxtlasGO IA] CreateMLCEngine falló:', e);
+    throw e;
+  }
 }
 
 // ============================================================

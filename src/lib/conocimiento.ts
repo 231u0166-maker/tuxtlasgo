@@ -187,6 +187,37 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
     respuesta:
       'Para experiencias con chamanes y rituales de sanación, Nanciyaga es el lugar indicado — tienen chamanes locales y rituales auténticos incluidos en la visita. También ofrecen la aplicación de barro mineral, que es una experiencia única de bienestar. La reserva está a 7 km de Catemaco.',
   },
+
+  // ─── SEGURIDAD Y EMERGENCIAS ──────────────────────────────
+  // ⚠️ PENDIENTE ANTES DE PUBLICAR: el 911 es el número nacional de
+  // emergencias de México (dato oficial, verificado). Los nombres,
+  // direcciones y teléfonos de hospitales/clínicas y comisarías POR
+  // MUNICIPIO todavía no están aquí a propósito — inventar un nombre
+  // de hospital "que suene bien" sería peligroso si alguien lo usa en
+  // una emergencia real y no existe o está mal ubicado. Antes de la
+  // presentación regional, hay que llenar esto con datos confirmados
+  // (Cruz Roja, IMSS, Centro de Salud de Catemaco/San Andrés/Santiago
+  // Tuxtla) — idealmente verificados en campo, no solo buscados en línea.
+  {
+    claves: [
+      'hospital', 'hospitales', 'emergencia', 'emergencias', 'accidente',
+      'me lastime', 'me lastimé', 'clinica', 'clínica', 'centro de salud',
+      'ambulancia', 'me corte', 'me corté', 'me cai', 'me caí', 'urgencias',
+      'primeros auxilios', 'me pico', 'me picó', 'mordida', 'veneno',
+    ],
+    titulo: 'Emergencias médicas en Los Tuxtlas',
+    respuesta:
+      'Si es una emergencia médica, marca 911 — es el número nacional de emergencias de México, funciona desde cualquier compañía telefónica incluso sin saldo ni plan. Da tu ubicación lo más precisa posible: municipio (Catemaco, San Andrés Tuxtla o Santiago Tuxtla) y el punto de referencia más cercano (un lugar turístico, un cruce, un negocio). El directorio verificado de hospitales y clínicas por municipio está en proceso de confirmación con el equipo de TuxtlasGO — en cuanto esté listo, esta respuesta se actualizará con nombres y ubicaciones exactas.',
+  },
+  {
+    claves: [
+      'policia', 'policía', 'comisaria', 'comisaría', 'robo', 'inseguridad',
+      'denunciar', 'me robaron', 'perdi mis cosas', 'perdí mis cosas',
+    ],
+    titulo: 'Seguridad y comisarías',
+    respuesta:
+      'Para reportar un robo o cualquier incidente de seguridad, marca 911. El directorio de comisarías por municipio está en proceso de verificación con el equipo de TuxtlasGO para publicarlo con datos confirmados.',
+  },
 ];
 
 // Busca la entrada más relevante de la base de conocimiento

@@ -252,14 +252,22 @@ export function limpiarMarkdown(t: string): string {
     .replace(/^\s*[-•]\s+/gm, '• '); // normaliza viñetas
 }
 
-// ─────────────── GENERACIÓN (streaming) ───────────────
-export async function* responderConLLMStream(
-  texto: string,
-  historial: MensajeChat[] = [],
-  prefs?: Partial<PreferenciasUsuario>
-): AsyncGenerator<string, void, unknown> {
-  if (!engine) throw new Error('LLM_NO_INICIALIZADO');
+// ─────────────── ARMADO COMPARTIDO DE MENSAJES ───────────────
+// Tanto el LLM local (WebLLM) como el de respaldo en la nube parten
+// del MISMO retriever y del MISMO prompt de sistema — lo único que
+// cambia entre uno y otro es quién redacta la respuesta final. Esto
+// garantiza que las reglas de negocio (boost Premium, "no inventes
+// datos", tono) sean idénticas sin importar qué generador responda.
+interface MensajesLLM {
+  system: string;
+  mensajes: { role: 'user' | 'assistant'; content: string }[];
+}
 
+async function armarMensajesLLM(
+  texto: string,
+  historial: MensajeChat[],
+  prefs?: Partial<PreferenciasUsuario>
+): Promise<MensajesLLM> {
   const ctx = await recuperarContexto(texto, prefs);
   const contextoTexto = construirContextoTexto(ctx, prefs);
 
@@ -275,13 +283,31 @@ export async function* responderConLLMStream(
       content: m.texto,
     }));
 
+  return {
+    system: SYSTEM_PROMPT,
+    mensajes: [
+      ...historialReciente,
+      {
+        role: 'user' as const,
+        content: `CONTEXTO:\n${contextoTexto}\n\nPREGUNTA DEL TURISTA: ${texto}`,
+      },
+    ],
+  };
+}
+
+// ─────────────── GENERACIÓN (streaming, offline) ───────────────
+export async function* responderConLLMStream(
+  texto: string,
+  historial: MensajeChat[] = [],
+  prefs?: Partial<PreferenciasUsuario>
+): AsyncGenerator<string, void, unknown> {
+  if (!engine) throw new Error('LLM_NO_INICIALIZADO');
+
+  const { system, mensajes } = await armarMensajesLLM(texto, historial, prefs);
+
   const messages: webllm.ChatCompletionMessageParam[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    ...historialReciente,
-    {
-      role: 'user',
-      content: `CONTEXTO:\n${contextoTexto}\n\nPREGUNTA DEL TURISTA: ${texto}`,
-    },
+    { role: 'system', content: system },
+    ...mensajes,
   ];
 
   const stream = await engine.chat.completions.create({
@@ -308,6 +334,59 @@ export async function responderConLLM(
     salida += frag;
   }
   return limpiarMarkdown(salida);
+}
+
+// ============================================================
+// GENERACIÓN EN LA NUBE — respaldo cuando NO hay WebGPU usable
+// ============================================================
+// Se activa cuando soportaWebGPU() da false pero hay conexión a
+// internet: exactamente el caso de una PC de escritorio con GPU
+// bloqueada por Chrome (el que se detectó en pruebas de campo).
+// A propósito NO se usa window.ai/Gemini Nano (depende de flags
+// experimentales de Chrome que no controlas en el dispositivo del
+// usuario) — en su lugar, un endpoint propio en /api/ia/chat que
+// llama a un modelo en la nube con el MISMO contexto recuperado.
+// Así "cualquier dispositivo" deja de depender de tener WebGPU:
+// WebGPU → offline local. Sin WebGPU + internet → nube. Ninguno
+// de los dos → motor de reglas (ver chatbot.ts).
+export function nubeDisponible(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine;
+}
+
+export async function responderConNube(
+  texto: string,
+  historial: MensajeChat[] = [],
+  prefs?: Partial<PreferenciasUsuario>
+): Promise<string> {
+  const { system, mensajes } = await armarMensajesLLM(texto, historial, prefs);
+
+  // navigator.onLine puede decir "true" aunque no haya internet real de
+  // verdad (portal cautivo de un WiFi de hotel, señal celular que se cae
+  // a medio handshake) — sin un tope de tiempo, un fetch así se puede
+  // quedar colgado mucho más de lo que un chat puede esperar. Mismo
+  // principio que el timeout del LLM local: mejor caer rápido a reglas
+  // que dejar al usuario esperando una conexión que no va a llegar.
+  const control = new AbortController();
+  const avisoTiempo = setTimeout(() => control.abort(), 15_000);
+
+  try {
+    const r = await fetch('/api/ia/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ systemPrompt: system, mensajes }),
+      signal: control.signal,
+    });
+
+    if (!r.ok) {
+      const detalle = await r.text().catch(() => '');
+      throw new Error(`IA_NUBE_ERROR ${r.status}: ${detalle}`);
+    }
+    const data = await r.json();
+    if (!data.texto) throw new Error('IA_NUBE_RESPUESTA_VACIA');
+    return limpiarMarkdown(data.texto);
+  } finally {
+    clearTimeout(avisoTiempo);
+  }
 }
 
 // ─────────────── LIMPIEZA ───────────────

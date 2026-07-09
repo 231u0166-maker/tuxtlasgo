@@ -13,6 +13,8 @@ import {
   soportaWebGPU,
   inicializarLLM,
   responderConLLMStream,
+  responderConNube,
+  nubeDisponible,
   limpiarMarkdown,
   MODELO_DEFECTO,
 } from '../lib/llm';
@@ -25,6 +27,15 @@ export type EstadoLLM =
   | 'listo'        // corriendo, puede responder
   | 'sin_soporte'  // el dispositivo no tiene un adaptador WebGPU real
   | 'error';
+
+// Si la descarga del modelo local no progresa razonablemente rápido
+// (señal débil, dispositivo limitado), no tiene sentido dejar al
+// usuario esperando media conversación — eso es justo lo que se vio
+// en pruebas de campo: 13 minutos antes de caer a reglas. Con este
+// tope, a los 25s se da por vencido el intento ACTUAL y se sigue con
+// nube/reglas, pero si la descarga termina sola después, se aprovecha
+// para el siguiente mensaje (no se cancela ni se tira a la basura).
+const TIMEOUT_CARGA_MS = 25_000;
 
 export function useLLM() {
   const [estado, setEstado] = useState<EstadoLLM>('verificando');
@@ -54,10 +65,11 @@ export function useLLM() {
       }
       setEstado('cargando');
       setProgreso(0);
-      try {
-        await inicializarLLM(({ progreso }) => setProgreso(progreso), modelo);
-        setEstado('listo');
 
+      const cargaModelo = inicializarLLM(({ progreso }) => setProgreso(progreso), modelo);
+
+      const marcarListo = () => {
+        setEstado('listo');
         // Memoria semántica (embeddings): modelo ligero (~30MB) que corre
         // en WASM sin requerir WebGPU. Se carga e indexa en segundo plano
         // — si tarda o falla, el chat sigue funcionando solo con LLM +
@@ -66,12 +78,29 @@ export function useLLM() {
         inicializarEmbeddings()
           .then(() => indexarCatalogo(getCatalogoActivo()))
           .catch((e) => console.warn('Embeddings no disponibles:', e));
+      };
 
+      // Adopción tardía: si la descarga sigue en curso cuando el
+      // timeout de abajo ya nos hizo seguir con nube/reglas, y MÁS
+      // TARDE termina sola, la aprovechamos para el siguiente mensaje
+      // en vez de descartarla — no cuesta nada dejarla terminar.
+      cargaModelo.then(marcarListo, (e) =>
+        console.warn('[TuxtlasGO IA] Carga de LLM en segundo plano falló:', e)
+      );
+
+      try {
+        await Promise.race([
+          cargaModelo,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('TIMEOUT_CARGA_LLM')), TIMEOUT_CARGA_MS)
+          ),
+        ]);
+        marcarListo();
         return true;
       } catch (e) {
         // Log explícito — antes este error se perdía en silencio y
         // parecía que "no pasaba nada" en vez de fallar de verdad.
-        console.error('[TuxtlasGO IA] No se pudo activar el LLM:', e);
+        console.error('[TuxtlasGO IA] No se pudo activar el LLM a tiempo:', e);
         setEstado(String(e).includes('SIN_WEBGPU') ? 'sin_soporte' : 'error');
         return false;
       }
@@ -98,11 +127,22 @@ export function useLLM() {
     []
   );
 
+  // Respaldo en la nube: mismo contexto recuperado, redactado por un
+  // modelo en la nube en vez del local. Solo tiene sentido intentarlo
+  // cuando el LLM local no está disponible (ver ChatAssistant.tsx).
+  const responderNube = useCallback(
+    (texto: string, historial: MensajeChat[], prefs?: Partial<PreferenciasUsuario>) =>
+      responderConNube(texto, historial, prefs),
+    []
+  );
+
   return {
     estado,
     progreso,
     activar,
     responder,
+    responderNube,
+    nubeDisponible,
     listo: estado === 'listo',
   };
 }

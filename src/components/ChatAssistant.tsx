@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, RotateCcw, MapPin, BookmarkPlus, CheckCircle2 } from 'lucide-react';
-import { useLLM } from '../hooks/useLLM';
+import type { useLLM } from '../hooks/useLLM';
 import type { Lugar } from '../data/lugares';
 import type { Categoria, Presupuesto } from '../data/lugares';
 import {
@@ -35,9 +35,14 @@ interface Props {
   // El padre (AppShell) calcula el trazado por carretera y cambia
   // al tab del mapa con la polyline visible.
   onVerRutaEnMapa?: (lugares: Lugar[]) => void;
+  // Instancia COMPARTIDA del hook de IA — vive en AppShell (no aquí)
+  // para que la descarga siga corriendo aunque el usuario cambie de
+  // tab, y para que el aviso de descarga (DescargaIABanner) sea
+  // visible en toda la app, no solo dentro del chat.
+  llm: ReturnType<typeof useLLM>;
 }
 
-export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
+export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Props) {
   // El chat persiste entre cambios de tab usando sessionStorage.
   // Se limpia al cerrar/recargar la app, pero sobrevive mientras
   // la PWA esté abierta — el turista puede ir al mapa y volver
@@ -71,8 +76,8 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
   // clásico (sin LLM) — nunca a media conversación en cada mensaje.
   const avisoModoClasicoMostrado = useRef(false);
 
-  // Hook del LLM offline (detección + carga + streaming)
-  const llm = useLLM();
+  // El LLM offline (detección + carga + streaming) ahora vive en
+  // AppShell y llega por props — ver interfaz Props arriba.
 
   // Preferencias que se van armando durante el flujo guiado
   const [prefsParcial, setPrefsParcial] = useState<Partial<PreferenciasUsuario>>(
@@ -311,10 +316,45 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
           },
           prefsParcial
         );
+      } else if (llm.nubeDisponible()) {
+        // Sin WebGPU usable, pero SÍ hay internet: exactamente el caso
+        // de una PC con GPU bloqueada mostrado en pruebas de campo.
+        // En vez de resignarnos al motor de reglas, usamos el mismo
+        // contexto recuperado con un modelo en la nube (ver llm.ts).
+        // No streaming aquí (v1): más simple y confiable; los puntitos
+        // cubren la espera.
+        try {
+          const textoNube = await llm.responderNube(texto, mensajes, prefsParcial);
+          setEscribiendo(false);
+          setMensajes((prev) => [
+            ...prev,
+            { id: crypto.randomUUID(), role: 'bot', texto: textoNube, timestamp: Date.now() },
+          ]);
+          if (!avisoModoClasicoMostrado.current) {
+            avisoModoClasicoMostrado.current = true;
+            setTimeout(() => {
+              setMensajes((prev) => [
+                ...prev,
+                {
+                  id: crypto.randomUUID(),
+                  role: 'bot',
+                  texto:
+                    '💡 Este dispositivo no soporta IA local (WebGPU) — como hay conexión, estoy usando el asistente en la nube. Sin internet, uso el modo clásico offline.',
+                  timestamp: Date.now(),
+                },
+              ]);
+            }, 700);
+          }
+        } catch (e) {
+          console.error('[TuxtlasGO IA] Nube falló, cae a reglas:', e);
+          setEscribiendo(false);
+          responderBot(responderTextoLibre(texto, null), 300);
+        }
       } else {
-        // Sin adaptador WebGPU real o error al cargar → motor de reglas.
-        // Avisamos UNA vez por sesión (no en cada mensaje) para que quede
-        // claro que se está en modo clásico y no parezca que "no pasó nada".
+        // Sin adaptador WebGPU real, sin internet, o error al cargar
+        // → motor de reglas. Avisamos UNA vez por sesión (no en cada
+        // mensaje) para que quede claro que se está en modo clásico y
+        // no parezca que "no pasó nada".
         setEscribiendo(false);
         responderBot(responderTextoLibre(texto, null), 400);
         if (!avisoModoClasicoMostrado.current && (llm.estado === 'sin_soporte' || llm.estado === 'error')) {
@@ -327,8 +367,8 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
                 role: 'bot',
                 texto:
                   llm.estado === 'sin_soporte'
-                    ? '💡 Este dispositivo no tiene soporte de IA avanzada (WebGPU) — sigo funcionando con el asistente clásico offline, sin problema.'
-                    : '💡 No pude cargar el modelo de IA avanzada en este dispositivo — sigo funcionando con el asistente clásico offline.',
+                    ? '💡 Este dispositivo no tiene soporte de IA avanzada (WebGPU) ni conexión a internet — sigo funcionando con el asistente clásico offline, sin problema.'
+                    : '💡 La IA avanzada tardó demasiado en cargar (¿señal lenta?) — sigo funcionando con el asistente clásico offline. Si la descarga termina en segundo plano, la uso en tu próximo mensaje.',
                 timestamp: Date.now(),
               },
             ]);
@@ -430,22 +470,37 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa }: Props) {
         ))}
 
         {escribiendo && (
-          <div className="flex items-center gap-2 px-4 py-3 bg-white rounded-2xl rounded-tl-sm w-fit border border-jungle-100">
+          <div className="flex flex-col gap-1.5 px-4 py-3 bg-white rounded-2xl rounded-tl-sm w-fit min-w-[180px] border border-jungle-100">
             {llm.estado === 'cargando' && (
-              <span className="text-xs text-jungle-500">Preparando IA…</span>
+              <>
+                <div className="flex items-center justify-between gap-3 text-xs text-jungle-600">
+                  <span className="font-medium">Preparando guIA…</span>
+                  <span className="font-semibold text-jungle-700">
+                    {Math.round(llm.progreso * 100)}%
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-jungle-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-jungle-600 transition-all duration-300"
+                    style={{ width: `${Math.round(llm.progreso * 100)}%` }}
+                  />
+                </div>
+              </>
             )}
-            <span
-              className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
-              style={{ animationDelay: '0ms' }}
-            />
-            <span
-              className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
-              style={{ animationDelay: '150ms' }}
-            />
-            <span
-              className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
-              style={{ animationDelay: '300ms' }}
-            />
+            <div className="flex items-center gap-2">
+              <span
+                className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
+                style={{ animationDelay: '0ms' }}
+              />
+              <span
+                className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
+                style={{ animationDelay: '150ms' }}
+              />
+              <span
+                className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
+                style={{ animationDelay: '300ms' }}
+              />
+            </div>
           </div>
         )}
       </div>

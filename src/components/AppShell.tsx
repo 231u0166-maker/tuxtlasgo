@@ -11,6 +11,8 @@ import ExploreScreen from './ExploreScreen';
 import { getCatalogoActivo } from '../lib/chatbot';
 import MapScreen from './MapScreen';
 import ChatAssistant from './ChatAssistant';
+import DescargaIABanner from './DescargaIABanner';
+import { useLLM } from '../hooks/useLLM';
 import FavoritesScreen from './FavoritesScreen';
 import PlaceDetail from './PlaceDetail';
 import OfflineIndicator from './OfflineIndicator';
@@ -40,6 +42,12 @@ export default function AppShell() {
   const [rutaVisible, setRutaVisible] = useState<RutaVisible | null>(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
   const [errorRuta, setErrorRuta] = useState<string | null>(null);
+
+  // Instancia ÚNICA y compartida del hook de IA: vive aquí (no dentro
+  // de ChatAssistant) para que la descarga siga corriendo aunque el
+  // usuario cambie de pestaña, y para que DescargaIABanner pueda
+  // mostrarse en Explorar/Mapa/etc., no solo dentro del chat.
+  const llm = useLLM();
 
   const verLugar = (l: Lugar) => setLugarSeleccionado(l);
   const verEnMapa = async () => {
@@ -244,6 +252,9 @@ export default function AppShell() {
           </div>
         )}
 
+        {/* Aviso de pre-descarga de IA — visible en cualquier pestaña */}
+        <DescargaIABanner llm={llm} />
+
         {/* Contenido principal */}
         <main className="flex-1 overflow-hidden min-h-0">
           {/*para eacceder y poder entrar al perfil*/}
@@ -267,7 +278,7 @@ export default function AppShell() {
             />
           )}
           <div style={{ display: tab === 'chat' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
-            <ChatAssistant onVerLugar={verLugar} onVerRutaEnMapa={verRutaEnMapa} />
+            <ChatAssistant onVerLugar={verLugar} onVerRutaEnMapa={verRutaEnMapa} llm={llm} />
           </div>
           {tab === 'favoritos' && (
             <div className="h-full overflow-y-auto">

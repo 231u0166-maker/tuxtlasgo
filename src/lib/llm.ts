@@ -90,6 +90,18 @@ export async function inicializarLLM(
 
   try {
     engine = await webllm.CreateMLCEngine(modelo, {
+      // Por default, WebLLM guarda el modelo con la API "Cache" del
+      // navegador (caches.open()/cache.add()). Hallazgo real de campo:
+      // en un Samsung Galaxy A13 con fibra óptica de sobra (118 Mbps,
+      // velocidad no era el problema), esa API falla con
+      // "NetworkError: Cache.add() encountered a network error" — un
+      // problema conocido de esa API en ciertos navegadores/versiones
+      // de Android, no de tu conexión. Se cambia a IndexedDB, la misma
+      // tecnología que ya usa el resto de la app (Dexie) y que sabemos
+      // que funciona bien en cualquier dispositivo que ya corre
+      // TuxtlasGO — mismo modelo, mismo tamaño de descarga, solo
+      // cambia DÓNDE se guarda una vez descargado.
+      appConfig: { ...webllm.prebuiltAppConfig, cacheBackend: 'indexeddb' },
       initProgressCallback: (rep: webllm.InitProgressReport) => {
         onProgress?.({ progreso: rep.progress ?? 0, texto: rep.text ?? '' });
       },

@@ -31,6 +31,18 @@ export default function DescargaIABanner({ llm }: Props) {
   );
   const [mostrarExito, setMostrarExito] = useState(false);
   const [enDatosMoviles, setEnDatosMoviles] = useState(false);
+  // Cierre de SOLO esta sesión para error/incompatibilidad — a
+  // propósito NO usa localStorage: cerrar un error puntual no debe
+  // silenciar futuros errores reales para siempre (ver nota grande
+  // más abajo sobre por qué "descartado" ya no gobierna estos casos).
+  const [avisoErrorCerrado, setAvisoErrorCerrado] = useState(false);
+
+  // Si se reintenta, un nuevo intento merece la oportunidad de
+  // mostrar su propio resultado — no seguir oculto por haber cerrado
+  // el aviso del intento anterior.
+  useEffect(() => {
+    if (llm.estado === 'cargando') setAvisoErrorCerrado(false);
+  }, [llm.estado]);
 
   // Network Information API — no todos los navegadores la tienen
   // (Safari/iOS no la soporta), así que es solo un plus si existe,
@@ -59,11 +71,17 @@ export default function DescargaIABanner({ llm }: Props) {
     setDescartado(true);
   }
 
-  // No mostrar si: ya se descartó, el dispositivo no soporta IA
-  // avanzada (no tiene sentido ofrecer algo que no puede correr), aún
-  // se está verificando el soporte, o no hay internet para descargar.
-  if (descartado && !mostrarExito) return null;
-  if (llm.estado === 'sin_soporte' || llm.estado === 'verificando') return null;
+  // "descartado" (persistente en localStorage) SOLO debe silenciar la
+  // invitación inicial ("¿quieres descargar?") — nunca un error real
+  // ni el aviso de incompatibilidad, porque esos son HECHOS actuales
+  // del dispositivo, no una sugerencia que se pueda posponer para
+  // siempre. Antes esto bloqueaba TODO, y fue justo el bug real
+  // reportado en campo: en modo normal (con la bandera ya guardada de
+  // una prueba anterior) no se veía nada, mientras que en incógnito
+  // (sin bandera) sí aparecía el error de verdad — mismo estado real,
+  // dos comportamientos distintos por un descarte mal alcanzado.
+  if (llm.estado === 'inactivo' && descartado && !mostrarExito) return null;
+  if (llm.estado === 'verificando') return null; // aún no sabemos, medio segundo nada más
   if (llm.estado === 'inactivo' && typeof navigator !== 'undefined' && !navigator.onLine) {
     return null;
   }
@@ -140,6 +158,7 @@ export default function DescargaIABanner({ llm }: Props) {
   // se mostró nada"). Ahora se avisa con el motivo real y se ofrece
   // reintentar, en vez de dejar al usuario sin saber qué pasó.
   if (llm.estado === 'error') {
+    if (avisoErrorCerrado) return null;
     return (
       <div className="mx-3 mt-2 flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-3 py-2">
         <div className="flex-1 text-xs text-red-800">
@@ -154,8 +173,35 @@ export default function DescargaIABanner({ llm }: Props) {
             Reintentar
           </button>
         </div>
-        <button onClick={descartar} aria-label="Cerrar aviso" className="text-red-400 flex-shrink-0">
+        <button
+          onClick={() => setAvisoErrorCerrado(true)}
+          aria-label="Cerrar aviso"
+          className="text-red-400 flex-shrink-0"
+        >
           <X size={14} />
+        </button>
+      </div>
+    );
+  }
+
+  // 'sin_soporte': antes esto también desaparecía en silencio total —
+  // que se sintió exactamente como "la app no hace nada" en pruebas
+  // reales (un Galaxy A13, gama media, probablemente cae aquí). No
+  // tiene caso ofrecer un botón de descarga que no puede correr, pero
+  // SIEMPRE debe haber algo visible confirmando que la app sí está
+  // consciente del estado — silencio total nunca es la respuesta
+  // correcta, se confunde con "está roto".
+  if (llm.estado === 'sin_soporte') {
+    if (avisoErrorCerrado) return null;
+    return (
+      <div className="mx-3 mt-2 flex items-center justify-between gap-2 rounded-xl bg-jungle-50/60 border border-jungle-100 px-3 py-1.5 text-[11px] text-jungle-600">
+        <span>Este dispositivo no tiene IA local avanzada — funciona con conexión o en modo clásico offline.</span>
+        <button
+          onClick={() => setAvisoErrorCerrado(true)}
+          aria-label="Cerrar aviso"
+          className="text-jungle-400 flex-shrink-0"
+        >
+          <X size={12} />
         </button>
       </div>
     );

@@ -39,6 +39,72 @@ export type EstadoLLM =
 // para el siguiente mensaje (no se cancela ni se tira a la basura).
 const TIMEOUT_CARGA_MS = 25_000;
 
+// ─────────────── NOTIFICACIÓN NATIVA DEL TELÉFONO ───────────────
+// Para la descarga "sin prisa" (la que dispara el botón del banner):
+// puede tardar varios minutos, y si el usuario cambia de pestaña o
+// apaga la pantalla, un aviso solo dentro de la página no sirve de
+// nada. Usa la Web Notifications API para que el progreso se vea
+// como notificación real del sistema — se actualiza in-place usando
+// el mismo `tag` (no se acumulan notificaciones nuevas cada vez).
+//
+// Nota honesta: en iOS/Safari esto requiere que la PWA esté instalada
+// a la pantalla de inicio (iOS 16.4+) — en el navegador normal de
+// iPhone no funciona, es una limitación de Apple, no de este código.
+// En Android funciona directo desde el navegador.
+const TAG_NOTIFICACION = 'tuxtlasgo-ia-descarga';
+let ultimoPorcentajeNotificado = -1;
+
+async function pedirPermisoNotificaciones(): Promise<boolean> {
+  if (typeof Notification === 'undefined') return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  try {
+    const resultado = await Notification.requestPermission();
+    return resultado === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+function notificarProgreso(porcentaje: number) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  // Throttle: solo notifica si avanzó al menos 5 puntos — si no, una
+  // descarga con muchos shards pequeños generaría demasiadas
+  // actualizaciones de notificación en poco tiempo.
+  if (porcentaje < ultimoPorcentajeNotificado + 5 && porcentaje < 100) return;
+  ultimoPorcentajeNotificado = porcentaje;
+  try {
+    new Notification('Preparando guIA…', {
+      body: `Descargando IA para uso sin internet — ${porcentaje}%`,
+      tag: TAG_NOTIFICACION,
+      icon: '/icons/icon-192.png',
+      silent: true, // que no truene sonido en cada actualización
+    });
+  } catch {
+    // algunos navegadores restringen crear Notification si la pestaña
+    // no tiene foco en ese instante exacto — no es crítico, se pierde
+    // solo esa actualización puntual, no rompe la descarga en sí.
+  }
+}
+
+function notificarFinal(exito: boolean) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  try {
+    new Notification(
+      exito ? '✅ guIA lista' : '❌ No se pudo descargar guIA',
+      {
+        body: exito
+          ? 'La IA avanzada ya funciona sin necesidad de internet.'
+          : 'Vuelve a intentarlo desde la app cuando quieras.',
+        tag: TAG_NOTIFICACION,
+        icon: '/icons/icon-192.png',
+      }
+    );
+  } catch {
+    /* no crítico */
+  }
+}
+
 export function useLLM() {
   const [estado, setEstado] = useState<EstadoLLM>('verificando');
   // 0..1 — se conserva por si algún día se quiere mostrar, pero la UI
@@ -106,11 +172,13 @@ export function useLLM() {
         // en 0) o si es un problema de la UI que no repinta.
         console.log(`[TuxtlasGO IA] progreso: ${Math.round(progreso * 100)}% — ${texto}`);
         setProgreso(progreso);
+        notificarProgreso(Math.round(progreso * 100));
       }, modelo);
 
       const marcarListo = () => {
         clearInterval(ticker);
         setEstado('listo');
+        notificarFinal(true);
         // Memoria semántica (embeddings): modelo ligero (~30MB) que corre
         // en WASM sin requerir WebGPU. Se carga e indexa en segundo plano
         // — si tarda o falla, el chat sigue funcionando solo con LLM +
@@ -126,10 +194,16 @@ export function useLLM() {
         console.error('[TuxtlasGO IA] No se pudo activar el LLM:', e);
         setUltimoError(String(e).slice(0, 200));
         setEstado(String(e).includes('SIN_WEBGPU') ? 'sin_soporte' : 'error');
+        notificarFinal(false);
       };
 
       // ── Descarga sin prisa (banner) — se espera el resultado real ──
       if (opciones?.sinPrisa) {
+        // Se pide permiso de notificación AQUÍ, atado al gesto
+        // explícito de tocar "Descargar ahora" — nunca al abrir la
+        // app, que sería intrusivo y sin contexto.
+        await pedirPermisoNotificaciones();
+        ultimoPorcentajeNotificado = -1;
         try {
           await cargaModelo;
           marcarListo();

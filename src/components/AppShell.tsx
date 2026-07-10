@@ -194,8 +194,19 @@ export default function AppShell() {
       {/* ══════════════ ÁREA PRINCIPAL ══════════════ */}
       <div className="flex flex-col flex-1 min-w-0 min-h-0">
 
-        {/* Header flotante móvil (solo mobile, en desktop no aparece) */}
-        <div className="absolute top-3 left-3 z-30 flex items-center gap-2 lg:hidden">
+        {/* Header flotante móvil — spacer con altura real y
+            position:relative. ESTA es la causa raíz del bug de
+            superposición ("Entrar" tapando el error, el "0%" raro del
+            principio): antes el header (position:absolute) no tenía
+            NINGÚN ancestro con position:relative, así que se anclaba
+            a toda la pantalla en vez de a esta columna de contenido —
+            no reservaba espacio real, sin importar qué margen se le
+            pusiera a lo que viene después. Ahora el spacer sí reserva
+            el espacio (h-14 en móvil, nada en desktop), y el header
+            flota DENTRO de él — visualmente igual, pero con un límite
+            real que empuja correctamente al resto del contenido. */}
+        <div className="relative h-14 lg:hidden flex-shrink-0">
+          <div className="absolute top-3 left-3 right-3 z-30 flex items-center gap-2">
           <Link
             to="/"
             className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-900 hover:bg-white"
@@ -229,6 +240,7 @@ export default function AppShell() {
               <User size={13} /> Entrar
             </button>
           )}
+          </div>
         </div>
 
         {/* Toast error ruta */}
@@ -252,7 +264,9 @@ export default function AppShell() {
           </div>
         )}
 
-        {/* Aviso de pre-descarga de IA — visible en cualquier pestaña */}
+        {/* Aviso de pre-descarga de IA — visible en cualquier pestaña.
+            Ya no necesita margen manual: el spacer del header de arriba
+            reserva el espacio real correctamente (ver nota ahí). */}
         <DescargaIABanner llm={llm} />
 
         {/* Contenido principal */}

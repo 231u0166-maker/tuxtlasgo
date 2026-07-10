@@ -5,14 +5,42 @@
 // de Los Tuxtlas. La IA responde con estos datos cuando el turista
 // pregunta sobre precios, horarios, cómo llegar, qué comer, etc.
 // 100% offline — no consulta ninguna API en tiempo real.
+//
+// ESCALABILIDAD — dos capas, a propósito:
+//  1) BASE_CONOCIMIENTO (este archivo): el set inicial, incluido en
+//     el propio bundle de la app. Funciona desde el primer momento
+//     que alguien abre TuxtlasGO, incluso si NUNCA ha tenido señal
+//     (Caso B de la conversación sobre offline real).
+//  2) Base dinámica (`conocimientoDinamico`, más abajo): fichas nuevas
+//     agregadas desde el panel de admin sin tocar código ni
+//     redesplegar — ver api/conocimiento/admin.ts y AdminPanel.tsx.
+//     Sigue siendo CURADA por una persona a propósito (son datos
+//     sensibles: precios, emergencias, que alguien debe verificar
+//     antes de que la IA los repita como verdad) — lo que cambia es
+//     que ahora es un formulario, no una tarea de programador. Se
+//     descarga una vez con internet y se cachea para uso offline
+//     después, igual que el catálogo de lugares y los embeddings.
 // ============================================================
 
 import { tokenizar, contarCoincidencias } from './pln';
+import { db } from './db';
 
 export interface EntradaConocimiento {
   claves: string[];
   titulo: string;
   respuesta: string;
+  // Prioridad opcional (default 0). Se usa para que información de
+  // SEGURIDAD (hospitales, emergencias, policía) nunca pierda un
+  // empate contra un dato general — ver el bug real que esto
+  // corrigió: "cerca de Palapas Gorel hay hospitales" contiene tanto
+  // "gorel" (matchea precios de Palapas Gorel) como "hospitales"
+  // (matchea la ficha de emergencias), EMPATADOS en 1 coincidencia
+  // cada uno. Sin prioridad, ganaba la entrada definida primero en
+  // este archivo (precios), y la IA respondía "no tengo información
+  // de hospitales" en vez de dar el 911 — silenciosamente perdía el
+  // dato de seguridad. Con prioridad, la ficha de seguridad gana
+  // siempre que matchee algo, sin importar el orden en el archivo.
+  prioridad?: number;
 }
 
 export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
@@ -206,6 +234,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
       'primeros auxilios', 'me pico', 'me picó', 'mordida', 'veneno',
     ],
     titulo: 'Emergencias médicas en Los Tuxtlas',
+    prioridad: 10,
     respuesta:
       'Si es una emergencia médica, marca 911 — es el número nacional de emergencias de México, funciona desde cualquier compañía telefónica incluso sin saldo ni plan. Da tu ubicación lo más precisa posible: municipio (Catemaco, San Andrés Tuxtla o Santiago Tuxtla) y el punto de referencia más cercano (un lugar turístico, un cruce, un negocio). El directorio verificado de hospitales y clínicas por municipio está en proceso de confirmación con el equipo de TuxtlasGO — en cuanto esté listo, esta respuesta se actualizará con nombres y ubicaciones exactas.',
   },
@@ -215,21 +244,91 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
       'denunciar', 'me robaron', 'perdi mis cosas', 'perdí mis cosas',
     ],
     titulo: 'Seguridad y comisarías',
+    prioridad: 10,
     respuesta:
       'Para reportar un robo o cualquier incidente de seguridad, marca 911. El directorio de comisarías por municipio está en proceso de verificación con el equipo de TuxtlasGO para publicarlo con datos confirmados.',
   },
 ];
 
+// ─────────────── CAPA DINÁMICA (administrable, ver arriba) ───────────────
+// Vive en memoria durante la sesión; se llena desde Dexie (offline) y/o
+// desde la API (online) al iniciar la app — ver cargarConocimientoDinamico().
+let conocimientoDinamico: EntradaConocimiento[] = [];
+
+function filaACacheAEntrada(fila: {
+  claves: string;
+  titulo: string;
+  respuesta: string;
+  prioridad: number;
+}): EntradaConocimiento {
+  return {
+    claves: fila.claves.split(',').map((c) => c.trim()).filter(Boolean),
+    titulo: fila.titulo,
+    respuesta: fila.respuesta,
+    prioridad: fila.prioridad,
+  };
+}
+
+// Llamar una vez al iniciar la app (ver App.tsx). Intenta traer lo
+// último de la API; si no hay internet, usa lo que ya quedó cacheado
+// de una sesión anterior — así estas fichas también funcionan offline
+// una vez que se descargaron al menos una vez (mismo patrón que el
+// catálogo de lugares y los embeddings).
+export async function cargarConocimientoDinamico(): Promise<void> {
+  try {
+    const r = await fetch('/api/conocimiento/admin');
+    if (r.ok) {
+      const data = await r.json();
+      const filas: { id: number; claves: string; titulo: string; respuesta: string; prioridad: number }[] =
+        data.entradas ?? [];
+      await db.conocimientoCache.clear();
+      if (filas.length > 0) await db.conocimientoCache.bulkPut(filas);
+      conocimientoDinamico = filas.map(filaACacheAEntrada);
+      return;
+    }
+  } catch {
+    // sin internet o falló el fetch — cae al caché de abajo
+  }
+  const cacheadas = await db.conocimientoCache.toArray();
+  conocimientoDinamico = cacheadas.map(filaACacheAEntrada);
+}
+
+// Usado por AdminPanel para agregar una ficha nueva sin tocar código.
+export async function agregarConocimientoDinamico(
+  entrada: { claves: string; titulo: string; respuesta: string; prioridad?: number },
+  adminPassword: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const r = await fetch('/api/conocimiento/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPassword },
+      body: JSON.stringify(entrada),
+    });
+    const data = await r.json();
+    if (!r.ok) return { ok: false, error: data.error ?? 'Error desconocido' };
+    await cargarConocimientoDinamico(); // refresca la copia local de inmediato
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 // Busca la entrada más relevante de la base de conocimiento
-// usando el módulo PLN para tolerar errores ortográficos.
+// (estática + dinámica) usando el módulo PLN para tolerar errores
+// ortográficos.
 export function buscarConocimiento(texto: string): EntradaConocimiento | null {
   const tokens = tokenizar(texto);
   let mejorEntrada: EntradaConocimiento | null = null;
-  let mejorPuntaje = 0;
+  let mejorPuntaje = 0; // puntaje "real" de coincidencias (sin boost) — para exigir que sí haya un match genuino
+  let mejorPuntajeEfectivo = 0; // puntaje + prioridad — el que decide el ganador
 
-  for (const entrada of BASE_CONOCIMIENTO) {
+  for (const entrada of [...BASE_CONOCIMIENTO, ...conocimientoDinamico]) {
     const puntaje = contarCoincidencias(tokens, entrada.claves);
-    if (puntaje > mejorPuntaje) {
+    if (puntaje === 0) continue; // sin match real, la prioridad no rescata nada
+
+    const puntajeEfectivo = puntaje + (entrada.prioridad ?? 0);
+    if (puntajeEfectivo > mejorPuntajeEfectivo) {
+      mejorPuntajeEfectivo = puntajeEfectivo;
       mejorPuntaje = puntaje;
       mejorEntrada = entrada;
     }

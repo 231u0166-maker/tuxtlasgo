@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, ShieldCheck, CheckCircle2, XCircle,
-  Clock, Store, MapPin, Phone, DollarSign, Loader2
+  Clock, Store, MapPin, Phone, DollarSign, Loader2, BookPlus
 } from 'lucide-react';
+import { agregarConocimientoDinamico } from '../lib/conocimiento';
 
 const ADMIN_PWD = 'tuxtlasgo2026';
 
@@ -33,6 +34,10 @@ export default function AdminPanel() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [cargando, setCargando] = useState(false);
   const [accionando, setAccionando] = useState<number | null>(null);
+  const [mostrarFormConocimiento, setMostrarFormConocimiento] = useState(false);
+  const [nuevaFicha, setNuevaFicha] = useState({ claves: '', titulo: '', respuesta: '', esSeguridad: false });
+  const [guardandoFicha, setGuardandoFicha] = useState(false);
+  const [mensajeFicha, setMensajeFicha] = useState<string | null>(null);
 
   async function cargarServicios(estado: Filtro) {
     setCargando(true);
@@ -94,6 +99,31 @@ export default function AdminPanel() {
       await cargarServicios(filtro);
     } catch (err) { console.error(err); }
     setAccionando(null);
+  }
+
+  async function guardarFicha() {
+    if (!nuevaFicha.claves.trim() || !nuevaFicha.titulo.trim() || !nuevaFicha.respuesta.trim()) {
+      setMensajeFicha('Faltan campos por llenar.');
+      return;
+    }
+    setGuardandoFicha(true);
+    setMensajeFicha(null);
+    const r = await agregarConocimientoDinamico(
+      {
+        claves: nuevaFicha.claves,
+        titulo: nuevaFicha.titulo,
+        respuesta: nuevaFicha.respuesta,
+        prioridad: nuevaFicha.esSeguridad ? 10 : 0,
+      },
+      ADMIN_PWD
+    );
+    setGuardandoFicha(false);
+    if (r.ok) {
+      setMensajeFicha('✅ Ficha guardada — ya está disponible en el chat.');
+      setNuevaFicha({ claves: '', titulo: '', respuesta: '', esSeguridad: false });
+    } else {
+      setMensajeFicha('❌ ' + (r.error ?? 'No se pudo guardar.'));
+    }
   }
 
   function cambiarFiltro(f: Filtro) {
@@ -200,6 +230,80 @@ export default function AdminPanel() {
               {f === 'todos' ? 'Todos' : f.charAt(0).toUpperCase() + f.slice(1) + 's'}
             </button>
           ))}
+        </div>
+
+        {/* Base de conocimiento dinámica — agregar fichas sin tocar código */}
+        <div className="bg-white rounded-2xl border border-jungle-100 p-5 mb-5">
+          <button
+            onClick={() => setMostrarFormConocimiento((v) => !v)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-2">
+              <BookPlus size={18} className="text-jungle-600" />
+              <span className="font-display font-bold text-jungle-950">Base de conocimiento</span>
+            </div>
+            <span className="text-xs text-jungle-500">
+              {mostrarFormConocimiento ? 'Ocultar ▲' : 'Agregar ficha ▼'}
+            </span>
+          </button>
+
+          {mostrarFormConocimiento && (
+            <div className="mt-4 space-y-3">
+              <p className="text-xs text-jungle-500">
+                Esta información la usa la IA para responder con datos verificados (precios, horarios,
+                seguridad). Verifica los datos antes de guardar — la IA los va a repetir tal cual.
+              </p>
+              <div>
+                <label className="text-xs font-semibold text-jungle-700 block mb-1">
+                  Palabras clave (separadas por coma)
+                </label>
+                <input
+                  value={nuevaFicha.claves}
+                  onChange={(e) => setNuevaFicha({ ...nuevaFicha, claves: e.target.value })}
+                  placeholder="ej: nombre del lugar, apodo común, palabras que usaría el turista"
+                  className="w-full border border-jungle-200 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-jungle-700 block mb-1">Título interno</label>
+                <input
+                  value={nuevaFicha.titulo}
+                  onChange={(e) => setNuevaFicha({ ...nuevaFicha, titulo: e.target.value })}
+                  placeholder="ej: Precios Restaurante X"
+                  className="w-full border border-jungle-200 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-jungle-700 block mb-1">
+                  Respuesta (lo que dirá la IA, tal cual)
+                </label>
+                <textarea
+                  value={nuevaFicha.respuesta}
+                  onChange={(e) => setNuevaFicha({ ...nuevaFicha, respuesta: e.target.value })}
+                  rows={3}
+                  placeholder="ej: El Restaurante X tiene precios de $100 a $200 por persona. Abre de 9am a 8pm..."
+                  className="w-full border border-jungle-200 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-jungle-700">
+                <input
+                  type="checkbox"
+                  checked={nuevaFicha.esSeguridad}
+                  onChange={(e) => setNuevaFicha({ ...nuevaFicha, esSeguridad: e.target.checked })}
+                />
+                Es información de seguridad (emergencias, salud) — se le da prioridad sobre otros datos
+              </label>
+              {mensajeFicha && <p className="text-xs font-medium">{mensajeFicha}</p>}
+              <button
+                onClick={guardarFicha}
+                disabled={guardandoFicha}
+                className="bg-jungle-700 hover:bg-jungle-800 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-60 text-sm"
+              >
+                {guardandoFicha ? <Loader2 size={16} className="animate-spin" /> : <BookPlus size={16} />}
+                Guardar ficha
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Lista de servicios */}

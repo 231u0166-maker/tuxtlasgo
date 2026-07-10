@@ -75,6 +75,10 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
   // Para avisar UNA sola vez por sesión que se está usando el modo
   // clásico (sin LLM) — nunca a media conversación en cada mensaje.
   const avisoModoClasicoMostrado = useRef(false);
+  // Para confirmar UNA sola vez que la IA avanzada SÍ sigue funcionando
+  // aunque no haya internet — sin esto, el usuario solo ve el banner
+  // nativo de "Sin conexión" del navegador y duda si la app funciona.
+  const avisoOfflineConIAMostrado = useRef(false);
 
   // El LLM offline (detección + carga + streaming) ahora vive en
   // AppShell y llega por props — ver interfaz Props arriba.
@@ -316,6 +320,30 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
           },
           prefsParcial
         );
+
+        // Confirmación única: "sí funciona sin internet" — se muestra
+        // la primera vez que se detecta esta combinación (IA local
+        // lista + sin conexión), para que no quede la duda que se vio
+        // en pruebas de campo real.
+        if (
+          !avisoOfflineConIAMostrado.current &&
+          typeof navigator !== 'undefined' &&
+          !navigator.onLine
+        ) {
+          avisoOfflineConIAMostrado.current = true;
+          setTimeout(() => {
+            setMensajes((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: 'bot',
+                texto:
+                  '🌐 Sin conexión a internet, pero la IA avanzada (guIA) sigue funcionando en tu dispositivo sin problema — no necesita señal.',
+                timestamp: Date.now(),
+              },
+            ]);
+          }, 700);
+        }
       } else if (llm.nubeDisponible()) {
         // Sin WebGPU usable, pero SÍ hay internet: exactamente el caso
         // de una PC con GPU bloqueada mostrado en pruebas de campo.
@@ -324,12 +352,25 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
         // No streaming aquí (v1): más simple y confiable; los puntitos
         // cubren la espera.
         try {
-          const textoNube = await llm.responderNube(texto, mensajes, prefsParcial);
+          const { texto: textoNube, valida } = await llm.responderNube(
+            texto,
+            mensajes,
+            prefsParcial
+          );
           setEscribiendo(false);
-          setMensajes((prev) => [
-            ...prev,
-            { id: crypto.randomUUID(), role: 'bot', texto: textoNube, timestamp: Date.now() },
-          ]);
+          if (valida) {
+            setMensajes((prev) => [
+              ...prev,
+              { id: crypto.randomUUID(), role: 'bot', texto: textoNube, timestamp: Date.now() },
+            ]);
+          } else {
+            // La nube también puede alucinar (menos seguido que el
+            // modelo local, pero pasa) — si la validación la descarta,
+            // no dejamos una burbuja vacía: caemos al motor de reglas
+            // para ESTE mensaje, que nunca inventa datos.
+            console.warn('[TuxtlasGO IA] Respuesta de nube descartada por posible alucinación');
+            responderBot(responderTextoLibre(texto, null), 200);
+          }
           if (!avisoModoClasicoMostrado.current) {
             avisoModoClasicoMostrado.current = true;
             setTimeout(() => {
@@ -474,9 +515,9 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
             {llm.estado === 'cargando' && (
               <>
                 <div className="flex items-center justify-between gap-3 text-xs text-jungle-600">
-                  <span className="font-medium">Preparando</span>
+                  <span className="font-medium">Preparando guIA…</span>
                   <span className="font-semibold text-jungle-700">
-                    {Math.round(llm.progreso * 100)}%
+                    {Math.round(llm.progreso * 100)}% · {llm.segundosTranscurridos}s
                   </span>
                 </div>
                 <div className="w-full h-1.5 bg-jungle-100 rounded-full overflow-hidden">

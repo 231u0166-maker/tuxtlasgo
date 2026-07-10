@@ -6,6 +6,7 @@ import ProviderPanel from './components/ProviderPanel';
 import AdminPanel from './components/AdminPanel';
 import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
 import { setCatalogoExtendido } from './lib/chatbot';
+import { cargarConocimientoDinamico } from './lib/conocimiento';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
 import { embeddingsListo, indexarCatalogo } from './lib/embeddings';
 
@@ -64,6 +65,7 @@ export default function App() {
       try {
         await seedDemoSiVacio();
         await recargarCatalogo();
+        await cargarConocimientoDinamico();
       } catch (err) {
         console.error('[TuxtlasGO] Error inicializando:', err);
       } finally {

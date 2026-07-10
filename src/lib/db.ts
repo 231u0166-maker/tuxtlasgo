@@ -76,12 +76,25 @@ export interface VectorLugar {
   actualizadoEn: number;
 }
 
+// Ficha de conocimiento dinámica cacheada offline (agregada desde el
+// panel de admin, ver api/conocimiento/admin.ts). Misma forma que
+// EntradaConocimiento en conocimiento.ts, pero con id numérico real
+// de la base de datos para poder actualizarla/limpiarla.
+export interface ConocimientoCacheado {
+  id: number;
+  claves: string; // separadas por coma, tal como se guardan en Neon
+  titulo: string;
+  respuesta: string;
+  prioridad: number;
+}
+
 class TuxtlasDB extends Dexie {
   favoritos!: Table<Favorito, string>;
   rutas!: Table<RutaGuardada, number>;
   prestadores!: Table<ServicioPrestador, number>;
   rutasCache!: Table<RutaCacheada, string>;
   vectores!: Table<VectorLugar, string>;
+  conocimientoCache!: Table<ConocimientoCacheado, number>;
 
   constructor() {
     super('tuxtlasgo-db');
@@ -112,6 +125,17 @@ class TuxtlasDB extends Dexie {
       prestadores: '++id, municipio, creadoEn, estado, codigoSeguimiento, premium',
       rutasCache: 'clave, calculadaEn',
       vectores: 'id, actualizadoEn',
+    });
+    // v5: caché offline de la base de conocimiento dinámica agregada
+    // desde el panel de admin (ver api/conocimiento/admin.ts). Se
+    // descarga una vez con internet y queda disponible sin conexión.
+    this.version(5).stores({
+      favoritos: 'id, agregadoEn',
+      rutas: '++id, creadaEn',
+      prestadores: '++id, municipio, creadoEn, estado, codigoSeguimiento, premium',
+      rutasCache: 'clave, calculadaEn',
+      vectores: 'id, actualizadoEn',
+      conocimientoCache: 'id',
     });
   }
 }

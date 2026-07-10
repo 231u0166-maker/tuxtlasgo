@@ -15,6 +15,8 @@ import {
   responderConLLMStream,
   responderConNube,
   nubeDisponible,
+  recuperarContexto,
+  pareceInventada,
   limpiarMarkdown,
   MODELO_DEFECTO,
 } from '../lib/llm';
@@ -42,6 +44,14 @@ export function useLLM() {
   // 0..1 — se conserva por si algún día se quiere mostrar, pero la UI
   // actual ya no depende de esto (ver nota en ChatAssistant.tsx).
   const [progreso, setProgreso] = useState(0);
+  // Segundos transcurridos desde que se pidió la descarga. WebLLM solo
+  // reporta progreso por ARCHIVO COMPLETO descargado (no byte a byte),
+  // así que en señal lenta el % puede quedarse legítimamente en 0 por
+  // un buen rato mientras baja el primer bloque grande. Este contador
+  // SIEMPRE avanza (lo controlamos nosotros con un timer, no WebLLM),
+  // así el usuario nunca ve algo que parezca congelado — ver hallazgo
+  // real de campo: "el 0% nunca se mueve".
+  const [segundosTranscurridos, setSegundosTranscurridos] = useState(0);
 
   // Verifica soporte real (requestAdapter, no solo 'gpu' in navigator)
   // apenas se monta el hook, para que el estado inicial ya sea correcto
@@ -65,8 +75,20 @@ export function useLLM() {
       }
       setEstado('cargando');
       setProgreso(0);
+      setSegundosTranscurridos(0);
+      const inicioMs = Date.now();
+      const ticker = setInterval(
+        () => setSegundosTranscurridos(Math.round((Date.now() - inicioMs) / 1000)),
+        1000
+      );
 
-      const cargaModelo = inicializarLLM(({ progreso }) => setProgreso(progreso), modelo);
+      const cargaModelo = inicializarLLM(({ progreso, texto }) => {
+        // Log crudo — si algún día vuelve a "parecer" congelado, esto
+        // dice si de verdad no ha llegado ni un shard (progreso real
+        // en 0) o si es un problema de la UI que no repinta.
+        console.log(`[TuxtlasGO IA] progreso: ${Math.round(progreso * 100)}% — ${texto}`);
+        setProgreso(progreso);
+      }, modelo);
 
       const marcarListo = () => {
         setEstado('listo');
@@ -95,9 +117,11 @@ export function useLLM() {
             setTimeout(() => reject(new Error('TIMEOUT_CARGA_LLM')), TIMEOUT_CARGA_MS)
           ),
         ]);
+        clearInterval(ticker);
         marcarListo();
         return true;
       } catch (e) {
+        clearInterval(ticker);
         // Log explícito — antes este error se perdía en silencio y
         // parecía que "no pasaba nada" en vez de fallar de verdad.
         console.error('[TuxtlasGO IA] No se pudo activar el LLM a tiempo:', e);
@@ -110,6 +134,9 @@ export function useLLM() {
 
   // Responde en streaming: llama onToken con el texto ACUMULADO (ya
   // limpio de markdown) en cada fragmento, para pintarlo en vivo.
+  // Al terminar, valida contra los lugares reales del contexto — si
+  // parece inventada (ver pareceInventada en llm.ts), CORRIGE la
+  // burbuja ya mostrada en vez de dejar el dato falso en pantalla.
   const responder = useCallback(
     async (
       texto: string,
@@ -117,12 +144,29 @@ export function useLLM() {
       onToken: (acumulado: string) => void,
       prefs?: Partial<PreferenciasUsuario>
     ): Promise<string> => {
+      // Se calcula en paralelo al streaming, no después — así no se sesga
+      // el tiempo total de respuesta por la validación.
+      const ctxPromise = recuperarContexto(texto, prefs);
+
       let acc = '';
       for await (const frag of responderConLLMStream(texto, historial, prefs)) {
         acc += frag;
         onToken(limpiarMarkdown(acc));
       }
-      return limpiarMarkdown(acc);
+      const limpio = limpiarMarkdown(acc);
+
+      const ctx = await ctxPromise;
+      if (pareceInventada(limpio, ctx.lugares)) {
+        console.warn(
+          '[TuxtlasGO IA] Posible alucinación (local) detectada y corregida:',
+          limpio
+        );
+        const correccion =
+          'No encontré un dato verificado exacto para eso en la plataforma. ¿Me lo preguntas de otra forma, o prefieres que te arme una ruta con lo que sí tengo confirmado?';
+        onToken(correccion); // sobreescribe la burbuja ya mostrada
+        return correccion;
+      }
+      return limpio;
     },
     []
   );
@@ -130,6 +174,7 @@ export function useLLM() {
   // Respaldo en la nube: mismo contexto recuperado, redactado por un
   // modelo en la nube en vez del local. Solo tiene sentido intentarlo
   // cuando el LLM local no está disponible (ver ChatAssistant.tsx).
+  // También pasa por la validación anti-alucinación (ver llm.ts).
   const responderNube = useCallback(
     (texto: string, historial: MensajeChat[], prefs?: Partial<PreferenciasUsuario>) =>
       responderConNube(texto, historial, prefs),
@@ -139,6 +184,7 @@ export function useLLM() {
   return {
     estado,
     progreso,
+    segundosTranscurridos,
     activar,
     responder,
     responderNube,

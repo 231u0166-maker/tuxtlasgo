@@ -82,7 +82,9 @@ export default function DescargaIABanner({ llm }: Props) {
       <div className="mx-3 mt-2 rounded-xl bg-jungle-50 border border-jungle-200 px-3 py-2">
         <div className="flex items-center justify-between text-xs text-jungle-800 mb-1">
           <span>Preparando guIA para uso sin internet…</span>
-          <span className="font-semibold">{Math.round(llm.progreso * 100)}%</span>
+          <span className="font-semibold">
+            {Math.round(llm.progreso * 100)}% · {llm.segundosTranscurridos}s
+          </span>
         </div>
         <div className="w-full h-1 bg-jungle-200 rounded-full overflow-hidden">
           <div
@@ -90,6 +92,11 @@ export default function DescargaIABanner({ llm }: Props) {
             style={{ width: `${Math.round(llm.progreso * 100)}%` }}
           />
         </div>
+        {llm.progreso === 0 && llm.segundosTranscurridos > 5 && (
+          <p className="text-[10px] text-jungle-500 mt-1">
+            El % puede tardar en moverse en archivos grandes — sigue descargando, no está congelado.
+          </p>
+        )}
       </div>
     );
   }

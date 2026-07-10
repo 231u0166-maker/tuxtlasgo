@@ -27,13 +27,18 @@ import { buscarConocimiento } from './conocimiento';
 import { buscarSemantico, embeddingsListo } from './embeddings';
 
 // ─────────────── CONFIGURACIÓN DE MODELO ───────────────
-// Default: ligero y rápido en gama media (~0.8 GB).
-// Upgrade para mejor español si el dispositivo aguanta:
-//   'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'  (~1.0 GB)
-//   'Llama-3.2-3B-Instruct-q4f16_1-MLC'  (~1.7 GB, mejor calidad)
+// Qwen2.5-1.5B en vez de Llama-3.2-1B: mismo rango de tamaño (~1.0 GB
+// vs ~0.8 GB), pero sigue mejor la instrucción "usa SOLO estos datos,
+// nunca inventes" — que es justo lo que falló en pruebas de campo
+// reales (el 1B inventó restaurantes y precios falsos). La validación
+// anti-alucinación mecánica (ver pareceInventada más abajo) se queda
+// de todos modos como red de seguridad — un modelo más obediente
+// reduce cuántas veces se dispara esa corrección, no la reemplaza.
+// Otra opción si se necesita subir aún más de calidad:
+//   'Llama-3.2-3B-Instruct-q4f16_1-MLC'  (~1.7 GB, mejor calidad,
+//                                         descarga más pesada)
 // NO usar modelos de razonamiento (R1-Distill / modos "thinking").
-// NO usar modelos de razonamiento (R1-Distill / modos "thinking").
-export const MODELO_DEFECTO = 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
+export const MODELO_DEFECTO = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC';
 
 let engine: webllm.MLCEngineInterface | null = null;
 let modeloCargado: string | null = null;
@@ -126,7 +131,7 @@ function ordenarConBoostPremium(lugares: Lugar[]): Lugar[] {
   });
 }
 
-async function recuperarContexto(
+export async function recuperarContexto(
   texto: string,
   prefs?: Partial<PreferenciasUsuario>,
   k = 4
@@ -189,6 +194,29 @@ async function recuperarContexto(
 }
 
 // ─────────────── ARMADO DEL CONTEXTO PARA EL PROMPT ───────────────
+// ─────────────── VALIDACIÓN ANTI-ALUCINACIÓN ───────────────
+// Hallazgo real de campo: el modelo local (1B, cuantizado) inventó
+// tres restaurantes completos con precios falsos que NO existen en
+// el catálogo ("La Casa de To'ok", "El Jardín de los Abuelos", "El
+// Restaurante del Lago") pese a que el prompt de sistema dice
+// explícitamente "NUNCA inventes lugares ni precios". Los modelos
+// pequeños cuantizados no siempre obedecen esa instrucción de forma
+// confiable — así que en vez de confiar solo en el prompt, esto es
+// una red de seguridad MECÁNICA: si la respuesta menciona un patrón
+// de precio ($NN) pero NINGUNO de los lugares que sí le dimos como
+// contexto aparece mencionado por su nombre, es evidencia fuerte de
+// que inventó información — se descarta antes de mostrarla al turista.
+export function pareceInventada(texto: string, lugares: Lugar[]): boolean {
+  const tienePatronDePrecio = /\$\s?\d/.test(texto);
+  if (!tienePatronDePrecio || lugares.length === 0) return false; // nada que validar aquí
+
+  const textoNorm = texto.toLowerCase();
+  const mencionaAlgunLugarReal = lugares.some((l) =>
+    textoNorm.includes(l.nombre.toLowerCase())
+  );
+  return !mencionaAlgunLugarReal;
+}
+
 function lugarAFicha(l: Lugar): string {
   const partes = [
     `- ${l.nombre}${l.premium ? ' [Socio Premium TuxtlasGO]' : ''} (${l.categoria}, ${l.municipio})`,
@@ -354,11 +382,17 @@ export function nubeDisponible(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine;
 }
 
+export interface RespuestaValidada {
+  texto: string;
+  valida: boolean; // false = se detectó posible alucinación y se descartó
+}
+
 export async function responderConNube(
   texto: string,
   historial: MensajeChat[] = [],
   prefs?: Partial<PreferenciasUsuario>
-): Promise<string> {
+): Promise<RespuestaValidada> {
+  const ctx = await recuperarContexto(texto, prefs);
   const { system, mensajes } = await armarMensajesLLM(texto, historial, prefs);
 
   // navigator.onLine puede decir "true" aunque no haya internet real de
@@ -384,7 +418,13 @@ export async function responderConNube(
     }
     const data = await r.json();
     if (!data.texto) throw new Error('IA_NUBE_RESPUESTA_VACIA');
-    return limpiarMarkdown(data.texto);
+    const limpio = limpiarMarkdown(data.texto);
+
+    if (pareceInventada(limpio, ctx.lugares)) {
+      console.warn('[TuxtlasGO IA] Posible alucinación (nube) detectada y descartada:', limpio);
+      return { texto: '', valida: false };
+    }
+    return { texto: limpio, valida: true };
   } finally {
     clearTimeout(avisoTiempo);
   }

@@ -474,7 +474,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
             {llm.estado === 'cargando' && (
               <>
                 <div className="flex items-center justify-between gap-3 text-xs text-jungle-600">
-                  <span className="font-medium">Preparando guIA…</span>
+                  <span className="font-medium">Preparando</span>
                   <span className="font-semibold text-jungle-700">
                     {Math.round(llm.progreso * 100)}%
                   </span>

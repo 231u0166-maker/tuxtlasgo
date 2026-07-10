@@ -32,6 +32,7 @@ import { buscarSemantico, embeddingsListo } from './embeddings';
 //   'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'  (~1.0 GB)
 //   'Llama-3.2-3B-Instruct-q4f16_1-MLC'  (~1.7 GB, mejor calidad)
 // NO usar modelos de razonamiento (R1-Distill / modos "thinking").
+// NO usar modelos de razonamiento (R1-Distill / modos "thinking").
 export const MODELO_DEFECTO = 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
 
 let engine: webllm.MLCEngineInterface | null = null;

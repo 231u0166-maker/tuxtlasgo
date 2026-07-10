@@ -109,12 +109,12 @@ export default function DescargaIABanner({ llm }: Props) {
           <div className="font-medium mb-0.5">Descarga la IA para que funcione sin internet</div>
           <div className="text-amber-800">
             {enDatosMoviles
-              ? 'Pesa cerca de 1GB — pareces estar en datos móviles, esto puede consumir tu plan.'
-              : 'Pesa cerca de 1GB — se recomienda hacerlo con WiFi.'}
+              ? 'Pesa cerca de 1GB — pareces estar en datos móviles, esto puede consumir tu plan. Puede tardar varios minutos; deja la app abierta mientras descarga.'
+              : 'Pesa cerca de 1GB — se recomienda hacerlo con WiFi. Puede tardar varios minutos; deja la app abierta mientras descarga.'}
           </div>
           <div className="mt-1.5 flex gap-4">
             <button
-              onClick={() => llm.activar()}
+              onClick={() => llm.activar(undefined, { sinPrisa: true })}
               className="font-semibold text-jungle-700 underline underline-offset-2"
             >
               Descargar ahora
@@ -135,7 +135,31 @@ export default function DescargaIABanner({ llm }: Props) {
     );
   }
 
-  // 'error': ya se intentó y falló — no insistir con el mismo banner,
-  // ChatAssistant ya avisa dentro del chat si el usuario lo usa.
+  // 'error': antes esto desaparecía en silencio — que fue justo el bug
+  // real reportado en campo ("se puso como la siguiente captura y no
+  // se mostró nada"). Ahora se avisa con el motivo real y se ofrece
+  // reintentar, en vez de dejar al usuario sin saber qué pasó.
+  if (llm.estado === 'error') {
+    return (
+      <div className="mx-3 mt-2 flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-3 py-2">
+        <div className="flex-1 text-xs text-red-800">
+          <div className="font-medium mb-0.5">No se pudo descargar la IA local</div>
+          {llm.ultimoError && (
+            <div className="text-red-700 font-mono text-[10px] mb-1">{llm.ultimoError}</div>
+          )}
+          <button
+            onClick={() => llm.activar(undefined, { sinPrisa: true })}
+            className="font-semibold text-jungle-700 underline underline-offset-2"
+          >
+            Reintentar
+          </button>
+        </div>
+        <button onClick={descartar} aria-label="Cerrar aviso" className="text-red-400 flex-shrink-0">
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
+
   return null;
 }

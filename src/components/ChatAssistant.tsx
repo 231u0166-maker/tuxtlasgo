@@ -373,14 +373,23 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
           }
           if (!avisoModoClasicoMostrado.current) {
             avisoModoClasicoMostrado.current = true;
+            // El motivo real puede ser "de plano no hay WebGPU" O "sí
+            // hay WebGPU pero el intento falló/tardó demasiado" — antes
+            // este mensaje asumía siempre lo primero, lo cual podía ser
+            // falso y confundir el diagnóstico (ver prueba de campo:
+            // "nunca arranca la local" cuando en realidad tronó rápido,
+            // no por falta de soporte).
+            const motivo =
+              llm.estado === 'sin_soporte'
+                ? 'Este dispositivo no tiene un adaptador WebGPU usable'
+                : `No se pudo cargar la IA local a tiempo${llm.ultimoError ? ` (${llm.ultimoError})` : ' (puede ser memoria, red o algo temporal)'}`;
             setTimeout(() => {
               setMensajes((prev) => [
                 ...prev,
                 {
                   id: crypto.randomUUID(),
                   role: 'bot',
-                  texto:
-                    '💡 Este dispositivo no soporta IA local (WebGPU) — como hay conexión, estoy usando el asistente en la nube. Sin internet, uso el modo clásico offline.',
+                  texto: `💡 ${motivo} — como hay conexión, estoy usando el asistente en la nube. Sin internet, uso el modo clásico offline.`,
                   timestamp: Date.now(),
                 },
               ]);

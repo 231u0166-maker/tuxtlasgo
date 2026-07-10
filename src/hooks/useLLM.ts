@@ -52,6 +52,10 @@ export function useLLM() {
   // así el usuario nunca ve algo que parezca congelado — ver hallazgo
   // real de campo: "el 0% nunca se mueve".
   const [segundosTranscurridos, setSegundosTranscurridos] = useState(0);
+  // Mensaje crudo del último fallo al activar — se expone para poder
+  // mostrarlo directo en el chat en dispositivos donde no es práctico
+  // abrir la consola del navegador (la mayoría de los celulares).
+  const [ultimoError, setUltimoError] = useState<string | null>(null);
 
   // Verifica soporte real (requestAdapter, no solo 'gpu' in navigator)
   // apenas se monta el hook, para que el estado inicial ya sea correcto
@@ -65,10 +69,23 @@ export function useLLM() {
   }, []);
 
   // Dispara la descarga del modelo. Devuelve true si quedó listo.
-  // (Devolver el booleano evita leer estado de React desactualizado
-  //  justo después del await.)
+  //
+  // opciones.sinPrisa: úsalo cuando el usuario pidió la descarga
+  // EXPLÍCITAMENTE (el botón "Descargar ahora" del banner) — ahí no
+  // hay ninguna urgencia, así que se espera lo que haga falta (se
+  // ha visto hasta ~13 minutos en señal lenta en pruebas de campo
+  // reales) mostrando progreso real todo el tiempo, SIN abortar a
+  // los 25s. Sin esta bandera (el caso por default, disparado desde
+  // el chat a media conversación) sí se usa el tope corto — ahí el
+  // usuario está esperando una respuesta YA, no decidió esperar.
+  //
+  // Antes se usaba el mismo tope de 25s para ambos casos — eso hacía
+  // que una descarga voluntaria desde el banner se diera por vencida
+  // (para la interfaz) igual de rápido que una urgencia de chat, y
+  // el banner desaparecía sin avisar nada — exactamente el bug real
+  // reportado en campo.
   const activar = useCallback(
-    async (modelo: string = MODELO_DEFECTO): Promise<boolean> => {
+    async (modelo: string = MODELO_DEFECTO, opciones?: { sinPrisa?: boolean }): Promise<boolean> => {
       if (!(await soportaWebGPU())) {
         setEstado('sin_soporte');
         return false;
@@ -76,6 +93,7 @@ export function useLLM() {
       setEstado('cargando');
       setProgreso(0);
       setSegundosTranscurridos(0);
+      setUltimoError(null);
       const inicioMs = Date.now();
       const ticker = setInterval(
         () => setSegundosTranscurridos(Math.round((Date.now() - inicioMs) / 1000)),
@@ -91,6 +109,7 @@ export function useLLM() {
       }, modelo);
 
       const marcarListo = () => {
+        clearInterval(ticker);
         setEstado('listo');
         // Memoria semántica (embeddings): modelo ligero (~30MB) que corre
         // en WASM sin requerir WebGPU. Se carga e indexa en segundo plano
@@ -102,6 +121,26 @@ export function useLLM() {
           .catch((e) => console.warn('Embeddings no disponibles:', e));
       };
 
+      const marcarFallo = (e: unknown) => {
+        clearInterval(ticker);
+        console.error('[TuxtlasGO IA] No se pudo activar el LLM:', e);
+        setUltimoError(String(e).slice(0, 200));
+        setEstado(String(e).includes('SIN_WEBGPU') ? 'sin_soporte' : 'error');
+      };
+
+      // ── Descarga sin prisa (banner) — se espera el resultado real ──
+      if (opciones?.sinPrisa) {
+        try {
+          await cargaModelo;
+          marcarListo();
+          return true;
+        } catch (e) {
+          marcarFallo(e);
+          return false;
+        }
+      }
+
+      // ── Descarga con tope corto (disparada desde el chat) ──
       // Adopción tardía: si la descarga sigue en curso cuando el
       // timeout de abajo ya nos hizo seguir con nube/reglas, y MÁS
       // TARDE termina sola, la aprovechamos para el siguiente mensaje
@@ -117,15 +156,10 @@ export function useLLM() {
             setTimeout(() => reject(new Error('TIMEOUT_CARGA_LLM')), TIMEOUT_CARGA_MS)
           ),
         ]);
-        clearInterval(ticker);
         marcarListo();
         return true;
       } catch (e) {
-        clearInterval(ticker);
-        // Log explícito — antes este error se perdía en silencio y
-        // parecía que "no pasaba nada" en vez de fallar de verdad.
-        console.error('[TuxtlasGO IA] No se pudo activar el LLM a tiempo:', e);
-        setEstado(String(e).includes('SIN_WEBGPU') ? 'sin_soporte' : 'error');
+        marcarFallo(e);
         return false;
       }
     },
@@ -185,6 +219,7 @@ export function useLLM() {
     estado,
     progreso,
     segundosTranscurridos,
+    ultimoError,
     activar,
     responder,
     responderNube,

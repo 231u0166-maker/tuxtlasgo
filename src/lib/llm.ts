@@ -90,18 +90,26 @@ export async function inicializarLLM(
 
   try {
     engine = await webllm.CreateMLCEngine(modelo, {
-      // Por default, WebLLM guarda el modelo con la API "Cache" del
-      // navegador (caches.open()/cache.add()). Hallazgo real de campo:
-      // en un Samsung Galaxy A13 con fibra óptica de sobra (118 Mbps,
-      // velocidad no era el problema), esa API falla con
-      // "NetworkError: Cache.add() encountered a network error" — un
-      // problema conocido de esa API en ciertos navegadores/versiones
-      // de Android, no de tu conexión. Se cambia a IndexedDB, la misma
-      // tecnología que ya usa el resto de la app (Dexie) y que sabemos
-      // que funciona bien en cualquier dispositivo que ya corre
-      // TuxtlasGO — mismo modelo, mismo tamaño de descarga, solo
-      // cambia DÓNDE se guarda una vez descargado.
-      appConfig: { ...webllm.prebuiltAppConfig, cacheBackend: 'indexeddb' },
+      // Historial real de campo en un Samsung Galaxy A13 (fibra óptica
+      // de sobra, 118 Mbps — la velocidad nunca fue el problema):
+      //   1) Cache Storage (default de WebLLM) → "NetworkError:
+      //      Cache.add() encontró un error de red".
+      //   2) IndexedDB → la pestaña de Chrome se cayó por completo, y
+      //      luego "UnknownError: Failed to read large IndexedDB
+      //      value" — IndexedDB no está pensado para blobs de ~1GB,
+      //      varias implementaciones tienen problemas justo con eso.
+      //   3) OPFS (Origin Private File System) — a diferencia de los
+      //      dos anteriores, está diseñado específicamente para
+      //      archivos grandes sin cargarlos completos en memoria
+      //      (escribe a almacenamiento respaldado en disco, no a un
+      //      registro de base de datos). Es el candidato correcto para
+      //      justo este problema — si esto también falla en el mismo
+      //      dispositivo, ya no sería un problema de qué API se usa,
+      //      sino de que el dispositivo no tiene memoria suficiente
+      //      para un modelo de este tamaño, punto en el que el
+      //      respaldo de nube/reglas (que ya existe) es la respuesta
+      //      correcta para esa clase de hardware, no un bug a corregir.
+      appConfig: { ...webllm.prebuiltAppConfig, cacheBackend: 'opfs' },
       initProgressCallback: (rep: webllm.InitProgressReport) => {
         onProgress?.({ progreso: rep.progress ?? 0, texto: rep.text ?? '' });
       },

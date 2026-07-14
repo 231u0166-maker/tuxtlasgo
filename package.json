@@ -11,6 +11,9 @@
     "lint": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
     "@mlc-ai/web-llm": "^0.2.84",
     "@neondatabase/serverless": "^1.1.0",
     "@types/bcryptjs": "^2.4.6",

@@ -88,6 +88,16 @@ export interface ConocimientoCacheado {
   prioridad: number;
 }
 
+// Vector de una ficha del banco de respuestas (conocimiento.ts), para
+// búsqueda semántica — misma idea que VectorLugar pero para fichas de
+// conocimiento en vez de lugares del catálogo.
+export interface VectorConocimiento {
+  clave: string; // título de la ficha — estable para estáticas y dinámicas
+  texto: string; // snapshot de la respuesta usada para generar el vector
+  vector: number[];
+  actualizadoEn: number;
+}
+
 class TuxtlasDB extends Dexie {
   favoritos!: Table<Favorito, string>;
   rutas!: Table<RutaGuardada, number>;
@@ -95,6 +105,7 @@ class TuxtlasDB extends Dexie {
   rutasCache!: Table<RutaCacheada, string>;
   vectores!: Table<VectorLugar, string>;
   conocimientoCache!: Table<ConocimientoCacheado, number>;
+  vectoresConocimiento!: Table<VectorConocimiento, string>;
 
   constructor() {
     super('tuxtlasgo-db');
@@ -136,6 +147,21 @@ class TuxtlasDB extends Dexie {
       rutasCache: 'clave, calculadaEn',
       vectores: 'id, actualizadoEn',
       conocimientoCache: 'id',
+    });
+    // v6: vectores del "banco de respuestas" (conocimiento.ts, estático
+    // + dinámico) para búsqueda SEMÁNTICA, no solo por palabra clave.
+    // Es lo que hoy permite que "algo tranquilo y barato en pareja"
+    // encuentre una respuesta ya redactada aunque no comparta ninguna
+    // palabra literal con ella. Clave = título de la ficha (estable
+    // tanto para fichas estáticas como para las agregadas desde admin).
+    this.version(6).stores({
+      favoritos: 'id, agregadoEn',
+      rutas: '++id, creadaEn',
+      prestadores: '++id, municipio, creadoEn, estado, codigoSeguimiento, premium',
+      rutasCache: 'clave, calculadaEn',
+      vectores: 'id, actualizadoEn',
+      conocimientoCache: 'id',
+      vectoresConocimiento: 'clave, actualizadoEn',
     });
   }
 }

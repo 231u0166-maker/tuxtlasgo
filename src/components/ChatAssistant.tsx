@@ -18,6 +18,7 @@ import {
 } from '../lib/chatbot';
 
 import { guardarRuta, mapaDescargado } from '../lib/db';
+import { buscarRespuestaVerificada } from '../lib/embeddings';
 // ============================================================
 // PANTALLA DEL ASISTENTE — interfaz del motor local de IA
 // ============================================================
@@ -286,6 +287,29 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
 
     setGenerandoIA(true);
     try {
+      // Primero de todo: ¿el banco de respuestas ya tiene algo
+      // verificado que se parezca mucho EN SIGNIFICADO a esto? Si sí,
+      // respondemos directo con eso — sin generar nada, sin GPU, sin
+      // internet, cero riesgo de alucinación (ya lo redactó y aprobó
+      // una persona). Funciona en cualquier dispositivo, 32 o 64
+      // bits, porque es el mismo modelo de embeddings (~30MB) que ya
+      // usa el catálogo — ver la nota grande en App.tsx sobre por qué
+      // esto ahora corre siempre, no solo cuando el LLM local carga.
+      const coincidencia = await buscarRespuestaVerificada(texto).catch(() => null);
+      if (coincidencia) {
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: coincidencia.texto,
+            timestamp: Date.now(),
+          },
+          300
+        );
+        setGenerandoIA(false);
+        return;
+      }
+
       // ¿Podemos usar el LLM? Si está soportado pero aún no cargado,
       // lo preparamos AHORA (la primera vez descarga el modelo).
       let puedeUsarIA = llm.listo;
@@ -295,8 +319,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
       }
 
       if (puedeUsarIA) {
-        // Streaming: mostramos los puntitos hasta el primer token,
-        // luego creamos la burbuja y la vamos llenando en vivo.
+
         setEscribiendo(true);
         let primerToken = true;
         let msgId = '';

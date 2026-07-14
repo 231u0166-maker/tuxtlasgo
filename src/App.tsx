@@ -5,10 +5,10 @@ import AppShell from './components/AppShell';
 import ProviderPanel from './components/ProviderPanel';
 import AdminPanel from './components/AdminPanel';
 import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
-import { setCatalogoExtendido } from './lib/chatbot';
-import { cargarConocimientoDinamico } from './lib/conocimiento';
+import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
+import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
-import { embeddingsListo, indexarCatalogo } from './lib/embeddings';
+import { embeddingsListo, indexarCatalogo, indexarConocimiento, inicializarEmbeddings } from './lib/embeddings';
 
 // Función global para recargar catálogo (usada por GestorFotos y ProviderPanel)
 // Pre-cachea imágenes de Cloudinary para que estén disponibles offline
@@ -72,6 +72,21 @@ export default function App() {
         setListo(true);
       }
     })();
+
+    // Memoria semántica (catálogo + banco de respuestas): se activa en
+    // segundo plano, SIN bloquear el arranque de la app y SIN depender
+    // de si el LLM local llega a cargar. Antes esto solo se disparaba
+    // dentro de useLLM.ts cuando el LLM local quedaba listo — lo cual
+    // casi nunca pasa en celular — así que la búsqueda semántica
+    // (incluido el banco de respuestas que responde sin generar nada)
+    // nunca se activaba justo en los dispositivos donde más se
+    // necesita. Ahora corre siempre, en cualquier dispositivo.
+    inicializarEmbeddings()
+      .then(async () => {
+        await indexarCatalogo(getCatalogoActivo());
+        await indexarConocimiento(obtenerFichasParaIndexar());
+      })
+      .catch((e) => console.warn('[TuxtlasGO] Embeddings no disponibles:', e));
   }, []);
 
   if (!listo) return null;

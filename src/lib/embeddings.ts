@@ -1,4 +1,4 @@
-// ============================================================
+ // ============================================================
 // MOTOR DE MEMORIA VECTORIZADA — TuxtlasGO (100% OFFLINE)
 // ============================================================
 // Esto es lo que en tus notas llamabas "sqlite-vec" / "memoria
@@ -62,7 +62,10 @@ export function embeddingsListo(): boolean {
 }
 
 // ─────────────── VECTORIZACIÓN DE TEXTO ───────────────
-async function vectorizar(texto: string): Promise<number[]> {
+// Exportada a propósito: conocimiento.ts la reutiliza para el "banco
+// de respuestas" (búsqueda semántica sobre fichas ya redactadas) —
+// mismo modelo, mismo costo (~30MB), sin duplicar nada.
+export async function vectorizar(texto: string): Promise<number[]> {
   if (!extractor) throw new Error('EMBEDDINGS_NO_INICIALIZADO');
   const salida = await extractor(texto, { pooling: 'mean', normalize: true });
   return Array.from(salida.data as Float32Array);
@@ -164,4 +167,84 @@ export async function buscarSemantico(
   }
 
   return resultados.sort((a, b) => b.similitud - a.similitud).slice(0, k);
+}
+
+// ============================================================
+// BANCO DE RESPUESTAS — búsqueda semántica sobre conocimiento.ts
+// ============================================================
+// Mismo mecanismo exacto que buscarSemantico() de arriba, pero sobre
+// las fichas ya redactadas del banco de conocimiento (estáticas +
+// dinámicas del panel de admin) en vez de los lugares del catálogo.
+// Esto es lo que permite responder con texto YA VERIFICADO por una
+// persona, sin generar nada — cero riesgo de alucinación, y funciona
+// en cualquier dispositivo (32 o 64 bits) porque es el mismo modelo
+// de 30MB que ya corre para el catálogo.
+//
+// El umbral aquí es MÁS ALTO que en buscarSemantico (0.68 vs 0.25) a
+// propósito: ahí solo se arman candidatos para dárselos de contexto a
+// un generador (que igual puede descartarlos). Aquí, si se supera el
+// umbral, la respuesta se muestra TAL CUAL al turista sin pasar por
+// ningún generador — hace falta más confianza para eso.
+export interface RespuestaVerificada {
+  titulo: string;
+  texto: string;
+  similitud: number;
+}
+
+// Recalcula el vector de cada ficha SOLO si es nueva o su texto de
+// respuesta cambió — mismo patrón de caché que indexarCatalogo().
+// Llamar al iniciar la app y cada vez que se agregue una ficha nueva
+// desde el panel de admin (ver agregarConocimientoDinamico en
+// conocimiento.ts, que ya recarga la copia local — falta encadenar
+// esta reindexación ahí).
+export async function indexarConocimiento(
+  entradas: { clave: string; texto: string }[]
+): Promise<void> {
+  if (!extractor) throw new Error('EMBEDDINGS_NO_INICIALIZADO');
+
+  for (const entrada of entradas) {
+    const existente = await db.vectoresConocimiento.get(entrada.clave);
+    if (existente && existente.texto === entrada.texto) continue; // sin cambios, no recalcular
+
+    const vector = await vectorizar(entrada.texto);
+    await db.vectoresConocimiento.put({
+      clave: entrada.clave,
+      texto: entrada.texto,
+      vector,
+      actualizadoEn: Date.now(),
+    });
+  }
+
+  // Limpieza: borra vectores de fichas que ya no existen (se
+  // desactivó una ficha dinámica, o se quitó una estática).
+  const clavesVigentes = new Set(entradas.map((e) => e.clave));
+  const todos = await db.vectoresConocimiento.toArray();
+  const obsoletos = todos.filter((v) => !clavesVigentes.has(v.clave));
+  if (obsoletos.length > 0) {
+    await db.vectoresConocimiento.bulkDelete(obsoletos.map((v) => v.clave));
+  }
+}
+
+// Busca la ficha del banco de respuestas más parecida EN SIGNIFICADO
+// a la pregunta del turista. Devuelve null si no hay ninguna con
+// suficiente confianza (umbral 0.68 por default) — en ese caso, quien
+// llama debe caer al generador normal (local/nube/reglas), no inventar
+// nada aquí.
+export async function buscarRespuestaVerificada(
+  query: string,
+  umbralMinimo = 0.68
+): Promise<RespuestaVerificada | null> {
+  if (!extractor) return null; // degrada con gracia, igual que buscarSemantico
+
+  const vectorConsulta = await vectorizar(query);
+  const vectores = await db.vectoresConocimiento.toArray();
+
+  let mejor: RespuestaVerificada | null = null;
+  for (const v of vectores) {
+    const sim = similitudCoseno(vectorConsulta, v.vector);
+    if (sim >= umbralMinimo && (!mejor || sim > mejor.similitud)) {
+      mejor = { titulo: v.clave, texto: v.texto, similitud: sim };
+    }
+  }
+  return mejor;
 }

@@ -8,7 +8,6 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import type { MensajeChat, PreferenciasUsuario } from '../lib/chatbot';
-import { getCatalogoActivo } from '../lib/chatbot';
 import {
   soportaWebGPU,
   inicializarLLM,
@@ -20,7 +19,6 @@ import {
   limpiarMarkdown,
   MODELO_DEFECTO,
 } from '../lib/llm';
-import { inicializarEmbeddings, indexarCatalogo } from '../lib/embeddings';
 
 export type EstadoLLM =
   | 'verificando'  // aún no sabemos si el dispositivo soporta IA avanzada
@@ -179,14 +177,11 @@ export function useLLM() {
         clearInterval(ticker);
         setEstado('listo');
         notificarFinal(true);
-        // Memoria semántica (embeddings): modelo ligero (~30MB) que corre
-        // en WASM sin requerir WebGPU. Se carga e indexa en segundo plano
-        // — si tarda o falla, el chat sigue funcionando solo con LLM +
-        // reglas, no bloquea la conversación (ver embeddingsListo() en
-        // llm.ts, que degrada con gracia si aún no está listo).
-        inicializarEmbeddings()
-          .then(() => indexarCatalogo(getCatalogoActivo()))
-          .catch((e) => console.warn('Embeddings no disponibles:', e));
+        // La memoria semántica (embeddings) ya NO se inicializa aquí.
+        // Se activa desde App.tsx al arrancar la app, sin depender de
+        // si el LLM local llega a cargar — ver la nota grande en
+        // App.tsx sobre por qué (en celular, el LLM local casi nunca
+        // carga, y la búsqueda semántica debe funcionar igual ahí).
       };
 
       const marcarFallo = (e: unknown) => {

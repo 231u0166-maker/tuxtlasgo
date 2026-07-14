@@ -24,6 +24,7 @@
 
 import { tokenizar, contarCoincidencias } from './pln';
 import { db } from './db';
+import { embeddingsListo, indexarConocimiento } from './embeddings';
 
 export interface EntradaConocimiento {
   claves: string[];
@@ -307,10 +308,28 @@ export async function agregarConocimientoDinamico(
     const data = await r.json();
     if (!r.ok) return { ok: false, error: data.error ?? 'Error desconocido' };
     await cargarConocimientoDinamico(); // refresca la copia local de inmediato
+    // Si la memoria semántica ya está activa en esta sesión, indexa la
+    // ficha nueva de inmediato — así el banco de respuestas la puede
+    // usar sin esperar a que alguien recargue la app.
+    if (embeddingsListo()) {
+      indexarConocimiento(obtenerFichasParaIndexar()).catch(() => {});
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
+}
+
+// Junta todas las fichas activas (estáticas + dinámicas) en la forma
+// que necesita indexarConocimiento() en embeddings.ts — usa el título
+// como clave estable, ya que es el mismo en ambas capas y no cambia
+// entre sesiones (a diferencia de un índice de arreglo, que sí puede
+// correrse cuando se agrega o quita una ficha).
+export function obtenerFichasParaIndexar(): { clave: string; texto: string }[] {
+  return [...BASE_CONOCIMIENTO, ...conocimientoDinamico].map((entrada) => ({
+    clave: entrada.titulo,
+    texto: entrada.respuesta,
+  }));
 }
 
 // Busca la entrada más relevante de la base de conocimiento

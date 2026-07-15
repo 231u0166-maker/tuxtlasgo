@@ -1,20 +1,33 @@
 // ============================================================
-// MOTOR LLM OFFLINE — TuxtlasGO (capa de GENERACIÓN del RAG)
+// MOTOR DE GENERACIÓN — TuxtlasGO (nube + contexto + validación)
 // ============================================================
-// Corre un LLM cuantizado 100% en el dispositivo vía WebLLM
-// (WebGPU con fallback a WASM). El modelo SOLO redacta: los datos
-// (lugares, precios, horarios) los aporta tu motor de reglas ya
-// existente, que actúa como capa de RECUPERACIÓN. Así el LLM nunca
-// inventa precios ni horarios de prestadores reales.
+// DECISIÓN DE ARQUITECTURA (retirado el LLM local en navegador):
+// se probó WebLLM corriendo en el dispositivo del turista durante
+// varias sesiones de pruebas de campo reales, y falló de forma
+// consistente en TODOS los celulares de prueba disponibles —
+// primero por el techo de memoria de WebAssembly en Android Chrome
+// (~256-300MB), y después, incluso cambiando de tecnología de
+// almacenamiento (Cache Storage, IndexedDB, OPFS) y de tamaño de
+// modelo (1.5B, luego 0.5B), con "RangeError: Array buffer
+// allocation failed" — ya no era un problema de código, era que esos
+// dispositivos no tienen memoria suficiente para esto, punto.
 //
-//   Recuperación  ──►  tu motor (scoring + conocimiento + catálogo)
-//   Generación    ──►  este módulo (LLM redacta en español natural)
+// En vez de seguir ofreciendo una descarga que casi nunca funciona
+// (y que en el peor caso llegó a tirar la pestaña completa), este
+// módulo se simplificó a la arquitectura que SÍ demostró funcionar en
+// cualquier dispositivo, sin excepción:
 //
-// Instalación:
-//   npm i @mlc-ai/web-llm
+//   Recuperación  ──►  chatbot.ts + conocimiento.ts + embeddings.ts
+//   Generación    ──►  banco de respuestas (ver embeddings.ts) →
+//                       nube (este módulo) → motor de reglas
+//
+// Este archivo YA NO exporta soportaWebGPU/inicializarLLM/
+// responderConLLMStream — si en el futuro alguien consigue confirmar
+// un dispositivo real de 64 bits con memoria de sobra donde SÍ valga
+// la pena reintentarlo, esa es una decisión aparte, con evidencia
+// nueva, no algo que deba estar activo por default hoy.
 // ============================================================
 
-import * as webllm from '@mlc-ai/web-llm';
 import { Lugar } from '../data/lugares';
 import {
   getCatalogoActivo,
@@ -26,103 +39,6 @@ import {
 import { buscarConocimiento } from './conocimiento';
 import { buscarSemantico, embeddingsListo } from './embeddings';
 
-// ─────────────── CONFIGURACIÓN DE MODELO ───────────────
-// Qwen2.5-1.5B en vez de Llama-3.2-1B: mismo rango de tamaño (~1.0 GB
-// vs ~0.8 GB), pero sigue mejor la instrucción "usa SOLO estos datos,
-// nunca inventes" — que es justo lo que falló en pruebas de campo
-// reales (el 1B inventó restaurantes y precios falsos). La validación
-// anti-alucinación mecánica (ver pareceInventada más abajo) se queda
-// de todos modos como red de seguridad — un modelo más obediente
-// reduce cuántas veces se dispara esa corrección, no la reemplaza.
-// Otra opción si se necesita subir aún más de calidad:
-//   'Llama-3.2-3B-Instruct-q4f16_1-MLC'  (~1.7 GB, mejor calidad,
-//                                         descarga más pesada)
-// NO usar modelos de razonamiento (R1-Distill / modos "thinking").
-export const MODELO_DEFECTO = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC';
-
-let engine: webllm.MLCEngineInterface | null = null;
-let modeloCargado: string | null = null;
-
-// ─────────────── DETECCIÓN DE CAPACIDAD ───────────────
-// `'gpu' in navigator` NO es suficiente: en muchas laptops (sobre todo
-// con gráficos Intel integrados en Windows) el objeto navigator.gpu
-// existe, pero requestAdapter() devuelve null porque el driver está
-// en la lista de bloqueo de Chrome. Si solo revisas la presencia del
-// objeto, la app cree que sí hay soporte, intenta cargar el modelo,
-// truena, y cae al motor de reglas SIN avisar por qué — que es
-// exactamente el síntoma de "en PC no arranca" que se reportó en
-// campo. Por eso este chequeo es real: pide el adaptador de verdad.
-let cacheSoporte: boolean | null = null;
-
-export async function soportaWebGPU(): Promise<boolean> {
-  if (cacheSoporte !== null) return cacheSoporte;
-  if (typeof navigator === 'undefined' || !('gpu' in navigator)) {
-    cacheSoporte = false;
-    return false;
-  }
-  try {
-    const adapter = await (navigator as any).gpu.requestAdapter();
-    cacheSoporte = adapter !== null;
-    return cacheSoporte;
-  } catch {
-    cacheSoporte = false;
-    return false;
-  }
-}
-
-export function llmListo(): boolean {
-  return engine !== null;
-}
-
-// ─────────────── CARGA DEL MODELO ───────────────
-// Llamar una sola vez (idealmente con WiFi). WebLLM cachea el
-// modelo en Cache Storage, así que las siguientes veces es
-// instantáneo y funciona offline.
-export async function inicializarLLM(
-  onProgress?: (info: { progreso: number; texto: string }) => void,
-  modelo: string = MODELO_DEFECTO
-): Promise<void> {
-  if (engine && modeloCargado === modelo) return;
-
-  if (!(await soportaWebGPU())) {
-    throw new Error('SIN_WEBGPU');
-  }
-
-  try {
-    engine = await webllm.CreateMLCEngine(modelo, {
-      // Historial real de campo en un Samsung Galaxy A13 (fibra óptica
-      // de sobra, 118 Mbps — la velocidad nunca fue el problema):
-      //   1) Cache Storage (default de WebLLM) → "NetworkError:
-      //      Cache.add() encontró un error de red".
-      //   2) IndexedDB → la pestaña de Chrome se cayó por completo, y
-      //      luego "UnknownError: Failed to read large IndexedDB
-      //      value" — IndexedDB no está pensado para blobs de ~1GB,
-      //      varias implementaciones tienen problemas justo con eso.
-      //   3) OPFS (Origin Private File System) — a diferencia de los
-      //      dos anteriores, está diseñado específicamente para
-      //      archivos grandes sin cargarlos completos en memoria
-      //      (escribe a almacenamiento respaldado en disco, no a un
-      //      registro de base de datos). Es el candidato correcto para
-      //      justo este problema — si esto también falla en el mismo
-      //      dispositivo, ya no sería un problema de qué API se usa,
-      //      sino de que el dispositivo no tiene memoria suficiente
-      //      para un modelo de este tamaño, punto en el que el
-      //      respaldo de nube/reglas (que ya existe) es la respuesta
-      //      correcta para esa clase de hardware, no un bug a corregir.
-      appConfig: { ...webllm.prebuiltAppConfig, cacheBackend: 'opfs' },
-      initProgressCallback: (rep: webllm.InitProgressReport) => {
-        onProgress?.({ progreso: rep.progress ?? 0, texto: rep.text ?? '' });
-      },
-    });
-    modeloCargado = modelo;
-  } catch (e) {
-    // No tragarse el error real: esto es lo que hay que ver en consola
-    // para diagnosticar por qué falló en un dispositivo específico
-    // (memoria insuficiente, adaptador perdido a medio arranque, etc.)
-    console.error('[TuxtlasGO IA] CreateMLCEngine falló:', e);
-    throw e;
-  }
-}
 
 // ============================================================
 // RECUPERACIÓN — reutiliza tu motor de reglas como "retriever"
@@ -141,7 +57,7 @@ const MAPA_INTENT_CAT: Record<string, Lugar['categoria']> = {
 
 // Orden final de candidatos: rating + pequeño empate a favor de Premium.
 // Mismo criterio que chatbot.ts (filtrarLugaresConRazones), aplicado
-// aquí también para que el modo LLM y el modo sin-LLM recomienden con
+// aquí también para que la nube y el motor de reglas recomienden con
 // la misma lógica de negocio.
 function ordenarConBoostPremium(lugares: Lugar[]): Lugar[] {
   return [...lugares].sort((a, b) => {
@@ -213,19 +129,18 @@ export async function recuperarContexto(
   return { lugares, conocimiento };
 }
 
-// ─────────────── ARMADO DEL CONTEXTO PARA EL PROMPT ───────────────
 // ─────────────── VALIDACIÓN ANTI-ALUCINACIÓN ───────────────
-// Hallazgo real de campo: el modelo local (1B, cuantizado) inventó
-// tres restaurantes completos con precios falsos que NO existen en
-// el catálogo ("La Casa de To'ok", "El Jardín de los Abuelos", "El
-// Restaurante del Lago") pese a que el prompt de sistema dice
-// explícitamente "NUNCA inventes lugares ni precios". Los modelos
-// pequeños cuantizados no siempre obedecen esa instrucción de forma
-// confiable — así que en vez de confiar solo en el prompt, esto es
-// una red de seguridad MECÁNICA: si la respuesta menciona un patrón
-// de precio ($NN) pero NINGUNO de los lugares que sí le dimos como
-// contexto aparece mencionado por su nombre, es evidencia fuerte de
-// que inventó información — se descarta antes de mostrarla al turista.
+// Hallazgo real de campo: un modelo local pequeño llegó a inventar
+// restaurantes completos con precios falsos que NO existen en el
+// catálogo, pese a que el prompt de sistema dice explícitamente
+// "NUNCA inventes lugares ni precios". Los modelos no siempre obedecen
+// esa instrucción de forma confiable — así que en vez de confiar solo
+// en el prompt, esto es una red de seguridad MECÁNICA: si la
+// respuesta menciona un patrón de precio ($NN) pero NINGUNO de los
+// lugares que sí le dimos como contexto aparece mencionado por su
+// nombre, es evidencia fuerte de que inventó información — se
+// descarta antes de mostrarla al turista. Se sigue aplicando a la
+// nube (menos propensa a esto, pero también puede pasar).
 export function pareceInventada(texto: string, lugares: Lugar[]): boolean {
   const tienePatronDePrecio = /\$\s?\d/.test(texto);
   if (!tienePatronDePrecio || lugares.length === 0) return false; // nada que validar aquí
@@ -301,12 +216,7 @@ export function limpiarMarkdown(t: string): string {
     .replace(/^\s*[-•]\s+/gm, '• '); // normaliza viñetas
 }
 
-// ─────────────── ARMADO COMPARTIDO DE MENSAJES ───────────────
-// Tanto el LLM local (WebLLM) como el de respaldo en la nube parten
-// del MISMO retriever y del MISMO prompt de sistema — lo único que
-// cambia entre uno y otro es quién redacta la respuesta final. Esto
-// garantiza que las reglas de negocio (boost Premium, "no inventes
-// datos", tono) sean idénticas sin importar qué generador responda.
+// ─────────────── ARMADO DE MENSAJES PARA EL PROMPT ───────────────
 interface MensajesLLM {
   system: string;
   mensajes: { role: 'user' | 'assistant'; content: string }[];
@@ -344,60 +254,15 @@ async function armarMensajesLLM(
   };
 }
 
-// ─────────────── GENERACIÓN (streaming, offline) ───────────────
-export async function* responderConLLMStream(
-  texto: string,
-  historial: MensajeChat[] = [],
-  prefs?: Partial<PreferenciasUsuario>
-): AsyncGenerator<string, void, unknown> {
-  if (!engine) throw new Error('LLM_NO_INICIALIZADO');
-
-  const { system, mensajes } = await armarMensajesLLM(texto, historial, prefs);
-
-  const messages: webllm.ChatCompletionMessageParam[] = [
-    { role: 'system', content: system },
-    ...mensajes,
-  ];
-
-  const stream = await engine.chat.completions.create({
-    messages,
-    temperature: 0.3, // bajo = se apega al contexto, menos alucinación
-    max_tokens: 350,
-    stream: true,
-  });
-
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content ?? '';
-    if (delta) yield delta;
-  }
-}
-
-// ─────────────── VERSIÓN NO-STREAMING (conveniencia) ───────────────
-export async function responderConLLM(
-  texto: string,
-  historial: MensajeChat[] = [],
-  prefs?: Partial<PreferenciasUsuario>
-): Promise<string> {
-  let salida = '';
-  for await (const frag of responderConLLMStream(texto, historial, prefs)) {
-    salida += frag;
-  }
-  return limpiarMarkdown(salida);
-}
-
 // ============================================================
-// GENERACIÓN EN LA NUBE — respaldo cuando NO hay WebGPU usable
+// GENERACIÓN EN LA NUBE (Groq) — el único generador activo
 // ============================================================
-// Se activa cuando soportaWebGPU() da false pero hay conexión a
-// internet: exactamente el caso de una PC de escritorio con GPU
-// bloqueada por Chrome (el que se detectó en pruebas de campo).
 // A propósito NO se usa window.ai/Gemini Nano (depende de flags
 // experimentales de Chrome que no controlas en el dispositivo del
 // usuario) — en su lugar, un endpoint propio en /api/ia/chat que
 // llama a un modelo en la nube con el MISMO contexto recuperado.
-// Así "cualquier dispositivo" deja de depender de tener WebGPU:
-// WebGPU → offline local. Sin WebGPU + internet → nube. Ninguno
-// de los dos → motor de reglas (ver chatbot.ts).
+// Si hay internet, se usa esto. Si no, cae al motor de reglas
+// (ver chatbot.ts) — nunca se deja al turista sin respuesta.
 export function nubeDisponible(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine;
 }
@@ -418,9 +283,7 @@ export async function responderConNube(
   // navigator.onLine puede decir "true" aunque no haya internet real de
   // verdad (portal cautivo de un WiFi de hotel, señal celular que se cae
   // a medio handshake) — sin un tope de tiempo, un fetch así se puede
-  // quedar colgado mucho más de lo que un chat puede esperar. Mismo
-  // principio que el timeout del LLM local: mejor caer rápido a reglas
-  // que dejar al usuario esperando una conexión que no va a llegar.
+  // quedar colgado mucho más de lo que un chat puede esperar.
   const control = new AbortController();
   const avisoTiempo = setTimeout(() => control.abort(), 15_000);
 
@@ -447,14 +310,5 @@ export async function responderConNube(
     return { texto: limpio, valida: true };
   } finally {
     clearTimeout(avisoTiempo);
-  }
-}
-
-// ─────────────── LIMPIEZA ───────────────
-export async function descargarLLM(): Promise<void> {
-  if (engine) {
-    await engine.unload();
-    engine = null;
-    modeloCargado = null;
   }
 }

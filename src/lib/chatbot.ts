@@ -17,9 +17,10 @@ export function setCatalogoExtendido(prestadoresAprobados: Lugar[]): void {
 export function getCatalogoActivo(): Lugar[] {
   return catalogoActivo;
 }
+
 import { buscarConocimiento } from './conocimiento';
 import { tokenizar, contieneClave } from './pln';
-
+import { vectorizar, similitudCoseno, embeddingsListo } from './embeddings';
 // ============================================================
 // MOTOR DE ASISTENTE CONVERSACIONAL — 100% OFFLINE
 // ============================================================
@@ -347,6 +348,162 @@ export interface DiaRuta {
   razonamiento: string; // explicación de por qué se armó así
 }
 
+
+// ============================================================
+// EXTRACCIÓN DE PREFERENCIAS DE TEXTO LIBRE
+// ============================================================
+// Objetivo: cuando alguien escribe "quiero un fin de semana tranquilo,
+// gastando poco, con mi pareja" en vez de tocar los botones del flujo
+// guiado, sacar de ahí días/presupuesto/grupo/intereses directamente.
+//
+// Nota honesta: la idea original era usar OpenNLP — pero OpenNLP es
+// una librería de Java, y esta app es una PWA en TypeScript/navegador;
+// no se puede importar ahí sin un runtime de Java completo (WASM),
+// que sería mucho más pesado que lo que ya tienes cargado. Esto logra
+// el mismo resultado con una técnica distinta ("clasificación
+// zero-shot"): en vez de reglas por palabra clave, se compara el
+// texto del turista contra frases de ejemplo ya escritas para cada
+// opción, usando el MISMO modelo de embeddings (~30MB) que ya corre
+// para el banco de respuestas — cero dependencias nuevas.
+//
+// El umbral (0.5) es más bajo que el del banco de respuestas (0.82)
+// A PROPÓSITO: aquí un acierto equivocado solo cambia ligeramente una
+// recomendación de ruta, no muestra un dato falso con aparente
+// autoridad — el costo de una alucinación es mucho menor que el que
+// corregimos antes, así que toleramos más falsos positivos a cambio
+// de reconocer más frases reales. Si en pruebas reales resulta
+// demasiado permisivo o demasiado estricto, es cuestión de ajustar
+// este único número — igual que calibramos el del banco de respuestas
+// tras encontrar el caso real de "capital de España".
+interface EjemploCategoria<T> {
+  valor: T;
+  frases: string[];
+}
+
+const EJEMPLOS_DIAS: EjemploCategoria<Dias>[] = [
+  { valor: 1, frases: ['vengo de paso', 'solo tengo hoy', 'nada más un día', 'de pasada por aquí', 'ando solo hoy por la zona'] },
+  { valor: 2, frases: ['un fin de semana', 'sábado y domingo', 'dos días', 'un fin de semana largo aquí'] },
+  { valor: 3, frases: ['varios días', 'toda la semana', 'unas vacaciones completas', 'tres días o más', 'una semana entera aquí'] },
+];
+
+const EJEMPLOS_PRESUPUESTO: EjemploCategoria<Presupuesto>[] = [
+  { valor: 'bajo', frases: ['gastando poco', 'no traigo mucho dinero', 'algo económico', 'lo más barato posible', 'ando bien ajustado de dinero'] },
+  { valor: 'medio', frases: ['sin gastar de más', 'un presupuesto normal', 'ni muy caro ni muy barato', 'algo de precio intermedio'] },
+  { valor: 'alto', frases: ['quiero lo mejor', 'no me importa el precio', 'algo de lujo', 'presupuesto amplio', 'quiero consentirme un poco'] },
+];
+
+const EJEMPLOS_GRUPO: EjemploCategoria<GrupoViaje>[] = [
+  { valor: 'solo', frases: ['voy solo', 'ando sola', 'viajo solo', 'nomás yo'] },
+  { valor: 'pareja', frases: ['con mi pareja', 'con mi novio', 'con mi novia', 'en pareja', 'de luna de miel', 'somos dos'] },
+  { valor: 'familia', frases: ['con mi familia', 'con niños', 'vamos en familia', 'con mis papás', 'con mis hijos'] },
+  { valor: 'amigos', frases: ['con mis amigos', 'en grupo de amigos', 'vamos varios amigos'] },
+];
+
+const EJEMPLOS_INTERESES: EjemploCategoria<Categoria>[] = [
+  { valor: 'Naturaleza', frases: ['algo tranquilo', 'en la naturaleza', 'selva', 'cascadas', 'aire libre', 'desconectarme un rato'] },
+  { valor: 'Aventura', frases: ['adrenalina', 'aventura', 'algo extremo', 'actividades de aventura'] },
+  { valor: 'Gastronomia', frases: ['comer bien', 'buena comida', 'restaurantes', 'probar platillos locales'] },
+  { valor: 'Hospedaje', frases: ['dónde quedarme', 'hospedaje', 'un buen hotel', 'dónde dormir'] },
+];
+
+// Caché de vectores de los ejemplos — se calculan una sola vez por
+// sesión (son pocas frases fijas, no vale la pena persistirlas en
+// Dexie como el catálogo o el banco de respuestas).
+let vectoresEjemplo: {
+  dias: { valor: Dias; vector: number[] }[];
+  presupuesto: { valor: Presupuesto; vector: number[] }[];
+  grupo: { valor: GrupoViaje; vector: number[] }[];
+  intereses: { valor: Categoria; vector: number[] }[];
+} | null = null;
+
+async function prepararEjemplos() {
+  if (vectoresEjemplo) return vectoresEjemplo;
+  const vectorizarLista = async <T,>(lista: EjemploCategoria<T>[]) => {
+    const out: { valor: T; vector: number[] }[] = [];
+    for (const item of lista) {
+      for (const frase of item.frases) {
+        out.push({ valor: item.valor, vector: await vectorizar(frase) });
+      }
+    }
+    return out;
+  };
+  vectoresEjemplo = {
+    dias: await vectorizarLista(EJEMPLOS_DIAS),
+    presupuesto: await vectorizarLista(EJEMPLOS_PRESUPUESTO),
+    grupo: await vectorizarLista(EJEMPLOS_GRUPO),
+    intereses: await vectorizarLista(EJEMPLOS_INTERESES),
+  };
+  return vectoresEjemplo;
+}
+
+// Para cada VALOR posible, se queda con su mejor coincidencia (no la
+// mejor frase de ejemplo suelta) — así una categoría con 6 frases de
+// ejemplo no le "gana" injustamente a una con 3 solo por tener más
+// oportunidades de acertar.
+function mejoresPorValor<T>(
+  vectorConsulta: number[],
+  ejemplos: { valor: T; vector: number[] }[],
+  umbral: number
+): T[] {
+  const mejorPorValor = new Map<string, { valor: T; sim: number }>();
+  for (const e of ejemplos) {
+    const sim = similitudCoseno(vectorConsulta, e.vector);
+    const clave = String(e.valor);
+    const actual = mejorPorValor.get(clave);
+    if (!actual || sim > actual.sim) mejorPorValor.set(clave, { valor: e.valor, sim });
+  }
+  return [...mejorPorValor.values()]
+    .filter((v) => v.sim >= umbral)
+    .sort((a, b) => b.sim - a.sim)
+    .map((v) => v.valor);
+}
+
+// Degrada con gracia si los embeddings aún no están listos (devuelve
+// un objeto vacío) — quien llama debe rellenar con valores por
+// default en vez de bloquear la conversación esperando el modelo.
+export async function extraerPreferenciasLibres(
+  texto: string
+): Promise<Partial<PreferenciasUsuario>> {
+  if (!embeddingsListo()) return {};
+
+  const ejemplos = await prepararEjemplos();
+  const vectorConsulta = await vectorizar(texto);
+  const UMBRAL = 0.5;
+
+  const resultado: Partial<PreferenciasUsuario> = {};
+
+  const dias = mejoresPorValor(vectorConsulta, ejemplos.dias, UMBRAL);
+  if (dias.length > 0) resultado.dias = dias[0];
+
+  const presupuesto = mejoresPorValor(vectorConsulta, ejemplos.presupuesto, UMBRAL);
+  if (presupuesto.length > 0) resultado.presupuesto = presupuesto[0];
+
+  const grupo = mejoresPorValor(vectorConsulta, ejemplos.grupo, UMBRAL);
+  if (grupo.length > 0) resultado.grupo = grupo[0];
+
+  // Intereses SÍ es multi-etiqueta: un turista puede querer
+  // "naturaleza y buena comida" en la misma frase — se incluyen
+  // TODAS las categorías que superen el umbral, no solo la mejor.
+  const intereses = mejoresPorValor(vectorConsulta, ejemplos.intereses, UMBRAL);
+  if (intereses.length > 0) resultado.intereses = intereses;
+
+  return resultado;
+}
+
+// Detección simple (por palabra clave, sin IA) de si el mensaje suena
+// a "arma/recomiéndame una ruta" — sirve para decidir SI vale la pena
+// llamar a extraerPreferenciasLibres, no para extraer nada en sí.
+export function pareceSolicitudDeRuta(texto: string): boolean {
+  const tokens = tokenizar(texto);
+  const palabrasClave = [
+    'ruta', 'rutas', 'itinerario', 'plan', 'planea', 'recomiendame',
+    'recomiéndame', 'arma', 'armame', 'ármame', 'organiza', 'organizame',
+    'que hacer', 'qué hacer', 'viaje', 'visitar', 'recorrido',
+  ];
+  return palabrasClave.some((p) => contieneClave(tokens, p));
+}
+
+
 export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   const recomendadosConScore = filtrarLugaresConRazones(prefs);
   if (recomendadosConScore.length === 0) return [];
@@ -366,7 +523,7 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
       const j = Math.floor(Math.random() * (i + 1));
       [grupo[i], grupo[j]] = [grupo[j], grupo[i]];
     }
-  }
+  } 
   // Reconstruir lista ordenada por score (de mayor a menor)
   const recomendados = Object.keys(porScore)
     .map(Number)

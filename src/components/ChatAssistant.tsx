@@ -15,6 +15,8 @@ import {
   mensajeGrupo,
   generarRuta,
   responderTextoLibre,
+  extraerPreferenciasLibres,
+  pareceSolicitudDeRuta,
 } from '../lib/chatbot';
 
 import { guardarRuta, mapaDescargado } from '../lib/db';
@@ -36,10 +38,9 @@ interface Props {
   // El padre (AppShell) calcula el trazado por carretera y cambia
   // al tab del mapa con la polyline visible.
   onVerRutaEnMapa?: (lugares: Lugar[]) => void;
+
   // Instancia COMPARTIDA del hook de IA — vive en AppShell (no aquí)
-  // para que la descarga siga corriendo aunque el usuario cambie de
-  // tab, y para que el aviso de descarga (DescargaIABanner) sea
-  // visible en toda la app, no solo dentro del chat.
+  // para que cualquier pestaña use el mismo estado de la nube.
   llm: ReturnType<typeof useLLM>;
 }
 
@@ -279,22 +280,32 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
   // otra vez). Ahora el texto libre SIEMPRE intenta LLM (o reglas como
   // respaldo) sin importar en qué paso del flujo guiado estemos — los
   // botones siguen ahí como atajo, pero ya no son la única puerta.
+  // ─────────── Envío de texto libre ───────────
+  // El texto libre SIEMPRE intenta una respuesta inteligente sin
+  // importar en qué paso del flujo guiado estemos — los botones
+  // siguen ahí como atajo, pero ya no son la única puerta. Orden de
+  // intentos, de más a menos confiable:
+  //   1) Banco de respuestas verificado (embeddings semánticos) — si
+  //      hay coincidencia fuerte, responde con texto ya redactado y
+  //      aprobado por una persona. Cero riesgo de alucinación.
+  //   2) ¿Suena a pedir una ruta? Se extraen días/presupuesto/grupo/
+  //      intereses del propio texto libre (ver extraerPreferenciasLibres
+  //      en chatbot.ts) y se genera la ruta directo, sin esperar a que
+  //      toquen los botones uno por uno.
+  //   3) Nube (Groq), si hay internet — mismo contexto recuperado,
+  //      redactado por un modelo en la nube, con la misma validación
+  //      anti-alucinación.
+  //   4) Motor de reglas — siempre disponible, sin excepción.
   async function enviarTexto() {
     const texto = input.trim();
     if (!texto || generandoIA) return; // no encimar mientras genera
     agregarUsuario(texto);
     setInput('');
-
     setGenerandoIA(true);
+
     try {
-      // Primero de todo: ¿el banco de respuestas ya tiene algo
-      // verificado que se parezca mucho EN SIGNIFICADO a esto? Si sí,
-      // respondemos directo con eso — sin generar nada, sin GPU, sin
-      // internet, cero riesgo de alucinación (ya lo redactó y aprobó
-      // una persona). Funciona en cualquier dispositivo, 32 o 64
-      // bits, porque es el mismo modelo de embeddings (~30MB) que ya
-      // usa el catálogo — ver la nota grande en App.tsx sobre por qué
-      // esto ahora corre siempre, no solo cuando el LLM local carga.
+      // 1) Banco de respuestas primero — sin generar nada, sin GPU,
+      // sin internet, funciona en cualquier dispositivo.
       const coincidencia = await buscarRespuestaVerificada(texto).catch(() => null);
       if (coincidencia) {
         responderBot(
@@ -306,74 +317,39 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
           },
           300
         );
-        setGenerandoIA(false);
         return;
       }
 
-      // ¿Podemos usar el LLM? Si está soportado pero aún no cargado,
-      // lo preparamos AHORA (la primera vez descarga el modelo).
-      let puedeUsarIA = llm.listo;
-      if (llm.estado === 'inactivo' || llm.estado === 'verificando') {
-        setEscribiendo(true);
-        puedeUsarIA = await llm.activar(); // usamos el booleano, no el estado viejo
+      // 2) ¿Suena a pedir una ruta? Dos señales, cualquiera activa:
+      // (a) palabras clave explícitas ("arma una ruta"), o
+      // (b) se lograron extraer 2+ preferencias del propio texto —
+      // esto es lo que de verdad hace falta para el caso real que
+      // motivó esto: "quiero un fin de semana tranquilo, gastando
+      // poco, con mi pareja" no usa NINGUNA palabra como "ruta" o
+      // "recomiéndame", así que depender solo de palabras clave lo
+      // dejaba pasar de largo — verificado con una prueba real antes
+      // de dejarlo así.
+      const extraidas = await extraerPreferenciasLibres(texto).catch(
+        () => ({} as Partial<PreferenciasUsuario>)
+      );
+      const camposExtraidos = Object.keys(extraidas).length;
+
+      if (pareceSolicitudDeRuta(texto) || camposExtraidos >= 2) {
+        const prefsCompletas: PreferenciasUsuario = {
+          dias: extraidas.dias ?? prefsParcial.dias ?? 2,
+          intereses: extraidas.intereses ?? prefsParcial.intereses ?? ['Naturaleza'],
+          presupuesto: extraidas.presupuesto ?? prefsParcial.presupuesto ?? 'medio',
+          grupo: extraidas.grupo ?? prefsParcial.grupo ?? 'pareja',
+        };
+        setPrefsParcial(prefsCompletas);
+        setEstado('generando');
+        generarYMostrarRuta(prefsCompletas);
+        return;
       }
 
-      if (puedeUsarIA) {
-
+      // 3) Nube si hay internet — mismo contexto, modelo distinto.
+      if (llm.nubeDisponible()) {
         setEscribiendo(true);
-        let primerToken = true;
-        let msgId = '';
-        await llm.responder(
-          texto,
-          mensajes,
-          (acc) => {
-            if (primerToken) {
-              primerToken = false;
-              setEscribiendo(false);
-              msgId = crypto.randomUUID();
-              setMensajes((prev) => [
-                ...prev,
-                { id: msgId, role: 'bot', texto: acc, timestamp: Date.now() },
-              ]);
-            } else {
-              setMensajes((prev) =>
-                prev.map((m) => (m.id === msgId ? { ...m, texto: acc } : m))
-              );
-            }
-          },
-          prefsParcial
-        );
-
-        // Confirmación única: "sí funciona sin internet" — se muestra
-        // la primera vez que se detecta esta combinación (IA local
-        // lista + sin conexión), para que no quede la duda que se vio
-        // en pruebas de campo real.
-        if (
-          !avisoOfflineConIAMostrado.current &&
-          typeof navigator !== 'undefined' &&
-          !navigator.onLine
-        ) {
-          avisoOfflineConIAMostrado.current = true;
-          setTimeout(() => {
-            setMensajes((prev) => [
-              ...prev,
-              {
-                id: crypto.randomUUID(),
-                role: 'bot',
-                texto:
-                  '🌐 Sin conexión a internet, pero la IA avanzada (guIA) sigue funcionando en tu dispositivo sin problema — no necesita señal.',
-                timestamp: Date.now(),
-              },
-            ]);
-          }, 700);
-        }
-      } else if (llm.nubeDisponible()) {
-        // Sin WebGPU usable, pero SÍ hay internet: exactamente el caso
-        // de una PC con GPU bloqueada mostrado en pruebas de campo.
-        // En vez de resignarnos al motor de reglas, usamos el mismo
-        // contexto recuperado con un modelo en la nube (ver llm.ts).
-        // No streaming aquí (v1): más simple y confiable; los puntitos
-        // cubren la espera.
         try {
           const { texto: textoNube, valida } = await llm.responderNube(
             texto,
@@ -387,75 +363,30 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
               { id: crypto.randomUUID(), role: 'bot', texto: textoNube, timestamp: Date.now() },
             ]);
           } else {
-            // La nube también puede alucinar (menos seguido que el
-            // modelo local, pero pasa) — si la validación la descarta,
-            // no dejamos una burbuja vacía: caemos al motor de reglas
-            // para ESTE mensaje, que nunca inventa datos.
+            // La nube también puede alucinar (menos seguido, pero
+            // pasa) — si la validación la descarta, no dejamos una
+            // burbuja vacía: caemos al motor de reglas para ESTE
+            // mensaje, que nunca inventa datos.
             console.warn('[TuxtlasGO IA] Respuesta de nube descartada por posible alucinación');
             responderBot(responderTextoLibre(texto, null), 200);
-          }
-          if (!avisoModoClasicoMostrado.current) {
-            avisoModoClasicoMostrado.current = true;
-            // El motivo real puede ser "de plano no hay WebGPU" O "sí
-            // hay WebGPU pero el intento falló/tardó demasiado" — antes
-            // este mensaje asumía siempre lo primero, lo cual podía ser
-            // falso y confundir el diagnóstico (ver prueba de campo:
-            // "nunca arranca la local" cuando en realidad tronó rápido,
-            // no por falta de soporte).
-            const motivo =
-              llm.estado === 'sin_soporte'
-                ? 'Este dispositivo no tiene un adaptador WebGPU usable'
-                : `No se pudo cargar la IA local a tiempo${llm.ultimoError ? ` (${llm.ultimoError})` : ' (puede ser memoria, red o algo temporal)'}`;
-            setTimeout(() => {
-              setMensajes((prev) => [
-                ...prev,
-                {
-                  id: crypto.randomUUID(),
-                  role: 'bot',
-                  texto: `💡 ${motivo} — como hay conexión, estoy usando el asistente en la nube. Sin internet, uso el modo clásico offline.`,
-                  timestamp: Date.now(),
-                },
-              ]);
-            }, 700);
           }
         } catch (e) {
           console.error('[TuxtlasGO IA] Nube falló, cae a reglas:', e);
           setEscribiendo(false);
           responderBot(responderTextoLibre(texto, null), 300);
         }
-      } else {
-        // Sin adaptador WebGPU real, sin internet, o error al cargar
-        // → motor de reglas. Avisamos UNA vez por sesión (no en cada
-        // mensaje) para que quede claro que se está en modo clásico y
-        // no parezca que "no pasó nada".
-        setEscribiendo(false);
-        responderBot(responderTextoLibre(texto, null), 400);
-        if (!avisoModoClasicoMostrado.current && (llm.estado === 'sin_soporte' || llm.estado === 'error')) {
-          avisoModoClasicoMostrado.current = true;
-          setTimeout(() => {
-            setMensajes((prev) => [
-              ...prev,
-              {
-                id: crypto.randomUUID(),
-                role: 'bot',
-                texto:
-                  llm.estado === 'sin_soporte'
-                    ? '💡 Este dispositivo no tiene soporte de IA avanzada (WebGPU) ni conexión a internet — sigo funcionando con el asistente clásico offline, sin problema.'
-                    : '💡 La IA avanzada tardó demasiado en cargar (¿señal lenta?) — sigo funcionando con el asistente clásico offline. Si la descarga termina en segundo plano, la uso en tu próximo mensaje.',
-                timestamp: Date.now(),
-              },
-            ]);
-          }, 900);
-        }
+        return;
       }
+
+      // 4) Sin internet → motor de reglas, siempre disponible.
+      responderBot(responderTextoLibre(texto, null), 400);
     } catch (err) {
       // Si algo truena a media respuesta, no dejamos la burbuja a medias:
       // caemos al motor de reglas.
-      console.error('Error generando con LLM:', err);
+      console.error('Error generando respuesta:', err);
       setEscribiendo(false);
       responderBot(responderTextoLibre(texto, null), 200);
     } finally {
-      setEscribiendo(false);
       setGenerandoIA(false);
     }
   }
@@ -544,22 +475,6 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
 
         {escribiendo && (
           <div className="flex flex-col gap-1.5 px-4 py-3 bg-white rounded-2xl rounded-tl-sm w-fit min-w-[180px] border border-jungle-100">
-            {llm.estado === 'cargando' && (
-              <>
-                <div className="flex items-center justify-between gap-3 text-xs text-jungle-600">
-                  <span className="font-medium">Preparando guIA…</span>
-                  <span className="font-semibold text-jungle-700">
-                    {Math.round(llm.progreso * 100)}% · {llm.segundosTranscurridos}s
-                  </span>
-                </div>
-                <div className="w-full h-1.5 bg-jungle-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-jungle-600 transition-all duration-300"
-                    style={{ width: `${Math.round(llm.progreso * 100)}%` }}
-                  />
-                </div>
-              </>
-            )}
             <div className="flex items-center gap-2">
               <span
                 className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"

@@ -11,7 +11,6 @@ import ExploreScreen from './ExploreScreen';
 import { getCatalogoActivo } from '../lib/chatbot';
 import MapScreen from './MapScreen';
 import ChatAssistant from './ChatAssistant';
-import DescargaIABanner from './DescargaIABanner';
 import { useLLM } from '../hooks/useLLM';
 import FavoritesScreen from './FavoritesScreen';
 import PlaceDetail from './PlaceDetail';
@@ -19,6 +18,7 @@ import OfflineIndicator from './OfflineIndicator';
 import type { Lugar } from '../data/lugares';
 import { obtenerRutaPorCarretera, type Coord } from '../lib/routing';
 import PerfilScreen from './PerfilScreen';
+
 
 
 interface RutaVisible {
@@ -44,9 +44,8 @@ export default function AppShell() {
   const [errorRuta, setErrorRuta] = useState<string | null>(null);
 
   // Instancia ÚNICA y compartida del hook de IA: vive aquí (no dentro
-  // de ChatAssistant) para que la descarga siga corriendo aunque el
-  // usuario cambie de pestaña, y para que DescargaIABanner pueda
-  // mostrarse en Explorar/Mapa/etc., no solo dentro del chat.
+  // de ChatAssistant) para que cualquier pestaña use el mismo estado
+  // de la nube sin duplicar lógica.
   const llm = useLLM();
 
   const verLugar = (l: Lugar) => setLugarSeleccionado(l);
@@ -207,39 +206,39 @@ export default function AppShell() {
             real que empuja correctamente al resto del contenido. */}
         <div className="relative h-14 lg:hidden flex-shrink-0">
           <div className="absolute top-3 left-3 right-3 z-30 flex items-center gap-2">
-          <Link
-            to="/"
-            className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-900 hover:bg-white"
-          >
-            <ArrowLeft size={18} />
-          </Link>
-          <Link
-            to="/prestador"
-            className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 hover:bg-white border border-jungle-200"
-          >
-            <Briefcase size={13} /> Soy prestador
-          </Link>
-          {usuario ? (
-            <div className="flex items-center gap-1">
-              <div className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 border border-jungle-200">
-                <User size={13} />
-                <span className="max-w-[80px] truncate">{usuario.nombre.split(' ')[0]}</span>
-              </div>
-              <button
-                onClick={async () => { await apiLogout(); setUsuario(null); }}
-                className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-600 hover:text-red-500 border border-jungle-200"
-              >
-                <LogOut size={13} />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setMostrarAuth(true)}
-              className="bg-jungle-700 text-white shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold hover:bg-jungle-800"
+            <Link
+              to="/"
+              className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-900 hover:bg-white"
             >
-              <User size={13} /> Entrar
-            </button>
-          )}
+              <ArrowLeft size={18} />
+            </Link>
+            <Link
+              to="/prestador"
+              className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 hover:bg-white border border-jungle-200"
+            >
+              <Briefcase size={13} /> Soy prestador
+            </Link>
+            {usuario ? (
+              <div className="flex items-center gap-1">
+                <div className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 border border-jungle-200">
+                  <User size={13} />
+                  <span className="max-w-[80px] truncate">{usuario.nombre.split(' ')[0]}</span>
+                </div>
+                <button
+                  onClick={async () => { await apiLogout(); setUsuario(null); }}
+                  className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-600 hover:text-red-500 border border-jungle-200"
+                >
+                  <LogOut size={13} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setMostrarAuth(true)}
+                className="bg-jungle-700 text-white shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold hover:bg-jungle-800"
+              >
+                <User size={13} /> Entrar
+              </button>
+            )}
           </div>
         </div>
 
@@ -267,7 +266,6 @@ export default function AppShell() {
         {/* Aviso de pre-descarga de IA — visible en cualquier pestaña.
             Ya no necesita margen manual: el spacer del header de arriba
             reserva el espacio real correctamente (ver nota ahí). */}
-        <DescargaIABanner llm={llm} />
 
         {/* Contenido principal */}
         <main className="flex-1 overflow-hidden min-h-0">

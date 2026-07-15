@@ -17,6 +17,7 @@ import {
   responderTextoLibre,
   extraerPreferenciasLibres,
   pareceSolicitudDeRuta,
+  detectarMunicipio,
 } from '../lib/chatbot';
 
 import { guardarRuta, mapaDescargado } from '../lib/db';
@@ -334,23 +335,63 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
       );
       const camposExtraidos = Object.keys(extraidas).length;
 
-      // Umbral de 3 (no 2): tras encontrar en pruebas reales que
-      // "cuánto es dos más dos" llegó a coincidir con 2 categorías a
-      // la vez por una casualidad léxica (ya corregida arriba), exigir
-      // una tercera coincidencia hace mucho más improbable que una
-      // pregunta ajena se cuele por pura coincidencia — sin afectar
-      // pedidos con palabra clave explícita ("arma una ruta"), que
-      // siguen entrando por el otro lado del OR sin importar cuántos
-      // campos se extraigan.
       if (pareceSolicitudDeRuta(texto) || camposExtraidos >= 3) {
+        const diasFinal = extraidas.dias ?? prefsParcial.dias ?? 2;
+        const interesesFinal = extraidas.intereses ?? prefsParcial.intereses ?? ['Naturaleza'];
+        const presupuestoFinal = extraidas.presupuesto ?? prefsParcial.presupuesto ?? 'medio';
+        const grupoFinal = extraidas.grupo ?? prefsParcial.grupo ?? 'pareja';
+        // Municipio: detección por palabra clave ya existente (no
+        // necesita el modelo de embeddings) — tolerante a errores de
+        // escritura vía pln.ts. Es opcional a propósito: si no se
+        // menciona ninguno, la ruta sigue repartiendo entre varios
+        // municipios como siempre.
+        const municipioDetectado = detectarMunicipio(texto) ?? undefined;
+
         const prefsCompletas: PreferenciasUsuario = {
-          dias: extraidas.dias ?? prefsParcial.dias ?? 2,
-          intereses: extraidas.intereses ?? prefsParcial.intereses ?? ['Naturaleza'],
-          presupuesto: extraidas.presupuesto ?? prefsParcial.presupuesto ?? 'medio',
-          grupo: extraidas.grupo ?? prefsParcial.grupo ?? 'pareja',
+          dias: diasFinal,
+          intereses: interesesFinal,
+          presupuesto: presupuestoFinal,
+          grupo: grupoFinal,
+          municipio: municipioDetectado,
         };
+
+        // Transparencia: hallazgo real de campo — "quisiera solo una
+        // ruta en catemaco, para comer en un restaurante solo" dio una
+        // ruta "en pareja" sin avisar nada, porque esos campos no se
+        // extrajeron con confianza y se completaron con un valor por
+        // default EN SILENCIO. Un supuesto equivocado sin avisar se
+        // siente como que el sistema "no entendió nada" — avisando
+        // qué se asumió, el turista lo ve de inmediato y lo corrige
+        // en el siguiente mensaje, en vez de quedarse con la duda.
+        const supuestos: string[] = [];
+        if (extraidas.dias === undefined && prefsParcial.dias === undefined) {
+          supuestos.push(`${diasFinal} día${diasFinal > 1 ? 's' : ''}`);
+        }
+        if (extraidas.intereses === undefined && prefsParcial.intereses === undefined) {
+          supuestos.push(`interés en ${interesesFinal.join(', ').toLowerCase()}`);
+        }
+        if (extraidas.presupuesto === undefined && prefsParcial.presupuesto === undefined) {
+          supuestos.push(`presupuesto ${presupuestoFinal}`);
+        }
+        if (extraidas.grupo === undefined && prefsParcial.grupo === undefined) {
+          supuestos.push(`que viajas ${grupoFinal}`);
+        }
+
         setPrefsParcial(prefsCompletas);
         setEstado('generando');
+
+        if (supuestos.length > 0) {
+          responderBot(
+            {
+              id: crypto.randomUUID(),
+              role: 'bot',
+              texto: `No me quedó claro todo de tu mensaje, así que asumí: ${supuestos.join(' · ')}. Si algo no es correcto, dime y ajusto la ruta.`,
+              timestamp: Date.now(),
+            },
+            200
+          );
+        }
+
         generarYMostrarRuta(prefsCompletas);
         return;
       }

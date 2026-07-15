@@ -52,6 +52,13 @@ export interface PreferenciasUsuario {
   presupuesto: Presupuesto;
   grupo: GrupoViaje;
   dias: Dias;
+  // Opcional: si el turista mencionó un municipio específico en texto
+  // libre ("quiero una ruta en Catemaco"), la ruta se queda SOLO ahí
+  // en vez de repartirse entre varios municipios para dar variedad
+  // (comportamiento por default cuando esto no viene). El flujo
+  // guiado por botones nunca lo pide, así que en ese camino siempre
+  // queda undefined — sin cambios ahí.
+  municipio?: string;
 }
 
 export interface MensajeChat {
@@ -539,9 +546,22 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
     .flatMap(k => porScore[k])
     .map(s => s.lugar);
 
-  const seleccion = recomendados.slice(0, prefs.dias * 5);
+  // Si el turista pidió un municipio específico ("una ruta en
+  // Catemaco"), la ruta se queda SOLO ahí — hallazgo real de campo:
+  // antes esto se ignoraba por completo y la ruta repartía días entre
+  // municipios distintos aunque se hubiera pedido uno solo. Si no hay
+  // NADA que cumpla el perfil en ese municipio, cae al comportamiento
+  // normal (todos los municipios) en vez de dar una ruta vacía —
+  // mejor algo útil que nada.
+  let recomendadosFiltrados = recomendados;
+  if (prefs.municipio) {
+    const soloEseMunicipio = recomendados.filter((l) => l.municipio === prefs.municipio);
+    if (soloEseMunicipio.length > 0) recomendadosFiltrados = soloEseMunicipio;
+  }
 
   // Agrupar por municipio (para minimizar traslados)
+  const seleccion = recomendadosFiltrados.slice(0, prefs.dias * 5);
+
   const porMunicipio: Record<string, Lugar[]> = {};
   seleccion.forEach((l) => {
     if (!porMunicipio[l.municipio]) porMunicipio[l.municipio] = [];

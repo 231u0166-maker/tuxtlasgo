@@ -94,6 +94,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
   const [interesesTemp, setInteresesTemp] = useState<Categoria[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -102,6 +103,17 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
     });
   }, [mensajes, escribiendo]);
 
+  // Un <input> normal nunca hace salto de línea, solo se desborda
+  // horizontalmente sin importar el CSS que se le ponga — por eso se
+  // cambió a <textarea>. Esto la hace crecer sola conforme el texto
+  // ocupa más líneas, hasta un tope (120px) — después de eso, se
+  // vuelve desplazable en vez de seguir creciendo sin límite.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [input]);
   // Agrega un mensaje del bot con un pequeño retardo (sensación de "escribiendo")
   function responderBot(msg: MensajeChat, delay = 500) {
     setEscribiendo(true);
@@ -544,20 +556,29 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
 
       {/* Input de texto libre */}
       <div className="px-3 py-3 bg-white border-t border-jungle-100 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && enviarTexto()}
+            onKeyDown={(e) => {
+              // Enter envía; Shift+Enter inserta un salto de línea —
+              // mismo patrón que WhatsApp/Telegram, para no perder la
+              // posibilidad de escribir párrafos largos.
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                enviarTexto();
+              }
+            }}
             placeholder={generandoIA ? 'Pensando…' : 'Escribe tu pregunta...'}
             disabled={generandoIA}
+            rows={1}
             inputMode="text"
             enterKeyHint="send"
             autoComplete="off"
             autoCorrect="on"
             autoCapitalize="sentences"
-            className="flex-1 bg-jungle-50 rounded-full px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0 disabled:opacity-60"
+            className="flex-1 bg-jungle-50 rounded-2xl px-4 py-3 text-base leading-snug resize-none overflow-y-auto max-h-[120px] focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0 disabled:opacity-60"
           />
           <button
             onClick={enviarTexto}

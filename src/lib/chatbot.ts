@@ -382,8 +382,8 @@ interface EjemploCategoria<T> {
 
 const EJEMPLOS_DIAS: EjemploCategoria<Dias>[] = [
   { valor: 1, frases: ['vengo de paso', 'solo tengo hoy', 'nada más un día', 'de pasada por aquí', 'ando solo hoy por la zona'] },
-  { valor: 2, frases: ['un fin de semana', 'sábado y domingo', 'dos días', 'un fin de semana largo aquí'] },
-  { valor: 3, frases: ['varios días', 'toda la semana', 'unas vacaciones completas', 'tres días o más', 'una semana entera aquí'] },
+  { valor: 2, frases: ['un fin de semana', 'sábado y domingo', 'un fin de semana largo aquí', 'viernes y sábado'] },
+  { valor: 3, frases: ['varios días', 'toda la semana', 'unas vacaciones completas', 'una semana entera aquí'] },
 ];
 
 const EJEMPLOS_PRESUPUESTO: EjemploCategoria<Presupuesto>[] = [
@@ -394,17 +394,25 @@ const EJEMPLOS_PRESUPUESTO: EjemploCategoria<Presupuesto>[] = [
 
 const EJEMPLOS_GRUPO: EjemploCategoria<GrupoViaje>[] = [
   { valor: 'solo', frases: ['voy solo', 'ando sola', 'viajo solo', 'nomás yo'] },
-  { valor: 'pareja', frases: ['con mi pareja', 'con mi novio', 'con mi novia', 'en pareja', 'de luna de miel', 'somos dos'] },
+  { valor: 'pareja', frases: ['con mi pareja', 'con mi novio', 'con mi novia', 'en pareja', 'de luna de miel'] },
   { valor: 'familia', frases: ['con mi familia', 'con niños', 'vamos en familia', 'con mis papás', 'con mis hijos'] },
   { valor: 'amigos', frases: ['con mis amigos', 'en grupo de amigos', 'vamos varios amigos'] },
 ];
 
+// Hallazgo real de campo: alguien escribió "quiero una ruta, con
+// gastronomía" y NO se detectó — porque ninguna frase de ejemplo
+// tenía la palabra "gastronomía" en sí, solo paráfrasis ("comer
+// bien", "buena comida"). Si el turista usa el nombre de la categoría
+// tal cual (lo más natural del mundo), hace falta que esté aquí
+// literal, no solo su paráfrasis.
 const EJEMPLOS_INTERESES: EjemploCategoria<Categoria>[] = [
-  { valor: 'Naturaleza', frases: ['algo tranquilo', 'en la naturaleza', 'selva', 'cascadas', 'aire libre', 'desconectarme un rato'] },
+  { valor: 'Naturaleza', frases: ['algo tranquilo', 'en la naturaleza', 'naturaleza', 'selva', 'cascadas', 'aire libre', 'desconectarme un rato'] },
   { valor: 'Aventura', frases: ['adrenalina', 'aventura', 'algo extremo', 'actividades de aventura'] },
-  { valor: 'Gastronomia', frases: ['comer bien', 'buena comida', 'restaurantes', 'probar platillos locales'] },
-  { valor: 'Hospedaje', frases: ['dónde quedarme', 'hospedaje', 'un buen hotel', 'dónde dormir'] },
+  { valor: 'Gastronomia', frases: ['gastronomía', 'gastronomia', 'comer bien', 'buena comida', 'restaurantes', 'probar platillos locales'] },
+  { valor: 'Hospedaje', frases: ['hospedaje', 'dónde quedarme', 'un buen hotel', 'dónde dormir'] },
 ];
+
+
 
 // Caché de vectores de los ejemplos — se calculan una sola vez por
 // sesión (son pocas frases fijas, no vale la pena persistirlas en
@@ -523,7 +531,7 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
       const j = Math.floor(Math.random() * (i + 1));
       [grupo[i], grupo[j]] = [grupo[j], grupo[i]];
     }
-  } 
+  }
   // Reconstruir lista ordenada por score (de mayor a menor)
   const recomendados = Object.keys(porScore)
     .map(Number)

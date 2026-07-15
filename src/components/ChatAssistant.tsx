@@ -334,7 +334,15 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
       );
       const camposExtraidos = Object.keys(extraidas).length;
 
-      if (pareceSolicitudDeRuta(texto) || camposExtraidos >= 2) {
+      // Umbral de 3 (no 2): tras encontrar en pruebas reales que
+      // "cuánto es dos más dos" llegó a coincidir con 2 categorías a
+      // la vez por una casualidad léxica (ya corregida arriba), exigir
+      // una tercera coincidencia hace mucho más improbable que una
+      // pregunta ajena se cuele por pura coincidencia — sin afectar
+      // pedidos con palabra clave explícita ("arma una ruta"), que
+      // siguen entrando por el otro lado del OR sin importar cuántos
+      // campos se extraigan.
+      if (pareceSolicitudDeRuta(texto) || camposExtraidos >= 3) {
         const prefsCompletas: PreferenciasUsuario = {
           dias: extraidas.dias ?? prefsParcial.dias ?? 2,
           intereses: extraidas.intereses ?? prefsParcial.intereses ?? ['Naturaleza'],

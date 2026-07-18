@@ -141,17 +141,68 @@ export async function recuperarContexto(
 // nombre, es evidencia fuerte de que inventó información — se
 // descarta antes de mostrarla al turista. Se sigue aplicando a la
 // nube (menos propensa a esto, pero también puede pasar).
-export function pareceInventada(texto: string, lugares: Lugar[]): boolean {
-  const tienePatronDePrecio = /\$\s?\d/.test(texto);
-  if (!tienePatronDePrecio || lugares.length === 0) return false; // nada que validar aquí
+const CATEGORIAS_VALIDAS = new Set([
+  'Naturaleza', 'Aventura', 'Gastronomia', 'Hospedaje', 'Comercio', 'Cooperativa', 'Otro',
+]);
 
-  const textoNorm = texto.toLowerCase();
-  const mencionaAlgunLugarReal = lugares.some((l) =>
-    textoNorm.includes(l.nombre.toLowerCase())
-  );
-  return !mencionaAlgunLugarReal;
+// Compara nombres tolerando mayúsculas, acentos y espacios de más —
+// no exige coincidencia exacta carácter por carácter, solo que sea
+// reconociblemente el mismo lugar (p. ej. "Catermaco" vs "Catemaco").
+function normalizarNombre(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // quita acentos
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
+// Hallazgo real de campo: una respuesta puede MEZCLAR lugares reales
+// con inventados en la misma lista — el check original (¿aparece AL
+// MENOS UN lugar real en todo el texto?) daba el visto bueno a la
+// lista COMPLETA con que apareciera uno solo real, dejando pasar de
+// largo el resto inventado (incluso con categorías que ni existen en
+// el sistema, como "Turismo" o "Cultura"). Este check nuevo revisa
+// CADA entrada con formato "Nombre (Categoría, Municipio)" — el mismo
+// formato que le damos como contexto, y que el modelo tiende a repetir
+// al alucinar — contra el catálogo COMPLETO (no solo los 4 lugares
+// que se le dieron de contexto), para no marcar por error un lugar
+// real que existe en la plataforma pero no vino en este contexto en
+// particular.
+function contieneEntradaInventada(texto: string): boolean {
+  const catalogoCompleto = getCatalogoActivo();
+  const nombresReales = catalogoCompleto.map((l) => normalizarNombre(l.nombre));
+
+  const patronListaLugar = /^[\s\-+•]*(.+?)\s*\(([^,()]+),\s*([^()]+)\)\s*$/gm;
+  let match: RegExpExecArray | null;
+  while ((match = patronListaLugar.exec(texto)) !== null) {
+    const [, nombreCrudo, categoriaCruda] = match;
+    const categoria = categoriaCruda.trim();
+    if (!CATEGORIAS_VALIDAS.has(categoria)) return true; // categoría que no existe en el sistema
+
+    const nombreNorm = normalizarNombre(nombreCrudo);
+    if (nombreNorm.length < 3) continue; // línea demasiado corta para ser un nombre real, ignorar
+
+    const existeEnCatalogo = nombresReales.some(
+      (n) => n === nombreNorm || n.includes(nombreNorm) || nombreNorm.includes(n)
+    );
+    if (!existeEnCatalogo) return true; // nombre que no existe en ningún lugar del catálogo
+  }
+  return false;
+}
+
+export function pareceInventada(texto: string, lugares: Lugar[]): boolean {
+  const tienePatronDePrecio = /\$\s?\d/.test(texto);
+  if (tienePatronDePrecio && lugares.length > 0) {
+    const textoNorm = texto.toLowerCase();
+    const mencionaAlgunLugarReal = lugares.some((l) =>
+      textoNorm.includes(l.nombre.toLowerCase())
+    );
+    if (!mencionaAlgunLugarReal) return true;
+  }
+
+  return contieneEntradaInventada(texto);
+}
 function lugarAFicha(l: Lugar): string {
   const partes = [
     `- ${l.nombre}${l.premium ? ' [Socio Premium TuxtlasGO]' : ''} (${l.categoria}, ${l.municipio})`,
@@ -185,7 +236,7 @@ function construirContextoTexto(
   if (ctx.lugares.length > 0) {
     bloques.push(
       'LUGARES DISPONIBLES (usa SOLO estos):\n' +
-        ctx.lugares.map(lugarAFicha).join('\n\n')
+      ctx.lugares.map(lugarAFicha).join('\n\n')
     );
   }
   if (ctx.conocimiento) {

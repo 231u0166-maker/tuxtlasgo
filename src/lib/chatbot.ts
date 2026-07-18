@@ -19,7 +19,7 @@ export function getCatalogoActivo(): Lugar[] {
 }
 
 import { buscarConocimiento } from './conocimiento';
-import { tokenizar, contieneClave } from './pln';
+import { tokenizar, contieneClave, palabraCoincide } from './pln';
 import { vectorizar, similitudCoseno, embeddingsListo } from './embeddings';
 // ============================================================
 // MOTOR DE ASISTENTE CONVERSACIONAL — 100% OFFLINE
@@ -185,6 +185,63 @@ export function detectarMunicipio(texto: string): string | null {
   if (contieneClave(tokens, 'santiago')) return 'Santiago Tuxtla';
   return null;
 }
+
+// Palabras que aparecen en muchos nombres de lugares pero no
+// distinguen a NINGUNO en particular ("Restaurante X", "Cabañas Y") —
+// se ignoran al comparar, para que coincidir con ellas solas no cuente
+// como haber nombrado un lugar específico.
+const PALABRAS_GENERICAS_LUGAR = new Set([
+  'el', 'la', 'los', 'las', 'de', 'del', 'y', 'restaurante', 'restaurant',
+  'bar', 'cabañas', 'cabana', 'cabanas', 'reserva', 'ecologica', 'ecológica',
+  'lanchas', 'cafe', 'café', 'hotel', 'hospedaje', 'tours', 'servicio',
+  'salto', 'balneario', 'nueva', 'sucursal',
+]);
+
+function palabrasDistintivas(nombre: string): string[] {
+  return nombre
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/\s+/)
+    .filter((p) => p.length >= 3 && !PALABRAS_GENERICAS_LUGAR.has(p));
+}
+
+// Busca si el turista mencionó el NOMBRE de un lugar específico del
+// catálogo — a diferencia de buscarSemantico (que compara SIGNIFICADO
+// general con embeddings), esto es para resolver "está hablando de
+// ESTE lugar en particular", así se puede mostrar su tarjeta
+// (imagen + descripción) en vez de una respuesta genérica en texto.
+// Funciona sin internet ni GPU — es comparación de texto simple.
+//
+// Ej: "Restaurante Margiros" tiene una sola palabra distintiva
+// ("margiros") — basta con que el turista escriba esa. "Reserva
+// Ecológica Nanciyaga" también reduce a una sola ("nanciyaga"). Para
+// nombres con VARIAS palabras distintivas reales, exige que coincida
+// al menos la mitad, para no confundir un lugar con otro por una sola
+// palabra suelta compartida.
+export function buscarLugarPorNombre(texto: string, catalogo: Lugar[]): Lugar | null {
+  const tokens = tokenizar(texto);
+  let mejor: { lugar: Lugar; coincidencias: number; totalDistintivas: number } | null = null;
+
+  for (const lugar of catalogo) {
+    const distintivas = palabrasDistintivas(lugar.nombre);
+    if (distintivas.length === 0) continue;
+
+    const coincidencias = distintivas.filter((p) =>
+      tokens.some((t) => palabraCoincide(t, p))
+    ).length;
+
+    const umbralMinimo = Math.max(1, Math.ceil(distintivas.length / 2));
+    if (coincidencias < umbralMinimo) continue;
+
+    if (!mejor || coincidencias > mejor.coincidencias) {
+      mejor = { lugar, coincidencias, totalDistintivas: distintivas.length };
+    }
+  }
+
+  return mejor ? mejor.lugar : null;
+}
+
 
 // ─────────────── MENSAJES DEL FLUJO GUIADO ───────────────
 export function mensajeBienvenida(): MensajeChat {

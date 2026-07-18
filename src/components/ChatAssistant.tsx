@@ -18,6 +18,8 @@ import {
   extraerPreferenciasLibres,
   pareceSolicitudDeRuta,
   detectarMunicipio,
+  buscarLugarPorNombre,
+  getCatalogoActivo,
 } from '../lib/chatbot';
 
 import { guardarRuta, mapaDescargado } from '../lib/db';
@@ -332,6 +334,35 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
         );
         return;
       }
+
+      // 2) ¿Está preguntando por UN lugar específico por nombre? (ej.
+      // "quiero ir a Margiros", "qué hay en Nanciyaga"). A diferencia
+      // de una categoría general ("un restaurante"), aquí sí sabemos
+      // EXACTAMENTE de cuál lugar habla — así que se resuelve directo
+      // a su tarjeta (imagen + descripción real), sin pasar por nube
+      // ni por reglas genéricas. Cero riesgo de alucinación (son sus
+      // datos reales del catálogo) y funciona sin internet.
+      const lugarPorNombre = buscarLugarPorNombre(texto, getCatalogoActivo());
+      if (lugarPorNombre) {
+        const intros = [
+          `Esto es lo que tengo de ${lugarPorNombre.nombre}:`,
+          `${lugarPorNombre.nombre} — aquí tienes los detalles:`,
+          `Mira, esto es ${lugarPorNombre.nombre}:`,
+        ];
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: intros[Math.floor(Math.random() * intros.length)],
+            lugares: [lugarPorNombre],
+            timestamp: Date.now(),
+          },
+          300
+        );
+        return;
+      }
+
+      // 3) ¿Suena a pedir una ruta? Dos señales, cualquiera activa:
 
       // 2) ¿Suena a pedir una ruta? Dos señales, cualquiera activa:
       // (a) palabras clave explícitas ("arma una ruta"), o

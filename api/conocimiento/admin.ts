@@ -6,7 +6,7 @@ import { Pool } from 'pg';
 // ============================================================
 // Antes, agregar una ficha de conocimiento (precio confirmado,
 // horario, dato de seguridad) significaba editar conocimiento.ts y
-// volver a desplegar. Eso es fricción real para algo que el equipo
+// volver a desplegmar. Eso es fricción real para algo que el equipo
 // va a querer actualizar seguido conforme se registran prestadores.
 //
 // Este endpoint mueve esas fichas a una tabla en Neon, administrable

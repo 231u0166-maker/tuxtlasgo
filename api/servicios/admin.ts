@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
 
 function getPool() { return new Pool({ connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 1 }); }
-function cors(res: VercelResponse){res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type,X-Admin-Password');}
+function cors(res: VercelResponse) { res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-Admin-Password'); }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -18,11 +18,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (req.method === 'POST') {
       const { servicioId, accion, motivoRechazo } = req.body;
-      if (!servicioId || !['aprobar','rechazar'].includes(accion)) return res.status(400).json({ error: 'Datos inválidos' });
-      const estado = accion === 'aprobar' ? 'aprobado' : 'rechazado';
-      await pool.query('UPDATE servicios SET estado=$1, motivo_rechazo=$2, notificado=FALSE, actualizado_en=NOW() WHERE id=$3', [estado, accion==='rechazar'?motivoRechazo:null, servicioId]);
+      if (!servicioId || !['aprobar', 'rechazar', 'dar_de_baja'].includes(accion)) return res.status(400).json({ error: 'Datos inválidos' });
+      // 'baja' es un estado DISTINTO de 'rechazado' a propósito: un
+      // rechazo es para una solicitud que nunca llegó a aprobarse
+      // (incompleta, fraudulenta, etc.); una baja es para un servicio
+      // que SÍ estuvo funcionando y aprobado, pero ya cerró o cambió
+      // de información — mezclar ambos bajo "rechazado" confundía al
+      // equipo sobre qué pasó realmente con cada uno.
+      const estado = accion === 'aprobar' ? 'aprobado' : accion === 'dar_de_baja' ? 'baja' : 'rechazado';
+      await pool.query('UPDATE servicios SET estado=$1, motivo_rechazo=$2, notificado=FALSE, actualizado_en=NOW() WHERE id=$3', [estado, accion !== 'aprobar' ? motivoRechazo : null, servicioId]);
       return res.status(200).json({ ok: true, mensaje: `Servicio ${estado}` });
     }
+
     return res.status(405).json({ error: 'Método no permitido' });
   } catch (err) {
     return res.status(500).json({ error: 'Error: ' + String(err) });

@@ -8,7 +8,7 @@ import { agregarConocimientoDinamico } from '../lib/conocimiento';
 
 const ADMIN_PWD = 'tuxtlasgo2026';
 
-type Filtro = 'pendiente' | 'aprobado' | 'rechazado' | 'todos';
+type Filtro = 'pendiente' | 'aprobado' | 'rechazado' | 'baja' | 'todos';
 
 interface Servicio {
   id: number;
@@ -43,12 +43,13 @@ export default function AdminPanel() {
     setCargando(true);
     try {
       if (estado === 'todos') {
-        const [r1, r2, r3] = await Promise.all([
+        const [r1, r2, r3, r4] = await Promise.all([
           fetch('/api/servicios/admin?estado=pendiente', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
           fetch('/api/servicios/admin?estado=aprobado', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
           fetch('/api/servicios/admin?estado=rechazado', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
+          fetch('/api/servicios/admin?estado=baja', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
         ]);
-        setServicios([...(r1.servicios||[]), ...(r2.servicios||[]), ...(r3.servicios||[])]);
+        setServicios([...(r1.servicios || []), ...(r2.servicios || []), ...(r3.servicios || []), ...(r4.servicios || [])]);
       } else {
         const res = await fetch(`/api/servicios/admin?estado=${estado}`, {
           headers: { 'X-Admin-Password': ADMIN_PWD }
@@ -95,6 +96,27 @@ export default function AdminPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
         body: JSON.stringify({ servicioId: id, accion: 'rechazar', motivoRechazo: motivo || 'No cumple los requisitos' })
+      });
+      await cargarServicios(filtro);
+    } catch (err) { console.error(err); }
+    setAccionando(null);
+  }
+
+  // Distinto de rechazar(): esto es para un servicio que SÍ estuvo
+  // aprobado y funcionando, pero ya cerró o la información cambió —
+  // cualquiera del equipo puede usarlo tras confirmar en campo (o vía
+  // la hoja de verificación) que el lugar ya no está vigente. Deja de
+  // aparecer en las recomendaciones de inmediato (api/servicios/
+  // aprobados.ts solo trae estado='aprobado').
+  async function darDeBaja(id: number) {
+    const motivo = prompt('¿Por qué se da de baja? (ej. "cerró definitivamente", "cambió de dueño", "datos desactualizados")');
+    if (motivo === null) return;
+    setAccionando(id);
+    try {
+      await fetch('/api/servicios/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        body: JSON.stringify({ servicioId: id, accion: 'dar_de_baja', motivoRechazo: motivo || 'Ya no está vigente' })
       });
       await cargarServicios(filtro);
     } catch (err) { console.error(err); }
@@ -181,8 +203,9 @@ export default function AdminPanel() {
   // ─── PANEL ADMIN AUTENTICADO ───
   const colores: Record<string, string> = {
     pendiente: 'bg-amber-100 text-amber-800',
-    aprobado:  'bg-jungle-100 text-jungle-800',
+    aprobado: 'bg-jungle-100 text-jungle-800',
     rechazado: 'bg-red-100 text-red-700',
+    baja: 'bg-gray-200 text-gray-700',
   };
 
   const pendientes = servicios.filter(s => s.estado === 'pendiente').length;
@@ -222,11 +245,10 @@ export default function AdminPanel() {
 
         {/* Filtros */}
         <div className="flex gap-2 mb-5 flex-wrap">
-          {(['pendiente','aprobado','rechazado','todos'] as Filtro[]).map(f => (
+          {(['pendiente', 'aprobado', 'rechazado', 'baja', 'todos'] as Filtro[]).map(f => (
             <button key={f} onClick={() => cambiarFiltro(f)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors capitalize ${
-                filtro === f ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-200 hover:bg-jungle-50'
-              }`}>
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors capitalize ${filtro === f ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-200 hover:bg-jungle-50'
+                }`}>
               {f === 'todos' ? 'Todos' : f.charAt(0).toUpperCase() + f.slice(1) + 's'}
             </button>
           ))}
@@ -326,7 +348,7 @@ export default function AdminPanel() {
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-display font-bold text-lg text-jungle-950">{s.nombre}</h3>
                       <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${colores[s.estado] || 'bg-gray-100 text-gray-600'}`}>
-                        {s.estado === 'pendiente' ? '⏳ Pendiente' : s.estado === 'aprobado' ? '✅ Aprobado' : '❌ Rechazado'}
+                        {s.estado === 'pendiente' ? '⏳ Pendiente' : s.estado === 'aprobado' ? '✅ Aprobado' : s.estado === 'baja' ? '🚫 De baja' : '❌ Rechazado'}
                       </span>
                     </div>
                     <p className="text-xs text-jungle-500 font-mono">{s.codigo_seguimiento}</p>
@@ -353,8 +375,8 @@ export default function AdminPanel() {
                 )}
 
                 {/* Motivo rechazo */}
-                {s.estado === 'rechazado' && s.motivo_rechazo && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700 mb-3">
+                {(s.estado === 'rechazado' || s.estado === 'baja') && s.motivo_rechazo && (
+                  <div className={`border rounded-xl px-3 py-2 text-xs mb-3 ${s.estado === 'baja' ? 'bg-gray-50 border-gray-200 text-gray-600' : 'bg-red-50 border-red-200 text-red-700'}`}>
                     <strong>Motivo:</strong> {s.motivo_rechazo}
                   </div>
                 )}
@@ -376,9 +398,18 @@ export default function AdminPanel() {
                 )}
 
                 {s.estado === 'aprobado' && (
-                  <button onClick={() => rechazar(s.id)} disabled={accionando === s.id}
-                    className="w-full border border-red-200 text-red-500 hover:bg-red-50 text-sm font-semibold py-2 rounded-xl mt-1 transition-colors">
-                    Quitar de la app
+                  <button onClick={() => darDeBaja(s.id)} disabled={accionando === s.id}
+                    className="w-full border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm font-semibold py-2 rounded-xl mt-1 transition-colors flex items-center justify-center gap-2">
+                    {accionando === s.id ? <Loader2 size={14} className="animate-spin" /> : null}
+                    Dar de baja (ya no existe / cerró)
+                  </button>
+                )}
+
+                {s.estado === 'baja' && (
+                  <button onClick={() => aprobar(s.id)} disabled={accionando === s.id}
+                    className="w-full border border-jungle-300 text-jungle-700 hover:bg-jungle-50 text-sm font-semibold py-2 rounded-xl mt-1 transition-colors flex items-center justify-center gap-2">
+                    {accionando === s.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                    Reactivar (fue un error)
                   </button>
                 )}
               </div>

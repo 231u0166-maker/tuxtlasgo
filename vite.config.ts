@@ -38,6 +38,25 @@ export default defineConfig({
             },
           },
           {
+            // OpenFreeMap: estilo, sprite, fuentes (glyphs) Y tiles
+            // vectoriales del mapa nuevo (MapLibre) — todo bajo el
+            // mismo dominio, así que una sola regla cubre los 3 tipos
+            // de recurso. maxEntries más alto que el de OSM porque un
+            // tile vectorial cubre más zoom/detalle por archivo, pero
+            // hay más tipos de archivo distintos compartiendo la cuota.
+            urlPattern: /^https:\/\/tiles\.openfreemap\.org\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'openfreemap-tiles',
+              expiration: {
+                maxEntries: 2000,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+                purgeOnQuotaError: true,
+              },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
             // Imágenes de Unsplash
             urlPattern: /^https:\/\/images\.unsplash\.com\/.*/i,
             handler: 'CacheFirst',
@@ -97,14 +116,14 @@ export default defineConfig({
         lang: 'es-MX',
         categories: ['travel', 'navigation', 'lifestyle'],
         icons: [
-          { src: 'icons/icon-72.png',   sizes: '72x72',   type: 'image/png', purpose: 'any' },
-          { src: 'icons/icon-96.png',   sizes: '96x96',   type: 'image/png', purpose: 'any' },
-          { src: 'icons/icon-128.png',  sizes: '128x128', type: 'image/png', purpose: 'any' },
-          { src: 'icons/icon-144.png',  sizes: '144x144', type: 'image/png', purpose: 'any' },
-          { src: 'icons/icon-152.png',  sizes: '152x152', type: 'image/png', purpose: 'any' },
-          { src: 'icons/icon-192.png',  sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: 'icons/icon-384.png',  sizes: '384x384', type: 'image/png', purpose: 'any' },
-          { src: 'icons/icon-512.png',  sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-72.png', sizes: '72x72', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-96.png', sizes: '96x96', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-128.png', sizes: '128x128', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-144.png', sizes: '144x144', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-152.png', sizes: '152x152', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-384.png', sizes: '384x384', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: 'icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },

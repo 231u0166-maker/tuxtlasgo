@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
-import L from 'leaflet';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { Download, CheckCircle2, Loader2, X, Compass } from 'lucide-react';
 import {
   LUGARES,
@@ -12,17 +13,34 @@ import {
 import { listarServiciosAprobadosComoLugares } from '../lib/db';
 
 // ============================================================
-// PANTALLA DE MAPA — OPTIMIZADA PARA NO TRABARSE
+// PANTALLA DE MAPA — migrado de Leaflet a MapLibre GL JS
 // ============================================================
-// Mejoras de rendimiento vs. versión anterior:
-// 1. Iconos de marcador cacheados (no se recrean en cada render)
-// 2. Descarga de tiles más ligera: menos puntos, menos zoom
-// 3. Descarga en segundo plano sin congelar la interfaz
-// 4. Incluye prestadores aprobados como marcadores
+// DECISION DE ARQUITECTURA (por que se cambio):
+// La maestra pidio un mapa mas interactivo, con edificios visibles
+// "virtualmente" - Leaflet (lo que habia antes) NO PUEDE hacer
+// edificios en 3D bajo ninguna circunstancia, es una limitacion de la
+// tecnologia (tiles de imagen ya renderizadas), no de configuracion.
+// MapLibre GL JS si, de forma nativa, porque dibuja el mapa a partir
+// de datos vectoriales en el navegador, no de imagenes.
+//
+// Fuente de mapas: OpenFreeMap (tiles.openfreemap.org) - verificado:
+// genuinamente gratis, sin limite de uso, sin clave API, licencia MIT.
+// Se evaluo "mapcn" primero, pero su mapa base por default (CARTO)
+// requiere licencia Enterprise de pago para uso comercial - y esta
+// app cobra comision y plan Premium, asi que si cuenta como comercial.
+//
+// Estilo elegido: "liberty" - ya trae edificios en 3D integrados de
+// fabrica (capa "building-3d" en su propio style.json, activa desde
+// zoom 14 combinado con pitch>0) - no hace falta agregar codigo
+// nuevo para eso, solo inclinar la camara.
+//
+// IMPORTANTE - AuthModal.tsx (el selector de ubicacion al registrar
+// un prestador) sigue usando Leaflet por separado; no se toco, sigue
+// funcionando igual. Esta migracion es solo de esta pantalla.
 // ============================================================
 
-// CACHÉ de iconos: se crean UNA vez, no en cada render.
-// Esto es clave para que el mapa no se trabe al haber muchos marcadores.
+const ESTILO_MAPA = 'https://tiles.openfreemap.org/styles/liberty';
+
 const COLORES_CATEGORIA: Record<string, string> = {
   Naturaleza: '#16a34a',
   Aventura: '#ea580c',
@@ -32,107 +50,90 @@ const COLORES_CATEGORIA: Record<string, string> = {
   Playa: '#0891b2',
 };
 
-const iconCache = new Map<string, L.DivIcon>();
-
-function getIcono(categoria: string): L.DivIcon {
-  if (iconCache.has(categoria)) {
-    return iconCache.get(categoria)!;
-  }
+// Pin con forma de gota (igual visualmente al de antes) - ahora es un
+// componente de React normal en vez de una cadena de HTML para un
+// L.divIcon, porque el <Marker> de MapLibre acepta children de React
+// directamente.
+function PinLugar({ categoria, onClick }: { categoria: string; onClick: () => void }) {
   const color = COLORES_CATEGORIA[categoria] || '#16a34a';
   const emoji = CATEGORIAS.find((c) => c.id === categoria)?.emoji || '📍';
-  const icono = L.divIcon({
-    html: `<div style="width:32px;height:32px;background:white;border:3px solid ${color};border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,0.3)"><div style="transform:rotate(45deg);font-size:14px">${emoji}</div></div>`,
-    className: '',
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
-    popupAnchor: [0, -30],
-  });
-  iconCache.set(categoria, icono);
-  return icono;
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        width: 32,
+        height: 32,
+        background: 'white',
+        border: `3px solid ${color}`,
+        borderRadius: '50% 50% 50% 0',
+        transform: 'rotate(-45deg)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 3px 8px rgba(0,0,0,0.3)',
+        cursor: 'pointer',
+      }}
+    >
+      <div style={{ transform: 'rotate(45deg)', fontSize: 14 }}>{emoji}</div>
+    </div>
+  );
+}
+
+// Circulo numerado para las paradas de una ruta (1, 2, 3...)
+function PinParada({ orden }: { orden: number }) {
+  return (
+    <div
+      style={{
+        width: 28,
+        height: 28,
+        background: '#15803d',
+        color: 'white',
+        border: '3px solid white',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 800,
+        fontSize: 13,
+        boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+      }}
+    >
+      {orden}
+    </div>
+  );
 }
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   filtroCategorias?: string[];
-  // Lista de coordenadas que dibuja una ruta sobre las carreteras.
-  // Si se pasa, se renderiza como polyline verde y el mapa hace zoom
-  // para encuadrarla completa.
+  // Lista de coordenadas [lat, lng] que dibuja una ruta sobre las
+  // carreteras. Se convierte a [lng, lat] internamente (GeoJSON/
+  // MapLibre usan ese orden, al reves de Leaflet) justo antes de
+  // dibujarse - ver rutaGeoJSON mas abajo.
   rutaResaltada?: [number, number][];
-  // Puntos numerados (paradas de la ruta del día) — opcional.
-  // Se dibujan como círculos numerados al lado de cada lugar.
   paradasResaltadas?: { coord: [number, number]; orden: number }[];
-  // Permite al usuario quitar la ruta visible y volver al mapa normal.
   onLimpiarRuta?: () => void;
 }
 
-// Icono numerado para las paradas de una ruta (1, 2, 3...)
-const paradaIconCache = new Map<number, L.DivIcon>();
-function iconoParada(orden: number): L.DivIcon {
-  if (paradaIconCache.has(orden)) return paradaIconCache.get(orden)!;
-  const icono = L.divIcon({
-    html: `<div style="width:28px;height:28px;background:#15803d;color:white;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${orden}</div>`,
-    className: '',
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-  });
-  paradaIconCache.set(orden, icono);
-  return icono;
-}
-
-// Componente interno: cuando recibe puntos, hace zoom para encuadrar
-// toda la ruta. Se monta dentro del <MapContainer>.
-function AjustarVistaARuta({ puntos }: { puntos: [number, number][] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (puntos.length < 2) return;
-    const bounds = L.latLngBounds(puntos);
-    map.fitBounds(bounds, { padding: [40, 40] });
-  }, [puntos, map]);
-  return null;
-}
-
-// Vuela suavemente al lugar resaltado y hace zoom en él
-function FlyToLugar({ coords }: { coords: [number, number] }) {
-  const map = useMap();
-  useEffect(() => {
-    map.flyTo(coords, 16, { duration: 1.2 });
-  }, [coords, map]);
-  return null;
-}
-
-// Icono pulsante para el lugar resaltado
-function getIconoResaltado(categoria: string): L.DivIcon {
-  const color = COLORES_CATEGORIA[categoria] || '#15803d';
-  const emoji = CATEGORIAS.find((c) => c.id === categoria)?.emoji || '📍';
-  return L.divIcon({
-    html: `<div style="position:relative">
-      <div style="width:44px;height:44px;background:white;border:4px solid ${color};border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.4)">
-        <div style="transform:rotate(45deg);font-size:18px">${emoji}</div>
-      </div>
-      <div style="position:absolute;top:-6px;left:-6px;width:56px;height:56px;border-radius:50%;border:3px solid ${color};opacity:0.4;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></div>
-    </div>
-    <style>@keyframes ping{75%,100%{transform:scale(1.8);opacity:0}}</style>`,
-    className: '',
-    iconSize: [44, 44],
-    iconAnchor: [22, 44],
-    popupAnchor: [0, -44],
-  });
-}
-
-export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada, paradasResaltadas, onLimpiarRuta }: Props) {
+export default function MapScreen({
+  onVerLugar,
+  filtroCategorias,
+  rutaResaltada,
+  paradasResaltadas,
+  onLimpiarRuta,
+}: Props) {
+  const mapRef = useRef<MapRef>(null);
   const [serviciosPrestadores, setServiciosPrestadores] = useState<Lugar[]>([]);
   const [descargando, setDescargando] = useState(false);
   const [progreso, setProgreso] = useState(0);
   const [tilesListos, setTilesListos] = useState(false);
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
 
-  // Cargar prestadores aprobados al montar (local + Neon)
   useEffect(() => {
     (async () => {
       try {
         const local = await listarServiciosAprobadosComoLugares();
         setServiciosPrestadores(local);
-        // También traer desde Neon para tener fotos y datos actualizados
         const res = await fetch('/api/servicios/aprobados');
         if (res.ok) {
           const data = await res.json();
@@ -156,7 +157,6 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
     }
   }, []);
 
-  // Combinar lugares oficiales + prestadores aprobados
   const todosLosLugares = useMemo(() => {
     const base = [...LUGARES, ...serviciosPrestadores];
     if (filtroCategorias && filtroCategorias.length > 0) {
@@ -165,80 +165,109 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
     return base;
   }, [serviciosPrestadores, filtroCategorias]);
 
+  // GeoJSON de la ruta del dia - MapLibre/GeoJSON usan [lng, lat],
+  // al reves de Leaflet ([lat, lng], que es como sigue llegando desde
+  // props por compatibilidad con el resto de la app) - se voltea aqui,
+  // en un solo lugar, para no tener que tocar nada mas.
+  const rutaGeoJSON = useMemo(() => {
+    if (!rutaResaltada || rutaResaltada.length < 2) return null;
+    return {
+      type: 'Feature' as const,
+      properties: {},
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: rutaResaltada.map(([lat, lng]) => [lng, lat]),
+      },
+    };
+  }, [rutaResaltada]);
+
+  // Encuadra el mapa para que se vea la ruta completa cuando cambia.
+  useEffect(() => {
+    if (!rutaResaltada || rutaResaltada.length < 2) return;
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const lngLats = rutaResaltada.map(([lat, lng]) => [lng, lat] as [number, number]);
+    const bounds = lngLats.reduce(
+      (b, coord) => b.extend(coord),
+      new maplibregl.LngLatBounds(lngLats[0], lngLats[0])
+    );
+    map.fitBounds(bounds, { padding: 60, duration: 800 });
+  }, [rutaResaltada]);
+
+  const resetearVista = useCallback(() => {
+    mapRef.current?.getMap()?.flyTo({
+      center: [LOS_TUXTLAS_CENTER[1], LOS_TUXTLAS_CENTER[0]],
+      zoom: 11,
+      pitch: 45,
+      bearing: 0,
+      duration: 800,
+    });
+  }, []);
+
   return (
     <div className="relative h-full">
-      <MapContainer
-        center={LOS_TUXTLAS_CENTER}
-        zoom={11}
+      <Map
+        ref={mapRef}
+        initialViewState={{
+          longitude: LOS_TUXTLAS_CENTER[1],
+          latitude: LOS_TUXTLAS_CENTER[0],
+          zoom: 11,
+          pitch: 45,
+        }}
         minZoom={9}
-        maxZoom={16}
-        maxBounds={LOS_TUXTLAS_BOUNDS}
-        maxBoundsViscosity={0.7}
-        className="h-full w-full"
-        style={{ background: '#dcfce7' }}
-        preferCanvas={true}
+        maxZoom={18}
+        maxBounds={[
+          [LOS_TUXTLAS_BOUNDS[0][1], LOS_TUXTLAS_BOUNDS[0][0]],
+          [LOS_TUXTLAS_BOUNDS[1][1], LOS_TUXTLAS_BOUNDS[1][0]],
+        ]}
+        mapStyle={ESTILO_MAPA}
+        style={{ width: '100%', height: '100%' }}
       >
-        <TileLayer
-          attribution='&copy; OpenStreetMap'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={18}
-          keepBuffer={2}
-        />
         {todosLosLugares.map((lugar) => {
-          // Si este lugar ya aparece como parada numerada en la ruta,
-          // no mostramos el marcador normal para evitar superposición.
           const esParada = paradasResaltadas?.some(
-            (p) => Math.abs(p.coord[0] - lugar.coords[0]) < 0.001 &&
-                   Math.abs(p.coord[1] - lugar.coords[1]) < 0.001
+            (p) =>
+              Math.abs(p.coord[0] - lugar.coords[0]) < 0.001 &&
+              Math.abs(p.coord[1] - lugar.coords[1]) < 0.001
           );
           if (esParada) return null;
           return (
-            <Marker
-              key={lugar.id}
-              position={lugar.coords}
-              icon={getIcono(lugar.categoria)}
-              eventHandlers={{ click: () => onVerLugar(lugar) }}
-            />
+            <Marker key={lugar.id} longitude={lugar.coords[1]} latitude={lugar.coords[0]}>
+              <PinLugar categoria={lugar.categoria} onClick={() => onVerLugar(lugar)} />
+            </Marker>
           );
         })}
-        {/* Botón de brújula/reset: regresa al centro de Los Tuxtlas */}
-        <ResetearVista />
 
-        {/* Trazado de la ruta del día sobre las carreteras (si hay) */}
-        {rutaResaltada && rutaResaltada.length >= 2 && (
-          <>
-            <Polyline
-              positions={rutaResaltada}
-              pathOptions={{
-                color: '#15803d',
-                weight: 5,
-                opacity: 0.85,
-              }}
-            />
-            <AjustarVistaARuta puntos={rutaResaltada} />
-          </>
-        )}
-        {/* Paradas numeradas de la ruta del día */}
         {paradasResaltadas?.map((p) => (
-          <Marker
-            key={`parada-${p.orden}`}
-            position={p.coord}
-            icon={iconoParada(p.orden)}
-          />
+          <Marker key={`parada-${p.orden}`} longitude={p.coord[1]} latitude={p.coord[0]}>
+            <PinParada orden={p.orden} />
+          </Marker>
         ))}
-        <ControladorDescarga
-          descargando={descargando}
-          onProgreso={setProgreso}
-          onIniciar={() => setDescargando(true)}
-          onTerminar={() => {
-            setDescargando(false);
-            setTilesListos(true);
-            localStorage.setItem('tiles-precargados', 'true');
-          }}
-        />
-      </MapContainer>
 
-      {/* Pill flotante: cerrar ruta resaltada. Solo aparece cuando hay una. */}
+        {rutaGeoJSON && (
+          <Source id="ruta-dia" type="geojson" data={rutaGeoJSON as any}>
+            <Layer
+              id="ruta-dia-linea"
+              type="line"
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              paint={{ 'line-color': '#15803d', 'line-width': 5, 'line-opacity': 0.85 }}
+            />
+          </Source>
+        )}
+      </Map>
+
+      {/* Boton de brujula/reset */}
+      <div style={{ position: 'absolute', bottom: '140px', right: '12px', zIndex: 30 }}>
+        <button
+          onClick={resetearVista}
+          className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border border-jungle-100"
+          title="Regresar a Los Tuxtlas"
+          aria-label="Regresar al centro del mapa"
+        >
+          <Compass size={20} />
+        </button>
+      </div>
+
+      {/* Pill flotante: cerrar ruta resaltada */}
       {rutaResaltada && onLimpiarRuta && (
         <button
           onClick={onLimpiarRuta}
@@ -250,7 +279,7 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
         </button>
       )}
 
-      {/* Botón de descarga de mapa offline */}
+      {/* Boton de descarga de mapa offline */}
       <div className="absolute top-3 right-3 z-30">
         {tilesListos ? (
           <div className="bg-white shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-jungle-800">
@@ -270,10 +299,13 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
               />
             </div>
             <p className="text-[10px] text-jungle-500">
-              {progreso < 30 ? 'Descargando calles y carreteras…' :
-               progreso < 60 ? 'Guardando zonas turísticas…' :
-               progreso < 90 ? 'Casi listo, descargando detalles…' :
-               'Finalizando…'}
+              {progreso < 20
+                ? 'Preparando…'
+                : progreso < 70
+                ? 'Descargando calles y edificios…'
+                : progreso < 95
+                ? 'Guardando estilo del mapa…'
+                : 'Finalizando…'}
             </p>
           </div>
         ) : (
@@ -304,7 +336,7 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
             </div>
             <p className="text-sm text-jungle-700 mb-4">
               Vamos a guardar el mapa de Los Tuxtlas en tu dispositivo. Tarda
-              unos 15 segundos. Después podrás ver el mapa aunque no tengas
+              unos segundos. Después podrás ver el mapa aunque no tengas
               internet. Mantén esta pantalla abierta mientras descarga.
             </p>
             <div className="flex gap-2">
@@ -328,7 +360,18 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
         </div>
       )}
 
-      {/* Leyenda de categorías */}
+      {descargando && (
+        <ControladorDescarga
+          onProgreso={setProgreso}
+          onTerminar={() => {
+            setDescargando(false);
+            setTilesListos(true);
+            localStorage.setItem('tiles-precargados', 'true');
+          }}
+        />
+      )}
+
+      {/* Leyenda de categorias */}
       <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-white/95 backdrop-blur rounded-2xl p-3 shadow-xl text-xs z-30">
         <div className="font-semibold text-jungle-900 mb-2">
           {todosLosLugares.length} lugares en el mapa
@@ -341,10 +384,7 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
         </div>
         <div className="flex flex-wrap gap-1.5">
           {CATEGORIAS.map((c) => (
-            <span
-              key={c.id}
-              className={`${c.color} px-2 py-0.5 rounded-full text-[10px]`}
-            >
+            <span key={c.id} className={`${c.color} px-2 py-0.5 rounded-full text-[10px]`}>
               {c.emoji} {c.id}
             </span>
           ))}
@@ -354,36 +394,31 @@ export default function MapScreen({ onVerLugar, filtroCategorias, rutaResaltada,
   );
 }
 
-// ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// Descarga inteligente de tiles para uso offline.
+// ============================================================
+// DESCARGA OFFLINE - mapas vectoriales (MapLibre/OpenFreeMap)
+// ============================================================
+// Distinto del sistema anterior (tiles PNG de OpenStreetMap): aqui
+// hay que guardar TRES tipos de recursos, no solo un tipo de imagen:
+//   1. El estilo (style.json) - los colores/capas del mapa.
+//   2. El sprite (iconos de POIs) - un punado de archivos fijos.
+//   3. Los tiles vectoriales (.pbf) - los datos de calles/edificios
+//      de la region, igual que antes se enumeraban tiles PNG por
+//      x/y/zoom, pero ahora con extension .pbf.
 //
-// En lugar de mover el mapa al azar, calcula matemáticamente
-// TODOS los tiles de Los Tuxtlas en zoom 10-14 (659 tiles),
-// los descarga con fetch() directo y los mete en el caché
-// de Workbox. Sin mover el mapa, sin congelar la UI.
+// IMPORTANTE: la URL de los tiles vectoriales de OpenFreeMap incluye
+// un identificador de snapshot con fecha (ej. ".../planet/20260621_
+// 080001_pt/{z}/{x}/{y}.pbf") que cambia cuando ellos actualizan su
+// copia de datos - por eso NO se puede escribir esa URL fija en el
+// codigo; hay que preguntarle al manifiesto (/planet) cual es la
+// plantilla vigente CADA VEZ que se descarga, en vez de asumir que
+// siempre sera la misma.
 //
-// Para zooms bajos (10-12) descarga todos los tiles.
-// Para zoom 13-14 descarga solo los que cubren Los Tuxtlas.
-// ─────────────────────────────────────────────
-
-// Botón de brújula/reset: regresa el mapa al centro de Los Tuxtlas.
-// El turista lo usa cuando el mapa se desconfiguró o está muy zoomado.
-function ResetearVista() {
-  const map = useMap();
-  return (
-    <div style={{ position: 'absolute', bottom: '140px', right: '12px', zIndex: 1000 }}>
-      <button
-        onClick={() => map.setView(LOS_TUXTLAS_CENTER, 11, { animate: true })}
-        className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border border-jungle-100"
-        title="Regresar a Los Tuxtlas"
-        aria-label="Regresar al centro del mapa"
-      >
-        <Compass size={20} />
-      </button>
-    </div>
-  );
-}
+// Los glyphs (fuentes de texto) NO se pre-descargan aqui a proposito:
+// son demasiadas combinaciones de idioma/rango de caracteres para
+// enumerar de antemano, pero se cachean solos (ver runtimeCaching en
+// vite.config.ts) conforme el mapa los va pidiendo mientras se navega
+// - para la region y el espanol, es un conjunto chico y se completa
+// solo con el uso normal de la app.
 
 function lngToTileX(lng: number, zoom: number): number {
   return Math.floor(((lng + 180) / 360) * Math.pow(2, zoom));
@@ -397,100 +432,103 @@ function latToTileY(lat: number, zoom: number): number {
   );
 }
 
-// Genera la lista completa de URLs de tiles que cubren Los Tuxtlas.
-function generarTilesRegion(): string[] {
+// Genera las URLs de tiles vectoriales que cubren Los Tuxtlas, dada
+// la plantilla vigente (con el snapshot correcto ya resuelto).
+function generarTilesVectorialesRegion(plantilla: string): string[] {
   const [[s, w], [n, e]] = LOS_TUXTLAS_BOUNDS;
-  // Márgenes pequeños para cubrir un poco más allá de los bordes
   const margin = 0.05;
   const urls: string[] = [];
-  const subdominios = ['a', 'b', 'c'];
 
-  for (let zoom = 10; zoom <= 14; zoom++) {
+  for (let zoom = 10; zoom <= 13; zoom++) {
     const xMin = lngToTileX(w - margin, zoom);
     const xMax = lngToTileX(e + margin, zoom);
-    const yMin = latToTileY(n + margin, zoom); // norte = y menor
-    const yMax = latToTileY(s - margin, zoom); // sur = y mayor
-
+    const yMin = latToTileY(n + margin, zoom);
+    const yMax = latToTileY(s - margin, zoom);
     for (let x = xMin; x <= xMax; x++) {
       for (let y = yMin; y <= yMax; y++) {
-        const sub = subdominios[(x + y) % 3];
-        urls.push(`https://${sub}.tile.openstreetmap.org/${zoom}/${x}/${y}.png`);
+        urls.push(
+          plantilla.replace('{z}', String(zoom)).replace('{x}', String(x)).replace('{y}', String(y))
+        );
       }
     }
   }
   return urls;
 }
 
+async function urlsDeRecursosFijos(): Promise<string[]> {
+  const urls = [ESTILO_MAPA];
+  const spriteBase = 'https://tiles.openfreemap.org/sprites/ofm_f384/ofm';
+  urls.push(`${spriteBase}.json`, `${spriteBase}.png`, `${spriteBase}@2x.json`, `${spriteBase}@2x.png`);
+  return urls;
+}
+
 function ControladorDescarga({
-  descargando,
   onProgreso,
-  onIniciar,
   onTerminar,
 }: {
-  descargando: boolean;
   onProgreso: (p: number) => void;
-  onIniciar: () => void;
   onTerminar: () => void;
 }) {
-  const map = useMap();
   const ejecutando = useRef(false);
 
   useEffect(() => {
-    if (!descargando || ejecutando.current) return;
+    if (ejecutando.current) return;
     ejecutando.current = true;
-    onIniciar();
 
-    const tiles = generarTilesRegion();
-    let descargados = 0;
-    let errores = 0;
+    (async () => {
+      try {
+        onProgreso(5);
 
-    // Descarga en lotes de 6 tiles simultáneos para no saturar
-    // la red ni la cuota del caché del navegador.
-    const LOTE = 6;
-    let cursor = 0;
+        const manifiestoRes = await fetch('https://tiles.openfreemap.org/planet', {
+          cache: 'force-cache',
+        });
+        const manifiesto = await manifiestoRes.json();
+        const plantilla: string = manifiesto.tiles[0];
+        onProgreso(10);
 
-    const descargarLote = async () => {
-      if (cursor >= tiles.length) {
-        // Terminado — NO movemos la vista, el usuario está viendo el mapa
-        // donde lo dejó. El botón de brújula le permite regresar si quiere.
+        const fijos = await urlsDeRecursosFijos();
+        await Promise.allSettled(
+          fijos.map((url) => fetch(url, { cache: 'force-cache' }).catch(() => {}))
+        );
+        onProgreso(20);
+
+        const tiles = generarTilesVectorialesRegion(plantilla);
+        const LOTE = 8;
+        let cursor = 0;
+        let descargados = 0;
+        let errores = 0;
+
+        while (cursor < tiles.length) {
+          const lote = tiles.slice(cursor, cursor + LOTE);
+          cursor += LOTE;
+          await Promise.allSettled(
+            lote.map(async (url) => {
+              try {
+                const r = await fetch(url, { cache: 'force-cache' });
+                if (r.ok) descargados++;
+                else errores++;
+              } catch {
+                errores++;
+              }
+            })
+          );
+          onProgreso(20 + Math.round((cursor / tiles.length) * 75));
+          await new Promise((r) => setTimeout(r, 60));
+        }
+
         onProgreso(100);
         console.log(
-          `[TuxtlasGO] Mapa descargado: ${descargados} tiles ok, ${errores} errores`
+          `[TuxtlasGO] Mapa vectorial descargado: ${descargados} tiles ok, ${errores} errores`
         );
         await new Promise((r) => setTimeout(r, 400));
+      } catch (err) {
+        console.error('[TuxtlasGO] Error descargando mapa offline:', err);
+      } finally {
         ejecutando.current = false;
         onTerminar();
-        return;
       }
-
-      const lote = tiles.slice(cursor, cursor + LOTE);
-      cursor += LOTE;
-
-      await Promise.allSettled(
-        lote.map(async (url) => {
-          try {
-            // Usamos fetch con cache:'force-cache' para que el SW de
-            // Workbox lo intercepte y lo guarde en su caché de tiles.
-            // Si ya está cacheado, no hace petición de red.
-            const r = await fetch(url, { cache: 'force-cache' });
-            if (r.ok) descargados++;
-            else errores++;
-          } catch {
-            errores++;
-          }
-        })
-      );
-
-      onProgreso(Math.round((cursor / tiles.length) * 100));
-
-      // Pequeña pausa entre lotes para no bloquear el hilo principal
-      await new Promise((r) => setTimeout(r, 80));
-      descargarLote();
-    };
-
-    // Esperamos 300ms para que el modal de confirmación se cierre
-    setTimeout(() => descargarLote(), 300);
-  }, [descargando, map, onProgreso, onIniciar, onTerminar]);
+    })();
+  }, [onProgreso, onTerminar]);
 
   return null;
 }

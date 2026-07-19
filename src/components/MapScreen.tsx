@@ -50,10 +50,12 @@ const COLORES_CATEGORIA: Record<string, string> = {
   Playa: '#0891b2',
 };
 
-// Pin con forma de gota (igual visualmente al de antes) - ahora es un
-// componente de React normal en vez de una cadena de HTML para un
-// L.divIcon, porque el <Marker> de MapLibre acepta children de React
-// directamente.
+// Pin más pequeño y discreto que antes (círculo simple, no gota) —
+// hallazgo real de campo: la versión anterior (32px, forma de gota)
+// se veía demasiado grande/llamativa y chocaba visualmente con los
+// círculos numerados de una ruta activa. Este es más "nativo": un
+// punto de color con el ícono adentro, sin bordes gruesos ni forma
+// puntiaguda.
 function PinLugar({ categoria, onClick }: { categoria: string; onClick: () => void }) {
   const color = COLORES_CATEGORIA[categoria] || '#16a34a';
   const emoji = CATEGORIAS.find((c) => c.id === categoria)?.emoji || '📍';
@@ -61,20 +63,21 @@ function PinLugar({ categoria, onClick }: { categoria: string; onClick: () => vo
     <div
       onClick={onClick}
       style={{
-        width: 32,
-        height: 32,
-        background: 'white',
-        border: `3px solid ${color}`,
-        borderRadius: '50% 50% 50% 0',
-        transform: 'rotate(-45deg)',
+        width: 22,
+        height: 22,
+        background: color,
+        border: '2px solid white',
+        borderRadius: '50%',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        boxShadow: '0 3px 8px rgba(0,0,0,0.3)',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
         cursor: 'pointer',
+        fontSize: 10,
+        lineHeight: 1,
       }}
     >
-      <div style={{ transform: 'rotate(45deg)', fontSize: 14 }}>{emoji}</div>
+      {emoji}
     </div>
   );
 }
@@ -103,6 +106,42 @@ function PinParada({ orden }: { orden: number }) {
   );
 }
 
+// Punto azul pulsante "tú estás aquí" — mismo lenguaje visual que
+// Google Maps / la mayoría de apps de navegación, para que se
+// reconozca de inmediato qué representa sin necesitar explicación.
+function PinMiUbicacion() {
+  return (
+    <div style={{ position: 'relative', width: 20, height: 20 }}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: -10,
+          borderRadius: '50%',
+          background: 'rgba(37, 99, 235, 0.25)',
+          animation: 'tuxtlasgo-pulso-ubicacion 2s ease-out infinite',
+        }}
+      />
+      <div
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          background: '#2563eb',
+          border: '3px solid white',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+        }}
+      />
+      <style>{`
+        @keyframes tuxtlasgo-pulso-ubicacion {
+          0% { transform: scale(0.6); opacity: 0.8; }
+          100% { transform: scale(2.2); opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   filtroCategorias?: string[];
@@ -112,6 +151,10 @@ interface Props {
   // dibujarse - ver rutaGeoJSON mas abajo.
   rutaResaltada?: [number, number][];
   paradasResaltadas?: { coord: [number, number]; orden: number }[];
+  // Posición GPS real del turista (ver AppShell.tsx) — si viene, se
+  // dibuja como un punto azul pulsante "tú estás aquí", distinto de
+  // los pines normales de lugares y de las paradas numeradas.
+  miUbicacion?: [number, number];
   onLimpiarRuta?: () => void;
 }
 
@@ -120,6 +163,7 @@ export default function MapScreen({
   filtroCategorias,
   rutaResaltada,
   paradasResaltadas,
+  miUbicacion,
   onLimpiarRuta,
 }: Props) {
   const mapRef = useRef<MapRef>(null);
@@ -243,6 +287,12 @@ export default function MapScreen({
           </Marker>
         ))}
 
+        {miUbicacion && (
+          <Marker longitude={miUbicacion[1]} latitude={miUbicacion[0]}>
+            <PinMiUbicacion />
+          </Marker>
+        )}
+
         {rutaGeoJSON && (
           <Source id="ruta-dia" type="geojson" data={rutaGeoJSON as any}>
             <Layer
@@ -302,10 +352,10 @@ export default function MapScreen({
               {progreso < 20
                 ? 'Preparando…'
                 : progreso < 70
-                ? 'Descargando calles y edificios…'
-                : progreso < 95
-                ? 'Guardando estilo del mapa…'
-                : 'Finalizando…'}
+                  ? 'Descargando calles y edificios…'
+                  : progreso < 95
+                    ? 'Guardando estilo del mapa…'
+                    : 'Finalizando…'}
             </p>
           </div>
         ) : (
@@ -373,15 +423,6 @@ export default function MapScreen({
 
       {/* Leyenda de categorias */}
       <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-white/95 backdrop-blur rounded-2xl p-3 shadow-xl text-xs z-30">
-        <div className="font-semibold text-jungle-900 mb-2">
-          {todosLosLugares.length} lugares en el mapa
-          {serviciosPrestadores.length > 0 && (
-            <span className="text-jungle-600 font-normal">
-              {' '}
-              ({serviciosPrestadores.length} de prestadores)
-            </span>
-          )}
-        </div>
         <div className="flex flex-wrap gap-1.5">
           {CATEGORIAS.map((c) => (
             <span key={c.id} className={`${c.color} px-2 py-0.5 rounded-full text-[10px]`}>
@@ -428,7 +469,7 @@ function latToTileY(lat: number, zoom: number): number {
   const latRad = (lat * Math.PI) / 180;
   return Math.floor(
     ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) *
-      Math.pow(2, zoom)
+    Math.pow(2, zoom)
   );
 }
 
@@ -488,7 +529,7 @@ function ControladorDescarga({
 
         const fijos = await urlsDeRecursosFijos();
         await Promise.allSettled(
-          fijos.map((url) => fetch(url, { cache: 'force-cache' }).catch(() => {}))
+          fijos.map((url) => fetch(url, { cache: 'force-cache' }).catch(() => { }))
         );
         onProgreso(20);
 

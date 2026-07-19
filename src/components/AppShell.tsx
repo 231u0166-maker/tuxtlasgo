@@ -42,6 +42,14 @@ export default function AppShell() {
   const [rutaVisible, setRutaVisible] = useState<RutaVisible | null>(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
   const [errorRuta, setErrorRuta] = useState<string | null>(null);
+  // Posición GPS real del turista, capturada la primera vez que pide
+  // "cómo llegar" — se usa solo para dibujar el punto azul "tú estás
+  // aquí" en el mapa, no se vuelve a consultar en vivo (eso sería
+  // navegación tipo Google Maps con recálculo continuo — un proyecto
+  // bastante más grande, fuera de alcance por ahora).
+  const [miUbicacion, setMiUbicacion] = useState<Coord | null>(null);
+
+
 
   // Instancia ÚNICA y compartida del hook de IA: vive aquí (no dentro
   // de ChatAssistant) para que cualquier pestaña use el mismo estado
@@ -70,7 +78,10 @@ export default function AppShell() {
       });
 
     const origen = await obtenerOrigen();
+    setMiUbicacion(origen);
     const coords: Coord[] = origen
+
+
       ? [origen, destino.coords as Coord]
       : [destino.coords as Coord];
 
@@ -286,7 +297,8 @@ export default function AppShell() {
               onVerLugar={verLugar}
               rutaResaltada={rutaVisible?.geometria}
               paradasResaltadas={rutaVisible?.paradas}
-              onLimpiarRuta={() => setRutaVisible(null)}
+              miUbicacion={miUbicacion ?? undefined}
+              onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); }}
             />
           )}
           <div style={{ display: tab === 'chat' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>

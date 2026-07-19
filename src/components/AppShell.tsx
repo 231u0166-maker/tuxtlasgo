@@ -93,7 +93,7 @@ export default function AppShell() {
             );
             res(null);
           },
-          { timeout: 8000, enableHighAccuracy: true }
+          { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
         );
       });
 

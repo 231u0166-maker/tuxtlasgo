@@ -142,6 +142,35 @@ function PinMiUbicacion() {
 }
 
 
+// "Stickman" caminando — se anima EN SU LUGAR con CSS (piernas y
+// brazos que se balancean), mientras el marcador en sí se mueve sobre
+// la ruta real cambiando de coordenadas cada cuadro (ver el efecto de
+// animación más abajo) — la combinación de ambas cosas da la
+// impresión de que camina siguiendo el camino, no solo que "aparece"
+// en distintos puntos.
+function PinCaminante() {
+  return (
+    <div style={{ width: 26, height: 34 }}>
+      <svg width="26" height="34" viewBox="0 0 26 34" style={{ overflow: 'visible' }}>
+        <circle cx="13" cy="6" r="5" fill="#1e293b" />
+        <line x1="13" y1="11" x2="13" y2="24" stroke="#1e293b" strokeWidth="3" strokeLinecap="round" />
+        <line x1="13" y1="15" x2="7" y2="20" stroke="#1e293b" strokeWidth="2.5" strokeLinecap="round" className="tuxtlasgo-brazo-a" />
+        <line x1="13" y1="15" x2="19" y2="20" stroke="#1e293b" strokeWidth="2.5" strokeLinecap="round" className="tuxtlasgo-brazo-b" />
+        <line x1="13" y1="24" x2="7" y2="33" stroke="#1e293b" strokeWidth="3" strokeLinecap="round" className="tuxtlasgo-pierna-a" />
+        <line x1="13" y1="24" x2="19" y2="33" stroke="#1e293b" strokeWidth="3" strokeLinecap="round" className="tuxtlasgo-pierna-b" />
+      </svg>
+      <style>{`
+        @keyframes tuxtlasgo-paso-a { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(22deg); } }
+        @keyframes tuxtlasgo-paso-b { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-22deg); } }
+        .tuxtlasgo-pierna-a { transform-origin: 13px 24px; animation: tuxtlasgo-paso-a 0.45s ease-in-out infinite; }
+        .tuxtlasgo-pierna-b { transform-origin: 13px 24px; animation: tuxtlasgo-paso-b 0.45s ease-in-out infinite; }
+        .tuxtlasgo-brazo-a { transform-origin: 13px 15px; animation: tuxtlasgo-paso-b 0.45s ease-in-out infinite; }
+        .tuxtlasgo-brazo-b { transform-origin: 13px 15px; animation: tuxtlasgo-paso-a 0.45s ease-in-out infinite; }
+      `}</style>
+    </div>
+  );
+}
+
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   filtroCategorias?: string[];
@@ -166,7 +195,15 @@ export default function MapScreen({
   miUbicacion,
   onLimpiarRuta,
 }: Props) {
+
+  // Posición actual del muñeco caminando sobre la ruta ([lng, lat]) —
   const mapRef = useRef<MapRef>(null);
+  // null cuando no hay animación en curso.
+  const [posicionCaminante, setPosicionCaminante] = useState<[number, number] | null>(null);
+  // Permite cancelar la secuencia en curso si la ruta cambia de nuevo
+  // a medias (ej. el turista pide otra ruta antes de que termine la
+  // animación anterior) — sin esto, dos secuencias se pisarían entre sí.
+  const secuenciaActiva = useRef(0);
   const [serviciosPrestadores, setServiciosPrestadores] = useState<Lugar[]>([]);
   const [descargando, setDescargando] = useState(false);
   const [progreso, setProgreso] = useState(0);
@@ -226,16 +263,73 @@ export default function MapScreen({
   }, [rutaResaltada]);
 
   // Encuadra el mapa para que se vea la ruta completa cuando cambia.
+  // Secuencia cinematográfica cuando aparece una ruta nueva:
+  //   1) La cámara recorre las paradas en orden INVERSO (última,
+  //      penúltima... hasta la primera) y termina en tu ubicación —
+  //      efecto "revelación": primero ves los destinos, al final "y
+  //      aquí es donde tú estás", tal como se pidió.
+  //   2) Encuadre con todo visible.
+  //   3) El muñeco (PinCaminante) camina la ruta REAL, en el orden
+  //      real en que se recorre (de tu ubicación hacia el lugar 1,
+  //      luego 2, luego 3), siguiendo la geometría de calles ya
+  //      calculada por OSRM — la misma línea verde que ya se dibuja.
   useEffect(() => {
-    if (!rutaResaltada || rutaResaltada.length < 2) return;
+    setPosicionCaminante(null);
+    if (!rutaResaltada || rutaResaltada.length < 2 || !paradasResaltadas || paradasResaltadas.length === 0) {
+      return;
+    }
     const map = mapRef.current?.getMap();
     if (!map) return;
-    const lngLats = rutaResaltada.map(([lat, lng]) => [lng, lat] as [number, number]);
-    const bounds = lngLats.reduce(
-      (b, coord) => b.extend(coord),
-      new maplibregl.LngLatBounds(lngLats[0], lngLats[0])
-    );
-    map.fitBounds(bounds, { padding: 60, duration: 800 });
+
+    const idSecuencia = ++secuenciaActiva.current;
+    const cancelado = () => idSecuencia !== secuenciaActiva.current;
+    const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+    (async () => {
+      const paradasDescendente = [...paradasResaltadas].sort((a, b) => b.orden - a.orden);
+      for (const p of paradasDescendente) {
+        if (cancelado()) return;
+        map.flyTo({ center: [p.coord[1], p.coord[0]], zoom: 15.5, pitch: 55, duration: 1300 });
+        await esperar(1700);
+      }
+      if (miUbicacion && !cancelado()) {
+        map.flyTo({ center: [miUbicacion[1], miUbicacion[0]], zoom: 16, pitch: 55, duration: 1300 });
+        await esperar(1700);
+      }
+      if (cancelado()) return;
+
+      const lngLats = rutaResaltada.map(([lat, lng]) => [lng, lat] as [number, number]);
+      const bounds = lngLats.reduce(
+        (b, coord) => b.extend(coord),
+        new maplibregl.LngLatBounds(lngLats[0], lngLats[0])
+      );
+      map.fitBounds(bounds, { padding: 70, duration: 900, pitch: 45 });
+      await esperar(1000);
+      if (cancelado()) return;
+
+      const duracionCaminata = Math.min(3000 + lngLats.length * 120, 9000);
+      const inicio = performance.now();
+      await new Promise<void>((resolve) => {
+        function paso(ahora: number) {
+          if (cancelado()) return resolve();
+          const t = Math.min((ahora - inicio) / duracionCaminata, 1);
+          const posExacta = t * (lngLats.length - 1);
+          const i0 = Math.floor(posExacta);
+          const i1 = Math.min(i0 + 1, lngLats.length - 1);
+          const frac = posExacta - i0;
+          const lng = lngLats[i0][0] + (lngLats[i1][0] - lngLats[i0][0]) * frac;
+          const lat = lngLats[i0][1] + (lngLats[i1][1] - lngLats[i0][1]) * frac;
+          setPosicionCaminante([lng, lat]);
+          if (t < 1) requestAnimationFrame(paso);
+          else resolve();
+        }
+        requestAnimationFrame(paso);
+      });
+    })();
+
+    return () => {
+      secuenciaActiva.current++;
+    };
   }, [rutaResaltada]);
 
   const resetearVista = useCallback(() => {
@@ -290,6 +384,12 @@ export default function MapScreen({
         {miUbicacion && (
           <Marker longitude={miUbicacion[1]} latitude={miUbicacion[0]}>
             <PinMiUbicacion />
+          </Marker>
+        )}
+
+        {posicionCaminante && (
+          <Marker longitude={posicionCaminante[0]} latitude={posicionCaminante[1]}>
+            <PinCaminante />
           </Marker>
         )}
 

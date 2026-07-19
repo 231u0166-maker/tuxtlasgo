@@ -20,7 +20,6 @@ import { obtenerRutaPorCarretera, type Coord } from '../lib/routing';
 import PerfilScreen from './PerfilScreen';
 
 
-
 interface RutaVisible {
   geometria: Coord[];
   paradas: { coord: Coord; orden: number }[];
@@ -58,25 +57,23 @@ export default function AppShell() {
   // sistema, no escondida dentro de "Cómo llegar".
   const [mostrarExplicacionUbicacion, setMostrarExplicacionUbicacion] = useState(false);
 
-
   // Instancia ÚNICA y compartida del hook de IA: vive aquí (no dentro
   // de ChatAssistant) para que cualquier pestaña use el mismo estado
   // de la nube sin duplicar lógica.
   const llm = useLLM();
 
   const verLugar = (l: Lugar) => setLugarSeleccionado(l);
-  const verEnMapa = async () => {
-    if (!lugarSeleccionado) return;
-    const destino = lugarSeleccionado;
-    setLugarSeleccionado(null);
-    setCargandoRuta(true);
-    setErrorRuta(null);
 
-    const paradas = [{ coord: destino.coords as Coord, orden: 1 }];
-
-    // Intentar obtener ubicación del usuario
-    const obtenerOrigen = (): Promise<Coord | null> =>
-      new Promise((res) => {
+  // Compartida entre verEnMapa (un solo destino) y verRutaEnMapa
+  // (varias paradas) — hallazgo real de campo: antes esta lógica solo
+  // vivía dentro de verEnMapa, así que una ruta de varios lugares
+  // (1, 2, 3) nunca incluía "cómo llegar desde donde estoy hasta el
+  // primer lugar" — solo trazaba lugar→lugar→lugar, dejando el primer
+  // tramo (tú→lugar 1) sin resolver. Ahora ambas funciones parten del
+  // mismo punto real, sea online o para guardarse offline después.
+  const obtenerMiUbicacionActual = async (): Promise<Coord | null> => {
+    const resultado = await new Promise<{ coord: Coord; precisionMetros: number } | null>(
+      (res) => {
         if (!navigator.geolocation) {
           console.warn('[TuxtlasGO] navigator.geolocation no existe en este navegador.');
           return res(null);
@@ -94,7 +91,11 @@ export default function AppShell() {
           );
         }
         navigator.geolocation.getCurrentPosition(
-          (pos) => res([pos.coords.latitude, pos.coords.longitude]),
+          (pos) =>
+            res({
+              coord: [pos.coords.latitude, pos.coords.longitude],
+              precisionMetros: pos.coords.accuracy,
+            }),
           (err) => {
             console.warn(
               `[TuxtlasGO] No se pudo obtener el GPS — código ${err.code}: ${err.message}`
@@ -103,13 +104,42 @@ export default function AppShell() {
           },
           { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
         );
-      });
+      }
+    );
 
-    const origen = await obtenerOrigen();
+    const origen = resultado?.coord ?? null;
     setMiUbicacion(origen);
+
+    // Ningún sitio web puede forzar que Android/iOS usen ubicación
+    // "precisa" en vez de "aproximada" — es una decisión que el
+    // sistema reserva exclusivamente al usuario, por privacidad. Lo
+    // que SÍ podemos hacer: avisar con claridad cuando la precisión
+    // que llegó es mala, en vez de poner el punto azul mal ubicado
+    // sin ninguna explicación.
+    if (resultado && resultado.precisionMetros > 500) {
+      console.warn(
+        `[TuxtlasGO] Precisión del GPS muy baja: ${Math.round(resultado.precisionMetros)}m de margen de error.`
+      );
+      setErrorRuta(
+        `Tu ubicación no es muy precisa (margen de ~${Math.round(
+          resultado.precisionMetros
+        )}m). Activa "Ubicación precisa" en los permisos de esta app, en Ajustes de tu teléfono, para que el punto azul quede exacto.`
+      );
+    }
+
+    return origen;
+  };
+
+  const verEnMapa = async () => {
+    if (!lugarSeleccionado) return;
+    const destino = lugarSeleccionado;
+    setLugarSeleccionado(null);
+    setCargandoRuta(true);
+    setErrorRuta(null);
+
+    const paradas = [{ coord: destino.coords as Coord, orden: 1 }];
+    const origen = await obtenerMiUbicacionActual();
     const coords: Coord[] = origen
-
-
       ? [origen, destino.coords as Coord]
       : [destino.coords as Coord];
 
@@ -133,15 +163,25 @@ export default function AppShell() {
     setCargandoRuta(true);
     setErrorRuta(null);
     setLugarSeleccionado(null);
+
+    // Las paradas numeradas (1, 2, 3...) son SOLO los lugares de la
+    // ruta — tu propia posición no cuenta como una "parada", se
+    // dibuja aparte como el punto azul (ver PinMiUbicacion en
+    // MapScreen.tsx), igual que en verEnMapa.
     const paradas = lugares.map((l, i) => ({ coord: l.coords as Coord, orden: i + 1 }));
+    const origen = await obtenerMiUbicacionActual();
+    const puntosRuta: Coord[] = origen
+      ? [origen, ...lugares.map((l) => l.coords as Coord)]
+      : lugares.map((l) => l.coords as Coord);
+
     try {
-      const ruta = await obtenerRutaPorCarretera(lugares.map((l) => l.coords as Coord));
+      const ruta = await obtenerRutaPorCarretera(puntosRuta);
       setRutaVisible({ geometria: ruta.geometria, paradas });
       setTab('mapa');
     } catch (err) {
       console.warn('[TuxtlasGO] OSRM no disponible:', err);
       // Línea recta entre paradas — silencioso, sin toast de error
-      setRutaVisible({ geometria: lugares.map((l) => l.coords as Coord), paradas });
+      setRutaVisible({ geometria: puntosRuta, paradas });
       setTab('mapa');
     } finally {
       setCargandoRuta(false);
@@ -309,7 +349,6 @@ export default function AppShell() {
         </div>
 
         {/* Toast error ruta */}
-        {/* Toast error ruta */}
         {errorRuta && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 bg-amber-100 border border-amber-300 text-amber-900 text-xs px-3 py-2 rounded-lg shadow-md max-w-xs text-center">
             {errorRuta}
@@ -370,10 +409,6 @@ export default function AppShell() {
             </div>
           </div>
         )}
-
-        {/* Aviso de pre-descarga de IA — visible en cualquier pestaña.
-            Ya no necesita margen manual: el spacer del header de arriba
-            reserva el espacio real correctamente (ver nota ahí). */}
 
         {/* Contenido principal */}
         <main className="flex-1 overflow-hidden min-h-0">

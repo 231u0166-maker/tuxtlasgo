@@ -69,11 +69,31 @@ export default function AppShell() {
     // Intentar obtener ubicación del usuario
     const obtenerOrigen = (): Promise<Coord | null> =>
       new Promise((res) => {
-        if (!navigator.geolocation) return res(null);
+        if (!navigator.geolocation) {
+          console.warn('[TuxtlasGO] navigator.geolocation no existe en este navegador.');
+          return res(null);
+        }
+        // Diagnóstico: si el origen no es https ni localhost, el GPS
+        // se bloquea SIEMPRE por regla del navegador (no es un bug) —
+        // esto se ve seguido al probar desde una IP local (ej.
+        // http://192.168.x.x:5173) en vez de la URL https desplegada.
+        if (
+          window.location.protocol !== 'https:' &&
+          window.location.hostname !== 'localhost'
+        ) {
+          console.warn(
+            `[TuxtlasGO] GPS bloqueado: estás en "${window.location.origin}" — el navegador solo permite geolocalización en https:// o localhost.`
+          );
+        }
         navigator.geolocation.getCurrentPosition(
           (pos) => res([pos.coords.latitude, pos.coords.longitude]),
-          () => res(null),
-          { timeout: 4000 }
+          (err) => {
+            console.warn(
+              `[TuxtlasGO] No se pudo obtener el GPS — código ${err.code}: ${err.message}`
+            );
+            res(null);
+          },
+          { timeout: 8000, enableHighAccuracy: true }
         );
       });
 

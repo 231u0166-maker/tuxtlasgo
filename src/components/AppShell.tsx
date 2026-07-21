@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 import {
-  ArrowLeft, Briefcase, LogOut,
+  ArrowLeft, Briefcase, LogOut, MoreVertical,
   Compass, Map, MessageCircle, Heart, TreePine, User, Navigation
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import AuthModal from './AuthModal';
 import BottomNav, { type Tab } from './BottomNav';
@@ -56,6 +56,29 @@ export default function AppShell() {
   // datos" — y de paso, aquí es donde aparece la pregunta real del
   // sistema, no escondida dentro de "Cómo llegar".
   const [mostrarExplicacionUbicacion, setMostrarExplicacionUbicacion] = useState(false);
+
+  // Menú compacto móvil ("⋮") que reemplaza los dos botones sueltos
+  // "Soy prestador" + "Entrar" flotando encima del contenido — hallazgo
+  // de campo: se veían mal sobre todo encima del mapa (dos pastillas
+  // separadas competían visualmente con los controles del mapa). Ahora
+  // es un solo botón circular; al tocarlo se despliega una tarjeta con
+  // ambas acciones, igual de accesibles pero sin ensuciar la vista.
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+  const menuMovilRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuMovilAbierto) return;
+    const cerrarSiFuera = (e: Event) => {
+      if (menuMovilRef.current && !menuMovilRef.current.contains(e.target as Node)) {
+        setMenuMovilAbierto(false);
+      }
+    };
+    document.addEventListener('mousedown', cerrarSiFuera);
+    document.addEventListener('touchstart', cerrarSiFuera);
+    return () => {
+      document.removeEventListener('mousedown', cerrarSiFuera);
+      document.removeEventListener('touchstart', cerrarSiFuera);
+    };
+  }, [menuMovilAbierto]);
 
   // Instancia ÚNICA y compartida del hook de IA: vive aquí (no dentro
   // de ChatAssistant) para que cualquier pestaña use el mismo estado
@@ -311,40 +334,74 @@ export default function AppShell() {
             flota DENTRO de él — visualmente igual, pero con un límite
             real que empuja correctamente al resto del contenido. */}
         <div className="relative h-14 lg:hidden flex-shrink-0">
-          <div className="absolute top-3 left-3 right-3 z-30 flex items-center gap-2">
+          <div className="absolute top-3 left-3 right-3 z-30 flex items-center justify-between">
             <Link
               to="/"
-              className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-900 hover:bg-white"
+              className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-900 hover:bg-white flex-shrink-0"
             >
               <ArrowLeft size={18} />
             </Link>
-            <Link
-              to="/prestador"
-              className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 hover:bg-white border border-jungle-200"
-            >
-              <Briefcase size={13} /> Soy prestador
-            </Link>
-            {usuario ? (
-              <div className="flex items-center gap-1">
-                <div className="bg-white/90 backdrop-blur shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold text-jungle-800 border border-jungle-200">
-                  <User size={13} />
-                  <span className="max-w-[80px] truncate">{usuario.nombre.split(' ')[0]}</span>
-                </div>
-                <button
-                  onClick={async () => { await apiLogout(); setUsuario(null); }}
-                  className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-600 hover:text-red-500 border border-jungle-200"
-                >
-                  <LogOut size={13} />
-                </button>
-              </div>
-            ) : (
+
+            {/* Menú compacto: un solo botón, sin pastillas sueltas
+                encimadas al contenido (antes eran 2-3 elementos aquí
+                mismo, chocaban visualmente sobre todo en el mapa). */}
+            <div className="relative" ref={menuMovilRef}>
               <button
-                onClick={() => setMostrarAuth(true)}
-                className="bg-jungle-700 text-white shadow-md rounded-full px-3 h-9 flex items-center gap-1 text-xs font-semibold hover:bg-jungle-800"
+                onClick={() => setMenuMovilAbierto((v) => !v)}
+                className="bg-white/90 backdrop-blur shadow-md rounded-full w-9 h-9 flex items-center justify-center text-jungle-900 hover:bg-white border border-jungle-100"
+                aria-label="Más opciones"
+                aria-expanded={menuMovilAbierto}
               >
-                <User size={13} /> Entrar
+                {usuario ? (
+                  <span className="w-6 h-6 rounded-full bg-jungle-700 text-white text-[11px] font-bold flex items-center justify-center">
+                    {usuario.nombre.charAt(0).toUpperCase()}
+                  </span>
+                ) : (
+                  <MoreVertical size={18} />
+                )}
               </button>
-            )}
+
+              {menuMovilAbierto && (
+                <div className="absolute top-11 right-0 w-52 bg-white rounded-2xl shadow-xl border border-jungle-100 py-1.5 overflow-hidden animate-fade-in">
+                  <Link
+                    to="/prestador"
+                    onClick={() => setMenuMovilAbierto(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-jungle-800 hover:bg-jungle-50"
+                  >
+                    <Briefcase size={15} /> Soy prestador
+                  </Link>
+                  <div className="h-px bg-jungle-100 mx-2 my-1" />
+                  {usuario ? (
+                    <>
+                      <div className="flex items-center gap-2 px-4 py-2 text-sm text-jungle-700">
+                        <User size={15} className="flex-shrink-0" />
+                        <span className="truncate">{usuario.nombre}</span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await apiLogout();
+                          setUsuario(null);
+                          setMenuMovilAbierto(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        <LogOut size={15} /> Cerrar sesión
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setMenuMovilAbierto(false);
+                        setMostrarAuth(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-jungle-800 hover:bg-jungle-50"
+                    >
+                      <User size={15} /> Entrar
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

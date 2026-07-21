@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Download, CheckCircle2, Loader2, X, Compass } from 'lucide-react';
+import { Download, CheckCircle2, Loader2, X, Compass, Layers, Plus, Minus, Map as MapIcon, Satellite } from 'lucide-react';
 import {
   LUGARES,
   LOS_TUXTLAS_BOUNDS,
@@ -40,6 +40,42 @@ import { listarServiciosAprobadosComoLugares } from '../lib/db';
 // ============================================================
 
 const ESTILO_MAPA = 'https://tiles.openfreemap.org/styles/liberty';
+
+// ============================================================
+// CAPA SATELITAL — opcional, tipo "Google Maps" pero sin usar Google
+// ============================================================
+// Fuente: Esri World Imagery (server.arcgisonline.com) — imágenes
+// satelitales/aéreas de uso libre en mapas web con atribución, sin
+// llave de API. Se combina con una segunda capa de referencia (solo
+// nombres de lugares/carreteras) para que la vista satelital siga
+// siendo útil como mapa y no solo una foto sin contexto — igual que
+// el modo "Satélite" de Google combina imagen + etiquetas.
+const ESTILO_SATELITE = {
+  version: 8 as const,
+  sources: {
+    'esri-imagenes': {
+      type: 'raster' as const,
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: 'Esri, Maxar, Earthstar Geographics',
+    },
+    'esri-etiquetas': {
+      type: 'raster' as const,
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+    },
+  },
+  layers: [
+    { id: 'esri-imagenes-capa', type: 'raster' as const, source: 'esri-imagenes' },
+    { id: 'esri-etiquetas-capa', type: 'raster' as const, source: 'esri-etiquetas' },
+  ],
+};
 
 const COLORES_CATEGORIA: Record<string, string> = {
   Naturaleza: '#16a34a',
@@ -207,6 +243,11 @@ export default function MapScreen({
   const [progreso, setProgreso] = useState(0);
   const [tilesListos, setTilesListos] = useState(false);
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
+  // Vista satelital (Esri) en vez de calles vectoriales (OpenFreeMap) —
+  // ver ESTILO_SATELITE arriba. El panel de capas es el mismo patrón
+  // visual que el selector de Google Maps (icono de capas → opciones).
+  const [vistaSatelital, setVistaSatelital] = useState(false);
+  const [mostrarCapas, setMostrarCapas] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -361,7 +402,7 @@ export default function MapScreen({
           [LOS_TUXTLAS_BOUNDS[0][1], LOS_TUXTLAS_BOUNDS[0][0]],
           [LOS_TUXTLAS_BOUNDS[1][1], LOS_TUXTLAS_BOUNDS[1][0]],
         ]}
-        mapStyle={ESTILO_MAPA}
+        mapStyle={vistaSatelital ? (ESTILO_SATELITE as any) : ESTILO_MAPA}
         style={{ width: '100%', height: '100%' }}
       >
         {todosLosLugares.map((lugar) => {
@@ -408,8 +449,76 @@ export default function MapScreen({
         )}
       </Map>
 
-      {/* Boton de brujula/reset */}
-      <div style={{ position: 'absolute', bottom: '140px', right: '12px', zIndex: 30 }}>
+      {mostrarCapas && (
+        <div
+          className="absolute inset-0 z-20"
+          onClick={() => setMostrarCapas(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Cluster de controles del mapa (capas, zoom, brujula) — mismo
+          patron visual que Google Maps: botones circulares blancos
+          apilados del lado derecho, en vez de un solo boton suelto. */}
+      <div
+        style={{ position: 'absolute', bottom: '140px', right: '12px', zIndex: 30 }}
+        className="flex flex-col items-end gap-2"
+      >
+        {/* Capas: Calles / Satélite */}
+        <div className="relative">
+          <button
+            onClick={() => setMostrarCapas((v) => !v)}
+            className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border border-jungle-100"
+            title="Tipo de mapa"
+            aria-label="Cambiar tipo de mapa"
+            aria-expanded={mostrarCapas}
+          >
+            <Layers size={18} />
+          </button>
+
+          {mostrarCapas && (
+            <div className="absolute right-12 top-0 bg-white rounded-2xl shadow-xl border border-jungle-100 p-2 flex gap-2">
+              <button
+                onClick={() => { setVistaSatelital(false); setMostrarCapas(false); }}
+                className={`w-16 flex flex-col items-center gap-1 rounded-xl px-1.5 py-2 text-[11px] font-semibold ${!vistaSatelital ? 'bg-jungle-700 text-white' : 'text-jungle-800 hover:bg-jungle-50'
+                  }`}
+              >
+                <MapIcon size={18} />
+                Calles
+              </button>
+              <button
+                onClick={() => { setVistaSatelital(true); setMostrarCapas(false); }}
+                className={`w-16 flex flex-col items-center gap-1 rounded-xl px-1.5 py-2 text-[11px] font-semibold ${vistaSatelital ? 'bg-jungle-700 text-white' : 'text-jungle-800 hover:bg-jungle-50'
+                  }`}
+              >
+                <Satellite size={18} />
+                Satélite
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Zoom +/- */}
+        <div className="bg-white rounded-2xl shadow-lg border border-jungle-100 flex flex-col overflow-hidden">
+          <button
+            onClick={() => mapRef.current?.getMap()?.zoomIn({ duration: 250 })}
+            className="w-10 h-10 flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border-b border-jungle-100"
+            aria-label="Acercar"
+            title="Acercar"
+          >
+            <Plus size={18} />
+          </button>
+          <button
+            onClick={() => mapRef.current?.getMap()?.zoomOut({ duration: 250 })}
+            className="w-10 h-10 flex items-center justify-center text-jungle-800 hover:bg-jungle-50"
+            aria-label="Alejar"
+            title="Alejar"
+          >
+            <Minus size={18} />
+          </button>
+        </div>
+
+        {/* Brujula/reset */}
         <button
           onClick={resetearVista}
           className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border border-jungle-100"

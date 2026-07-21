@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, RotateCcw, MapPin, BookmarkPlus, CheckCircle2 } from 'lucide-react';
+import { Send, RotateCcw, MapPin, BookmarkPlus, CheckCircle2, Navigation2 } from 'lucide-react';
 import type { useLLM } from '../hooks/useLLM';
 import type { Lugar } from '../data/lugares';
 import type { Categoria, Presupuesto } from '../data/lugares';
@@ -41,13 +41,18 @@ interface Props {
   // El padre (AppShell) calcula el trazado por carretera y cambia
   // al tab del mapa con la polyline visible.
   onVerRutaEnMapa?: (lugares: Lugar[]) => void;
-
+  // Hallazgo real de campo: la IA puede sugerir 3 lugares, pero el
+  // turista no siempre quiere ir a los 3 en orden — puede que solo le
+  // interese el lugar 2, o el 3. Esto muestra "tu ubicación → ESE
+  // lugar" directo, sin pasar por los otros dos, para cualquiera de
+  // los sugeridos.
+  onVerLugarEnMapa?: (lugar: Lugar) => void;
   // Instancia COMPARTIDA del hook de IA — vive en AppShell (no aquí)
   // para que cualquier pestaña use el mismo estado de la nube.
   llm: ReturnType<typeof useLLM>;
 }
 
-export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Props) {
+export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, onVerLugarEnMapa, llm }: Props) {
   // El chat persiste entre cambios de tab usando sessionStorage.
   // Se limpia al cerrar/recargar la app, pero sobrevive mientras
   // la PWA esté abierta — el turista puede ir al mapa y volver
@@ -543,6 +548,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
             estado={estado}
             onOpcion={manejarOpcion}
             onVerLugar={onVerLugar}
+            onVerLugarEnMapa={onVerLugarEnMapa}
             onVerRutaEnMapa={(lugares) => {
               // Si el mapa no está descargado, avisamos antes de mostrar la ruta
               if (!mapaDescargado()) {
@@ -632,6 +638,7 @@ function Burbuja({
   estado,
   onOpcion,
   onVerLugar,
+  onVerLugarEnMapa,
   onVerRutaEnMapa,
   onGuardarRuta,
   rutaYaGuardada,
@@ -641,6 +648,7 @@ function Burbuja({
   estado: EstadoChat;
   onOpcion: (valor: string, label: string) => void;
   onVerLugar: (lugar: Lugar) => void;
+  onVerLugarEnMapa?: (lugar: Lugar) => void;
   onVerRutaEnMapa?: (lugares: Lugar[]) => void;
   onGuardarRuta?: (dia: { dia: number; lugares: Lugar[]; resumen: string }) => void;
   rutaYaGuardada?: boolean;
@@ -708,7 +716,7 @@ function Burbuja({
             </div>
             <div className="p-2 space-y-2">
               {mensaje.rutaDia.lugares.map((lugar, i) => (
-                <div key={lugar.id} className="flex gap-2">
+                <div key={lugar.id} className="flex gap-2 items-stretch">
                   <div className="flex flex-col items-center flex-shrink-0">
                     <div className="w-6 h-6 rounded-full bg-jungle-700 text-white text-xs font-bold flex items-center justify-center">
                       {i + 1}
@@ -729,6 +737,16 @@ function Burbuja({
                       {lugar.municipio} · {lugar.duracionSugerida}
                     </div>
                   </button>
+                  {onVerLugarEnMapa && (
+                    <button
+                      onClick={() => onVerLugarEnMapa(lugar)}
+                      className="flex-shrink-0 self-center w-9 h-9 rounded-full bg-jungle-50 hover:bg-jungle-100 flex items-center justify-center text-jungle-700 mb-1"
+                      aria-label={`Ver mapa hacia ${lugar.nombre}`}
+                      title="Ver mapa desde donde estás — no hace falta ir en orden"
+                    >
+                      <Navigation2 size={15} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

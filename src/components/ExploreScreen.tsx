@@ -6,10 +6,11 @@ import { OfflineReadyBadge } from './OfflineIndicator';
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
+  onVerLugarEnMapa?: (lugar: Lugar) => void;
   lugares?: Lugar[];
 }
 
-export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Props) {
+export default function ExploreScreen({ onVerLugar, onVerLugarEnMapa, lugares: lugaresProps }: Props) {
   const [busqueda, setBusqueda] = useState('');
   const [catActiva, setCatActiva] = useState<Categoria | 'todas'>('todas');
 
@@ -93,8 +94,7 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
           <div className="flex gap-3 overflow-x-auto -mx-4 px-4 pb-2 snap-x">
             {destacados.map((l) => (
               <div key={l.id} className="snap-start flex-shrink-0 w-64">
-                <PlaceCard lugar={l} onClick={() => onVerLugar(l)} />
-              </div>
+                <PlaceCard lugar={l} onClick={() => onVerLugar(l)} onVerMapa={onVerLugarEnMapa} />              </div>
             ))}
           </div>
         </section>
@@ -124,8 +124,7 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtrados.map((l) => (
-              <PlaceCard key={l.id} lugar={l} onClick={() => onVerLugar(l)} />
-            ))}
+              <PlaceCard key={l.id} lugar={l} onClick={() => onVerLugar(l)} onVerMapa={onVerLugarEnMapa} />))}
           </div>
         )}
       </section>
@@ -147,11 +146,10 @@ function CategoryChip({
   return (
     <button
       onClick={onClick}
-      className={`flex-shrink-0 snap-start px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-        activo
-          ? 'bg-jungle-800 text-white shadow-md'
-          : 'bg-white text-jungle-800 border border-jungle-200 hover:border-jungle-400'
-      }`}
+      className={`flex-shrink-0 snap-start px-4 py-2 rounded-full text-sm font-semibold transition-colors ${activo
+        ? 'bg-jungle-800 text-white shadow-md'
+        : 'bg-white text-jungle-800 border border-jungle-200 hover:border-jungle-400'
+        }`}
     >
       {emoji} {label}
     </button>

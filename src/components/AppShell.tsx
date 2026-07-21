@@ -342,6 +342,14 @@ export default function AppShell() {
               <ArrowLeft size={18} />
             </Link>
 
+            <Link
+              to="/"
+              className="bg-white/90 backdrop-blur shadow-sm rounded-full px-3 h-9 flex items-center gap-1.5 text-jungle-900 font-display font-extrabold text-sm tracking-tight hover:bg-white"
+            >
+              <TreePine size={16} className="text-jungle-700 flex-shrink-0" />
+              TuxtlasGO
+            </Link>
+
             {/* Menú compacto: un solo botón, sin pastillas sueltas
                 encimadas al contenido (antes eran 2-3 elementos aquí
                 mismo, chocaban visualmente sobre todo en el mapa). */}

@@ -141,7 +141,6 @@ function PinMiUbicacion() {
   );
 }
 
-
 // "Stickman" caminando — se anima EN SU LUGAR con CSS (piernas y
 // brazos que se balancean), mientras el marcador en sí se mueve sobre
 // la ruta real cambiando de coordenadas cada cuadro (ver el efecto de
@@ -195,9 +194,8 @@ export default function MapScreen({
   miUbicacion,
   onLimpiarRuta,
 }: Props) {
-
-  // Posición actual del muñeco caminando sobre la ruta ([lng, lat]) —
   const mapRef = useRef<MapRef>(null);
+  // Posición actual del muñeco caminando sobre la ruta ([lng, lat]) —
   // null cuando no hay animación en curso.
   const [posicionCaminante, setPosicionCaminante] = useState<[number, number] | null>(null);
   // Permite cancelar la secuencia en curso si la ruta cambia de nuevo
@@ -262,7 +260,6 @@ export default function MapScreen({
     };
   }, [rutaResaltada]);
 
-  // Encuadra el mapa para que se vea la ruta completa cuando cambia.
   // Secuencia cinematográfica cuando aparece una ruta nueva:
   //   1) La cámara recorre las paradas en orden INVERSO (última,
   //      penúltima... hasta la primera) y termina en tu ubicación —
@@ -286,6 +283,8 @@ export default function MapScreen({
     const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
     (async () => {
+      // 1) Recorrido de cámara, de la última parada a la primera, y
+      // luego a tu ubicación.
       const paradasDescendente = [...paradasResaltadas].sort((a, b) => b.orden - a.orden);
       for (const p of paradasDescendente) {
         if (cancelado()) return;
@@ -298,6 +297,7 @@ export default function MapScreen({
       }
       if (cancelado()) return;
 
+      // 2) Encuadre con todo visible antes de empezar a caminar.
       const lngLats = rutaResaltada.map(([lat, lng]) => [lng, lat] as [number, number]);
       const bounds = lngLats.reduce(
         (b, coord) => b.extend(coord),
@@ -307,6 +307,9 @@ export default function MapScreen({
       await esperar(1000);
       if (cancelado()) return;
 
+      // 3) El muñeco camina la ruta real, interpolando posición sobre
+      // la geometría de calles — mientras más larga la ruta, más
+      // tarda (con un tope para que nunca se sienta eterno).
       const duracionCaminata = Math.min(3000 + lngLats.length * 120, 9000);
       const inicio = performance.now();
       await new Promise<void>((resolve) => {
@@ -520,17 +523,6 @@ export default function MapScreen({
           }}
         />
       )}
-
-      {/* Leyenda de categorias */}
-      <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-white/95 backdrop-blur rounded-2xl p-3 shadow-xl text-xs z-30">
-        <div className="flex flex-wrap gap-1.5">
-          {CATEGORIAS.map((c) => (
-            <span key={c.id} className={`${c.color} px-2 py-0.5 rounded-full text-[10px]`}>
-              {c.emoji} {c.id}
-            </span>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

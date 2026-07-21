@@ -1,4 +1,4 @@
-import { Star, MapPin, Clock, Heart, Navigation2 } from 'lucide-react';
+import { Star, MapPin, Clock, Heart } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
@@ -9,15 +9,9 @@ interface Props {
   lugar: Lugar;
   onClick?: () => void;
   compact?: boolean;
-  // Hallazgo real de campo: "Cómo llegar" solo vivía escondido dentro
-  // de la tarjeta de detalle — para verlo había que abrir el lugar
-  // primero. Este botón nuevo lo pone directo en la tarjeta chica,
-  // sin ese paso extra, y es lo mismo que permite elegir CUALQUIERA
-  // de los lugares de una ruta de la IA (no solo el primero en orden).
-  onVerMapa?: (lugar: Lugar) => void;
 }
 
-export default function PlaceCard({ lugar, onClick, compact, onVerMapa }: Props) {
+export default function PlaceCard({ lugar, onClick, compact }: Props) {
   const [fav, setFav] = useState(false);
 
   useEffect(() => {
@@ -30,11 +24,6 @@ export default function PlaceCard({ lugar, onClick, compact, onVerMapa }: Props)
     e.stopPropagation();
     const nuevoEstado = await toggleFavorito(lugar.id);
     setFav(nuevoEstado);
-  };
-
-  const handleVerMapa = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onVerMapa?.(lugar);
   };
 
   if (compact) {
@@ -68,16 +57,6 @@ export default function PlaceCard({ lugar, onClick, compact, onVerMapa }: Props)
             <span>{lugar.municipio}</span>
           </div>
         </div>
-        {onVerMapa && (
-          <button
-            onClick={handleVerMapa}
-            className="flex-shrink-0 self-center w-9 h-9 rounded-full bg-jungle-50 hover:bg-jungle-100 flex items-center justify-center text-jungle-700"
-            aria-label={`Ver mapa hacia ${lugar.nombre}`}
-            title="Ver mapa (desde donde estás)"
-          >
-            <Navigation2 size={16} />
-          </button>
-        )}
       </button>
     );
   }
@@ -105,16 +84,6 @@ export default function PlaceCard({ lugar, onClick, compact, onVerMapa }: Props)
             className={fav ? 'fill-red-500 text-red-500' : 'text-jungle-700'}
           />
         </button>
-        {onVerMapa && (
-          <button
-            onClick={handleVerMapa}
-            className="absolute top-3 right-14 w-9 h-9 rounded-full bg-white/90 backdrop-blur flex items-center justify-center hover:bg-white transition text-jungle-700"
-            aria-label={`Ver mapa hacia ${lugar.nombre}`}
-            title="Ver mapa (desde donde estás)"
-          >
-            <Navigation2 size={17} />
-          </button>
-        )}
         <div className="absolute top-3 left-3">
           <span
             className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cat?.color || 'bg-white text-jungle-800'}`}

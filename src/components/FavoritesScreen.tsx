@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Heart, Route, Trash2, Calendar, MapPin, Navigation2 } from 'lucide-react'; import { useLiveQuery } from 'dexie-react-hooks';
+import { Heart, Route, Trash2, Calendar, MapPin } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
 import { LUGARES, type Lugar } from '../data/lugares';
 import PlaceCard from './PlaceCard';
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
-  onVerLugarEnMapa?: (lugar: Lugar) => void;
   onVerRutaEnMapa?: (lugares: Lugar[]) => void;
 }
 
-export default function FavoritesScreen({ onVerLugar, onVerLugarEnMapa, onVerRutaEnMapa }: Props) {
+export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) {
   const [tab, setTab] = useState<'favoritos' | 'rutas'>('favoritos');
 
   const favoritos = useLiveQuery(async () => {
@@ -41,15 +41,17 @@ export default function FavoritesScreen({ onVerLugar, onVerLugarEnMapa, onVerRut
         <div className="flex bg-white/15 backdrop-blur rounded-xl p-1">
           <button
             onClick={() => setTab('favoritos')}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${tab === 'favoritos' ? 'bg-white text-jungle-900' : 'text-white'
-              }`}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
+              tab === 'favoritos' ? 'bg-white text-jungle-900' : 'text-white'
+            }`}
           >
             <Heart size={14} /> Favoritos ({favoritos?.length || 0})
           </button>
           <button
             onClick={() => setTab('rutas')}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${tab === 'rutas' ? 'bg-white text-jungle-900' : 'text-white'
-              }`}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
+              tab === 'rutas' ? 'bg-white text-jungle-900' : 'text-white'
+            }`}
           >
             <Route size={14} /> Rutas ({rutas?.length || 0})
           </button>
@@ -68,7 +70,8 @@ export default function FavoritesScreen({ onVerLugar, onVerLugarEnMapa, onVerRut
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {favoritos.map((l) => (
-                  <PlaceCard key={l.id} lugar={l} onClick={() => onVerLugar(l)} onVerMapa={onVerLugarEnMapa} />))}
+                  <PlaceCard key={l.id} lugar={l} onClick={() => onVerLugar(l)} />
+                ))}
               </div>
             )}
           </>
@@ -140,28 +143,17 @@ export default function FavoritesScreen({ onVerLugar, onVerLugarEnMapa, onVerRut
                           </div>
                           <div className="space-y-1.5">
                             {lugaresDia.map((l) => (
-                              <div key={l.id} className="w-full flex items-center gap-2 text-sm text-jungle-900 py-1">
-                                <button
-                                  onClick={() => onVerLugar(l)}
-                                  className="flex-1 text-left flex items-center gap-2 hover:text-jungle-700 min-w-0"
-                                >
-                                  <span className="w-1.5 h-1.5 bg-jungle-500 rounded-full flex-shrink-0" />
-                                  <span className="truncate">{l.nombre}</span>
-                                  <span className="text-xs text-jungle-500 ml-auto flex-shrink-0">
-                                    {l.duracionSugerida}
-                                  </span>
-                                </button>
-                                {onVerLugarEnMapa && (
-                                  <button
-                                    onClick={() => onVerLugarEnMapa(l)}
-                                    className="flex-shrink-0 w-7 h-7 rounded-full bg-jungle-50 hover:bg-jungle-100 flex items-center justify-center text-jungle-700"
-                                    aria-label={`Ver mapa hacia ${l.nombre}`}
-                                    title="Ver mapa desde donde estás"
-                                  >
-                                    <Navigation2 size={13} />
-                                  </button>
-                                )}
-                              </div>
+                              <button
+                                key={l.id}
+                                onClick={() => onVerLugar(l)}
+                                className="w-full text-left flex items-center gap-2 text-sm text-jungle-900 hover:text-jungle-700 py-1"
+                              >
+                                <span className="w-1.5 h-1.5 bg-jungle-500 rounded-full" />
+                                {l.nombre}
+                                <span className="text-xs text-jungle-500 ml-auto">
+                                  {l.duracionSugerida}
+                                </span>
+                              </button>
                             ))}
                           </div>
                         </div>

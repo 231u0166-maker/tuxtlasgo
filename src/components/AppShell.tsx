@@ -130,9 +130,9 @@ export default function AppShell() {
     return origen;
   };
 
-  const verEnMapa = async (lugarDierecto?: Lugar) => {
-    const destino = lugarDierecto ?? lugarSeleccionado;
-    if (!destino) return;
+  const verEnMapa = async () => {
+    if (!lugarSeleccionado) return;
+    const destino = lugarSeleccionado;
     setLugarSeleccionado(null);
     setCargandoRuta(true);
     setErrorRuta(null);
@@ -421,7 +421,7 @@ export default function AppShell() {
 
           {tab === 'explorar' && (
             <div className="h-full overflow-y-auto">
-              <ExploreScreen onVerLugar={verLugar} onVerLugarEnMapa={verEnMapa} lugares={getCatalogoActivo()} />
+              <ExploreScreen onVerLugar={verLugar} lugares={getCatalogoActivo()} />
             </div>
           )}
           {tab === 'mapa' && (
@@ -434,12 +434,12 @@ export default function AppShell() {
             />
           )}
           <div style={{ display: tab === 'chat' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
-            <ChatAssistant onVerLugar={verLugar} onVerRutaEnMapa={verRutaEnMapa} onVerLugarEnMapa={verEnMapa} llm={llm} />          </div>
+            <ChatAssistant onVerLugar={verLugar} onVerRutaEnMapa={verRutaEnMapa} llm={llm} />
+          </div>
           {tab === 'favoritos' && (
             <div className="h-full overflow-y-auto">
               <FavoritesScreen
                 onVerLugar={verLugar}
-                onVerLugarEnMapa={verEnMapa}
                 onVerRutaEnMapa={(lugares) => { verRutaEnMapa(lugares); setTab('mapa'); }}
               />
             </div>

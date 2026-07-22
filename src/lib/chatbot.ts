@@ -268,9 +268,7 @@ export function mensajeIntereses(): MensajeChat {
     opciones: [
       { label: '🌳 Naturaleza', valor: 'Naturaleza' },
       { label: '🥾 Aventura', valor: 'Aventura' },
-      { label: '🏛️ Cultura e historia', valor: 'Cultura' },
       { label: '🍤 Gastronomía', valor: 'Gastronomia' },
-      { label: '🏖️ Playa', valor: 'Playa' },
       { label: '🛏️ Hospedaje', valor: 'Hospedaje' },
       { label: '✅ Listo, ya escogí', valor: '__done__' },
     ],

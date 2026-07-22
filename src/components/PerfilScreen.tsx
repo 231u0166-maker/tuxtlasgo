@@ -649,7 +649,7 @@ function PerfilPrestador({
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría</label>
                         <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
                           className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                          {['Gastronomia','Naturaleza','Aventura','Hospedaje','Cultura','Transporte','Comercio','Cooperativa','Otro'].map(c => (
+                          {['Gastronomia','Naturaleza','Aventura','Hospedaje','Comercio','Cooperativa','Otro'].map(c => (
                             <option key={c} value={c}>{c}</option>
                           ))}
                         </select>

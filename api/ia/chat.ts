@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
+import { createHash } from 'node:crypto';
 
 // ============================================================
 // IA EN LA NUBE — respaldo del modo offline (WebLLM)
@@ -22,6 +23,20 @@ import { Pool } from 'pg';
 // verificado que Gemini expone este mismo formato en
 // generativelanguage.googleapis.com/v1beta/openai/.
 //
+// CACHÉ DE RESPUESTAS: antes de gastar un token real, se revisa si
+// esta MISMA pregunta (con el MISMO contexto — precios, lugares,
+// etc.) ya se respondió recientemente para CUALQUIER usuario, no solo
+// para este. Si varias personas preguntan lo mismo durante una
+// demo (ej. "cuánto cuesta ir a la cascada"), solo la PRIMERA
+// realmente consume Groq — el resto recibe la respuesta cacheada al
+// instante, gratis, y SIN contar contra el límite diario. El caché
+// vive en la misma base de datos (Neon), no en memoria del servidor
+// — Vercel apaga y prende las funciones todo el tiempo, así que un
+// caché en memoria se perdería solo y no serviría entre usuarios
+// distintos. TTL corto (6 horas): suficiente para atrapar preguntas
+// repetidas durante una sesión de prueba/demo, sin arriesgar servir
+// un precio/horario desactualizado por días.
+//
 // IMPORTANTE sobre el "$0.01 USD" que a veces aparece en el panel de
 // Groq: es un estimado de lo que costaría SI se usara el plan de
 // pago — en el plan gratuito (sin tarjeta registrada) es IMPOSIBLE
@@ -36,6 +51,7 @@ import { Pool } from 'pg';
 //                             igual al de antes de este cambio)
 //   GEMINI_MODEL             (opcional, default abajo)
 //   IA_NUBE_LIMITE_DIARIO    (opcional, default 150 llamadas/día)
+//   IA_CACHE_TTL_SEGUNDOS    (opcional, default 21600 = 6 horas)
 //
 // El tope diario es un techo DURO de gasto: no importa cuánta gente
 // prueba la demo a la vez — pasado el límite, este endpoint responde
@@ -61,6 +77,7 @@ const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat
 const MODELO_GEMINI_DEFECTO = 'gemini-2.5-flash-lite';
 
 const LIMITE_DIARIO_DEFECTO = 150;
+const CACHE_TTL_SEGUNDOS_DEFECTO = 60 * 60 * 6; // 6 horas
 
 function getPool() {
   return new Pool({
@@ -95,6 +112,49 @@ async function dentroDelLimiteDiario(pool: Pool): Promise<{ ok: boolean; llamada
   );
   const llamadasHoy = r.rows[0].llamadas as number;
   return { ok: llamadasHoy <= limite, llamadasHoy, limite };
+}
+
+// Clave de caché: hash del prompt de sistema + todos los mensajes tal
+// cual se le mandarían al modelo. Si DOS peticiones (de cualquier
+// usuario) llegan con exactamente el mismo contexto y la misma
+// pregunta, es seguro reusar la respuesta — nada cambió de fondo.
+function clavesCache(systemPrompt: string, mensajes: MensajeIA[]): string {
+  const base = JSON.stringify({ systemPrompt, mensajes });
+  return createHash('sha256').update(base).digest('hex');
+}
+
+async function buscarEnCache(
+  pool: Pool,
+  hash: string
+): Promise<{ texto: string; proveedor: string } | null> {
+  const ttl = parseInt(process.env.IA_CACHE_TTL_SEGUNDOS || '', 10) || CACHE_TTL_SEGUNDOS_DEFECTO;
+
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS ia_respuestas_cache (
+       hash TEXT PRIMARY KEY,
+       texto TEXT NOT NULL,
+       proveedor TEXT NOT NULL,
+       creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     )`
+  );
+  const r = await pool.query(
+    `SELECT texto, proveedor FROM ia_respuestas_cache
+     WHERE hash = $1 AND creado_en > NOW() - ($2::int * INTERVAL '1 second')`,
+    [hash, ttl]
+  );
+  if (r.rows.length === 0) return null;
+  return { texto: r.rows[0].texto as string, proveedor: r.rows[0].proveedor as string };
+}
+
+async function guardarEnCache(pool: Pool, hash: string, texto: string, proveedor: string): Promise<void> {
+  // ON CONFLICT actualiza creado_en también — así una pregunta que
+  // sigue siendo popular renueva su propio TTL en vez de expirar.
+  await pool.query(
+    `INSERT INTO ia_respuestas_cache (hash, texto, proveedor, creado_en)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (hash) DO UPDATE SET texto = $2, proveedor = $3, creado_en = NOW()`,
+    [hash, texto, proveedor]
+  );
 }
 
 interface MensajeIA {
@@ -151,14 +211,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const pool = getPool();
   try {
-    // Tope de gasto ANTES de gastar un solo token — esto es lo que
-    // protege tu presupuesto sin importar si hay crédito gratis o no.
-    const { ok, llamadasHoy, limite } = await dentroDelLimiteDiario(pool);
-    if (!ok) {
-      console.warn(`[IA nube] Límite diario alcanzado: ${llamadasHoy}/${limite}`);
-      return res.status(429).json({ error: 'Límite diario de IA en la nube alcanzado' });
-    }
-
     const { systemPrompt, mensajes } = req.body as {
       systemPrompt?: string;
       mensajes?: MensajeIA[];
@@ -177,6 +229,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Mensaje demasiado largo' });
     }
 
+    // Caché ANTES del tope diario a propósito: un acierto de caché no
+    // gasta ningún token real, así que tampoco debe contar contra el
+    // límite del día — si diez personas preguntan lo mismo, solo la
+    // primera consume presupuesto real.
+    const hash = clavesCache(systemPrompt, mensajes);
+    const enCache = await buscarEnCache(pool, hash);
+    if (enCache) {
+      return res.status(200).json({ texto: enCache.texto, proveedor: enCache.proveedor, desdeCache: true });
+    }
+
+    // Tope de gasto ANTES de gastar un solo token — esto es lo que
+    // protege tu presupuesto sin importar si hay crédito gratis o no.
+    const { ok, llamadasHoy, limite } = await dentroDelLimiteDiario(pool);
+    if (!ok) {
+      console.warn(`[IA nube] Límite diario alcanzado: ${llamadasHoy}/${limite}`);
+      return res.status(429).json({ error: 'Límite diario de IA en la nube alcanzado' });
+    }
+
     // 1) Groq primero — es el proveedor primario, más rápido y con
     // más margen diario en su capa gratuita.
     try {
@@ -187,6 +257,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         systemPrompt,
         mensajes
       );
+      await guardarEnCache(pool, hash, texto, 'groq');
       return res.status(200).json({ texto, proveedor: 'groq' });
     } catch (errGroq) {
       console.warn('[IA nube] Groq falló, intentando respaldo:', errGroq);
@@ -204,6 +275,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             systemPrompt,
             mensajes
           );
+          await guardarEnCache(pool, hash, texto, 'gemini');
           return res.status(200).json({ texto, proveedor: 'gemini' });
         } catch (errGemini) {
           console.error('[IA nube] Gemini (respaldo) también falló:', errGemini);

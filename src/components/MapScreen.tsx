@@ -75,14 +75,58 @@ const ESTILO_TERRENO = {
   ],
 };
 
+// Mismos 7 colores que CATEGORIAS en data/lugares.ts (ahí están en
+// clases Tailwind para badges; aquí en hex para pintar el mapa) —
+// antes esta lista tenía solo 4 categorías reales + 2 que ni existen
+// en los datos (Cultura, Playa), así que Comercio/Cooperativa/Otro
+// caían todos al verde por defecto. Corregido para que coincida 1:1.
 const COLORES_CATEGORIA: Record<string, string> = {
-  Naturaleza: '#16a34a',
-  Aventura: '#ea580c',
-  Cultura: '#d97706',
-  Gastronomia: '#dc2626',
-  Hospedaje: '#2563eb',
-  Playa: '#0891b2',
+  Naturaleza: '#166534',
+  Aventura: '#92400e',
+  Gastronomia: '#991b1b',
+  Hospedaje: '#1e40af',
+  Comercio: '#9a3412',
+  Cooperativa: '#115e59',
+  Otro: '#374151',
 };
+
+// ============================================================
+// "EDIFICACIÓN" SINTÉTICA para cada lugar registrado
+// ============================================================
+// Verificar caso por caso si OpenFreeMap/OSM ya tiene el edificio
+// real de cada prestador no es viable con el volumen de lugares del
+// proyecto (y va a pasar en Catemaco, Santiago Tuxtla, San Andrés
+// Tuxtla, etc.) — así que en vez de eso, SIEMPRE se dibuja un bloque
+// extruido propio (no depende de que OSM tenga o no ese edificio
+// mapeado) + el logo de categoría encima. Es consistente en todos
+// lados y no requiere mantenimiento manual por lugar.
+//
+// Altura sintética por categoría, solo para que se note algo de
+// variedad (hoteles más altos que un puesto de comida, por ejemplo)
+// — no representa la altura real del inmueble.
+const ALTURA_CATEGORIA: Record<string, number> = {
+  Hospedaje: 11,
+  Cooperativa: 8,
+  Comercio: 7,
+  Gastronomia: 6,
+  Otro: 6,
+  Aventura: 5,
+  Naturaleza: 4,
+};
+
+// Genera un cuadrado pequeño (en metros) alrededor de un punto
+// lat/lng, para usarlo como "huella" de la edificación sintética.
+function cuadroMetros(lat: number, lng: number, medioLadoM: number): [number, number][] {
+  const dLat = medioLadoM / 111320;
+  const dLng = medioLadoM / (111320 * Math.cos((lat * Math.PI) / 180));
+  return [
+    [lng - dLng, lat - dLat],
+    [lng + dLng, lat - dLat],
+    [lng + dLng, lat + dLat],
+    [lng - dLng, lat + dLat],
+    [lng - dLng, lat - dLat],
+  ];
+}
 
 // Pin más pequeño y discreto que antes (círculo simple, no gota) —
 // hallazgo real de campo: la versión anterior (32px, forma de gota)
@@ -284,6 +328,28 @@ export default function MapScreen({
     return base;
   }, [serviciosPrestadores, filtroCategorias]);
 
+  // GeoJSON de las "edificaciones" sintéticas — un cuadro pequeño por
+  // cada lugar registrado, coloreado según su categoría. Ver nota en
+  // ALTURA_CATEGORIA arriba: esto reemplaza tener que verificar si
+  // OSM ya tiene el edificio real de cada sitio.
+  const edificiosGeoJSON = useMemo(() => {
+    return {
+      type: 'FeatureCollection' as const,
+      features: todosLosLugares.map((lugar) => ({
+        type: 'Feature' as const,
+        properties: {
+          color: COLORES_CATEGORIA[lugar.categoria] || '#166534',
+          altura: ALTURA_CATEGORIA[lugar.categoria] ?? 6,
+        },
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [cuadroMetros(lugar.coords[0], lugar.coords[1], 5)],
+        },
+      })),
+    };
+  }, [todosLosLugares]);
+
+
   // GeoJSON de la ruta del dia - MapLibre/GeoJSON usan [lng, lat],
   // al reves de Leaflet ([lat, lng], que es como sigue llegando desde
   // props por compatibilidad con el resto de la app) - se voltea aqui,
@@ -404,6 +470,21 @@ export default function MapScreen({
         mapStyle={vistaTerreno ? (ESTILO_TERRENO as any) : ESTILO_MAPA}
         style={{ width: '100%', height: '100%' }}
       >
+        {edificiosGeoJSON.features.length > 0 && (
+          <Source id="edificios-servicios" type="geojson" data={edificiosGeoJSON as any}>
+            <Layer
+              id="edificios-servicios-capa"
+              type="fill-extrusion"
+              paint={{
+                'fill-extrusion-color': ['get', 'color'],
+                'fill-extrusion-height': ['get', 'altura'],
+                'fill-extrusion-base': 0,
+                'fill-extrusion-opacity': 0.85,
+              }}
+            />
+          </Source>
+        )}
+
         {todosLosLugares.map((lugar) => {
           const esParada = paradasResaltadas?.some(
             (p) =>

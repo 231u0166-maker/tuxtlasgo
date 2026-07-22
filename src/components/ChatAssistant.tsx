@@ -609,7 +609,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
             autoComplete="off"
             autoCorrect="on"
             autoCapitalize="sentences"
-            className="flex-1 bg-jungle-50 rounded-2xl px-4 py-3 text-base leading-snug resize-none overflow-y-auto max-h-[120px] focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0 disabled:opacity-60"
+            className="flex-1 min-w-0 bg-jungle-50 rounded-2xl px-4 py-3 text-base leading-snug resize-none overflow-y-auto max-h-[120px] focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0 disabled:opacity-60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           />
           <button
             onClick={enviarTexto}

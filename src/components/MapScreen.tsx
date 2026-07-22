@@ -80,9 +80,15 @@ const ESTILO_TERRENO = {
 // antes esta lista tenía solo 4 categorías reales + 2 que ni existen
 // en los datos (Cultura, Playa), así que Comercio/Cooperativa/Otro
 // caían todos al verde por defecto. Corregido para que coincida 1:1.
+//
+// Naturaleza y Aventura usan colores distintos a los demás (verde
+// vivo / dorado) a propósito — nada de rojo ni tonos cafés, para que
+// un lugar natural (cascada, reserva) no se vea como advertencia ni
+// se confunda con una construcción. El resto conserva su color de
+// categoría normal.
 const COLORES_CATEGORIA: Record<string, string> = {
-  Naturaleza: '#166534',
-  Aventura: '#92400e',
+  Naturaleza: '#16a34a',
+  Aventura: '#f59e0b',
   Gastronomia: '#991b1b',
   Hospedaje: '#1e40af',
   Comercio: '#9a3412',
@@ -96,22 +102,40 @@ const COLORES_CATEGORIA: Record<string, string> = {
 // Verificar caso por caso si OpenFreeMap/OSM ya tiene el edificio
 // real de cada prestador no es viable con el volumen de lugares del
 // proyecto (y va a pasar en Catemaco, Santiago Tuxtla, San Andrés
-// Tuxtla, etc.) — así que en vez de eso, SIEMPRE se dibuja un bloque
+// Tuxtla, etc.) — así que en vez de eso, SIEMPRE se dibuja un marcador
 // extruido propio (no depende de que OSM tenga o no ese edificio
 // mapeado) + el logo de categoría encima. Es consistente en todos
-// lados y no requiere mantenimiento manual por lugar.
+// lados, no requiere verificar sitio por sitio, y aplica igual para
+// TODOS los lugares registrados en cada categoría (no solo Nanciyaga
+// — cualquier cascada, reserva o sitio de aventura que se registre
+// recibe el mismo tratamiento automáticamente).
 //
-// Altura sintética por categoría, solo para que se note algo de
-// variedad (hoteles más altos que un puesto de comida, por ejemplo)
-// — no representa la altura real del inmueble.
+// Naturaleza/Aventura NO usan forma de "edificio": una cascada o una
+// reserva ecológica no es una construcción, así que en vez de una
+// caja ancha y baja (como un local comercial), se dibuja un marcador
+// angosto y alto — más parecido a un tótem/hito que a un edificio.
+// El resto de categorías (negocios con local físico real) sí usan
+// la caja tipo edificio.
 const ALTURA_CATEGORIA: Record<string, number> = {
   Hospedaje: 11,
   Cooperativa: 8,
   Comercio: 7,
   Gastronomia: 6,
   Otro: 6,
-  Aventura: 5,
-  Naturaleza: 4,
+  Aventura: 15,
+  Naturaleza: 15,
+};
+
+// Radio de la huella (mitad del lado del cuadrado, en metros) — más
+// angosto para Naturaleza/Aventura (tótem) que para el resto (local).
+const RADIO_CATEGORIA: Record<string, number> = {
+  Naturaleza: 3,
+  Aventura: 3,
+  Hospedaje: 6,
+  Cooperativa: 5,
+  Comercio: 5,
+  Gastronomia: 5,
+  Otro: 5,
 };
 
 // Genera un cuadrado pequeño (en metros) alrededor de un punto
@@ -343,7 +367,13 @@ export default function MapScreen({
         },
         geometry: {
           type: 'Polygon' as const,
-          coordinates: [cuadroMetros(lugar.coords[0], lugar.coords[1], 5)],
+          coordinates: [
+            cuadroMetros(
+              lugar.coords[0],
+              lugar.coords[1],
+              RADIO_CATEGORIA[lugar.categoria] ?? 5
+            ),
+          ],
         },
       })),
     };

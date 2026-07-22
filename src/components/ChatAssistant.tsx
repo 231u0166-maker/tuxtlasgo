@@ -586,7 +586,10 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
       </div>
 
       {/* Input de texto libre */}
-      <div className="px-3 py-3 bg-white border-t border-jungle-100 flex-shrink-0">
+      <div
+        className="px-3 pt-3 bg-white border-t border-jungle-100 flex-shrink-0 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+      >
         <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}

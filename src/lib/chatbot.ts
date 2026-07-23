@@ -149,6 +149,15 @@ const INTENT_KEYWORDS: { intent: string; words: string[] }[] = [
   },
 ];
 
+const MAPA_INTENT_CATEGORIA: Record<string, Categoria> = {
+  comida: 'Gastronomia',
+  hospedaje: 'Hospedaje',
+  naturaleza: 'Naturaleza',
+  aventura: 'Aventura',
+}
+
+
+
 export function detectarIntent(texto: string): string {
   // Tokeniza el texto y compara contra las palabras clave de cada
   // intención TOLERANDO errores ortográficos (vía el módulo PLN).
@@ -528,19 +537,32 @@ function mejoresPorValor<T>(
     .map((v) => v.valor);
 }
 
-// Degrada con gracia si los embeddings aún no están listos (devuelve
-// un objeto vacío) — quien llama debe rellenar con valores por
-// default en vez de bloquear la conversación esperando el modelo.
 export async function extraerPreferenciasLibres(
   texto: string
 ): Promise<Partial<PreferenciasUsuario>> {
-  if (!embeddingsListo()) return {};
+  const resultado: Partial<PreferenciasUsuario> = {};
+
+  // Hallazgo real de campo: "qué hotel me recomiendas barato en San
+  // Andrés Tuxtla que esté cerca de hospitales" NO detectó Hospedaje
+  // — el embedding de una frase larga con varias ideas a la vez
+  // (municipio, presupuesto, proximidad a hospitales) diluye la señal
+  // de una sola palabra como "hotel" dentro del promedio de toda la
+  // oración. La detección por palabra clave (detectarIntent, ya
+  // existente y usada en el motor de reglas) es mucho más confiable
+  // para esto — "hotel" está literalmente en su lista — así que se
+  // usa PRIMERO, con prioridad, y los embeddings solo complementan
+  // (nunca sobreescriben) si detectan algo más.
+  const intentDetectado = detectarIntent(texto);
+  const categoriaPorPalabraClave = MAPA_INTENT_CATEGORIA[intentDetectado];
+  if (categoriaPorPalabraClave) {
+    resultado.intereses = [categoriaPorPalabraClave];
+  }
+
+  if (!embeddingsListo()) return resultado;
 
   const ejemplos = await prepararEjemplos();
   const vectorConsulta = await vectorizar(texto);
   const UMBRAL = 0.5;
-
-  const resultado: Partial<PreferenciasUsuario> = {};
 
   const dias = mejoresPorValor(vectorConsulta, ejemplos.dias, UMBRAL);
   if (dias.length > 0) resultado.dias = dias[0];
@@ -554,8 +576,13 @@ export async function extraerPreferenciasLibres(
   // Intereses SÍ es multi-etiqueta: un turista puede querer
   // "naturaleza y buena comida" en la misma frase — se incluyen
   // TODAS las categorías que superen el umbral, no solo la mejor.
-  const intereses = mejoresPorValor(vectorConsulta, ejemplos.intereses, UMBRAL);
-  if (intereses.length > 0) resultado.intereses = intereses;
+  // Si la palabra clave ya encontró una (arriba), esto se AGREGA, no
+  // reemplaza — por si el turista mencionó más de un interés.
+  const interesesEmbeddings = mejoresPorValor(vectorConsulta, ejemplos.intereses, UMBRAL);
+  if (interesesEmbeddings.length > 0) {
+    const combinado = new Set([...(resultado.intereses ?? []), ...interesesEmbeddings]);
+    resultado.intereses = [...combinado];
+  }
 
   return resultado;
 }
@@ -797,7 +824,7 @@ export function responderTextoLibre(
     naturaleza: 'Naturaleza',
     aventura: 'Aventura',
   };
-  const cat = mapaIntentCat[intent];
+  const cat = MAPA_INTENT_CATEGORIA[intent];
 
   // Si hay conocimiento general Y NO hay una categoría de lugar clara,
   // responde con el conocimiento. Si hay categoría, los lugares ganan

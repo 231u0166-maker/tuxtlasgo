@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Send, RotateCcw, MapPin, BookmarkPlus, CheckCircle2 } from 'lucide-react';
 import type { useLLM } from '../hooks/useLLM';
 import type { Lugar } from '../data/lugares';
@@ -98,6 +98,31 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // ─────────── Ventana de "mapas vivos" (WebGL) ───────────
+  // Antes solo el ÚLTIMO mensaje del chat tenía mini-mapa. Eso se
+  // rompía con las rutas de varios días: cada día se manda como un
+  // mensaje NUEVO y separado (ver generarYMostrarRuta), así que en
+  // cuanto llegaba el mensaje del Día 2, el mapa del Día 1 se
+  // desmontaba de golpe — se veía como una animación que "aparece y
+  // se borra sola", pero en realidad el mapa se estaba quitando de
+  // verdad.
+  //
+  // Corrección: en vez de "solo el último mensaje", se mantienen
+  // vivos los mapas de los últimos 3 mensajes que traen lugares o
+  // rutaDia — 3 porque ese es el máximo de días que puede tener una
+  // ruta (Dias = 1 | 2 | 3). Así, TODOS los días de una ruta recién
+  // generada quedan con su mapa visible a la vez, sin parpadeos. El
+  // límite sigue existiendo (para no acumular contextos WebGL sin
+  // fin en una conversación larga) — solo se van "apagando" mapas
+  // viejos cuando aparece contenido nuevo con mapa más adelante
+  // (otra ruta, otra búsqueda), no en cada mensaje de texto suelto.
+  const mapasVivos = useMemo(() => {
+    const idsConMapa = mensajes
+      .filter((m) => (m.lugares && m.lugares.length > 0) || m.rutaDia)
+      .map((m) => m.id);
+    return new Set(idsConMapa.slice(-3));
+  }, [mensajes]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -542,7 +567,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
             mensaje={msg}
             interesesTemp={interesesTemp}
             estado={estado}
-            esUltimoMensaje={msg.id === mensajes[mensajes.length - 1]?.id}
+            mapaVivo={mapasVivos.has(msg.id)}
             onOpcion={manejarOpcion}
             onVerLugar={onVerLugar}
             onVerRutaEnMapa={(lugares) => {
@@ -635,7 +660,7 @@ function Burbuja({
   mensaje,
   interesesTemp,
   estado,
-  esUltimoMensaje,
+  mapaVivo,
   onOpcion,
   onVerLugar,
   onVerRutaEnMapa,
@@ -645,9 +670,10 @@ function Burbuja({
   mensaje: MensajeChat;
   interesesTemp: Categoria[];
   estado: EstadoChat;
-  // Solo el mensaje más reciente monta un mini-mapa en vivo (WebGL) —
-  // ver nota de rendimiento en MiniMapaChat.tsx.
-  esUltimoMensaje: boolean;
+  // true si este mensaje está dentro de la ventana de "mapas vivos"
+  // (últimos 3 mensajes con lugares/rutaDia) — ver nota de
+  // rendimiento en MiniMapaChat.tsx y en ChatAssistant.tsx.
+  mapaVivo: boolean;
   onOpcion: (valor: string, label: string) => void;
   onVerLugar: (lugar: Lugar) => void;
   onVerRutaEnMapa?: (lugares: Lugar[]) => void;
@@ -699,7 +725,7 @@ function Burbuja({
         {/* Lugares sueltos recomendados */}
         {mensaje.lugares && mensaje.lugares.length > 0 && (
           <div className="mt-2 space-y-2">
-            {esUltimoMensaje && (
+            {mapaVivo && (
               <MiniMapaChat lugares={mensaje.lugares} onVerLugar={onVerLugar} />
             )}
             {mensaje.lugares.map((lugar) => (
@@ -718,7 +744,7 @@ function Burbuja({
             <div className="bg-jungle-100 px-3 py-2 font-display font-bold text-jungle-900 text-sm">
               Día {mensaje.rutaDia.dia}
             </div>
-            {esUltimoMensaje && (
+            {mapaVivo && (
               <div className="px-2 pt-2">
                 <MiniMapaChat
                   lugares={mensaje.rutaDia.lugares}

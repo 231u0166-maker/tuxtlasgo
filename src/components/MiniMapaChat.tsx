@@ -77,10 +77,7 @@ export default function MiniMapaChat({ lugares, numerado, onVerLugar }: Props) {
   const centro = lugares[0];
 
   return (
-    <div
-      className="mt-2 rounded-xl overflow-hidden border border-jungle-100"
-      style={{ height: 150 }}
-    >
+    <div className="mt-2 rounded-xl overflow-hidden border border-jungle-100 h-[210px] sm:h-[260px]">
       <Map
         ref={mapRef}
         initialViewState={{

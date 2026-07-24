@@ -39,7 +39,7 @@ import { listarServiciosAprobadosComoLugares } from '../lib/db';
 // funcionando igual. Esta migracion es solo de esta pantalla.
 // ============================================================
 
-const ESTILO_MAPA = 'https://tiles.openfreemap.org/styles/liberty';
+export const ESTILO_MAPA = 'https://tiles.openfreemap.org/styles/liberty';
 
 // ============================================================
 // CAPA DE TERRENO — alternativa a "Calles", pensada para senderismo
@@ -86,7 +86,7 @@ const ESTILO_TERRENO = {
 // un lugar natural (cascada, reserva) no se vea como advertencia ni
 // se confunda con una construcción. El resto conserva su color de
 // categoría normal.
-const COLORES_CATEGORIA: Record<string, string> = {
+export const COLORES_CATEGORIA: Record<string, string> = {
   Naturaleza: '#16a34a',
   Aventura: '#f59e0b',
   Gastronomia: '#991b1b',

@@ -1,4 +1,4 @@
- // ============================================================
+// ============================================================
 // MOTOR DE MEMORIA VECTORIZADA — TuxtlasGO (100% OFFLINE)
 // ============================================================
 // Esto es lo que en tus notas llamabas "sqlite-vec" / "memoria
@@ -11,7 +11,7 @@
 //     de filas. Un recorrido lineal calculando similitud coseno
 //     sobre ese tamaño toma milisegundos — no necesitas un índice
 //     ANN especializado. Agregar sqlite-wasm + una extensión nativa
-//     compilada a WASM es una dependencia frágil y pesada para lo
+//     compilada a WASM es una dependencia frágil  y pesada para lo
 //     que ganarías en este tamaño de catálogo.
 //   - Dexie ya persiste offline, ya está integrado, y así evitas
 //     mantener DOS bases de datos locales en paralelo.

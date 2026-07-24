@@ -24,6 +24,7 @@ import {
 
 import { guardarRuta, mapaDescargado } from '../lib/db';
 import { buscarRespuestaVerificada } from '../lib/embeddings';
+import MiniMapaChat from './MiniMapaChat';
 // ============================================================
 // PANTALLA DEL ASISTENTE — interfaz del motor local de IA
 // ============================================================
@@ -541,6 +542,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
             mensaje={msg}
             interesesTemp={interesesTemp}
             estado={estado}
+            esUltimoMensaje={msg.id === mensajes[mensajes.length - 1]?.id}
             onOpcion={manejarOpcion}
             onVerLugar={onVerLugar}
             onVerRutaEnMapa={(lugares) => {
@@ -633,6 +635,7 @@ function Burbuja({
   mensaje,
   interesesTemp,
   estado,
+  esUltimoMensaje,
   onOpcion,
   onVerLugar,
   onVerRutaEnMapa,
@@ -642,6 +645,9 @@ function Burbuja({
   mensaje: MensajeChat;
   interesesTemp: Categoria[];
   estado: EstadoChat;
+  // Solo el mensaje más reciente monta un mini-mapa en vivo (WebGL) —
+  // ver nota de rendimiento en MiniMapaChat.tsx.
+  esUltimoMensaje: boolean;
   onOpcion: (valor: string, label: string) => void;
   onVerLugar: (lugar: Lugar) => void;
   onVerRutaEnMapa?: (lugares: Lugar[]) => void;
@@ -693,6 +699,9 @@ function Burbuja({
         {/* Lugares sueltos recomendados */}
         {mensaje.lugares && mensaje.lugares.length > 0 && (
           <div className="mt-2 space-y-2">
+            {esUltimoMensaje && (
+              <MiniMapaChat lugares={mensaje.lugares} onVerLugar={onVerLugar} />
+            )}
             {mensaje.lugares.map((lugar) => (
               <TarjetaLugarChat
                 key={lugar.id}
@@ -709,6 +718,15 @@ function Burbuja({
             <div className="bg-jungle-100 px-3 py-2 font-display font-bold text-jungle-900 text-sm">
               Día {mensaje.rutaDia.dia}
             </div>
+            {esUltimoMensaje && (
+              <div className="px-2 pt-2">
+                <MiniMapaChat
+                  lugares={mensaje.rutaDia.lugares}
+                  numerado
+                  onVerLugar={onVerLugar}
+                />
+              </div>
+            )}
             <div className="p-2 space-y-2">
               {mensaje.rutaDia.lugares.map((lugar, i) => (
                 <div key={lugar.id} className="flex gap-2">

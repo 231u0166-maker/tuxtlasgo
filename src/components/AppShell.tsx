@@ -16,12 +16,19 @@ import FavoritesScreen from './FavoritesScreen';
 import PlaceDetail from './PlaceDetail';
 import OfflineIndicator from './OfflineIndicator';
 import type { Lugar } from '../data/lugares';
-import { obtenerRutaPorCarretera, type Coord } from '../lib/routing';
+import { obtenerRutaPorTramos, type Coord } from '../lib/routing';
 import PerfilScreen from './PerfilScreen';
 
 
 interface RutaVisible {
+  // Arreglo plano de punta a punta — se conserva para no tocar la
+  // animación cinematográfica ni el fitBounds de MapScreen, que ya
+  // funcionan bien con esto.
   geometria: Coord[];
+  // La MISMA ruta pero partida por tramo (parada A → parada B, B →
+  // C, ...) — para poder pintar cada tramo de un color distinto en
+  // vez de una sola línea verde de punta a punta.
+  tramos: Coord[][];
   paradas: { coord: Coord; orden: number }[];
 }
 
@@ -168,14 +175,22 @@ export default function AppShell() {
 
     try {
       if (coords.length >= 2) {
-        const ruta = await obtenerRutaPorCarretera(coords);
-        setRutaVisible({ geometria: ruta.geometria, paradas });
+        const { tramos } = await obtenerRutaPorTramos(coords);
+        setRutaVisible({
+          geometria: tramos.flatMap((t) => t.geometria),
+          tramos: tramos.map((t) => t.geometria),
+          paradas,
+        });
       } else {
-        setRutaVisible({ geometria: coords, paradas });
+        setRutaVisible({ geometria: coords, tramos: [], paradas });
       }
     } catch {
       // Sin internet → línea recta silenciosa, sin mostrar error
-      setRutaVisible({ geometria: coords, paradas });
+      setRutaVisible({
+        geometria: coords,
+        tramos: coords.length >= 2 ? [coords] : [],
+        paradas,
+      });
     }
     setCargandoRuta(false);
     setTab('mapa');
@@ -198,13 +213,17 @@ export default function AppShell() {
       : lugares.map((l) => l.coords as Coord);
 
     try {
-      const ruta = await obtenerRutaPorCarretera(puntosRuta);
-      setRutaVisible({ geometria: ruta.geometria, paradas });
+      const { tramos } = await obtenerRutaPorTramos(puntosRuta);
+      setRutaVisible({
+        geometria: tramos.flatMap((t) => t.geometria),
+        tramos: tramos.map((t) => t.geometria),
+        paradas,
+      });
       setTab('mapa');
     } catch (err) {
       console.warn('[TuxtlasGO] OSRM no disponible:', err);
       // Línea recta entre paradas — silencioso, sin toast de error
-      setRutaVisible({ geometria: puntosRuta, paradas });
+      setRutaVisible({ geometria: puntosRuta, tramos: [puntosRuta], paradas });
       setTab('mapa');
     } finally {
       setCargandoRuta(false);
@@ -493,6 +512,7 @@ export default function AppShell() {
             <MapScreen
               onVerLugar={verLugar}
               rutaResaltada={rutaVisible?.geometria}
+              tramosResaltados={rutaVisible?.tramos}
               paradasResaltadas={rutaVisible?.paradas}
               miUbicacion={miUbicacion ?? undefined}
               onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); }}

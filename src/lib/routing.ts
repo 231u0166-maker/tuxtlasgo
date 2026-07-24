@@ -165,6 +165,75 @@ export async function obtenerRutaPorCarretera(
   return resultado;
 }
 
+// Resultado de calcular una ruta de varias paradas TRAMO por TRAMO
+// (en vez de un solo trazo continuo) — cada tramo es el trayecto
+// entre una parada y la siguiente. Se usa para poder pintar cada
+// tramo de un color distinto en el mapa (ver src/lib/colores.ts),
+// en vez de una sola línea verde de punta a punta.
+export interface RutaPorTramos {
+  tramos: RutaCalculada[];
+  distanciaTotalMetros: number;
+  duracionTotalSegundos: number;
+}
+
+// Distancia en línea recta (fórmula haversine) — solo se usa como
+// respaldo para UN tramo puntual cuando OSRM no responde para ese
+// tramo en particular (sin internet y sin caché para ese segmento),
+// sin tumbar los demás tramos que sí se pudieron calcular.
+function distanciaHaversine(a: Coord, b: Coord): number {
+  const R = 6371000;
+  const dLat = ((b[0] - a[0]) * Math.PI) / 180;
+  const dLng = ((b[1] - a[1]) * Math.PI) / 180;
+  const lat1 = (a[0] * Math.PI) / 180;
+  const lat2 = (b[0] * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// Calcula la ruta de N puntos como N-1 tramos independientes (parada
+// 1→2, 2→3, ...), cada uno con su propia geometría — en vez de un
+// solo overview=full continuo donde se pierde la frontera entre
+// tramos. Reusa obtenerRutaPorCarretera por cada par consecutivo, así
+// que el caché offline sigue funcionando igual (incluso se comparte
+// entre rutas distintas que tengan un tramo en común).
+//
+// Si un tramo puntual falla (sin internet y sin caché SOLO para ese
+// segmento), cae a línea recta silenciosa PARA ESE TRAMO nada más —
+// los demás tramos que sí se calcularon se quedan con su trazado real
+// por carretera, en vez de tirar toda la ruta a líneas rectas.
+export async function obtenerRutaPorTramos(
+  puntos: Coord[]
+): Promise<RutaPorTramos> {
+  if (puntos.length < 2) {
+    throw new Error('Se necesitan al menos 2 puntos para calcular ruta');
+  }
+
+  const tramos = await Promise.all(
+    Array.from({ length: puntos.length - 1 }, async (_, i) => {
+      const a = puntos[i];
+      const b = puntos[i + 1];
+      try {
+        return await obtenerRutaPorCarretera([a, b]);
+      } catch {
+        return {
+          geometria: [a, b],
+          distanciaMetros: distanciaHaversine(a, b),
+          duracionSegundos: 0,
+          desdeCache: false,
+        } as RutaCalculada;
+      }
+    })
+  );
+
+  return {
+    tramos,
+    distanciaTotalMetros: tramos.reduce((s, t) => s + t.distanciaMetros, 0),
+    duracionTotalSegundos: tramos.reduce((s, t) => s + t.duracionSegundos, 0),
+  };
+}
+
 // Indica si una ruta ya está disponible offline (en caché). Útil para
 // mostrar un indicador en la UI tipo "ruta guardada para offline".
 export async function rutaEnCache(puntos: Coord[]): Promise<boolean> {

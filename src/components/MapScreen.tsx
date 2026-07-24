@@ -11,6 +11,7 @@ import {
   type Lugar,
 } from '../data/lugares';
 import { listarServiciosAprobadosComoLugares } from '../lib/db';
+import { colorTramo } from '../lib/colores';
 
 // ============================================================
 // PANTALLA DE MAPA — migrado de Leaflet a MapLibre GL JS
@@ -280,6 +281,12 @@ interface Props {
   // MapLibre usan ese orden, al reves de Leaflet) justo antes de
   // dibujarse - ver rutaGeoJSON mas abajo.
   rutaResaltada?: [number, number][];
+  // La misma ruta partida por tramo (parada A → parada B, B → C...)
+  // — si viene, se pinta cada tramo de un color distinto (ver
+  // src/lib/colores.ts) en vez de una sola línea verde de punta a
+  // punta. Si no viene, se cae al comportamiento anterior usando
+  // rutaResaltada completo en un solo color (compatibilidad).
+  tramosResaltados?: [number, number][][];
   paradasResaltadas?: { coord: [number, number]; orden: number }[];
   // Posición GPS real del turista (ver AppShell.tsx) — si viene, se
   // dibuja como un punto azul pulsante "tú estás aquí", distinto de
@@ -292,6 +299,7 @@ export default function MapScreen({
   onVerLugar,
   filtroCategorias,
   rutaResaltada,
+  tramosResaltados,
   paradasResaltadas,
   miUbicacion,
   onLimpiarRuta,
@@ -384,17 +392,40 @@ export default function MapScreen({
   // al reves de Leaflet ([lat, lng], que es como sigue llegando desde
   // props por compatibilidad con el resto de la app) - se voltea aqui,
   // en un solo lugar, para no tener que tocar nada mas.
+  //
+  // Antes esto era una sola Feature (una línea, un solo color verde
+  // de punta a punta) — ahora es una FeatureCollection con una
+  // Feature POR TRAMO (parada A → parada B, B → C...), cada una con
+  // su propio color (colorTramo) vía data-driven styling de MapLibre
+  // ('line-color': ['get','color']). Así se distingue de un vistazo
+  // por dónde se mueve el turista en cada segmento del recorrido, en
+  // vez de ver todo como una sola línea continua.
+  //
+  // Si no llegan tramosResaltados (por compatibilidad, p.ej. algún
+  // llamador viejo que solo pase rutaResaltada), cae a tratar toda la
+  // ruta como un solo tramo — se sigue viendo una línea, solo que de
+  // un color en vez de varios.
   const rutaGeoJSON = useMemo(() => {
-    if (!rutaResaltada || rutaResaltada.length < 2) return null;
+    const tramos: [number, number][][] =
+      tramosResaltados && tramosResaltados.length > 0
+        ? tramosResaltados
+        : rutaResaltada && rutaResaltada.length >= 2
+          ? [rutaResaltada]
+          : [];
+    const tramosValidos = tramos.filter((t) => t.length >= 2);
+    if (tramosValidos.length === 0) return null;
     return {
-      type: 'Feature' as const,
-      properties: {},
-      geometry: {
-        type: 'LineString' as const,
-        coordinates: rutaResaltada.map(([lat, lng]) => [lng, lat]),
-      },
+      type: 'FeatureCollection' as const,
+      features: tramosValidos.map((tramo, i) => ({
+        type: 'Feature' as const,
+        properties: { color: colorTramo(i) },
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: tramo.map(([lat, lng]) => [lng, lat]),
+        },
+      })),
     };
-  }, [rutaResaltada]);
+  }, [rutaResaltada, tramosResaltados]);
 
   // Secuencia cinematográfica cuando aparece una ruta nueva:
   //   1) La cámara recorre las paradas en orden INVERSO (última,
@@ -553,7 +584,7 @@ export default function MapScreen({
               id="ruta-dia-linea"
               type="line"
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-              paint={{ 'line-color': '#15803d', 'line-width': 5, 'line-opacity': 0.85 }}
+              paint={{ 'line-color': ['get', 'color'], 'line-width': 5, 'line-opacity': 0.85 }}
             />
           </Source>
         )}

@@ -1,5 +1,5 @@
-import { useRef, useCallback } from 'react';
-import { Map, Marker, type MapRef } from '@vis.gl/react-maplibre';
+import { useRef, useCallback, useMemo } from 'react';
+import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { WifiOff } from 'lucide-react';
@@ -7,6 +7,7 @@ import { CATEGORIAS, type Lugar } from '../data/lugares';
 import { ESTILO_MAPA, COLORES_CATEGORIA } from './MapScreen';
 import { mapaDescargado } from '../lib/db';
 import { useOffline } from '../hooks/useOffline';
+import { colorTramo } from '../lib/colores';
 
 // ============================================================
 // MINI-MAPA DENTRO DEL CHAT
@@ -32,10 +33,11 @@ import { useOffline } from '../hooks/useOffline';
 // Nota de rendimiento: cada mini-mapa es una instancia real de
 // MapLibre GL (WebGL). Los navegadores (sobre todo Safari/iOS)
 // limitan cuántos contextos WebGL pueden vivir a la vez. Por eso
-// SOLO se manda a renderizar para el último mensaje del chat (ver
-// `esUltimoMensaje` en ChatAssistant.tsx) — los mensajes viejos con
-// recomendaciones se quedan con sus tarjetas y botones de siempre,
-// sin mini-mapa, para no acumular mapas invisibles fuera de vista.
+// solo se manda a renderizar para los mensajes dentro de la
+// "ventana de mapas vivos" (ver `mapasVivos` en ChatAssistant.tsx) —
+// los mensajes que quedan fuera de esa ventana se quedan con sus
+// tarjetas y botones de siempre, sin mini-mapa, para no acumular
+// mapas invisibles fuera de vista.
 // ============================================================
 
 interface Props {
@@ -61,6 +63,33 @@ export default function MiniMapaChat({ lugares, numerado, onVerLugar }: Props) {
     );
     map.fitBounds(bounds, { padding: 36, duration: 0 });
   }, [lugares]);
+
+  // Líneas RECTAS de vista previa entre paradas consecutivas (sin
+  // llamar a OSRM aquí — sería demasiado costoso para una vista
+  // previa chica). Se pintan punteadas y más delgadas a propósito,
+  // para distinguirlas claramente de la ruta real por carretera que
+  // se ve al tocar "Ver ruta en el mapa" (esa sí sigue calles reales
+  // y usa las mismas líneas sólidas, gruesas). Cada tramo usa el
+  // MISMO color que tendrá en el mapa completo (colorTramo por
+  // posición) — así el turista ya reconoce el patrón de colores
+  // desde el chat, antes de abrir el mapa grande.
+  const tramosPreviewGeoJSON = useMemo(() => {
+    if (!numerado || lugares.length < 2) return null;
+    return {
+      type: 'FeatureCollection' as const,
+      features: lugares.slice(0, -1).map((lugar, i) => ({
+        type: 'Feature' as const,
+        properties: { color: colorTramo(i) },
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: [
+            [lugar.coords[1], lugar.coords[0]],
+            [lugares[i + 1].coords[1], lugares[i + 1].coords[0]],
+          ],
+        },
+      })),
+    };
+  }, [lugares, numerado]);
 
   if (lugares.length === 0) return null;
 
@@ -93,6 +122,21 @@ export default function MiniMapaChat({ lugares, numerado, onVerLugar }: Props) {
         cooperativeGestures
         onLoad={alCargar}
       >
+        {tramosPreviewGeoJSON && (
+          <Source id="tramos-preview" type="geojson" data={tramosPreviewGeoJSON as any}>
+            <Layer
+              id="tramos-preview-linea"
+              type="line"
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              paint={{
+                'line-color': ['get', 'color'],
+                'line-width': 3,
+                'line-dasharray': [2, 2],
+                'line-opacity': 0.75,
+              }}
+            />
+          </Source>
+        )}
         {lugares.map((lugar, i) => (
           <Marker key={lugar.id} longitude={lugar.coords[1]} latitude={lugar.coords[0]}>
             <PinMini
@@ -109,7 +153,7 @@ export default function MiniMapaChat({ lugares, numerado, onVerLugar }: Props) {
 
 // Pin compacto — mismo lenguaje visual que los pines del mapa
 // completo (PinLugar/PinParada en MapScreen.tsx) pero un poco más
-// chico, pensado para una previsualización de 150px de alto.
+// chico, pensado para una previsualización de ~210-260px de alto.
 function PinMini({
   categoria,
   numero,

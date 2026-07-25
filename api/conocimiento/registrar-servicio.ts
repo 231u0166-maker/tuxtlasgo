@@ -8,14 +8,27 @@
 // dueños reales del negocio ("¿así se vería tu lugar en la app?"),
 // y así facilitar que se sumen como prestadores después.
 //
-// DECISIÓN CLAVE: cada servicio en Neon exige un usuario_id válido
-// (aprobados.ts hace JOIN con la tabla usuarios). Como todavía no
-// existe una cuenta real del negocio, este endpoint crea/reutiliza
-// UNA cuenta interna fija ("TuxtlasGO — equipo interno") la primera
-// vez que se usa, y todos los registros del equipo quedan a nombre
-// de esa cuenta — hasta que se hable con el dueño real y se
-// transfiera el servicio a su propia cuenta de prestador (proceso
-// manual, fuera de este endpoint por ahora).
+// FUSIONADO CON subir-foto.ts a propósito: Vercel Hobby (el plan
+// gratuito) permite máximo 12 funciones serverless por despliegue —
+// tener un archivo separado por cada endpoint hizo que el proyecto
+// cruzara ese límite (13 funciones). Ambos endpoints son cortos, del
+// mismo dueño (el equipo de admin), y se usan juntos en el mismo
+// formulario — fusionarlos en un solo archivo devuelve el conteo a
+// 12 sin perder ninguna función ni tocar Cloudinary/Neon.
+//
+// Cómo distingue qué hacer: si el cuerpo trae `imagenBase64`, es una
+// subida de foto; si no, es el alta del servicio completo. Los dos
+// casos nunca se mezclan porque son formularios distintos en el
+// panel de admin.
+//
+// DECISIÓN CLAVE (alta de servicio): cada servicio en Neon exige un
+// usuario_id válido (aprobados.ts hace JOIN con la tabla usuarios).
+// Como todavía no existe una cuenta real del negocio, este endpoint
+// crea/reutiliza UNA cuenta interna fija ("TuxtlasGO — equipo
+// interno") la primera vez que se usa, y todos los registros del
+// equipo quedan a nombre de esa cuenta — hasta que se hable con el
+// dueño real y se transfiera el servicio a su propia cuenta de
+// prestador (proceso manual, fuera de este endpoint por ahora).
 //
 // Entra directo como estado='aprobado' — a propósito, sin paso de
 // revisión extra: es el propio equipo quien ya verificó el lugar en
@@ -23,12 +36,21 @@
 // sería trabajo doble.
 //
 // Variables de entorno: mismas que el resto de endpoints de admin
-// (NEON_DATABASE_URL/DATABASE_URL, ADMIN_PASSWORD).
+// (NEON_DATABASE_URL/DATABASE_URL, ADMIN_PASSWORD) más las de
+// Cloudinary (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET), ya
+// configuradas desde api/servicios/fotos.ts.
 // ============================================================
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
 import { createHash } from 'node:crypto';
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME ?? 'din6nzl1s',
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 function getPool() {
     return new Pool({
@@ -43,6 +65,16 @@ function cors(res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-Admin-Password');
 }
+
+// Fotos de buena calidad pesan más que el límite default de Vercel —
+// se sube el tope para no rechazar imágenes reales de cámara/celular.
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '10mb',
+        },
+    },
+};
 
 function generarCodigo(p = 'TGO') {
     const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -94,6 +126,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(401).json({ error: 'Contraseña incorrecta' });
     }
 
+    // ── Caso 1: subida de foto (antes era api/conocimiento/subir-foto.ts) ──
+    // Se distingue por la forma del cuerpo: si trae imagenBase64, es
+    // una foto, no un alta de servicio completo.
+    if (typeof req.body?.imagenBase64 === 'string') {
+        try {
+            const { imagenBase64 } = req.body as { imagenBase64: string };
+            if (!imagenBase64.startsWith('data:image/')) {
+                return res.status(400).json({ error: 'Se requiere una imagen en base64 (data:image/...)' });
+            }
+            const resultado = await cloudinary.uploader.upload(imagenBase64, {
+                folder: 'tuxtlasgo/lugares',
+                quality: 'auto:good',
+            });
+            return res.status(200).json({
+                ok: true,
+                url: resultado.secure_url,
+                publicId: resultado.public_id,
+            });
+        } catch (err) {
+            console.error('[registrar-servicio/foto]', err);
+            return res.status(500).json({ error: 'Error subiendo la foto: ' + String(err) });
+        }
+    }
+
+    // ── Caso 2: alta de servicio completo ──
     const pool = getPool();
     try {
         const {

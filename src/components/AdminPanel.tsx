@@ -246,11 +246,12 @@ export default function AdminPanel() {
         reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
         reader.readAsDataURL(archivo);
       });
-      const r = await fetch('/api/conocimiento/subir-foto', {
+      const r = await fetch('/api/conocimiento/registrar-servicio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
         body: JSON.stringify({ imagenBase64: base64 }),
       });
+
       const data = await r.json();
       if (r.ok && data.url) {
         setFotosServicio((f) => [...f, data.url]);

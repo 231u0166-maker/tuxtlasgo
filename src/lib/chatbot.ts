@@ -219,13 +219,21 @@ const PALABRAS_GENERICAS_LUGAR = new Set([
   'catemaco', 'tuxtla', 'santiago', 'andres', 'san',
 ]);
 
+// Hallazgo real de campo (producción): "Lanchas "Catemaco"" es un
+// prestador REAL ya registrado en la plataforma, con el nombre
+// guardado literalmente con comillas. La versión anterior de esta
+// función solo quitaba ACENTOS antes de comparar — las comillas se
+// quedaban pegadas al token ('"catemaco"'), así que nunca coincidía
+// exactamente con 'catemaco' en PALABRAS_GENERICAS_LUGAR, y el bug
+// del municipio seguía pasando para cualquier prestador cuyo nombre
+// llevara puntuación alrededor. Se reusa tokenizar() (de pln.ts), que
+// ya quita TODA puntuación, no solo acentos — corrige esto de raíz
+// para cualquier nombre con comillas, guiones, paréntesis, etc., no
+// solo para este caso puntual.
 function palabrasDistintivas(nombre: string): string[] {
-  return nombre
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .split(/\s+/)
-    .filter((p) => p.length >= 3 && !PALABRAS_GENERICAS_LUGAR.has(p));
+  return tokenizar(nombre).filter(
+    (p) => p.length >= 3 && !PALABRAS_GENERICAS_LUGAR.has(p)
+  );
 }
 
 // Busca si el turista mencionó el NOMBRE de un lugar específico del
@@ -241,9 +249,32 @@ function palabrasDistintivas(nombre: string): string[] {
 // nombres con VARIAS palabras distintivas reales, exige que coincida
 // al menos la mitad, para no confundir un lugar con otro por una sola
 // palabra suelta compartida.
+//
+// Hallazgo real de campo (producción, prestadores reales registrados):
+//   - "EL tegogolo feliz" reduce a 2 palabras distintivas — "tegogolo"
+//     y "feliz" — y "la mitad" pedía solo 1 de las 2. Como "feliz" es
+//     una palabra común de cualquier conversación normal ("qué feliz
+//     estoy de venir..."), CUALQUIER mensaje que la mencionara
+//     secuestraba la conversación como si preguntaran por este
+//     negocio. Para nombres de 1 o 2 palabras distintivas, ahora se
+//     exigen TODAS (no la mitad) — nombres más largos (3+) siguen
+//     pidiendo solo la mitad, redondeando hacia arriba, como antes.
+//   - "La Bicicleta Café" (San Andrés Tuxtla, catálogo original) y
+//     "Bicicleta nueva sucursal" (Catemaco, prestador real) comparten
+//     la ÚNICA palabra distintiva que les queda tras filtrar
+//     genéricas: "bicicleta" — empate perfecto entre DOS negocios
+//     reales distintos. Antes, el primero en el arreglo ganaba
+//     siempre (el estático), sin importar qué municipio mencionara el
+//     turista — "bicicleta en Catemaco" mostraba el de San Andrés. Si
+//     el turista mencionó un municipio, ahora se usa para desempatar;
+//     si sigue empatado, es ambigüedad real entre negocios distintos
+//     — mejor no adivinar (devolver null) que mostrar con aparente
+//     seguridad el que no es.
 export function buscarLugarPorNombre(texto: string, catalogo: Lugar[]): Lugar | null {
   const tokens = tokenizar(texto);
-  let mejor: { lugar: Lugar; coincidencias: number; totalDistintivas: number } | null = null;
+  const municipioMencionado = detectarMunicipio(texto);
+
+  const candidatos: { lugar: Lugar; coincidencias: number }[] = [];
 
   for (const lugar of catalogo) {
     const distintivas = palabrasDistintivas(lugar.nombre);
@@ -253,15 +284,28 @@ export function buscarLugarPorNombre(texto: string, catalogo: Lugar[]): Lugar | 
       tokens.some((t) => palabraCoincide(t, p))
     ).length;
 
-    const umbralMinimo = Math.max(1, Math.ceil(distintivas.length / 2));
+    const umbralMinimo =
+      distintivas.length <= 2 ? distintivas.length : Math.ceil(distintivas.length / 2);
     if (coincidencias < umbralMinimo) continue;
 
-    if (!mejor || coincidencias > mejor.coincidencias) {
-      mejor = { lugar, coincidencias, totalDistintivas: distintivas.length };
-    }
+    candidatos.push({ lugar, coincidencias });
   }
 
-  return mejor ? mejor.lugar : null;
+  if (candidatos.length === 0) return null;
+
+  const mejorPuntaje = Math.max(...candidatos.map((c) => c.coincidencias));
+  let empatados = candidatos.filter((c) => c.coincidencias === mejorPuntaje);
+
+  if (empatados.length > 1 && municipioMencionado) {
+    const delMunicipio = empatados.filter((c) => c.lugar.municipio === municipioMencionado);
+    if (delMunicipio.length > 0) empatados = delMunicipio;
+  }
+  // Sigue empatado entre negocios DISTINTOS incluso después del
+  // desempate por municipio (o no se mencionó ninguno): ambigüedad
+  // real, no se adivina.
+  if (empatados.length > 1) return null;
+
+  return empatados[0].lugar;
 }
 
 

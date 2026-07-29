@@ -199,11 +199,24 @@ export function detectarMunicipio(texto: string): string | null {
 // distinguen a NINGUNO en particular ("Restaurante X", "Cabañas Y") —
 // se ignoran al comparar, para que coincidir con ellas solas no cuente
 // como haber nombrado un lugar específico.
+//
+// Hallazgo real de campo (QA): "Lanchas Catemaco" tiene una sola
+// palabra "distintiva" después de filtrar "lanchas" — el nombre del
+// MUNICIPIO, "Catemaco". Como es una palabra de los tres pueblos de
+// la región, aparece constantísimo en cualquier pregunta libre ("crea
+// una ruta en Catemaco", "qué restaurantes hay en Catemaco"...), y
+// cada una de esas preguntas se estaba resolviendo por error como "el
+// turista está preguntando específicamente por Lanchas Catemaco" —
+// aunque no tuviera nada que ver con lanchas. Un nombre de municipio
+// nunca distingue a un lugar de otro (todos están en alguno de los
+// tres), así que se excluye aquí igual que "restaurante" u "hotel".
 const PALABRAS_GENERICAS_LUGAR = new Set([
   'el', 'la', 'los', 'las', 'de', 'del', 'y', 'restaurante', 'restaurant',
   'bar', 'cabañas', 'cabana', 'cabanas', 'reserva', 'ecologica', 'ecológica',
   'lanchas', 'cafe', 'café', 'hotel', 'hospedaje', 'tours', 'servicio',
   'salto', 'balneario', 'nueva', 'sucursal',
+  // Municipios — nunca distinguen a un lugar de otro.
+  'catemaco', 'tuxtla', 'santiago', 'andres', 'san',
 ]);
 
 function palabrasDistintivas(nombre: string): string[] {
@@ -537,6 +550,73 @@ function mejoresPorValor<T>(
     .map((v) => v.valor);
 }
 
+// Hallazgo real de campo (QA): "Organiza una ruta de TRES DÍAS..." se
+// interpretó como 2 días. La detección de días dependía ÚNICAMENTE de
+// similitud semántica contra frases vagas de ejemplo ('varios días',
+// 'toda la semana') — y "tres días" (la forma MÁS común y explícita de
+// decirlo) no se parecía lo suficiente, en el espacio vectorial, a
+// ninguna de ellas. Mismo principio que ya se aplicaba a categoría
+// (categoriaPorPalabraClave primero, embeddings después): un número
+// literal es una señal mucho más confiable que una similitud vaga, así
+// que se prueba PRIMERO — los embeddings solo complementan cuando el
+// turista no dio un número ("un fin de semana", "toda la semana").
+const NUMERO_EN_PALABRAS: Record<string, number> = {
+  un: 1, uno: 1, una: 1,
+  dos: 2,
+  tres: 3, cuatro: 3, cinco: 3, seis: 3, siete: 3, ocho: 3, nueve: 3, diez: 3,
+};
+
+function extraerDiasLiteral(texto: string): Dias | null {
+  const tokens = tokenizar(texto);
+  const idxDia = tokens.findIndex((t) => t === 'dia' || t === 'dias');
+  if (idxDia <= 0) return null;
+  const anterior = tokens[idxDia - 1];
+
+  if (/^\d+$/.test(anterior)) {
+    const n = parseInt(anterior, 10);
+    return (n <= 1 ? 1 : n === 2 ? 2 : 3) as Dias;
+  }
+  if (anterior in NUMERO_EN_PALABRAS) {
+    const n = NUMERO_EN_PALABRAS[anterior];
+    return (n >= 3 ? 3 : n) as Dias;
+  }
+  return null;
+}
+
+// Detecta un presupuesto TOTAL en pesos mencionado literalmente
+// ("$6,000", "6000 pesos", "6 mil pesos") — igual que con los días,
+// con prioridad sobre la similitud semántica de abajo. Exige una señal
+// de moneda explícita ($, "pesos" o "mxn") pegada al número, para no
+// confundirlo con cualquier otro número suelto de la oración (como la
+// cantidad de días).
+//
+// Los umbrales de aquí (por día, dividiendo el total entre los días
+// del viaje) son un punto de partida razonable, NO una calibración
+// basada en precios reales de mercado — conviene ajustarlos conforme
+// crezca el catálogo de precios reales de los prestadores.
+function extraerPresupuestoLiteral(
+  texto: string,
+  diasParaPromedio: number
+): Presupuesto | null {
+  const conSigno = texto.match(/\$\s?([\d.,]+)/);
+  const conPalabra = texto.match(/([\d.,]+)\s*(mil\s+)?pesos\b/i) ??
+    texto.match(/\b(\d[\d.,]*)\s*mxn\b/i);
+
+  let monto: number | null = null;
+  if (conSigno) {
+    monto = parseFloat(conSigno[1].replace(/,/g, ''));
+  } else if (conPalabra) {
+    monto = parseFloat(conPalabra[1].replace(/,/g, ''));
+    if (conPalabra[2]) monto *= 1000; // "6 mil pesos"
+  }
+  if (monto === null || Number.isNaN(monto) || monto <= 0) return null;
+
+  const porDia = monto / Math.max(1, diasParaPromedio);
+  if (porDia < 500) return 'bajo';
+  if (porDia <= 1500) return 'medio';
+  return 'alto';
+}
+
 export async function extraerPreferenciasLibres(
   texto: string
 ): Promise<Partial<PreferenciasUsuario>> {
@@ -558,17 +638,32 @@ export async function extraerPreferenciasLibres(
     resultado.intereses = [categoriaPorPalabraClave];
   }
 
+  // Días y presupuesto literales — misma prioridad que la categoría
+  // por palabra clave de arriba (ver hallazgo real de campo justo
+  // antes de esta función).
+  const diasLiteral = extraerDiasLiteral(texto);
+  if (diasLiteral !== null) resultado.dias = diasLiteral;
+
+  const presupuestoLiteral = extraerPresupuestoLiteral(texto, resultado.dias ?? 2);
+  if (presupuestoLiteral !== null) resultado.presupuesto = presupuestoLiteral;
+
   if (!embeddingsListo()) return resultado;
 
   const ejemplos = await prepararEjemplos();
   const vectorConsulta = await vectorizar(texto);
   const UMBRAL = 0.5;
 
-  const dias = mejoresPorValor(vectorConsulta, ejemplos.dias, UMBRAL);
-  if (dias.length > 0) resultado.dias = dias[0];
+  // Días y presupuesto: los embeddings solo complementan si NO hubo
+  // señal literal arriba — un número explícito siempre gana.
+  if (resultado.dias === undefined) {
+    const dias = mejoresPorValor(vectorConsulta, ejemplos.dias, UMBRAL);
+    if (dias.length > 0) resultado.dias = dias[0];
+  }
 
-  const presupuesto = mejoresPorValor(vectorConsulta, ejemplos.presupuesto, UMBRAL);
-  if (presupuesto.length > 0) resultado.presupuesto = presupuesto[0];
+  if (resultado.presupuesto === undefined) {
+    const presupuesto = mejoresPorValor(vectorConsulta, ejemplos.presupuesto, UMBRAL);
+    if (presupuesto.length > 0) resultado.presupuesto = presupuesto[0];
+  }
 
   const grupo = mejoresPorValor(vectorConsulta, ejemplos.grupo, UMBRAL);
   if (grupo.length > 0) resultado.grupo = grupo[0];

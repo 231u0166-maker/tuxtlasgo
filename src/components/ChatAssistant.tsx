@@ -261,11 +261,23 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
     }
 
     // Mensaje introductorio
+    // Hallazgo real de campo (QA): "quiero un recorrido de aventura de
+    // 2 días" con un solo lugar de categoría Aventura registrado
+    // generaba una ruta de 1 solo día, EN SILENCIO — el mensaje solo
+    // mencionaba el número de días que sí se lograron armar, sin decir
+    // nunca que se quedó corto contra lo pedido. Eso se siente como
+    // que la IA "no entendió cuántos días pedí" cuando en realidad es
+    // que el catálogo de esa categoría todavía es chico. Se avisa la
+    // diferencia explícitamente, igual que ya se hace con los
+    // "supuestos" cuando no quedó claro algo del mensaje.
+    const diasIncompletos = dias.length < prefs.dias;
     responderBot(
       {
         id: crypto.randomUUID(),
         role: 'bot',
-        texto: `¡Listo! Te armé una ruta de ${dias.length} ${dias.length === 1 ? 'día' : 'días'
+        texto: diasIncompletos
+          ? `Con lo que tengo registrado por ahora, solo pude armarte ${dias.length} ${dias.length === 1 ? 'día completo' : 'días completos'} (pediste ${prefs.dias}) — no tengo más lugares de esa categoría o presupuesto todavía. Aquí va lo que sí tengo, día por día:`
+          : `¡Listo! Te armé una ruta de ${dias.length} ${dias.length === 1 ? 'día' : 'días'
           } pensada para ti. Aquí va, día por día:`,
         timestamp: Date.now(),
       },

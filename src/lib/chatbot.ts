@@ -683,14 +683,27 @@ export async function extraerPreferenciasLibres(
 }
 
 // Detección simple (por palabra clave, sin IA) de si el mensaje suena
-// a "arma/recomiéndame una ruta" — sirve para decidir SI vale la pena
-// llamar a extraerPreferenciasLibres, no para extraer nada en sí.
+// a "arma/organiza una ruta de varios días" — sirve para decidir SI
+// vale la pena llamar a extraerPreferenciasLibres y generar un
+// itinerario día por día, en vez de responder una recomendación
+// puntual.
+//
+// Hallazgo real de campo (QA): con 'recomiendame'/'recomiéndame',
+// 'visitar' y 'viaje' en esta lista, preguntas que NO piden un
+// itinerario — "Recomiéndame un hotel cerca de la laguna", "¿Qué
+// lugares naturales puedo visitar?", "Viajo con niños, ¿qué
+// actividades recomiendas?" — disparaban el generador de rutas de
+// varios días igual que si hubieran pedido una ruta completa. Con un
+// catálogo todavía chico, eso producía itinerarios a medias ("día 2
+// vacío") para lo que en realidad era una simple pregunta de
+// recomendación. Se dejan solo las palabras que de verdad implican
+// "arma un PLAN/ITINERARIO de varios pasos", no cualquier verbo
+// relacionado con viajar o pedir una sugerencia.
 export function pareceSolicitudDeRuta(texto: string): boolean {
   const tokens = tokenizar(texto);
   const palabrasClave = [
-    'ruta', 'rutas', 'itinerario', 'plan', 'planea', 'recomiendame',
-    'recomiéndame', 'arma', 'armame', 'ármame', 'organiza', 'organizame',
-    'que hacer', 'qué hacer', 'viaje', 'visitar', 'recorrido',
+    'ruta', 'rutas', 'itinerario', 'recorrido', 'recorridos',
+    'plan', 'planea', 'arma', 'armame', 'ármame', 'organiza', 'organizame',
   ];
   return palabrasClave.some((p) => contieneClave(tokens, p));
 }
@@ -873,6 +886,19 @@ function armarRazonamiento(lugares: Lugar[], prefs: PreferenciasUsuario): string
   return partes.join(' ');
 }
 
+// Resuelve los IDs de EntradaConocimiento.lugares a objetos Lugar
+// reales del catálogo activo — usado para que la tarjeta mostrada
+// coincida con el lugar del que realmente habla el texto (ver
+// hallazgo real de campo documentado en conocimiento.ts).
+function lugaresDeConocimiento(
+  conocimiento: ReturnType<typeof buscarConocimiento>
+): Lugar[] {
+  if (!conocimiento?.lugares?.length) return [];
+  return conocimiento.lugares
+    .map((id) => catalogoActivo.find((l) => l.id === id))
+    .filter((l): l is Lugar => !!l);
+}
+
 // ─────────────── RESPUESTAS A TEXTO LIBRE ───────────────
 export function responderTextoLibre(
   texto: string,
@@ -925,10 +951,12 @@ export function responderTextoLibre(
   // responde con el conocimiento. Si hay categoría, los lugares ganan
   // (pero igual añadimos el dato de conocimiento si aplica).
   if (conocimiento && !cat && intent !== 'monos') {
+    const lugaresLigados = lugaresDeConocimiento(conocimiento);
     return {
       id: crypto.randomUUID(),
       role: 'bot',
       texto: conocimiento.respuesta,
+      lugares: lugaresLigados.length > 0 ? lugaresLigados : undefined,
       timestamp: Date.now(),
     };
   }
@@ -942,9 +970,28 @@ export function responderTextoLibre(
       );
       if (enMunicipio.length > 0) candidatos = enMunicipio;
     }
-    const sugerencias = candidatos
+    let sugerencias = candidatos
       .sort((a, b) => b.rating - a.rating)
       .slice(0, 3);
+
+    // Hallazgo real de campo (QA): "Muéstrame hoteles con alberca y
+    // estacionamiento" hacía match con la ficha de precios de "La
+    // Jungla Balneario" (por la palabra "alberca") — pero el texto
+    // hablaba de La Jungla mientras la tarjeta mostrada era "Sirena
+    // Olmeca" (el único lugar de la categoría detectada), porque son
+    // dos búsquedas independientes. Si el conocimiento SÍ menciona
+    // lugares concretos, esos van PRIMERO — la tarjeta debe coincidir
+    // con lo que dice el texto, no con un top-3 genérico que puede ir
+    // por otro lado. Se completa con el top-3 por categoría solo si
+    // sobra espacio.
+    const lugaresLigados = lugaresDeConocimiento(conocimiento);
+    if (lugaresLigados.length > 0) {
+      const idsYaIncluidos = new Set(lugaresLigados.map((l) => l.id));
+      sugerencias = [
+        ...lugaresLigados,
+        ...sugerencias.filter((l) => !idsYaIncluidos.has(l.id)),
+      ].slice(0, 3);
+    }
 
     if (sugerencias.length === 0) {
       return {

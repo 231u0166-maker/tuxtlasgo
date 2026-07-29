@@ -42,6 +42,23 @@ export interface EntradaConocimiento {
   // dato de seguridad. Con prioridad, la ficha de seguridad gana
   // siempre que matchee algo, sin importar el orden en el archivo.
   prioridad?: number;
+  // IDs (ver data/lugares.ts) de los lugares REALES de los que habla
+  // esta ficha — opcional, solo cuando la respuesta menciona uno o
+  // varios lugares concretos (no aplica a fichas generales como
+  // clima o emergencias).
+  //
+  // Hallazgo real de campo (QA): "Muéstrame hoteles con alberca y
+  // estacionamiento" hacía match con la ficha de precios de "La
+  // Jungla Balneario" (por la palabra "alberca") — pero La Jungla es
+  // categoría Naturaleza, no Hospedaje. El texto de la respuesta SÍ
+  // hablaba de La Jungla, pero la tarjeta mostrada era "Sirena
+  // Olmeca" (el único lugar de categoría Hospedaje), porque el filtro
+  // por categoría y la búsqueda de conocimiento son dos búsquedas
+  // INDEPENDIENTES que pueden apuntar a lugares distintos. Con este
+  // campo, la tarjeta mostrada coincide con el lugar del que
+  // realmente habla el texto, en vez de un top-3 genérico por
+  // categoría que puede ir por otro lado.
+  lugares?: string[];
 }
 
 export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
@@ -51,60 +68,70 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
     titulo: 'Precios Restaurante Margiros',
     respuesta:
       'Restaurante Margiros tiene precios de $100 a $300 por persona. Abre todos los días de 8 am a 8 pm. Ambiente relajado, ideal para desayunos, almuerzos y cenas. Acepta familias con niños.',
+    lugares: ['margiros'],
   },
   {
     claves: ['palapas gorel', 'gorel', 'precio gorel', 'cuanto gorel'],
     titulo: 'Precios Palapas Gorel',
     respuesta:
       'Palapas Gorel tiene precios de $100 a $200 por persona. Abre de 9 am a 6 pm. Tiene espacios al aire libre, buen café, cócteles y acepta tarjetas. Accesible para personas en silla de ruedas.',
+    lugares: ['palapas-gorel'],
   },
   {
     claves: ['bicicleta cafe', 'bicicleta', 'precio bicicleta', 'cafe san andres'],
     titulo: 'Precios La Bicicleta Café',
     respuesta:
       'La Bicicleta Café tiene precios de $100 a $200 por persona. Abre de 7 am a 11 pm, con servicio hasta la madrugada. Tiene Wi-Fi gratis, postres, vinos y cervezas. También hace entregas a domicilio.',
+    lugares: ['bicicleta-cafe'],
   },
   {
     claves: ['moyotera', 'precio moyotera', 'cuanto moyotera', 'restaurant bar'],
     titulo: 'Precios La Moyotera',
     respuesta:
       'La Moyotera tiene precios de $200 a $300 por persona. Abre de 9 am a 9 pm. Especialidades: pulpo a la parrilla, mojarra al chilpaya y la Torta Moyotera. Vistas al atardecer sobre la laguna de Catemaco desde sus terrazas.',
+    lugares: ['moyotera'],
   },
   {
     claves: ['hechizo', 'hechizo de amor', 'precio hechizo', 'rooftop', 'bar catemaco'],
     titulo: 'Precios Hechizo de Amor',
     respuesta:
       'Hechizo de Amor tiene precios de $200 a $300 por persona. Abre de 12 pm a 11 pm. Es un rooftop bar con vistas al lago de Catemaco. Hacen licores artesanales con chagalapoli, un fruto endémico de Los Tuxtlas. Perfecto para parejas al atardecer.',
+    lugares: ['hechizo-amor'],
   },
   {
     claves: ['nanciyaga', 'precio nanciyaga', 'cuanto nanciyaga', 'reserva ecologica'],
     titulo: 'Precios Nanciyaga',
     respuesta:
       'Nanciyaga: entrada general $80 por persona. Hospedaje desde $1,600 hasta $2,200 por noche. Abre de 9 am a 7 pm. Incluye senderos de selva, kayak hacia islas con monos, aplicación de barro mineral y rituales con chamanes. Fue escenario de la película Apocalypto.',
+    lugares: ['nanciyaga'],
   },
   {
     claves: ['sirena olmeca', 'sirena', 'cabanas catemaco', 'precio sirena'],
     titulo: 'Precios Sirena Olmeca',
     respuesta:
       'Sirena Olmeca: restaurante $150 a $350 por persona. Hospedaje $800 a $1,200 por noche. Abre de 9 am a 6 pm. Está a 45 minutos de Catemaco, donde el mar abierto se junta con la laguna. Ideal para desconectarse totalmente.',
+    lugares: ['sirena-olmeca'],
   },
   {
     claves: ['jungla', 'balneario', 'la jungla', 'precio jungla', 'alberca'],
     titulo: 'Precios La Jungla Balneario',
     respuesta:
       'La Jungla Balneario: entrada $60 por persona. Camping desde $100 por noche. Abre de 8 am a 6 pm todos los días. Tiene albercas de agua de manantial natural (muy fría), tobogán entre los árboles, muelle al lago y vistas panorámicas. Perfecto para familias.',
+    lugares: ['jungla-balneario'],
   },
   {
     claves: ['eyipantla', 'cascada', 'salto', 'precio eyipantla', 'entrada cascada'],
     titulo: 'Precio Eyipantla',
     respuesta:
       'La Cascada El Salto de Eyipantla tiene una entrada de aproximadamente $50 por persona. Abre de 7 am a 7 pm. Es una de las cascadas más impresionantes de Veracruz, rodeada de selva tropical. Ideal para fotos y caminatas.',
+    lugares: ['eyipantla'],
   },
   {
     claves: ['cerro venado', 'cerro del venado', 'precio cerro', 'caminata'],
     titulo: 'Cerro del Venado',
     respuesta:
       'El Cerro del Venado tiene acceso libre (gratuito). Ofrece vistas panorámicas únicas de San Andrés Tuxtla. Ideal para caminatas y fotografías. Lleva agua y calzado cómodo. El ascenso toma aproximadamente 1 hora.',
+    lugares: ['cerro-venado'],
   },
 
   // ─── DÓNDE COMER ─────────────────────────────────────────
@@ -113,18 +140,21 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
     titulo: 'Dónde comer en Los Tuxtlas',
     respuesta:
       'En Catemaco tienes varias opciones: La Moyotera (mariscos y vistas a la laguna, $200-300), Palapas Gorel (ambiente al aire libre, $100-200), Restaurante Margiros (cocina variada, $100-300) y Hechizo de Amor (rooftop bar, $200-300). En San Andrés Tuxtla está La Bicicleta Café (café y cenas hasta la madrugada, $100-200). ¿Buscas algo específico o tienes un presupuesto en mente?',
+    lugares: ['moyotera', 'palapas-gorel', 'margiros', 'hechizo-amor', 'bicicleta-cafe'],
   },
   {
     claves: ['mariscos', 'pescado', 'mojarra', 'pulpo', 'camarones'],
     titulo: 'Mariscos en Los Tuxtlas',
     respuesta:
       'Para mariscos la mejor opción es La Moyotera en Catemaco — especialistas en pulpo a la parrilla, mojarra al chilpaya y tienen vistas al lago ($200-300). También puedes encontrar mariscos frescos en Palapas Gorel ($100-200).',
+    lugares: ['moyotera', 'palapas-gorel'],
   },
   {
     claves: ['cafe', 'cafetería', 'postres', 'desayuno'],
     titulo: 'Cafeterías y desayunos',
     respuesta:
       'La Bicicleta Café en San Andrés Tuxtla es la mejor opción para café de especialidad, postres y desayunos ($100-200, abre 7am). En Catemaco, Palapas Gorel y Restaurante Margiros también sirven buenos desayunos desde las 8-9 am.',
+    lugares: ['bicicleta-cafe', 'palapas-gorel', 'margiros'],
   },
 
   // ─── HOSPEDAJE ───────────────────────────────────────────
@@ -133,12 +163,14 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
     titulo: 'Hospedaje en Los Tuxtlas',
     respuesta:
       'Para hospedarte tienes dos opciones naturales: Nanciyaga ($1,600-$2,200/noche), reserva ecológica con cabañas en plena selva, kayak y ritales con chamanes. O Sirena Olmeca ($800-$1,200/noche), complejo rústico donde el mar se junta con la laguna, ideal para desconectarse. La Jungla Balneario también tiene camping desde $100/noche.',
+    lugares: ['nanciyaga', 'sirena-olmeca', 'jungla-balneario'],
   },
   {
     claves: ['camping', 'acampar', 'tienda', 'carpa'],
     titulo: 'Camping en Los Tuxtlas',
     respuesta:
       'La Jungla Balneario tiene área de camping desde $100 por noche, con acceso a sus albercas naturales, muelle y vistas al lago. Es la opción más económica para quedarte en la naturaleza de Catemaco.',
+    lugares: ['jungla-balneario'],
   },
 
   // ─── NATURALEZA Y AVENTURA ───────────────────────────────
@@ -147,18 +179,21 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
     titulo: 'Naturaleza y aventura en Los Tuxtlas',
     respuesta:
       'Para naturaleza y aventura tienes: La Cascada de Eyipantla (50 metros de caída, $50 entrada), Nanciyaga (4 hectáreas de selva, kayak, monos, $80 entrada), La Jungla Balneario (albercas de manantial, tobogán en selva, $60 entrada) y el Cerro del Venado (vistas panorámicas, acceso libre). Todos están en los alrededores de Catemaco y San Andrés Tuxtla.',
+    lugares: ['eyipantla', 'nanciyaga', 'jungla-balneario', 'cerro-venado'],
   },
   {
     claves: ['monos', 'macacos', 'kayak', 'lancha', 'laguna'],
     titulo: 'Monos y actividades en la laguna',
     respuesta:
       'Para ver los monos macacos en la laguna de Catemaco, lo mejor es ir a Nanciyaga — hacen paseos en kayak hacia las islas donde viven los monos (incluido en la entrada de $80). También puedes contratar lanchas desde el malecón de Catemaco.',
+    lugares: ['nanciyaga'],
   },
   {
     claves: ['cascada', 'waterfall', 'salto de agua'],
     titulo: 'La cascada de Eyipantla',
     respuesta:
       'El Salto de Eyipantla es la cascada más impresionante de la región — 50 metros de caída libre en plena selva. Entrada ~$50, abre de 7am a 7pm. A 14 km de San Andrés Tuxtla. Ve en la mañana para mejor luz en las fotos.',
+    lugares: ['eyipantla'],
   },
 
   // ─── HORARIOS ────────────────────────────────────────────
@@ -199,6 +234,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
     titulo: 'Cómo reservar en Los Tuxtlas',
     respuesta:
       'Para reservar puedes contactar directamente a los establecimientos. Nanciyaga y Sirena Olmeca convienen reservarlos con anticipación si quieres hospedarte. Hechizo de Amor es recomendable llegar antes de las 6pm para asegurar mesa en el atardecer. Los demás restaurantes generalmente no requieren reservación previa.',
+    lugares: ['nanciyaga', 'sirena-olmeca', 'hechizo-amor'],
   },
 
   // ─── BEBIDAS ARTESANALES ─────────────────────────────────
@@ -207,6 +243,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
     titulo: 'Bebidas artesanales',
     respuesta:
       'Hechizo de Amor en Catemaco es famoso por sus licores artesanales — ginebras, vermuts y cócteles saborizados con frutas de la región, incluyendo el chagalapoli, un fruto silvestre endémico de Los Tuxtlas parecido al arándano. Es el lugar ideal para probar algo único que no encontrarás en otro lado.',
+    lugares: ['hechizo-amor'],
   },
 
   // ─── CHAMANES Y RITUALES ─────────────────────────────────
@@ -215,6 +252,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
     titulo: 'Chamanes y rituales',
     respuesta:
       'Para experiencias con chamanes y rituales de sanación, Nanciyaga es el lugar indicado — tienen chamanes locales y rituales auténticos incluidos en la visita. También ofrecen la aplicación de barro mineral, que es una experiencia única de bienestar. La reserva está a 7 km de Catemaco.',
+    lugares: ['nanciyaga'],
   },
 
   // ─── SEGURIDAD Y EMERGENCIAS ──────────────────────────────

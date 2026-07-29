@@ -9,6 +9,7 @@ import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
 import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
 import { embeddingsListo, indexarCatalogo, indexarConocimiento, inicializarEmbeddings } from './lib/embeddings';
+import ActualizacionDisponible from './components/ActualizacionDisponible';
 
 // Función global para recargar catálogo (usada por GestorFotos y ProviderPanel)
 // Pre-cachea imágenes de Cloudinary para que estén disponibles offline
@@ -100,6 +101,7 @@ export default function App() {
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ActualizacionDisponible />
     </BrowserRouter>
   );
 }

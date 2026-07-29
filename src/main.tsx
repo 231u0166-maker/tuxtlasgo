@@ -1,23 +1,14 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './styles/index.css';
 
-// Registro automático del Service Worker (Workbox).
-// Auto-update cuando hay nueva versión.
-registerSW({
-  immediate: true,
-  onRegisteredSW(_url, registration) {
-    // En consola para debugging durante la demo
-    if (registration) {
-      console.log('[TuxtlasGO] Service Worker activo. App lista para offline.');
-    }
-  },
-  onOfflineReady() {
-    console.log('[TuxtlasGO] Listo para usarse sin conexión.');
-  },
-});
+// El registro del Service Worker ahora vive en
+// src/components/ActualizacionDisponible.tsx, usando el hook
+// useRegisterSW (en vez de la llamada imperativa registerSW de aquí)
+// — así el registro vive dentro del árbol de React y puede mostrar un
+// aviso visible ("hay una versión nueva") en vez de actualizar en
+// silencio. Ver ese archivo para el porqué completo.
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

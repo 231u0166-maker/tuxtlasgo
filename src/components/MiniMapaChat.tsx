@@ -2,7 +2,7 @@ import { useRef, useCallback, useMemo } from 'react';
 import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { WifiOff } from 'lucide-react';
+import { WifiOff, Plus, Minus, Maximize2 } from 'lucide-react';
 import { CATEGORIAS, type Lugar } from '../data/lugares';
 import { ESTILO_MAPA, COLORES_CATEGORIA } from './MapScreen';
 import { mapaDescargado } from '../lib/db';
@@ -138,9 +138,15 @@ export default function MiniMapaChat({ lugares, numerado, origen, onVerLugar }: 
   }
 
   const centro = lugares[0];
+  // El botón de "ampliar" abre la ficha completa del lugar (que ya
+  // tiene su propio "Cómo llegar" / ver en el mapa grande) — solo
+  // tiene sentido con UN destino. Para rutas de varios lugares
+  // (numerado) ya existe el botón "Ver ruta en el mapa" justo debajo
+  // del mini-mapa, así que aquí se omite para no duplicar.
+  const puedeExpandir = lugares.length === 1 && !!onVerLugar;
 
   return (
-    <div className="mt-2 rounded-xl overflow-hidden border border-jungle-100 h-[260px] sm:h-[340px]">
+    <div className="relative mt-2 rounded-xl overflow-hidden border border-jungle-100 h-[260px] sm:h-[340px]">
       <Map
         ref={mapRef}
         initialViewState={{
@@ -190,6 +196,43 @@ export default function MiniMapaChat({ lugares, numerado, origen, onVerLugar }: 
           </Marker>
         ))}
       </Map>
+
+      {/* Zoom +/- — mismo estilo que el mapa completo (MapScreen).
+          El mini-mapa usa cooperativeGestures (2 dedos para mover, o
+          Ctrl+scroll en escritorio) para no secuestrar el scroll del
+          chat — estos botones dan acercar/alejar con un solo toque,
+          sin pelear con ese gesto. */}
+      <div className="absolute bottom-2 right-2 bg-white rounded-xl shadow-md border border-jungle-100 flex flex-col overflow-hidden">
+        <button
+          onClick={() => mapRef.current?.getMap()?.zoomIn({ duration: 200 })}
+          className="w-8 h-8 flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border-b border-jungle-100"
+          aria-label="Acercar"
+          title="Acercar"
+        >
+          <Plus size={15} />
+        </button>
+        <button
+          onClick={() => mapRef.current?.getMap()?.zoomOut({ duration: 200 })}
+          className="w-8 h-8 flex items-center justify-center text-jungle-800 hover:bg-jungle-50"
+          aria-label="Alejar"
+          title="Alejar"
+        >
+          <Minus size={15} />
+        </button>
+      </div>
+
+      {/* Ampliar — abre la ficha completa (con mapa grande, sin las
+          restricciones de gestos de esta vista previa chica). */}
+      {puedeExpandir && (
+        <button
+          onClick={() => onVerLugar?.(lugares[0])}
+          className="absolute top-2 right-2 bg-white rounded-xl shadow-md border border-jungle-100 w-8 h-8 flex items-center justify-center text-jungle-800 hover:bg-jungle-50"
+          aria-label="Ver en el mapa completo"
+          title="Ver en el mapa completo"
+        >
+          <Maximize2 size={14} />
+        </button>
+      )}
     </div>
   );
 }

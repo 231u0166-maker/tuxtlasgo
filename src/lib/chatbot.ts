@@ -59,6 +59,14 @@ export interface PreferenciasUsuario {
   // guiado por botones nunca lo pide, así que en ese camino siempre
   // queda undefined — sin cambios ahí.
   municipio?: string;
+  // Opcional: monto TOTAL en pesos que el turista mencionó literalmente
+  // ("con un presupuesto de $6,000") — a diferencia de `presupuesto`
+  // (que es solo un nivel bajo/medio/alto), esto es un número real que
+  // permite calcular cuánto se lleva gastado y cuánto queda día por
+  // día. Si no se mencionó un monto explícito, queda undefined y la
+  // ruta simplemente no menciona presupuesto restante (no se inventa
+  // un número que el turista no dio).
+  montoTotalPesos?: number;
 }
 
 export interface MensajeChat {
@@ -656,7 +664,7 @@ function extraerDiasLiteral(texto: string): Dias | null {
 function extraerPresupuestoLiteral(
   texto: string,
   diasParaPromedio: number
-): Presupuesto | null {
+): { nivel: Presupuesto; monto: number } | null {
   const conSigno = texto.match(/\$\s?([\d.,]+)/);
   const conPalabra = texto.match(/([\d.,]+)\s*(mil\s+)?pesos\b/i) ??
     texto.match(/\b(\d[\d.,]*)\s*mxn\b/i);
@@ -671,9 +679,8 @@ function extraerPresupuestoLiteral(
   if (monto === null || Number.isNaN(monto) || monto <= 0) return null;
 
   const porDia = monto / Math.max(1, diasParaPromedio);
-  if (porDia < 500) return 'bajo';
-  if (porDia <= 1500) return 'medio';
-  return 'alto';
+  const nivel: Presupuesto = porDia < 500 ? 'bajo' : porDia <= 1500 ? 'medio' : 'alto';
+  return { nivel, monto };
 }
 
 export async function extraerPreferenciasLibres(
@@ -704,7 +711,10 @@ export async function extraerPreferenciasLibres(
   if (diasLiteral !== null) resultado.dias = diasLiteral;
 
   const presupuestoLiteral = extraerPresupuestoLiteral(texto, resultado.dias ?? 2);
-  if (presupuestoLiteral !== null) resultado.presupuesto = presupuestoLiteral;
+  if (presupuestoLiteral !== null) {
+    resultado.presupuesto = presupuestoLiteral.nivel;
+    resultado.montoTotalPesos = presupuestoLiteral.monto;
+  }
 
   if (!embeddingsListo()) return resultado;
 
@@ -891,6 +901,10 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
 
   const dias: DiaRuta[] = [];
   const lugaresPorDia = 3;
+  // Solo se calcula si el turista dio un monto REAL en pesos — si no
+  // lo dio, esto queda en null y ningún día menciona presupuesto
+  // restante (no se inventa un número que no existe).
+  let presupuestoRestante = prefs.montoTotalPesos ?? null;
 
   for (let i = 0; i < prefs.dias; i++) {
     const municipio = municipios[i % municipios.length];
@@ -943,11 +957,19 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
     });
 
     if (dia.length > 0) {
+      let infoPresupuesto: { costoConocido: number; huboSinPrecio: boolean; restanteDespues: number } | null = null;
+      if (presupuestoRestante !== null) {
+        const costos = dia.map((l) => estimarPrecioMXN(l.precioMxn));
+        const costoConocido = costos.reduce((s: number, c) => s + (c ?? 0), 0);
+        const huboSinPrecio = costos.some((c) => c === null);
+        presupuestoRestante -= costoConocido;
+        infoPresupuesto = { costoConocido, huboSinPrecio, restanteDespues: presupuestoRestante };
+      }
       dias.push({
         dia: i + 1,
         lugares: dia,
         resumen: armarResumen(i + 1, municipio, dia, prefs),
-        razonamiento: armarRazonamiento(dia, prefs),
+        razonamiento: armarRazonamiento(dia, prefs, infoPresupuesto),
       });
     }
   }
@@ -977,7 +999,47 @@ function armarResumen(
   return `Día ${numDia} · ${municipio} — ${tiposTexto}, ${conQuien}.`;
 }
 
-function armarRazonamiento(lugares: Lugar[], prefs: PreferenciasUsuario): string {
+// Estima un precio representativo (MXN) a partir del texto libre de
+// `precioMxn` de cada lugar — SOLO cuando el texto menciona un único
+// concepto de precio, sin ambigüedad. Muchos lugares mencionan más de
+// un concepto a la vez (ej. Nanciyaga: "Entrada general $80. Hospedaje
+// desde $1,600 – $2,200 por noche") — en esos casos NO se adivina cuál
+// aplica para un día de ruta (¿la entrada o una noche completa?);
+// mejor decir "no sé" que dar un número que podría ser el equivocado.
+function estimarPrecioMXN(precioMxn: string): number | null {
+  const texto = precioMxn.toLowerCase();
+  if (/\b(acceso libre|entrada libre|gratis|gratuit[oa])\b/.test(texto)) return 0;
+
+  const regexRango = /\$\s?([\d,]+)\s*[–-]\s*\$?\s?([\d,]+)/;
+  const matchRango = precioMxn.match(regexRango);
+
+  if (matchRango) {
+    // Si después de quitar el rango encontrado todavía queda OTRO
+    // monto con $ suelto, el lugar tiene más de un concepto de precio.
+    const restante = precioMxn.replace(regexRango, '');
+    if (/\$\s?[\d,]+/.test(restante)) return null;
+    const a = parseFloat(matchRango[1].replace(/,/g, ''));
+    const b = parseFloat(matchRango[2].replace(/,/g, ''));
+    return Number.isNaN(a) || Number.isNaN(b) ? null : (a + b) / 2;
+  }
+
+  const montosSueltos = [...precioMxn.matchAll(/\$\s?([\d,]+)/g)];
+  if (montosSueltos.length === 1) {
+    const n = parseFloat(montosSueltos[0][1].replace(/,/g, ''));
+    return Number.isNaN(n) ? null : n;
+  }
+  return null; // 0 o 2+ montos sueltos sin rango claro: ambiguo
+}
+
+function formatearMXN(monto: number): string {
+  return `$${Math.round(Math.abs(monto)).toLocaleString('es-MX')}`;
+}
+
+function armarRazonamiento(
+  lugares: Lugar[],
+  prefs: PreferenciasUsuario,
+  presupuestoInfo?: { costoConocido: number; huboSinPrecio: boolean; restanteDespues: number } | null
+): string {
   const primero = lugares[0];
   const partes: string[] = [];
   partes.push(
@@ -998,6 +1060,27 @@ function armarRazonamiento(lugares: Lugar[], prefs: PreferenciasUsuario): string
     partes.push(
       `Todo el día es en ${municipiosUnicos[0]} para que no pierdas tiempo en traslados.`
     );
+  }
+  // Presupuesto restante — SOLO si el turista dio un monto real (ver
+  // hallazgo real de campo QA: "faltaron menciones de los precios para
+  // recalcar el presupuesto del usuario"). Nunca se inventa un número
+  // si no lo dio explícitamente.
+  if (presupuestoInfo) {
+    const { costoConocido, huboSinPrecio, restanteDespues } = presupuestoInfo;
+    if (costoConocido === 0 && !huboSinPrecio) {
+      partes.push(
+        `Este día es gratis o de acceso libre — sigues teniendo ${formatearMXN(restanteDespues)} disponibles para el resto de la ruta.`
+      );
+    } else {
+      const caveat = huboSinPrecio
+        ? ' (según lo que sí tengo registrado — alguno de estos lugares no tiene precio exacto, así que puede variar)'
+        : '';
+      partes.push(
+        restanteDespues < 0
+          ? `Este día ronda ${formatearMXN(costoConocido)}${caveat} — con esto ya te pasarías del presupuesto por unos ${formatearMXN(restanteDespues)}.`
+          : `Este día ronda ${formatearMXN(costoConocido)}${caveat} — te quedan aproximadamente ${formatearMXN(restanteDespues)} para el resto de la ruta.`
+      );
+    }
   }
   return partes.join(' ');
 }

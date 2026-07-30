@@ -528,6 +528,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
           presupuesto: presupuestoFinal,
           grupo: grupoFinal,
           municipio: municipioDetectado,
+          montoTotalPesos: extraidas.montoTotalPesos,
         };
 
         // Transparencia: hallazgo real de campo — "quisiera solo una

@@ -16,7 +16,7 @@ import FavoritesScreen from './FavoritesScreen';
 import PlaceDetail from './PlaceDetail';
 import OfflineIndicator from './OfflineIndicator';
 import type { Lugar } from '../data/lugares';
-import { obtenerRutaPorTramos, type Coord } from '../lib/routing';
+import { obtenerRutaPorTramos, obtenerUbicacionGPS, type Coord } from '../lib/routing';
 import PerfilScreen from './PerfilScreen';
 
 
@@ -102,40 +102,7 @@ export default function AppShell() {
   // tramo (tú→lugar 1) sin resolver. Ahora ambas funciones parten del
   // mismo punto real, sea online o para guardarse offline después.
   const obtenerMiUbicacionActual = async (): Promise<Coord | null> => {
-    const resultado = await new Promise<{ coord: Coord; precisionMetros: number } | null>(
-      (res) => {
-        if (!navigator.geolocation) {
-          console.warn('[TuxtlasGO] navigator.geolocation no existe en este navegador.');
-          return res(null);
-        }
-        // Diagnóstico: si el origen no es https ni localhost, el GPS
-        // se bloquea SIEMPRE por regla del navegador (no es un bug) —
-        // esto se ve seguido al probar desde una IP local (ej.
-        // http://192.168.x.x:5173) en vez de la URL https desplegada.
-        if (
-          window.location.protocol !== 'https:' &&
-          window.location.hostname !== 'localhost'
-        ) {
-          console.warn(
-            `[TuxtlasGO] GPS bloqueado: estás en "${window.location.origin}" — el navegador solo permite geolocalización en https:// o localhost.`
-          );
-        }
-        navigator.geolocation.getCurrentPosition(
-          (pos) =>
-            res({
-              coord: [pos.coords.latitude, pos.coords.longitude],
-              precisionMetros: pos.coords.accuracy,
-            }),
-          (err) => {
-            console.warn(
-              `[TuxtlasGO] No se pudo obtener el GPS — código ${err.code}: ${err.message}`
-            );
-            res(null);
-          },
-          { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
-        );
-      }
-    );
+    const resultado = await obtenerUbicacionGPS();
 
     const origen = resultado?.coord ?? null;
     setMiUbicacion(origen);

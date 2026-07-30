@@ -792,6 +792,26 @@ function ordenarConVariedad<T extends { score: number }>(
   return resultado;
 }
 
+// Detecta si el turista está preguntando "cuánto tiempo/distancia me
+// tomaría llegar desde donde estoy" — a diferencia de "cuéntame sobre
+// este lugar" (que ya resuelve buscarLugarPorNombre por sí solo). Esto
+// necesita GPS + una llamada real de ruteo, así que SIEMPRE requiere
+// internet (ver nota en ChatAssistant.tsx) — a propósito, no es un
+// descuido: el modo offline es para consultar dudas comunes, no para
+// cálculos en vivo que dependen de dónde estás parado ahora mismo.
+export function pareceSolicitudDeDistancia(texto: string): boolean {
+  const tokens = tokenizar(texto);
+  if (['distancia', 'lejos'].some((p) => contieneClave(tokens, p))) return true;
+
+  const tieneTiempo = ['tiempo', 'tardo', 'tardaria', 'tardaría', 'demoro', 'demoraria', 'demoraría'].some(
+    (p) => contieneClave(tokens, p)
+  );
+  const tieneReferenciaAUbicacion = ['ubicacion', 'ubicación', 'llegar', 'llego', 'llegó'].some(
+    (p) => contieneClave(tokens, p)
+  );
+  return tieneTiempo && tieneReferenciaAUbicacion;
+}
+
 export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   const recomendadosConScore = filtrarLugaresConRazones(prefs);
   if (recomendadosConScore.length === 0) return [];

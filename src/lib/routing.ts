@@ -247,6 +247,53 @@ export async function rutaEnCache(puntos: Coord[]): Promise<boolean> {
 }
 
 // Formatea la duración (segundos) en algo legible: "1 h 25 min" o "20 min"
+export interface UbicacionGPS {
+  coord: Coord;
+  precisionMetros: number;
+}
+
+// Envuelve navigator.geolocation.getCurrentPosition en una Promise —
+// pura, SIN efectos secundarios de UI (eso lo maneja quien la llama:
+// AppShell.tsx actualiza su punto azul en el mapa; ChatAssistant.tsx
+// la usa para responder "cuánto tiempo me tomaría llegar"). Antes esta
+// lógica vivía duplicada solo dentro de AppShell.tsx — se extrae aquí
+// para que el chat también pueda usarla, con el mismo diagnóstico de
+// permisos/HTTPS en un solo lugar.
+export async function obtenerUbicacionGPS(): Promise<UbicacionGPS | null> {
+  return new Promise((res) => {
+    if (!navigator.geolocation) {
+      console.warn('[TuxtlasGO] navigator.geolocation no existe en este navegador.');
+      return res(null);
+    }
+    // Diagnóstico: si el origen no es https ni localhost, el GPS se
+    // bloquea SIEMPRE por regla del navegador (no es un bug) — esto se
+    // ve seguido al probar desde una IP local (ej. http://192.168.x.x:5173)
+    // en vez de la URL https desplegada.
+    if (
+      window.location.protocol !== 'https:' &&
+      window.location.hostname !== 'localhost'
+    ) {
+      console.warn(
+        `[TuxtlasGO] GPS bloqueado: estás en "${window.location.origin}" — el navegador solo permite geolocalización en https:// o localhost.`
+      );
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        res({
+          coord: [pos.coords.latitude, pos.coords.longitude],
+          precisionMetros: pos.coords.accuracy,
+        }),
+      (err) => {
+        console.warn(
+          `[TuxtlasGO] No se pudo obtener el GPS — código ${err.code}: ${err.message}`
+        );
+        res(null);
+      },
+      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
+    );
+  });
+}
+
 export function formatearDuracion(segundos: number): string {
   const totalMin = Math.round(segundos / 60);
   if (totalMin < 60) return `${totalMin} min`;

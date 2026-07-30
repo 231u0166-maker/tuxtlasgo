@@ -17,6 +17,7 @@ import {
   responderTextoLibre,
   extraerPreferenciasLibres,
   pareceSolicitudDeRuta,
+  pareceSolicitudDeDistancia,
   detectarMunicipio,
   buscarLugarPorNombre,
   getCatalogoActivo,
@@ -24,6 +25,13 @@ import {
 
 import { guardarRuta, mapaDescargado } from '../lib/db';
 import { buscarRespuestaVerificada } from '../lib/embeddings';
+import {
+  obtenerUbicacionGPS,
+  obtenerRutaPorCarretera,
+  formatearDuracion,
+  formatearDistancia,
+} from '../lib/routing';
+import { useOffline } from '../hooks/useOffline';
 import MiniMapaChat from './MiniMapaChat';
 // ============================================================
 // PANTALLA DEL ASISTENTE — interfaz del motor local de IA
@@ -49,6 +57,12 @@ interface Props {
 }
 
 export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Props) {
+  // Se usa para decidir si intentar el cálculo de distancia/tiempo en
+  // vivo desde la ubicación del turista — ver nota junto a
+  // pareceSolicitudDeDistancia más abajo: ese cálculo SIEMPRE necesita
+  // internet (GPS + una llamada real de ruteo), a propósito.
+  const offline = useOffline();
+
   // El chat persiste entre cambios de tab usando sessionStorage.
   // Se limpia al cerrar/recargar la app, pero sobrevive mientras
   // la PWA esté abierta — el turista puede ir al mapa y volver
@@ -382,6 +396,84 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
       // datos reales del catálogo) y funciona sin internet.
       const lugarPorNombre = buscarLugarPorNombre(texto, getCatalogoActivo());
       if (lugarPorNombre) {
+        // ¿Está preguntando "cuánto tiempo/distancia me tomaría llegar
+        // desde donde estoy" en vez de "cuéntame sobre este lugar"?
+        // Esto SIEMPRE necesita internet (GPS + una llamada real de
+        // ruteo) — a propósito, no es un descuido: en el manual se
+        // indica que para armar/consultar rutas con cálculos en vivo
+        // conviene tener wifi; el modo offline es para dudas comunes,
+        // no para "desde AQUÍ ahora mismo cuánto tardo", que por su
+        // naturaleza depende de dónde estás parado en este momento.
+        if (pareceSolicitudDeDistancia(texto)) {
+          if (offline) {
+            responderBot(
+              {
+                id: crypto.randomUUID(),
+                role: 'bot',
+                texto: `Para calcularte el tiempo y la distancia exactos hasta ${lugarPorNombre.nombre} necesito internet (uso tu ubicación y calculo la ruta real). Conéctate un momento, o revisa "Cómo llegar" desde su ficha en el mapa.`,
+                lugares: [lugarPorNombre],
+                timestamp: Date.now(),
+              },
+              300
+            );
+            return;
+          }
+
+          responderBot(
+            {
+              id: crypto.randomUUID(),
+              role: 'bot',
+              texto: 'Dame un momento, calculando desde tu ubicación...',
+              timestamp: Date.now(),
+            },
+            200
+          );
+
+          const miUbicacion = await obtenerUbicacionGPS().catch(() => null);
+          if (!miUbicacion) {
+            responderBot(
+              {
+                id: crypto.randomUUID(),
+                role: 'bot',
+                texto: `No pude obtener tu ubicación — revisa que le hayas dado permiso al navegador. Mientras tanto, aquí tienes ${lugarPorNombre.nombre}:`,
+                lugares: [lugarPorNombre],
+                timestamp: Date.now(),
+              },
+              400
+            );
+            return;
+          }
+
+          try {
+            const ruta = await obtenerRutaPorCarretera([
+              miUbicacion.coord,
+              lugarPorNombre.coords,
+            ]);
+            responderBot(
+              {
+                id: crypto.randomUUID(),
+                role: 'bot',
+                texto: `Desde tu ubicación actual hasta ${lugarPorNombre.nombre} hay ${formatearDistancia(ruta.distanciaMetros)} — unos ${formatearDuracion(ruta.duracionSegundos)} en coche.`,
+                lugares: [lugarPorNombre],
+                timestamp: Date.now(),
+              },
+              400
+            );
+          } catch {
+            responderBot(
+              {
+                id: crypto.randomUUID(),
+                role: 'bot',
+                texto: `No pude calcular la ruta ahora mismo. Aquí tienes ${lugarPorNombre.nombre} — puedes intentar "Cómo llegar" desde su ficha en el mapa.`,
+                lugares: [lugarPorNombre],
+                timestamp: Date.now(),
+              },
+              400
+            );
+          }
+          return;
+        }
+
         const intros = [
           `Esto es lo que tengo de ${lugarPorNombre.nombre}:`,
           `${lugarPorNombre.nombre} — aquí tienes los detalles:`,

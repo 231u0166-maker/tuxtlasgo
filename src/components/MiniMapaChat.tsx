@@ -223,7 +223,6 @@ export default function MiniMapaChat({
         mapStyle={ESTILO_MAPA}
         style={{ width: '100%', height: '100%' }}
         attributionControl={false}
-        cooperativeGestures
         onLoad={alCargar}
       >
         {tramosGeoJSON && (
@@ -270,10 +269,11 @@ export default function MiniMapaChat({
       </Map>
 
       {/* Zoom +/- — mismo estilo que el mapa completo (MapScreen).
-          El mini-mapa usa cooperativeGestures (2 dedos para mover, o
-          Ctrl+scroll en escritorio) para no secuestrar el scroll del
-          chat — estos botones dan acercar/alejar con un solo toque,
-          sin pelear con ese gesto. */}
+          Hallazgo real de campo (QA): con cooperativeGestures (2 dedos
+          para mover) la gente probaba con un dedo, no pasaba nada, y no
+          les gustó — así que el mini-mapa ahora se mueve libre con un
+          solo dedo, igual que cualquier mapa normal. Estos botones son
+          solo un atajo cómodo para acercar/alejar sin pellizcar. */}
       <div className="absolute bottom-2 right-2 bg-white rounded-xl shadow-md border border-jungle-100 flex flex-col overflow-hidden">
         <button
           onClick={() => mapRef.current?.getMap()?.zoomIn({ duration: 200 })}

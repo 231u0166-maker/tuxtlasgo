@@ -67,6 +67,12 @@ export interface MensajeChat {
   texto: string;
   opciones?: { label: string; valor: string }[];
   lugares?: Lugar[];
+  // Coordenada del turista al momento de preguntar "cuánto tiempo me
+  // tomaría llegar" — se usa SOLO para dibujar el mini-mapa estilo
+  // "A → B" (tu ubicación → el lugar), igual que hace Google Maps. No
+  // se guarda ni se comparte con nadie más; vive únicamente en este
+  // mensaje del chat, en memoria.
+  ubicacionUsuario?: [number, number];
   rutaDia?: { dia: number; lugares: Lugar[]; resumen: string };
   timestamp: number;
 }

@@ -45,24 +45,34 @@ interface Props {
   // true = pinta círculos numerados (1, 2, 3...) como una ruta del
   // día; false/undefined = pines de categoría (recomendaciones sueltas).
   numerado?: boolean;
+  // Ubicación del turista, SOLO para la respuesta de "cuánto tiempo me
+  // tomaría llegar" — dibuja un pin "A" (tu ubicación) y el lugar como
+  // "B", con una línea punteada entre ambos, igual que la vista previa
+  // de Google Maps ("Tiempo a X desde Catemaco"). Solo tiene sentido
+  // junto con un único lugar en `lugares`.
+  origen?: [number, number];
   onVerLugar?: (lugar: Lugar) => void;
 }
 
-export default function MiniMapaChat({ lugares, numerado, onVerLugar }: Props) {
+export default function MiniMapaChat({ lugares, numerado, origen, onVerLugar }: Props) {
   const offline = useOffline();
   const mapRef = useRef<MapRef>(null);
+  const conOrigen = !!origen && lugares.length === 1;
 
   const alCargar = useCallback(() => {
-    if (lugares.length < 2) return;
     const map = mapRef.current?.getMap();
     if (!map) return;
+
     const lngLats: [number, number][] = lugares.map((l) => [l.coords[1], l.coords[0]]);
+    if (conOrigen && origen) lngLats.push([origen[1], origen[0]]);
+    if (lngLats.length < 2) return;
+
     const bounds = lngLats.reduce(
       (b, coord) => b.extend(coord),
       new maplibregl.LngLatBounds(lngLats[0], lngLats[0])
     );
-    map.fitBounds(bounds, { padding: 36, duration: 0 });
-  }, [lugares]);
+    map.fitBounds(bounds, { padding: 42, duration: 0 });
+  }, [lugares, conOrigen, origen]);
 
   // Líneas RECTAS de vista previa entre paradas consecutivas (sin
   // llamar a OSRM aquí — sería demasiado costoso para una vista
@@ -73,7 +83,31 @@ export default function MiniMapaChat({ lugares, numerado, onVerLugar }: Props) {
   // MISMO color que tendrá en el mapa completo (colorTramo por
   // posición) — así el turista ya reconoce el patrón de colores
   // desde el chat, antes de abrir el mapa grande.
+  //
+  // Cuando hay `origen` (respuesta de "cuánto tiempo me tomaría"), se
+  // dibuja igual una línea punteada de tu ubicación al destino — el
+  // mismo lenguaje visual "A → B" que Google Maps, aunque aquí sea
+  // solo una vista previa (la ruta REAL ya se calculó aparte, por
+  // carretera, para el texto de distancia/tiempo).
   const tramosPreviewGeoJSON = useMemo(() => {
+    if (conOrigen && origen) {
+      return {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            properties: { color: colorTramo(0) },
+            geometry: {
+              type: 'LineString' as const,
+              coordinates: [
+                [origen[1], origen[0]],
+                [lugares[0].coords[1], lugares[0].coords[0]],
+              ],
+            },
+          },
+        ],
+      };
+    }
     if (!numerado || lugares.length < 2) return null;
     return {
       type: 'FeatureCollection' as const,
@@ -89,7 +123,7 @@ export default function MiniMapaChat({ lugares, numerado, onVerLugar }: Props) {
         },
       })),
     };
-  }, [lugares, numerado]);
+  }, [lugares, numerado, conOrigen, origen]);
 
   if (lugares.length === 0) return null;
 
@@ -106,7 +140,7 @@ export default function MiniMapaChat({ lugares, numerado, onVerLugar }: Props) {
   const centro = lugares[0];
 
   return (
-    <div className="mt-2 rounded-xl overflow-hidden border border-jungle-100 h-[210px] sm:h-[260px]">
+    <div className="mt-2 rounded-xl overflow-hidden border border-jungle-100 h-[260px] sm:h-[340px]">
       <Map
         ref={mapRef}
         initialViewState={{
@@ -137,13 +171,22 @@ export default function MiniMapaChat({ lugares, numerado, onVerLugar }: Props) {
             />
           </Source>
         )}
+        {conOrigen && origen && (
+          <Marker longitude={origen[1]} latitude={origen[0]}>
+            <PinLetra letra="A" color="#2563eb" />
+          </Marker>
+        )}
         {lugares.map((lugar, i) => (
           <Marker key={lugar.id} longitude={lugar.coords[1]} latitude={lugar.coords[0]}>
-            <PinMini
-              categoria={lugar.categoria}
-              numero={numerado ? i + 1 : undefined}
-              onClick={() => onVerLugar?.(lugar)}
-            />
+            {conOrigen ? (
+              <PinLetra letra="B" color="#dc2626" onClick={() => onVerLugar?.(lugar)} />
+            ) : (
+              <PinMini
+                categoria={lugar.categoria}
+                numero={numerado ? i + 1 : undefined}
+                onClick={() => onVerLugar?.(lugar)}
+              />
+            )}
           </Marker>
         ))}
       </Map>
@@ -151,9 +194,45 @@ export default function MiniMapaChat({ lugares, numerado, onVerLugar }: Props) {
   );
 }
 
+// Pin con letra — estilo "A/B" de Google Maps, para la respuesta de
+// distancia/tiempo (tu ubicación -> destino).
+function PinLetra({
+  letra,
+  color,
+  onClick,
+}: {
+  letra: string;
+  color: string;
+  onClick?: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        width: 26,
+        height: 26,
+        background: color,
+        color: 'white',
+        border: '2px solid white',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+        cursor: onClick ? 'pointer' : 'default',
+        fontSize: 13,
+        fontWeight: 800,
+        lineHeight: 1,
+      }}
+    >
+      {letra}
+    </div>
+  );
+}
+
 // Pin compacto — mismo lenguaje visual que los pines del mapa
 // completo (PinLugar/PinParada en MapScreen.tsx) pero un poco más
-// chico, pensado para una previsualización de ~210-260px de alto.
+// chico, pensado para una previsualización de ~260-340px de alto.
 function PinMini({
   categoria,
   numero,

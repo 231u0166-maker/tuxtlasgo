@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo, useState, useEffect } from 'react';
 import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -8,6 +8,7 @@ import { ESTILO_MAPA, COLORES_CATEGORIA } from './MapScreen';
 import { mapaDescargado } from '../lib/db';
 import { useOffline } from '../hooks/useOffline';
 import { colorTramo } from '../lib/colores';
+import { obtenerRutaPorTramos } from '../lib/routing';
 
 // ============================================================
 // MINI-MAPA DENTRO DEL CHAT
@@ -30,6 +31,19 @@ import { colorTramo } from '../lib/colores';
 // claridad y se invita a descargarlo (mismo tono que el resto de la
 // app en esos casos).
 //
+// Hallazgo real de campo: las líneas entre paradas eran RECTAS
+// (una vista previa aproximada, sin llamar a OSRM) — pero Google Maps
+// (la referencia que se comparó) sigue las calles de verdad. Ahora:
+//   - Para la respuesta de distancia (A→B): se reusa la geometría REAL
+//     que ya se calculó por carretera para dar el texto de tiempo —
+//     antes se recalculaba una línea recta aparte para el dibujo, dos
+//     fuentes de verdad para la misma pregunta.
+//   - Para una ruta de varios días (numerado): se pide la ruta real
+//     por tramo en cuanto se monta el mini-mapa. Mientras carga (o si
+//     falla/no hay internet), se ve la línea recta punteada como antes
+//     — nunca se rompe, solo se ve menos precisa hasta que llega la
+//     real. Una vez que llega, se reemplaza por la línea sólida real.
+//
 // Nota de rendimiento: cada mini-mapa es una instancia real de
 // MapLibre GL (WebGL). Los navegadores (sobre todo Safari/iOS)
 // limitan cuántos contextos WebGL pueden vivir a la vez. Por eso
@@ -47,17 +61,56 @@ interface Props {
   numerado?: boolean;
   // Ubicación del turista, SOLO para la respuesta de "cuánto tiempo me
   // tomaría llegar" — dibuja un pin "A" (tu ubicación) y el lugar como
-  // "B", con una línea punteada entre ambos, igual que la vista previa
-  // de Google Maps ("Tiempo a X desde Catemaco"). Solo tiene sentido
-  // junto con un único lugar en `lugares`.
+  // "B", igual que la vista previa de Google Maps ("Tiempo a X desde
+  // Catemaco"). Solo tiene sentido junto con un único lugar en `lugares`.
   origen?: [number, number];
+  // Geometría REAL ya calculada por carretera (viene de
+  // obtenerRutaPorCarretera, reusada del cálculo de distancia/tiempo)
+  // — si viene, se dibuja tal cual, sólida, sin volver a pedirla.
+  rutaReal?: [number, number][];
   onVerLugar?: (lugar: Lugar) => void;
 }
 
-export default function MiniMapaChat({ lugares, numerado, origen, onVerLugar }: Props) {
+export default function MiniMapaChat({
+  lugares,
+  numerado,
+  origen,
+  rutaReal,
+  onVerLugar,
+}: Props) {
   const offline = useOffline();
   const mapRef = useRef<MapRef>(null);
   const conOrigen = !!origen && lugares.length === 1;
+
+  // Ruta real por tramo para el caso de "varios días" — se pide en
+  // cuanto se monta el mini-mapa (no hace falta esperar a que toquen
+  // "Ver ruta en el mapa"). Si falla o no hay internet, se queda en
+  // null y se usa la vista previa de líneas rectas como respaldo.
+  const [tramosReales, setTramosReales] = useState<[number, number][][] | null>(null);
+  const idsLugares = lugares.map((l) => l.id).join(',');
+
+  useEffect(() => {
+    setTramosReales(null);
+    if (rutaReal) return; // caso A→B: ya viene calculada, nada que pedir
+    if (!numerado || lugares.length < 2) return;
+
+    let cancelado = false;
+    obtenerRutaPorTramos(lugares.map((l) => l.coords))
+      .then(({ tramos }) => {
+        if (!cancelado) setTramosReales(tramos.map((t) => t.geometria));
+      })
+      .catch(() => {
+        // Sin internet o el servicio de rutas no respondió — se queda
+        // con la vista previa de líneas rectas, silencioso.
+      });
+
+    return () => {
+      cancelado = true;
+    };
+    // idsLugares (no `lugares` directo) evita recalcular en cada
+    // render por una nueva referencia de arreglo con el mismo contenido.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsLugares, numerado, rutaReal]);
 
   const alCargar = useCallback(() => {
     const map = mapRef.current?.getMap();
@@ -74,22 +127,28 @@ export default function MiniMapaChat({ lugares, numerado, origen, onVerLugar }: 
     map.fitBounds(bounds, { padding: 42, duration: 0 });
   }, [lugares, conOrigen, origen]);
 
-  // Líneas RECTAS de vista previa entre paradas consecutivas (sin
-  // llamar a OSRM aquí — sería demasiado costoso para una vista
-  // previa chica). Se pintan punteadas y más delgadas a propósito,
-  // para distinguirlas claramente de la ruta real por carretera que
-  // se ve al tocar "Ver ruta en el mapa" (esa sí sigue calles reales
-  // y usa las mismas líneas sólidas, gruesas). Cada tramo usa el
-  // MISMO color que tendrá en el mapa completo (colorTramo por
-  // posición) — así el turista ya reconoce el patrón de colores
-  // desde el chat, antes de abrir el mapa grande.
-  //
-  // Cuando hay `origen` (respuesta de "cuánto tiempo me tomaría"), se
-  // dibuja igual una línea punteada de tu ubicación al destino — el
-  // mismo lenguaje visual "A → B" que Google Maps, aunque aquí sea
-  // solo una vista previa (la ruta REAL ya se calculó aparte, por
-  // carretera, para el texto de distancia/tiempo).
-  const tramosPreviewGeoJSON = useMemo(() => {
+  // ¿Lo que se va a dibujar es la ruta REAL (por carretera) o solo la
+  // vista previa de línea recta? Determina el estilo (sólida y firme
+  // vs. punteada y más ligera) y de dónde sale cada tramo.
+  const esRutaReal = !!rutaReal || (numerado && !!tramosReales);
+
+  const tramosGeoJSON = useMemo(() => {
+    if (rutaReal && rutaReal.length >= 2) {
+      return {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            properties: { color: colorTramo(0) },
+            geometry: {
+              type: 'LineString' as const,
+              coordinates: rutaReal.map(([lat, lng]) => [lng, lat]),
+            },
+          },
+        ],
+      };
+    }
+
     if (conOrigen && origen) {
       return {
         type: 'FeatureCollection' as const,
@@ -108,22 +167,27 @@ export default function MiniMapaChat({ lugares, numerado, origen, onVerLugar }: 
         ],
       };
     }
+
     if (!numerado || lugares.length < 2) return null;
+
+    // Real si ya llegó; si no, línea recta de respaldo entre las
+    // mismas paradas consecutivas.
+    const tramos: [number, number][][] =
+      tramosReales ??
+      lugares.slice(0, -1).map((lugar, i) => [lugar.coords, lugares[i + 1].coords]);
+
     return {
       type: 'FeatureCollection' as const,
-      features: lugares.slice(0, -1).map((lugar, i) => ({
+      features: tramos.map((tramo, i) => ({
         type: 'Feature' as const,
         properties: { color: colorTramo(i) },
         geometry: {
           type: 'LineString' as const,
-          coordinates: [
-            [lugar.coords[1], lugar.coords[0]],
-            [lugares[i + 1].coords[1], lugares[i + 1].coords[0]],
-          ],
+          coordinates: tramo.map(([lat, lng]) => [lng, lat]),
         },
       })),
     };
-  }, [lugares, numerado, conOrigen, origen]);
+  }, [lugares, numerado, conOrigen, origen, rutaReal, tramosReales]);
 
   if (lugares.length === 0) return null;
 
@@ -162,18 +226,26 @@ export default function MiniMapaChat({ lugares, numerado, origen, onVerLugar }: 
         cooperativeGestures
         onLoad={alCargar}
       >
-        {tramosPreviewGeoJSON && (
-          <Source id="tramos-preview" type="geojson" data={tramosPreviewGeoJSON as any}>
+        {tramosGeoJSON && (
+          <Source id="tramos-mini-mapa" type="geojson" data={tramosGeoJSON as any}>
             <Layer
-              id="tramos-preview-linea"
+              id="tramos-mini-mapa-linea"
               type="line"
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-              paint={{
-                'line-color': ['get', 'color'],
-                'line-width': 3,
-                'line-dasharray': [2, 2],
-                'line-opacity': 0.75,
-              }}
+              paint={
+                esRutaReal
+                  ? {
+                      'line-color': ['get', 'color'],
+                      'line-width': 4,
+                      'line-opacity': 0.85,
+                    }
+                  : {
+                      'line-color': ['get', 'color'],
+                      'line-width': 3,
+                      'line-dasharray': [2, 2],
+                      'line-opacity': 0.75,
+                    }
+              }
             />
           </Source>
         )}

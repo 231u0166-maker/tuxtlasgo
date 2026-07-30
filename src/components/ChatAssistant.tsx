@@ -456,6 +456,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
                 texto: `Desde tu ubicación actual hasta ${lugarPorNombre.nombre} hay ${formatearDistancia(ruta.distanciaMetros)} — unos ${formatearDuracion(ruta.duracionSegundos)} en coche.`,
                 lugares: [lugarPorNombre],
                 ubicacionUsuario: miUbicacion.coord,
+                rutaGeometria: ruta.geometria,
                 timestamp: Date.now(),
               },
               400
@@ -834,6 +835,7 @@ function Burbuja({
               <MiniMapaChat
                 lugares={mensaje.lugares}
                 origen={mensaje.ubicacionUsuario}
+                rutaReal={mensaje.rutaGeometria}
                 onVerLugar={onVerLugar}
               />
             )}

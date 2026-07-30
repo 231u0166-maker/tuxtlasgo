@@ -73,6 +73,15 @@ export interface MensajeChat {
   // se guarda ni se comparte con nadie más; vive únicamente en este
   // mensaje del chat, en memoria.
   ubicacionUsuario?: [number, number];
+  // La geometría REAL de la ruta (ya calculada por carretera para dar
+  // la distancia/tiempo del texto) — se reusa para dibujar la línea
+  // en el mini-mapa siguiendo las calles de verdad, en vez de una
+  // línea recta. Hallazgo real de campo: antes se recalculaba una
+  // línea recta "de vista previa" en el mini-mapa AUNQUE ya se tenía
+  // la ruta real calculada para el texto — dos fuentes de verdad
+  // distintas para la misma pregunta, y la que se veía (la línea) no
+  // era la real.
+  rutaGeometria?: [number, number][];
   rutaDia?: { dia: number; lugares: Lugar[]; resumen: string };
   timestamp: number;
 }

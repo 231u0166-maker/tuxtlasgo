@@ -753,32 +753,69 @@ export function pareceSolicitudDeRuta(texto: string): boolean {
 }
 
 
+// Elige aleatoriamente (ponderado por score) entre los K mejores
+// candidatos restantes, en vez de tomar SIEMPRE el de mayor score a
+// secas. Score más alto = más probable de salir elegido, pero nunca
+// imposible para el resto del top-K — así se favorece la calidad sin
+// ser 100% determinista. Ver hallazgo real de campo en generarRuta().
+function elegirConVariedad<T extends { score: number }>(
+  candidatos: T[],
+  topK: number
+): T {
+  const pool = candidatos.slice(0, Math.min(topK, candidatos.length));
+  const minScore = Math.min(...pool.map((c) => c.score));
+  // +1 para que incluso el peor del grupo tenga una probabilidad real
+  // (nunca peso cero, o nunca saldría).
+  const pesos = pool.map((c) => c.score - minScore + 1);
+  const total = pesos.reduce((a, b) => a + b, 0);
+  let umbral = Math.random() * total;
+  for (let i = 0; i < pool.length; i++) {
+    umbral -= pesos[i];
+    if (umbral <= 0) return pool[i];
+  }
+  return pool[pool.length - 1];
+}
+
+// Reordena toda la lista aplicando elegirConVariedad repetidamente —
+// en cada "turno" saca uno del top-K restante, ponderado por score.
+function ordenarConVariedad<T extends { score: number }>(
+  candidatos: T[],
+  topK: number
+): T[] {
+  const restantes = [...candidatos];
+  const resultado: T[] = [];
+  while (restantes.length > 0) {
+    const elegido = elegirConVariedad(restantes, topK);
+    resultado.push(elegido);
+    restantes.splice(restantes.indexOf(elegido), 1);
+  }
+  return resultado;
+}
+
 export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   const recomendadosConScore = filtrarLugaresConRazones(prefs);
   if (recomendadosConScore.length === 0) return [];
 
-  // Agrupar por score — respetar categoría/precio del usuario
-  // Solo barajar entre lugares con el MISMO score (empates)
-  // Así siempre salen los que corresponden al perfil del usuario
-  const porScore: Record<number, typeof recomendadosConScore> = {};
-  for (const s of recomendadosConScore) {
-    const key = Math.round(s.score * 10); // agrupar con 1 decimal de precisión
-    if (!porScore[key]) porScore[key] = [];
-    porScore[key].push(s);
-  }
-  // Barajar dentro de cada grupo de score igual
-  for (const grupo of Object.values(porScore)) {
-    for (let i = grupo.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [grupo[i], grupo[j]] = [grupo[j], grupo[i]];
-    }
-  }
-  // Reconstruir lista ordenada por score (de mayor a menor)
-  const recomendados = Object.keys(porScore)
-    .map(Number)
-    .sort((a, b) => b - a)
-    .flatMap(k => porScore[k])
-    .map(s => s.lugar);
+  // Hallazgo real de campo: "solo barajar empates exactos" casi nunca
+  // se activaba en la práctica — el rating trae decimales distintos
+  // por lugar (4.8 vs 4.6...), así que dos lugares rara vez terminan
+  // con el MISMO score exacto. Resultado: con el mismo perfil de
+  // turista (mismos intereses/presupuesto/grupo), SIEMPRE salía el
+  // mismo lugar arriba (ej. "Reserva Ecológica Nanciyaga"), sin
+  // importar cuántas veces se pidiera la ruta — nada variaba entre
+  // turistas distintos.
+  //
+  // En vez de exigir empate exacto, se elige aleatoriamente (ponderado
+  // por score) entre los 3 mejores candidatos en cada "turno" de
+  // selección — los mejor calificados siguen siendo más probables
+  // (nunca se recomienda algo que no encaja con el perfil solo por
+  // variar), pero ya no es 100% determinista. Con pocos candidatos
+  // por categoría (como hoy), esto ya cubre tanto "mostrar el mejor
+  // calificado" como "rotar entre las opciones válidas" con un solo
+  // mecanismo — según cuántos candidatos reales haya en cada caso.
+  const recomendados = ordenarConVariedad(recomendadosConScore, 3).map(
+    (s) => s.lugar
+  );
 
   // Si el turista pidió un municipio específico ("una ruta en
   // Catemaco"), la ruta se queda SOLO ahí — hallazgo real de campo:

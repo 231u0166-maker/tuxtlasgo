@@ -494,23 +494,36 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
         return;
       }
 
-      // 3) ¿Suena a pedir una ruta? Dos señales, cualquiera activa:
-
       // 2) ¿Suena a pedir una ruta? Dos señales, cualquiera activa:
       // (a) palabras clave explícitas ("arma una ruta"), o
-      // (b) se lograron extraer 2+ preferencias del propio texto —
-      // esto es lo que de verdad hace falta para el caso real que
-      // motivó esto: "quiero un fin de semana tranquilo, gastando
-      // poco, con mi pareja" no usa NINGUNA palabra como "ruta" o
-      // "recomiéndame", así que depender solo de palabras clave lo
-      // dejaba pasar de largo — verificado con una prueba real antes
-      // de dejarlo así.
+      // (b) se detectaron DÍAS (la señal ancla de "esto es un viaje de
+      // varios días") junto con al menos otra preferencia (grupo o
+      // presupuesto) — esto es lo que de verdad hace falta para el
+      // caso real que motivó esto: "quiero un fin de semana tranquilo,
+      // gastando poco, con mi pareja" no usa NINGUNA palabra como
+      // "ruta" o "recomiéndame", así que depender solo de palabras
+      // clave lo dejaba pasar de largo.
+      //
+      // Hallazgo real de campo: antes bastaba con CUALQUIER 3 campos
+      // extraídos, sin importar cuáles — y como categoría+presupuesto
+      // se extraen casi de cualquier pregunta con un peso mencionado,
+      // "¿hay un hotel en Catemaco que no supere los $3,000?" (una
+      // pregunta de sí/no, no un pedido de viaje) también disparaba el
+      // generador de rutas de varios días. Ahora `dias` es la señal
+      // OBLIGATORIA — sin un día (o "fin de semana"/"una semana", vía
+      // los ejemplos semánticos) detectado, no hay ruta, sin importar
+      // cuántos otros campos se hayan extraído.
       const extraidas = await extraerPreferenciasLibres(texto).catch(
         () => ({} as Partial<PreferenciasUsuario>)
       );
-      const camposExtraidos = Object.keys(extraidas).length;
+      const otrasSenalesDeViaje = [
+        extraidas.grupo !== undefined,
+        extraidas.presupuesto !== undefined,
+      ].filter(Boolean).length;
+      const sueneAViajeCompleto =
+        extraidas.dias !== undefined && otrasSenalesDeViaje >= 1;
 
-      if (pareceSolicitudDeRuta(texto) || camposExtraidos >= 3) {
+      if (pareceSolicitudDeRuta(texto) || sueneAViajeCompleto) {
         const diasFinal = extraidas.dias ?? prefsParcial.dias ?? 2;
         const interesesFinal = extraidas.intereses ?? prefsParcial.intereses ?? ['Naturaleza'];
         const presupuestoFinal = extraidas.presupuesto ?? prefsParcial.presupuesto ?? 'medio';

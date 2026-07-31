@@ -109,6 +109,23 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
   );
   // Intereses seleccionados (multi-selección)
   const [interesesTemp, setInteresesTemp] = useState<Categoria[]>([]);
+  // Mientras se espera que el turista elija cuál de varios lugares
+  // ambiguos quiso decir — se guarda el texto ORIGINAL (para revisar
+  // si además pedía distancia/tiempo) y las opciones que se le
+  // mostraron (para poder recordar su elección después).
+  const [ambiguedadPendiente, setAmbiguedadPendiente] = useState<{
+    texto: string;
+    opciones: Lugar[];
+  } | null>(null);
+  // Memoria de desambiguaciones YA resueltas en ESTA conversación —
+  // hallazgo real de campo: sin esto, preguntar por "la bicicleta" dos
+  // veces en el mismo chat hacía la MISMA pregunta de "¿cuál?" dos
+  // veces, aunque ya se hubiera aclarado la primera vez. La clave es
+  // el conjunto de IDs empatados (orden fijo, join simple) — así que
+  // funciona igual para cualquier futuro empate, no solo este caso.
+  const [eleccionesDesambiguadas, setEleccionesDesambiguadas] = useState<
+    Record<string, string>
+  >({});
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -177,6 +194,98 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
     ]);
   }
 
+  // Ya se sabe EXACTAMENTE de qué lugar se trata (sea porque
+  // buscarLugarPorNombre lo resolvió directo, o porque el turista
+  // acaba de elegir entre opciones ambiguas) — decide si lo que
+  // preguntó originalmente era "cuánto tiempo/distancia desde mi
+  // ubicación" o simplemente "cuéntame de este lugar".
+  async function responderSobreLugar(lugar: Lugar, textoOriginal: string) {
+    if (pareceSolicitudDeDistancia(textoOriginal)) {
+      if (offline) {
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: `Para calcularte el tiempo y la distancia exactos hasta ${lugar.nombre} necesito internet (uso tu ubicación y calculo la ruta real). Conéctate un momento, o revisa "Cómo llegar" desde su ficha en el mapa.`,
+            lugares: [lugar],
+            timestamp: Date.now(),
+          },
+          300
+        );
+        return;
+      }
+
+      responderBot(
+        {
+          id: crypto.randomUUID(),
+          role: 'bot',
+          texto: 'Dame un momento, calculando desde tu ubicación...',
+          timestamp: Date.now(),
+        },
+        200
+      );
+
+      const miUbicacion = await obtenerUbicacionGPS().catch(() => null);
+      if (!miUbicacion) {
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: `No pude obtener tu ubicación — revisa que le hayas dado permiso al navegador. Mientras tanto, aquí tienes ${lugar.nombre}:`,
+            lugares: [lugar],
+            timestamp: Date.now(),
+          },
+          400
+        );
+        return;
+      }
+
+      try {
+        const ruta = await obtenerRutaPorCarretera([miUbicacion.coord, lugar.coords]);
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: `Desde tu ubicación actual hasta ${lugar.nombre} hay ${formatearDistancia(ruta.distanciaMetros)} — unos ${formatearDuracion(ruta.duracionSegundos)} en coche.`,
+            lugares: [lugar],
+            ubicacionUsuario: miUbicacion.coord,
+            rutaGeometria: ruta.geometria,
+            timestamp: Date.now(),
+          },
+          400
+        );
+      } catch {
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: `No pude calcular la ruta ahora mismo. Aquí tienes ${lugar.nombre} — puedes intentar "Cómo llegar" desde su ficha en el mapa.`,
+            lugares: [lugar],
+            timestamp: Date.now(),
+          },
+          400
+        );
+      }
+      return;
+    }
+
+    const intros = [
+      `Esto es lo que tengo de ${lugar.nombre}:`,
+      `${lugar.nombre} — aquí tienes los detalles:`,
+      `Mira, esto es ${lugar.nombre}:`,
+    ];
+    responderBot(
+      {
+        id: crypto.randomUUID(),
+        role: 'bot',
+        texto: intros[Math.floor(Math.random() * intros.length)],
+        lugares: [lugar],
+        timestamp: Date.now(),
+      },
+      300
+    );
+  }
+
   // Reinicia toda la conversación
   function reiniciar() {
     setMensajes([mensajeBienvenida()]);
@@ -192,6 +301,25 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
     if (valor === '__restart__') {
       agregarUsuario(label);
       reiniciar();
+      return;
+    }
+
+    // El turista eligió cuál de los lugares ambiguos quiso decir
+    // (ver 'ambiguo' en buscarLugarPorNombre). Se usa el texto
+    // ORIGINAL guardado para saber si además pedía distancia/tiempo,
+    // y se RECUERDA la elección para no volver a preguntar si el
+    // mismo empate aparece de nuevo en esta misma conversación.
+    if (valor.startsWith('desambiguar_lugar:')) {
+      agregarUsuario(label);
+      const id = valor.slice('desambiguar_lugar:'.length);
+      const lugar = getCatalogoActivo().find((l) => l.id === id);
+      const pendiente = ambiguedadPendiente;
+      setAmbiguedadPendiente(null);
+      if (lugar && pendiente) {
+        const clave = pendiente.opciones.map((o) => o.id).sort().join(',');
+        setEleccionesDesambiguadas((prev) => ({ ...prev, [clave]: lugar.id }));
+        responderSobreLugar(lugar, pendiente.texto);
+      }
       return;
     }
 
@@ -394,99 +522,44 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
       // a su tarjeta (imagen + descripción real), sin pasar por nube
       // ni por reglas genéricas. Cero riesgo de alucinación (son sus
       // datos reales del catálogo) y funciona sin internet.
-      const lugarPorNombre = buscarLugarPorNombre(texto, getCatalogoActivo());
-      if (lugarPorNombre) {
-        // ¿Está preguntando "cuánto tiempo/distancia me tomaría llegar
-        // desde donde estoy" en vez de "cuéntame sobre este lugar"?
-        // Esto SIEMPRE necesita internet (GPS + una llamada real de
-        // ruteo) — a propósito, no es un descuido: en el manual se
-        // indica que para armar/consultar rutas con cálculos en vivo
-        // conviene tener wifi; el modo offline es para dudas comunes,
-        // no para "desde AQUÍ ahora mismo cuánto tardo", que por su
-        // naturaleza depende de dónde estás parado en este momento.
-        if (pareceSolicitudDeDistancia(texto)) {
-          if (offline) {
-            responderBot(
-              {
-                id: crypto.randomUUID(),
-                role: 'bot',
-                texto: `Para calcularte el tiempo y la distancia exactos hasta ${lugarPorNombre.nombre} necesito internet (uso tu ubicación y calculo la ruta real). Conéctate un momento, o revisa "Cómo llegar" desde su ficha en el mapa.`,
-                lugares: [lugarPorNombre],
-                timestamp: Date.now(),
-              },
-              300
-            );
-            return;
-          }
+      const resultadoNombre = buscarLugarPorNombre(texto, getCatalogoActivo());
 
-          responderBot(
-            {
-              id: crypto.randomUUID(),
-              role: 'bot',
-              texto: 'Dame un momento, calculando desde tu ubicación...',
-              timestamp: Date.now(),
-            },
-            200
-          );
+      if (resultadoNombre.tipo === 'unico') {
+        await responderSobreLugar(resultadoNombre.lugar, texto);
+        return;
+      }
 
-          const miUbicacion = await obtenerUbicacionGPS().catch(() => null);
-          if (!miUbicacion) {
-            responderBot(
-              {
-                id: crypto.randomUUID(),
-                role: 'bot',
-                texto: `No pude obtener tu ubicación — revisa que le hayas dado permiso al navegador. Mientras tanto, aquí tienes ${lugarPorNombre.nombre}:`,
-                lugares: [lugarPorNombre],
-                timestamp: Date.now(),
-              },
-              400
-            );
-            return;
-          }
+      // Hallazgo real de campo: "bicicleta" empata entre "La
+      // Bicicleta Café" (San Andrés Tuxtla) y "Bicicleta nueva
+      // sucursal" (Catemaco) — dos negocios reales distintos. Antes,
+      // este empate se trataba como "no encontré nada" y el mensaje
+      // caía en silencio hacia la nube, que sin ubicación real ni
+      // motor de rutas terminaba INVENTANDO distancias y hasta el
+      // municipio del lugar. Ahora se pregunta directo, con botones —
+      // y si ese MISMO empate ya se aclaró antes en esta conversación,
+      // no se vuelve a preguntar: se usa la elección de la vez pasada.
+      if (resultadoNombre.tipo === 'ambiguo') {
+        const clave = resultadoNombre.opciones.map((l) => l.id).sort().join(',');
+        const idRecordado = eleccionesDesambiguadas[clave];
+        const lugarRecordado = idRecordado
+          ? resultadoNombre.opciones.find((l) => l.id === idRecordado)
+          : undefined;
 
-          try {
-            const ruta = await obtenerRutaPorCarretera([
-              miUbicacion.coord,
-              lugarPorNombre.coords,
-            ]);
-            responderBot(
-              {
-                id: crypto.randomUUID(),
-                role: 'bot',
-                texto: `Desde tu ubicación actual hasta ${lugarPorNombre.nombre} hay ${formatearDistancia(ruta.distanciaMetros)} — unos ${formatearDuracion(ruta.duracionSegundos)} en coche.`,
-                lugares: [lugarPorNombre],
-                ubicacionUsuario: miUbicacion.coord,
-                rutaGeometria: ruta.geometria,
-                timestamp: Date.now(),
-              },
-              400
-            );
-          } catch {
-            responderBot(
-              {
-                id: crypto.randomUUID(),
-                role: 'bot',
-                texto: `No pude calcular la ruta ahora mismo. Aquí tienes ${lugarPorNombre.nombre} — puedes intentar "Cómo llegar" desde su ficha en el mapa.`,
-                lugares: [lugarPorNombre],
-                timestamp: Date.now(),
-              },
-              400
-            );
-          }
+        if (lugarRecordado) {
+          await responderSobreLugar(lugarRecordado, texto);
           return;
         }
 
-        const intros = [
-          `Esto es lo que tengo de ${lugarPorNombre.nombre}:`,
-          `${lugarPorNombre.nombre} — aquí tienes los detalles:`,
-          `Mira, esto es ${lugarPorNombre.nombre}:`,
-        ];
+        setAmbiguedadPendiente({ texto, opciones: resultadoNombre.opciones });
         responderBot(
           {
             id: crypto.randomUUID(),
             role: 'bot',
-            texto: intros[Math.floor(Math.random() * intros.length)],
-            lugares: [lugarPorNombre],
+            texto: 'Tengo más de un lugar que podría ser ese — ¿a cuál te refieres?',
+            opciones: resultadoNombre.opciones.map((l) => ({
+              label: `${l.nombre} (${l.municipio})`,
+              valor: `desambiguar_lugar:${l.id}`,
+            })),
             timestamp: Date.now(),
           },
           300
@@ -541,7 +614,13 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
           presupuesto: presupuestoFinal,
           grupo: grupoFinal,
           municipio: municipioDetectado,
-          montoTotalPesos: extraidas.montoTotalPesos,
+          // Hallazgo real de campo: los otros campos (días, intereses,
+          // presupuesto, grupo) sí se heredaban del mensaje anterior si
+          // no se repetían — pero este no, así que "3 días, $6,000" y
+          // luego "ahora en pareja" perdía el monto exacto en pesos
+          // aunque sí recordaba los días. Ahora es consistente con los
+          // demás: si no se menciona de nuevo, se usa el de antes.
+          montoTotalPesos: extraidas.montoTotalPesos ?? prefsParcial.montoTotalPesos,
         };
 
         // Transparencia: hallazgo real de campo — "quisiera solo una

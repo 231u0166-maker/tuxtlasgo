@@ -293,7 +293,24 @@ function palabrasDistintivas(nombre: string): string[] {
 //     si sigue empatado, es ambigüedad real entre negocios distintos
 //     — mejor no adivinar (devolver null) que mostrar con aparente
 //     seguridad el que no es.
-export function buscarLugarPorNombre(texto: string, catalogo: Lugar[]): Lugar | null {
+// Resultado de buscar un lugar por nombre — distingue TRES casos, no
+// solo dos. Antes, un empate real entre negocios DISTINTOS (ver
+// hallazgo real de campo: "bicicleta" empata entre "La Bicicleta
+// Café" y "Bicicleta nueva sucursal") se trataba igual que "no
+// encontré nada" — el mensaje caía en silencio a la nube, que sin
+// ningún candado terminaba inventando distancias y hasta el
+// municipio del lugar. Con este tipo, el llamador puede preguntar
+// "¿cuál de estos dos?" en vez de dejar que la conversación se vaya
+// a un camino que puede alucinar.
+export type ResultadoBusquedaLugar =
+  | { tipo: 'unico'; lugar: Lugar }
+  | { tipo: 'ambiguo'; opciones: Lugar[] }
+  | { tipo: 'ninguno' };
+
+export function buscarLugarPorNombre(
+  texto: string,
+  catalogo: Lugar[]
+): ResultadoBusquedaLugar {
   const tokens = tokenizar(texto);
   const municipioMencionado = detectarMunicipio(texto);
 
@@ -314,7 +331,7 @@ export function buscarLugarPorNombre(texto: string, catalogo: Lugar[]): Lugar | 
     candidatos.push({ lugar, coincidencias });
   }
 
-  if (candidatos.length === 0) return null;
+  if (candidatos.length === 0) return { tipo: 'ninguno' };
 
   const mejorPuntaje = Math.max(...candidatos.map((c) => c.coincidencias));
   let empatados = candidatos.filter((c) => c.coincidencias === mejorPuntaje);
@@ -323,12 +340,11 @@ export function buscarLugarPorNombre(texto: string, catalogo: Lugar[]): Lugar | 
     const delMunicipio = empatados.filter((c) => c.lugar.municipio === municipioMencionado);
     if (delMunicipio.length > 0) empatados = delMunicipio;
   }
-  // Sigue empatado entre negocios DISTINTOS incluso después del
-  // desempate por municipio (o no se mencionó ninguno): ambigüedad
-  // real, no se adivina.
-  if (empatados.length > 1) return null;
+  if (empatados.length > 1) {
+    return { tipo: 'ambiguo', opciones: empatados.map((e) => e.lugar) };
+  }
 
-  return empatados[0].lugar;
+  return { tipo: 'unico', lugar: empatados[0].lugar };
 }
 
 

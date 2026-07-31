@@ -256,6 +256,7 @@ REGLAS ESTRICTAS:
 - Usa ÚNICAMENTE la información del CONTEXTO. NUNCA inventes lugares, precios, horarios ni contactos.
 - Si mencionas lugares, usa su nombre EXACTO tal como aparece en el contexto.
 - Si el turista pide algo que no está en el contexto, dilo con honestidad y ofrece lo que sí hay.
+- Si el turista menciona un presupuesto o límite de precio (ej. "que no pase de $400"), compara ese número con cuidado contra el campo Precio de cada lugar del CONTEXTO antes de recomendarlo — nunca redondees a favor del lugar ni ignores la comparación. Si el precio de un lugar tiene varios conceptos (ej. entrada + hospedaje por separado), dilo explícitamente en vez de asumir cuál aplica.
 - No des información médica, legal ni de seguridad que no esté en el contexto.`;
 
 // ─────────────── LIMPIEZA DE MARKDOWN (por si el modelo resbala) ───────────────

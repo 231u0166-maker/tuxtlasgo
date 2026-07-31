@@ -185,19 +185,28 @@ export const LUGARES: Lugar[] = [
     municipio: 'Catemaco',
     descripcionCorta: 'Santuario de selva tropical, kayak, monos y rituales prehispánicos.',
     descripcion:
-      'Santuario natural de 4 hectáreas que resguarda el fragmento de selva tropical húmeda más al norte del continente americano. Combina educación ambiental, misticismo prehispánico y turismo sustentable. Sus senderos de madera guían entre árboles centenarios, esculturas prehispánicas réplica y un manantial de agua mineral potable. Principales atractivos: paseos en kayak hacia islas habitadas por monos, aplicación de barro mineral en la piel y contacto con chamanes locales para rituales de sanación. Escenario de las películas Apocalypto y El Curandero de la Selva.',
+      'Santuario natural de 4 hectáreas que resguarda el fragmento de selva tropical húmeda más al norte del continente americano. Combina educación ambiental, misticismo prehispánico y turismo sustentable. Sus senderos de madera guían entre árboles centenarios, esculturas prehispánicas réplica y un manantial de agua mineral potable. Principales atractivos, cada uno con costo aparte de la entrada: paseos en lancha o kayak hacia islas habitadas por monos, aplicación de barro mineral en la piel, temazcal con chamanes locales para rituales de sanación, y masajes relajantes. Escenario de las películas Apocalypto y El Curandero de la Selva.',
     coords: [18.447322230653032, -95.06840705458495],
     rating: 4.7,
     precio: 'medio',
-    precioMxn: 'Entrada general $80. Hospedaje desde $1,600 – $2,200 por noche',
+    // Desglose de precios actualizado — fuente: lugaresturisticosdeveracruz.com
+    // (la publicación/reel de Facebook de "La ruta del brujo" no
+    // especifica costos exactos, así que se usó esta referencia).
+    // Se deja el desglose completo A PROPÓSITO, sin resumir a un solo
+    // número: Nanciyaga no tiene "un precio", son varias actividades
+    // con costo independiente (entrada, lancha, barro, temazcal,
+    // masaje, hospedaje) — mejor mostrar el detalle real que fingir
+    // un único precio que no representa la experiencia completa.
+    precioMxn:
+      'Entrada y recorrido guiado por la selva: ~$110 por persona. Paseo en lancha/kayak: $70 – $150 por persona. Baño de barro mineral: ~$300. Temazcal: $550 – $650. Masaje relajante: ~$500. Hospedaje desde $1,600 – $2,200 por noche',
     duracionSugerida: '3-4 horas (o pernocta)',
     imagen: '/lugares/nanciyaga_1.jpg',
     imagenesExtra: ['/lugares/nanciyaga_2.jpg', '/lugares/nanciyaga_3.jpg', '/lugares/nanciyaga_4.jpg'],
-    tags: ['selva', 'naturaleza', 'kayak', 'monos', 'ritual', 'chamán', 'barro mineral', 'hospedaje'],
+    tags: ['selva', 'naturaleza', 'kayak', 'lancha', 'monos', 'ritual', 'temazcal', 'chamán', 'barro mineral', 'masaje', 'hospedaje'],
     ideal: ['pareja', 'familia', 'amigos', 'solo'],
     abierto: { dias: 'Todos los días', horario: '9:00 am – 7:00 pm' },
     comoLlegar: 'A 7 km de Catemaco por la carretera hacia Sontecomapan. Se puede llegar en taxi o lancha.',
-    tip: 'Reserva el temazcal con anticipación. Si te hospedas, la experiencia al amanecer en la selva es única.',
+    tip: 'Reserva el temazcal y el baño de barro con anticipación — son experiencias aparte de la entrada general. Si te hospedas, la experiencia al amanecer en la selva es única.',
     verificado: true,
   },
   {

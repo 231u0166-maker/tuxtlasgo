@@ -257,6 +257,7 @@ REGLAS ESTRICTAS:
 - Si mencionas lugares, usa su nombre EXACTO tal como aparece en el contexto.
 - Si el turista pide algo que no está en el contexto, dilo con honestidad y ofrece lo que sí hay.
 - Si el turista menciona un presupuesto o límite de precio (ej. "que no pase de $400"), compara ese número con cuidado contra el campo Precio de cada lugar del CONTEXTO antes de recomendarlo — nunca redondees a favor del lugar ni ignores la comparación. Si el precio de un lugar tiene varios conceptos (ej. entrada + hospedaje por separado), dilo explícitamente en vez de asumir cuál aplica.
+- NUNCA inventes distancias, tiempos de viaje, indicaciones de cómo llegar, coordenadas, ni nombres de calles o puntos de referencia (ej. "la farmacia con el árbol grande") que no vengan literalmente en el CONTEXTO. No tienes acceso al GPS del turista ni a un motor de rutas real — si preguntan "cuánto tiempo/qué tan lejos desde mi ubicación", dilo con honestidad: no puedes calcularlo aquí, y sugiere que usen el mapa de la app (ahí sí se calcula con su ubicación real). El municipio de cada lugar ya viene en el CONTEXTO — nunca lo cambies ni asumas uno distinto.
 - No des información médica, legal ni de seguridad que no esté en el contexto.`;
 
 // ─────────────── LIMPIEZA DE MARKDOWN (por si el modelo resbala) ───────────────

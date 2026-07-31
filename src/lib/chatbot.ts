@@ -1169,9 +1169,55 @@ export function responderTextoLibre(
       );
       if (enMunicipio.length > 0) candidatos = enMunicipio;
     }
-    let sugerencias = candidatos
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 3);
+
+    // Presupuesto EXPLÍCITO mencionado en la propia pregunta (ej. "que
+    // no supere los $3,000") — a diferencia de generarRuta, aquí no
+    // hay "días" para promediar: es un límite directo para elegir UN
+    // lugar. Hallazgo real de campo: antes esto se ignoraba por
+    // completo — "¿hay un hotel que no supere los $3,000?" listaba
+    // todos los hospedajes sin filtrar ni confirmar cuáles entraban.
+    const presupuestoPregunta = extraerPresupuestoLiteral(texto, 1);
+
+    let sugerencias: Lugar[];
+    let notaPresupuesto = '';
+
+    if (presupuestoPregunta) {
+      const conPrecio = candidatos.map((l) => ({
+        lugar: l,
+        estimado: estimarPrecioMXN(l.precioMxn),
+      }));
+      const dentro = conPrecio
+        .filter((c) => c.estimado !== null && c.estimado <= presupuestoPregunta.monto)
+        .sort((a, b) => b.lugar.rating - a.lugar.rating)
+        .map((c) => c.lugar);
+      // Lugares con precio AMBIGUO (varios conceptos, ej. Nanciyaga:
+      // entrada + hospedaje + temazcal por separado) — no se puede
+      // decir con certeza si "entran" o no en el presupuesto, así que
+      // no se afirma ni se descarta, se es honesto al respecto.
+      const sinPrecioClaro = conPrecio
+        .filter((c) => c.estimado === null)
+        .sort((a, b) => b.lugar.rating - a.lugar.rating)
+        .map((c) => c.lugar);
+      const fuera = conPrecio
+        .filter((c) => c.estimado !== null && c.estimado > presupuestoPregunta.monto)
+        .sort((a, b) => (a.estimado as number) - (b.estimado as number))
+        .map((c) => c.lugar);
+
+      if (dentro.length > 0) {
+        sugerencias = dentro.slice(0, 3);
+        notaPresupuesto = `Sí — con ${formatearMXN(presupuestoPregunta.monto)} tienes ${dentro.length === 1 ? 'esta opción' : 'estas opciones'} dentro de presupuesto:\n\n`;
+      } else if (sinPrecioClaro.length > 0) {
+        sugerencias = sinPrecioClaro.slice(0, 3);
+        notaPresupuesto = `No tengo un precio único y comparable para confirmarte cuál entra exactamente en ${formatearMXN(presupuestoPregunta.monto)} (varios lugares cobran por actividad o servicio, no una sola tarifa) — aquí tienes las opciones registradas para que revises el detalle de cada una:\n\n`;
+      } else if (fuera.length > 0) {
+        sugerencias = fuera.slice(0, 3);
+        notaPresupuesto = `Por ahora no tengo ninguna opción confirmada por debajo de ${formatearMXN(presupuestoPregunta.monto)} — la más cercana es esta:\n\n`;
+      } else {
+        sugerencias = [];
+      }
+    } else {
+      sugerencias = candidatos.sort((a, b) => b.rating - a.rating).slice(0, 3);
+    }
 
     // Hallazgo real de campo (QA): "Muéstrame hoteles con alberca y
     // estacionamiento" hacía match con la ficha de precios de "La
@@ -1182,14 +1228,17 @@ export function responderTextoLibre(
     // lugares concretos, esos van PRIMERO — la tarjeta debe coincidir
     // con lo que dice el texto, no con un top-3 genérico que puede ir
     // por otro lado. Se completa con el top-3 por categoría solo si
-    // sobra espacio.
-    const lugaresLigados = lugaresDeConocimiento(conocimiento);
-    if (lugaresLigados.length > 0) {
-      const idsYaIncluidos = new Set(lugaresLigados.map((l) => l.id));
-      sugerencias = [
-        ...lugaresLigados,
-        ...sugerencias.filter((l) => !idsYaIncluidos.has(l.id)),
-      ].slice(0, 3);
+    // sobra espacio. Esto NO aplica si ya hay un filtro de presupuesto
+    // explícito — ahí el presupuesto manda sobre la mención textual.
+    if (!presupuestoPregunta) {
+      const lugaresLigados = lugaresDeConocimiento(conocimiento);
+      if (lugaresLigados.length > 0) {
+        const idsYaIncluidos = new Set(lugaresLigados.map((l) => l.id));
+        sugerencias = [
+          ...lugaresLigados,
+          ...sugerencias.filter((l) => !idsYaIncluidos.has(l.id)),
+        ].slice(0, 3);
+      }
     }
 
     if (sugerencias.length === 0) {
@@ -1217,7 +1266,9 @@ export function responderTextoLibre(
     let textoIntro = municipioMencionado
       ? introsMunicipio[Math.floor(Math.random() * introsMunicipio.length)]
       : introsGeneral[Math.floor(Math.random() * introsGeneral.length)];
-    if (conocimiento) {
+    if (notaPresupuesto) {
+      textoIntro = notaPresupuesto + textoIntro;
+    } else if (conocimiento) {
       textoIntro = `${conocimiento.respuesta}\n\n${textoIntro}`;
     }
 

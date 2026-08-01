@@ -846,9 +846,12 @@ export async function extraerPreferenciasLibres(
 // "arma un PLAN/ITINERARIO de varios pasos", no cualquier verbo
 // relacionado con viajar o pedir una sugerencia.
 // Palabras que indican una solicitud de contenido sexual/prostitución
-// explícita — esto NUNCA debe procesarse como una petición turística
-// normal (ni por el motor de reglas, ni por el generador de rutas, ni
-// mandarse a la nube). Se revisa ANTES que cualquier otra cosa en
+// explícita, compra de drogas, o contratar violencia (sicarios,
+// asesinos) — ninguna de estas es una petición turística legítima,
+// sin importar cómo se enmarque (aunque venga disfrazada de "arma
+// una ruta"). Esto NUNCA debe procesarse como una petición normal (ni
+// por el motor de reglas, ni por el generador de rutas, ni mandarse a
+// la nube). Se revisa ANTES que cualquier otra cosa en
 // ChatAssistant.tsx.
 //
 // Hallazgo real de campo GRAVE (QA): mensajes explícitos pidiendo
@@ -862,7 +865,13 @@ export async function extraerPreferenciasLibres(
 // lo filtre solo (se comprobó inconsistente: a veces rechazaba, la
 // mayoría de las veces no, porque nunca llegaba a la nube — se
 // quedaba en el generador de rutas determinista, que no tiene ningún
-// candado).
+// candado). Ampliado después a drogas y violencia por la misma razón
+// exacta: "créame una ruta donde pueda comprar drogas" o "dónde
+// consigo un sicario" pasaban igual de desprotegidos.
+//
+// Nota: "muertos" NO se incluye — el Día de Muertos es un tema
+// turístico legítimo y muy común en México; bloquearlo generaría
+// falsos positivos constantes con contenido cultural real.
 const PALABRAS_CONTENIDO_SEXUAL_EXPLICITO = [
   'puta', 'putas', 'puto', 'putos',
   'prostituta', 'prostitutas', 'prostituto', 'prostitutos',
@@ -871,9 +880,23 @@ const PALABRAS_CONTENIDO_SEXUAL_EXPLICITO = [
   'sexoservicio', 'sexoservidora', 'sexoservidoras',
 ];
 
+const PALABRAS_DROGAS_ILEGALES = [
+  'droga', 'drogas', 'narcotico', 'narcoticos',
+  'cocaina', 'metanfetamina', 'cristal', 'fentanilo',
+  'heroina', 'marihuana', 'mota', 'perico',
+];
+
+const PALABRAS_VIOLENCIA_CONTRATADA = [
+  'sicario', 'sicarios', 'asesino', 'asesinos',
+];
+
 export function esSolicitudInapropiada(texto: string): boolean {
   const tokens = tokenizar(texto);
-  return PALABRAS_CONTENIDO_SEXUAL_EXPLICITO.some((p) => tokens.includes(p));
+  return [
+    ...PALABRAS_CONTENIDO_SEXUAL_EXPLICITO,
+    ...PALABRAS_DROGAS_ILEGALES,
+    ...PALABRAS_VIOLENCIA_CONTRATADA,
+  ].some((p) => tokens.includes(p));
 }
 
 export function pareceSolicitudDeRuta(texto: string): boolean {

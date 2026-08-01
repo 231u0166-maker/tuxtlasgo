@@ -283,12 +283,24 @@ async function armarMensajesLLM(
   const ctx = await recuperarContexto(texto, prefs);
   const contextoTexto = construirContextoTexto(ctx, prefs);
 
-  // Historial reciente SOLO de mensajes de texto (sin bloques de
-  // ruta/lugares/opciones, que saturan el contexto de un modelo chico)
+  // Historial reciente de mensajes de texto — se manda SOLO el
+  // .texto de cada uno (nunca los datos de lugares/ruta en sí), así
+  // que no hay ahorro real de espacio al excluir mensajes con
+  // lugares/rutaDia adjuntos.
+  //
+  // Hallazgo real de campo (grave): este filtro SÍ excluía antes
+  // cualquier mensaje con `lugares` adjunto — y después de construir
+  // la tarjeta genérica, la respuesta de presupuesto, la de grupo y
+  // la de distancia (todas adjuntan `lugares`), eso pasó a ser CASI
+  // TODA la conversación del bot. Resultado: la nube "olvidaba" casi
+  // todo lo que ella misma había dicho, y en una conversación larga
+  // llegó a responder "no había recibido ninguna pregunta o
+  // información previa" — una alucinación de amnesia total, aunque
+  // la conversación llevaba muchos mensajes. Solo se sigue excluyendo
+  // `opciones` (los prompts del flujo guiado por botones, ej. "¿cuántos
+  // días vas a estar?" — no aportan como contexto conversacional libre).
   const historialReciente = historial
-    .filter(
-      (m) => !m.rutaDia && !m.lugares && !m.opciones && m.texto.trim().length > 0
-    )
+    .filter((m) => !m.opciones && m.texto.trim().length > 0)
     .slice(-6)
     .map((m) => ({
       role: (m.role === 'bot' ? 'assistant' : 'user') as 'assistant' | 'user',

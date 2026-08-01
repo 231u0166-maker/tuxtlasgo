@@ -666,8 +666,64 @@ function extraerDiasLiteral(texto: string): Dias | null {
   return null;
 }
 
-// Detecta un presupuesto TOTAL en pesos mencionado literalmente
-// ("$6,000", "6000 pesos", "6 mil pesos") — igual que con los días,
+// Detecta CON QUIÉN viaja el turista, de forma literal, con
+// prioridad sobre la búsqueda semántica — mismo principio que ya se
+// aplica a categoría, días y presupuesto (ver comentarios arriba).
+//
+// Hallazgo real de campo (QA): "Viajo con niños pequeños. ¿Qué
+// actividades recomiendas?" dependía SOLO de que el texto se
+// pareciera, en el espacio vectorial, a la frase de ejemplo "con
+// niños" — funciona la mayoría de las veces, pero sin ninguna
+// garantía, exactamente la misma fragilidad que ya se corrigió para
+// los demás campos. El campo `ideal` (familia/pareja/solo/amigos) ya
+// existe en cada lugar y ya se usa en el flujo de botones — aquí
+// solo se conecta esa misma señal al texto libre.
+//
+// "solo/sola" es la única palabra de este grupo genuinamente
+// ambigua en español — "quiero saber SOLO el precio" no tiene nada
+// que ver con viajar solo. Por eso, a diferencia de las demás, exige
+// una frase de dos palabras (verbo + solo/sola), nunca la palabra
+// suelta.
+export function extraerGrupoLiteral(texto: string): GrupoViaje | null {
+  const tokens = tokenizar(texto);
+  const tieneAlguna = (palabras: string[]) =>
+    palabras.some((p) => tokens.includes(p));
+
+  if (
+    tieneAlguna([
+      'nino', 'ninos', 'nina', 'ninas',
+      'hijo', 'hijos', 'hija', 'hijas',
+      'familia', 'familiar',
+    ])
+  ) {
+    return 'familia';
+  }
+  if (tieneAlguna(['pareja', 'novio', 'novia', 'esposo', 'esposa', 'conyuge'])) {
+    return 'pareja';
+  }
+  if (tieneAlguna(['amigos', 'amigas', 'cuates'])) {
+    return 'amigos';
+  }
+
+  // "solo/sola" es la única palabra de este grupo genuinamente
+  // ambigua en español — "quiero saber SOLO el precio" no tiene nada
+  // que ver con viajar solo. En vez de una lista fija de frases (que
+  // se queda corta: "quiero ir solo" no estaba cubierta), se revisa
+  // la palabra INMEDIATA ANTERIOR — igual que ya se hace para
+  // detectar días. Si "solo/sola" viene después de un verbo de
+  // movimiento en primera persona (voy, ando, viajo, vengo, ir, iré),
+  // es "viajar sin compañía"; si viene después de casi cualquier otra
+  // cosa (quiero, saber, necesito, el, la...), es "nada más".
+  const idxSolo = tokens.findIndex((t) => t === 'solo' || t === 'sola');
+  if (idxSolo > 0) {
+    const anterior = tokens[idxSolo - 1];
+    if (['voy', 'ando', 'viajo', 'vengo', 'ir', 'ire'].includes(anterior)) {
+      return 'solo';
+    }
+  }
+  return null;
+}
+
 // con prioridad sobre la similitud semántica de abajo. Exige una señal
 // de moneda explícita ($, "pesos" o "mxn") pegada al número, para no
 // confundirlo con cualquier otro número suelto de la oración (como la
@@ -677,7 +733,7 @@ function extraerDiasLiteral(texto: string): Dias | null {
 // del viaje) son un punto de partida razonable, NO una calibración
 // basada en precios reales de mercado — conviene ajustarlos conforme
 // crezca el catálogo de precios reales de los prestadores.
-function extraerPresupuestoLiteral(
+export function extraerPresupuestoLiteral(
   texto: string,
   diasParaPromedio: number
 ): { nivel: Presupuesto; monto: number } | null {
@@ -732,6 +788,9 @@ export async function extraerPreferenciasLibres(
     resultado.montoTotalPesos = presupuestoLiteral.monto;
   }
 
+  const grupoLiteral = extraerGrupoLiteral(texto);
+  if (grupoLiteral !== null) resultado.grupo = grupoLiteral;
+
   if (!embeddingsListo()) return resultado;
 
   const ejemplos = await prepararEjemplos();
@@ -750,8 +809,10 @@ export async function extraerPreferenciasLibres(
     if (presupuesto.length > 0) resultado.presupuesto = presupuesto[0];
   }
 
-  const grupo = mejoresPorValor(vectorConsulta, ejemplos.grupo, UMBRAL);
-  if (grupo.length > 0) resultado.grupo = grupo[0];
+  if (resultado.grupo === undefined) {
+    const grupo = mejoresPorValor(vectorConsulta, ejemplos.grupo, UMBRAL);
+    if (grupo.length > 0) resultado.grupo = grupo[0];
+  }
 
   // Intereses SÍ es multi-etiqueta: un turista puede querer
   // "naturaleza y buena comida" en la misma frase — se incluyen
@@ -1022,7 +1083,7 @@ function armarResumen(
 // desde $1,600 – $2,200 por noche") — en esos casos NO se adivina cuál
 // aplica para un día de ruta (¿la entrada o una noche completa?);
 // mejor decir "no sé" que dar un número que podría ser el equivocado.
-function estimarPrecioMXN(precioMxn: string): number | null {
+export function estimarPrecioMXN(precioMxn: string): number | null {
   const texto = precioMxn.toLowerCase();
   if (/\b(acceso libre|entrada libre|gratis|gratuit[oa])\b/.test(texto)) return 0;
 
@@ -1047,8 +1108,24 @@ function estimarPrecioMXN(precioMxn: string): number | null {
   return null; // 0 o 2+ montos sueltos sin rango claro: ambiguo
 }
 
-function formatearMXN(monto: number): string {
+export function formatearMXN(monto: number): string {
   return `$${Math.round(Math.abs(monto)).toLocaleString('es-MX')}`;
+}
+
+// Convierte el valor interno de grupo a una frase natural para usar
+// en las respuestas — "familia" se dice "ir con niños/en familia" en
+// vez del valor crudo, que suena robótico en una oración.
+export function grupoTextoLegible(grupo: GrupoViaje): string {
+  switch (grupo) {
+    case 'familia':
+      return 'ir con niños o en familia';
+    case 'pareja':
+      return 'ir en pareja';
+    case 'amigos':
+      return 'ir con amigos';
+    case 'solo':
+      return 'viajar solo';
+  }
 }
 
 function armarRazonamiento(
@@ -1121,6 +1198,12 @@ export function responderTextoLibre(
 ): MensajeChat {
   const intent = detectarIntent(texto);
   const municipioMencionado = detectarMunicipio(texto);
+  // Hallazgo real de campo (QA): "Viajo con niños pequeños. ¿Qué
+  // actividades recomiendas?" no filtraba nada por eso — el campo
+  // `ideal` (familia/pareja/solo/amigos) ya existe en cada lugar y ya
+  // se usa en el flujo de botones, pero el texto libre nunca lo
+  // conectaba. Se detecta aquí para usarlo en dos casos más abajo.
+  const grupoPregunta = extraerGrupoLiteral(texto);
 
   // Saludo
   if (intent === 'saludo') {
@@ -1195,7 +1278,7 @@ export function responderTextoLibre(
     const presupuestoPregunta = extraerPresupuestoLiteral(texto, 1);
 
     let sugerencias: Lugar[];
-    let notaPresupuesto = '';
+    let notaFiltro = '';
 
     if (presupuestoPregunta) {
       const conPrecio = candidatos.map((l) => ({
@@ -1221,15 +1304,30 @@ export function responderTextoLibre(
 
       if (dentro.length > 0) {
         sugerencias = dentro.slice(0, 3);
-        notaPresupuesto = `Sí — con ${formatearMXN(presupuestoPregunta.monto)} tienes ${dentro.length === 1 ? 'esta opción' : 'estas opciones'} dentro de presupuesto:\n\n`;
+        notaFiltro = `Sí — con ${formatearMXN(presupuestoPregunta.monto)} tienes ${dentro.length === 1 ? 'esta opción' : 'estas opciones'} dentro de presupuesto:\n\n`;
       } else if (sinPrecioClaro.length > 0) {
         sugerencias = sinPrecioClaro.slice(0, 3);
-        notaPresupuesto = `No tengo un precio único y comparable para confirmarte cuál entra exactamente en ${formatearMXN(presupuestoPregunta.monto)} (varios lugares cobran por actividad o servicio, no una sola tarifa) — aquí tienes las opciones registradas para que revises el detalle de cada una:\n\n`;
+        notaFiltro = `No tengo un precio único y comparable para confirmarte cuál entra exactamente en ${formatearMXN(presupuestoPregunta.monto)} (varios lugares cobran por actividad o servicio, no una sola tarifa) — aquí tienes las opciones registradas para que revises el detalle de cada una:\n\n`;
       } else if (fuera.length > 0) {
         sugerencias = fuera.slice(0, 3);
-        notaPresupuesto = `Por ahora no tengo ninguna opción confirmada por debajo de ${formatearMXN(presupuestoPregunta.monto)} — la más cercana es esta:\n\n`;
+        notaFiltro = `Por ahora no tengo ninguna opción confirmada por debajo de ${formatearMXN(presupuestoPregunta.monto)} — la más cercana es esta:\n\n`;
       } else {
         sugerencias = [];
+      }
+    } else if (grupoPregunta) {
+      // Sin presupuesto explícito, pero SÍ se dijo con quién viaja
+      // ("con niños", "en pareja", etc.) — prioriza los lugares
+      // marcados como ideales para ese grupo (mismo campo `ideal` que
+      // ya usa el flujo de botones), sin descartar del todo los demás.
+      const paraEseGrupo = candidatos
+        .filter((l) => l.ideal.includes(grupoPregunta))
+        .sort((a, b) => b.rating - a.rating);
+      const otros = candidatos
+        .filter((l) => !l.ideal.includes(grupoPregunta))
+        .sort((a, b) => b.rating - a.rating);
+      sugerencias = [...paraEseGrupo, ...otros].slice(0, 3);
+      if (paraEseGrupo.length === 0) {
+        notaFiltro = `No tengo ninguno marcado específicamente como ideal para ${grupoTextoLegible(grupoPregunta)}, pero estas son las mejores opciones que sí tengo:\n\n`;
       }
     } else {
       sugerencias = candidatos.sort((a, b) => b.rating - a.rating).slice(0, 3);
@@ -1282,8 +1380,8 @@ export function responderTextoLibre(
     let textoIntro = municipioMencionado
       ? introsMunicipio[Math.floor(Math.random() * introsMunicipio.length)]
       : introsGeneral[Math.floor(Math.random() * introsGeneral.length)];
-    if (notaPresupuesto) {
-      textoIntro = notaPresupuesto + textoIntro;
+    if (notaFiltro) {
+      textoIntro = notaFiltro + textoIntro;
     } else if (conocimiento) {
       textoIntro = `${conocimiento.respuesta}\n\n${textoIntro}`;
     }
@@ -1295,6 +1393,31 @@ export function responderTextoLibre(
       lugares: sugerencias,
       timestamp: Date.now(),
     };
+  }
+
+  // PASO 2.5: sin categoría clara, pero SÍ se dijo con quién viaja
+  // ("¿qué actividades puedo hacer con niños?" — no mapea a ninguna
+  // categoría específica, así que sin esto caía directo al mensaje
+  // por default de "no entendí", ignorando por completo el dato real
+  // que sí dio el turista).
+  if (grupoPregunta) {
+    let candidatosGrupo = catalogoActivo.filter((l) => l.ideal.includes(grupoPregunta));
+    if (municipioMencionado) {
+      const enMunicipio = candidatosGrupo.filter((l) => l.municipio === municipioMencionado);
+      if (enMunicipio.length > 0) candidatosGrupo = enMunicipio;
+    }
+    if (candidatosGrupo.length > 0) {
+      const sugerenciasGrupo = candidatosGrupo
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 3);
+      return {
+        id: crypto.randomUUID(),
+        role: 'bot',
+        texto: `Para ${grupoTextoLegible(grupoPregunta)}${municipioMencionado ? ` en ${municipioMencionado}` : ''}, te recomiendo:`,
+        lugares: sugerenciasGrupo,
+        timestamp: Date.now(),
+      };
+    }
   }
 
   // PASO 3: caso especial monos / fauna

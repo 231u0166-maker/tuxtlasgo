@@ -21,6 +21,11 @@ import {
   detectarMunicipio,
   buscarLugarPorNombre,
   getCatalogoActivo,
+  extraerPresupuestoLiteral,
+  estimarPrecioMXN,
+  formatearMXN,
+  extraerGrupoLiteral,
+  grupoTextoLegible,
 } from '../lib/chatbot';
 
 import { guardarRuta, mapaDescargado } from '../lib/db';
@@ -266,6 +271,70 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
           400
         );
       }
+      return;
+    }
+
+    // Hallazgo real de campo: una vez que se identificaba el lugar
+    // por nombre, CUALQUIER otra cosa que preguntaran sobre él en el
+    // mismo mensaje se ignoraba por completo — "con 400 pesos qué me
+    // alcanza en la Sirena Olmeca" o "qué actividades con mis hijos
+    // en Sirena Olmeca" solo mostraban la tarjeta genérica, sin
+    // responder nada, una y otra vez. Se reusa la MISMA lógica ya
+    // construida para presupuesto/grupo (antes solo se usaba para
+    // listas de varios lugares), aplicada aquí a este único lugar.
+
+    const presupuestoPregunta = extraerPresupuestoLiteral(textoOriginal, 1);
+    if (presupuestoPregunta) {
+      const estimado = estimarPrecioMXN(lugar.precioMxn);
+      let texto: string;
+      if (estimado === null) {
+        texto = `${lugar.nombre} tiene varios conceptos de precio distintos (revisa su ficha) — no tengo un número único para comparar contra ${formatearMXN(presupuestoPregunta.monto)}, así que no te puedo confirmar con certeza si alcanza.`;
+      } else if (estimado <= presupuestoPregunta.monto) {
+        texto = `Sí — ${lugar.nombre} ronda ${formatearMXN(estimado)}, así que con ${formatearMXN(presupuestoPregunta.monto)} te alcanza.`;
+      } else {
+        texto = `Con ${formatearMXN(presupuestoPregunta.monto)} no te alcanza — ${lugar.nombre} ronda ${formatearMXN(estimado)}.`;
+      }
+      responderBot(
+        { id: crypto.randomUUID(), role: 'bot', texto, lugares: [lugar], timestamp: Date.now() },
+        300
+      );
+      return;
+    }
+
+    const grupoPregunta = extraerGrupoLiteral(textoOriginal);
+    if (grupoPregunta) {
+      const texto = lugar.ideal.includes(grupoPregunta)
+        ? `Sí — ${lugar.nombre} está marcado como una buena opción para ${grupoTextoLegible(grupoPregunta)}. ${lugar.descripcion}`
+        : `${lugar.nombre} no está marcado específicamente como ideal para ${grupoTextoLegible(grupoPregunta)} — no tengo el detalle exacto para confirmarte si aplica, revisa su ficha completa antes de decidir. Lo que sí tengo: ${lugar.descripcionCorta}`;
+      responderBot(
+        { id: crypto.randomUUID(), role: 'bot', texto, lugares: [lugar], timestamp: Date.now() },
+        300
+      );
+      return;
+    }
+
+    // Ni distancia, ni presupuesto, ni grupo detectado — pero el
+    // mensaje puede seguir teniendo una pregunta real más allá de
+    // solo nombrar el lugar (ej. "es mejor como hotel o restaurante",
+    // "es peligroso para mis hijos"). En vez de mostrar siempre el
+    // blurb corto de la tarjeta (que no responde nada), si el mensaje
+    // tiene bastante más contenido que un simple "dame info de X", se
+    // usa la descripción COMPLETA — no siempre va a responder
+    // exactamente lo preguntado (no tenemos NLU para comparaciones
+    // libres), pero da mucha más información real que el blurb corto,
+    // y nunca es peor que lo que había antes.
+    const palabras = textoOriginal.trim().split(/\s+/).filter(Boolean);
+    if (palabras.length > 6) {
+      responderBot(
+        {
+          id: crypto.randomUUID(),
+          role: 'bot',
+          texto: `${lugar.nombre}: ${lugar.descripcion}${lugar.tip ? ` 💡 ${lugar.tip}` : ''}`,
+          lugares: [lugar],
+          timestamp: Date.now(),
+        },
+        300
+      );
       return;
     }
 

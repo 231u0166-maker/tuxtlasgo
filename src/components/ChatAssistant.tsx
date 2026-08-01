@@ -18,6 +18,7 @@ import {
   extraerPreferenciasLibres,
   pareceSolicitudDeRuta,
   pareceSolicitudDeDistancia,
+  esSolicitudInapropiada,
   detectarMunicipio,
   buscarLugarPorNombre,
   getCatalogoActivo,
@@ -94,7 +95,18 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
   // Mientras el LLM genera, bloqueamos el envío para no encimar streams
   const [generandoIA, setGenerandoIA] = useState(false);
   // Set de índices de mensajes cuya ruta ya fue guardada
-  const [rutasGuardadas, setRutasGuardadas] = useState<Set<number>>(new Set());
+  // Hallazgo real de campo GRAVE: antes se usaba mensajes.indexOf(msg)
+  // (la POSICIÓN del mensaje en el arreglo) como identificador de "esta
+  // ruta ya se guardó" — pero las posiciones se REPITEN después de
+  // reiniciar la conversación (el chat nunca se desmonta, así que este
+  // estado sobrevivía entre resets), y reiniciar() nunca lo limpiaba.
+  // Resultado: si se guardó una ruta en la posición 5 alguna vez, la
+  // siguiente conversación mostraba "ya guardada" en esa MISMA
+  // posición sin haberla guardado de verdad — y como el botón real de
+  // guardar nunca aparecía, el guardado real en la base de datos
+  // tampoco ocurría nunca. Se usa el `id` (UUID) propio de cada
+  // mensaje, que nunca se repite entre conversaciones.
+  const [rutasGuardadas, setRutasGuardadas] = useState<Set<string>>(new Set());
   // Si el mapa NO está descargado, mostramos un aviso al ver la ruta
   const [mostrarAvisoMapa, setMostrarAvisoMapa] = useState(false);
   // Para avisar UNA sola vez por sesión que se está usando el modo
@@ -362,6 +374,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
     setEstado('preguntando_dias');
     setPrefsParcial({});
     setInteresesTemp([]);
+    setRutasGuardadas(new Set());
   }
 
   // ─────────── Manejo de opciones tocadas (botones) ───────────
@@ -568,6 +581,23 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
     setGenerandoIA(true);
 
     try {
+      // 0) Filtro de seguridad — SIEMPRE lo primero, antes de
+      // CUALQUIER otra cosa (banco de respuestas, nombre de lugar,
+      // generador de rutas, nube). Ver el hallazgo real de campo
+      // grave junto a esSolicitudInapropiada() en chatbot.ts.
+      if (esSolicitudInapropiada(texto)) {
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: 'No puedo ayudarte con eso. Soy un asistente turístico de Los Tuxtlas — puedo ayudarte a armar rutas, recomendarte dónde comer, dónde hospedarte o qué conocer en la región.',
+            timestamp: Date.now(),
+          },
+          200
+        );
+        return;
+      }
+
       // 1) Banco de respuestas primero — sin generar nada, sin GPU,
       // sin internet, funciona en cualquier dispositivo.
       const coincidencia = await buscarRespuestaVerificada(texto).catch(() => null);
@@ -854,9 +884,9 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
                 [{ dia: diaRuta.dia, lugaresIds: diaRuta.lugares.map(l => l.id), resumen: diaRuta.resumen }],
                 {}
               );
-              setRutasGuardadas(prev => new Set([...prev, mensajes.indexOf(msg)]));
+              setRutasGuardadas(prev => new Set([...prev, msg.id]));
             }}
-            rutaYaGuardada={rutasGuardadas.has(mensajes.indexOf(msg))}
+            rutaYaGuardada={rutasGuardadas.has(msg.id)}
           />
         ))}
 

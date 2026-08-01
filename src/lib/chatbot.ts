@@ -845,6 +845,37 @@ export async function extraerPreferenciasLibres(
 // recomendación. Se dejan solo las palabras que de verdad implican
 // "arma un PLAN/ITINERARIO de varios pasos", no cualquier verbo
 // relacionado con viajar o pedir una sugerencia.
+// Palabras que indican una solicitud de contenido sexual/prostitución
+// explícita — esto NUNCA debe procesarse como una petición turística
+// normal (ni por el motor de reglas, ni por el generador de rutas, ni
+// mandarse a la nube). Se revisa ANTES que cualquier otra cosa en
+// ChatAssistant.tsx.
+//
+// Hallazgo real de campo GRAVE (QA): mensajes explícitos pidiendo
+// conseguir prostitución — incluyendo uno que mencionaba
+// específicamente menores de edad — generaban una ruta turística
+// normal de 3 días con lugares reales. La causa: el generador de
+// rutas no tiene NINGÚN filtro de contenido — solo intenta extraer
+// días/categoría/presupuesto de cualquier texto que reciba, sin
+// importar qué diga. Esto se detiene aquí, ANTES de llegar a esa
+// lógica — no se puede depender de que el proveedor de IA en la nube
+// lo filtre solo (se comprobó inconsistente: a veces rechazaba, la
+// mayoría de las veces no, porque nunca llegaba a la nube — se
+// quedaba en el generador de rutas determinista, que no tiene ningún
+// candado).
+const PALABRAS_CONTENIDO_SEXUAL_EXPLICITO = [
+  'puta', 'putas', 'puto', 'putos',
+  'prostituta', 'prostitutas', 'prostituto', 'prostitutos',
+  'prostituas', 'prostitucion',
+  'escort', 'escorts',
+  'sexoservicio', 'sexoservidora', 'sexoservidoras',
+];
+
+export function esSolicitudInapropiada(texto: string): boolean {
+  const tokens = tokenizar(texto);
+  return PALABRAS_CONTENIDO_SEXUAL_EXPLICITO.some((p) => tokens.includes(p));
+}
+
 export function pareceSolicitudDeRuta(texto: string): boolean {
   const tokens = tokenizar(texto);
   const palabrasClave = [

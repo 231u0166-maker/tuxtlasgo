@@ -47,7 +47,7 @@ export default function LandingPage({ usuario = null }: LandingProps) {
             </Link>
             <Link
               to="/app"
-              className="bg-obsidiana-900 hover:bg-obsidiana-800 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors flex items-center gap-1"
+              className="bg-jungle-700 hover:bg-jungle-800 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors flex items-center gap-1"
             >
               Abrir app
               <ChevronRight size={16} />
@@ -59,12 +59,12 @@ export default function LandingPage({ usuario = null }: LandingProps) {
       {/* HERO — collage tipo mood-board, gradiente suave detrás */}
       <section className="relative overflow-hidden">
         <div
-          className="pointer-events-none absolute -top-40 right-0 w-[36rem] h-[36rem] rounded-full opacity-50 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #fde68a 0%, transparent 70%)' }}
+          className="pointer-events-none absolute -top-40 right-0 w-[36rem] h-[36rem] rounded-full opacity-70 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #fcd34d 0%, transparent 70%)' }}
         />
         <div
-          className="pointer-events-none absolute top-40 -right-32 w-96 h-96 rounded-full opacity-40 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #a5f3fc 0%, transparent 70%)' }}
+          className="pointer-events-none absolute top-40 -right-32 w-96 h-96 rounded-full opacity-60 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #67e8f9 0%, transparent 70%)' }}
         />
 
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-14 pb-20 sm:pt-20 sm:pb-28">
@@ -88,7 +88,7 @@ export default function LandingPage({ usuario = null }: LandingProps) {
               <div className="flex flex-wrap gap-3 pt-1">
                 <Link
                   to="/app"
-                  className="bg-obsidiana-900 hover:bg-obsidiana-800 text-white px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 shadow-lg shadow-obsidiana-900/15 transition-colors"
+                  className="bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 shadow-lg shadow-jungle-700/25 transition-colors"
                 >
                   Empezar a explorar
                   <ChevronRight size={18} />
@@ -99,7 +99,7 @@ export default function LandingPage({ usuario = null }: LandingProps) {
                       'Para instalar en tu celular: ábrela en Chrome o Safari y elige "Agregar a pantalla de inicio".'
                     );
                   }}
-                  className="bg-white border border-obsidiana-900/10 text-obsidiana-800 px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 hover:border-obsidiana-900/25 transition-colors"
+                  className="bg-white border border-jungle-200 text-jungle-800 px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 hover:border-jungle-400 transition-colors"
                 >
                   <Download size={18} />
                   Instalar en mi celular
@@ -117,13 +117,13 @@ export default function LandingPage({ usuario = null }: LandingProps) {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-8 text-center">
             {[
-              { valor: '10+', label: 'lugares verificados' },
-              { valor: '100%', label: 'funciona sin internet' },
-              { valor: '$0', label: 'comisión a prestadores' },
-              { valor: '2', label: 'municipios activos, más en camino' },
+              { valor: '10+', label: 'lugares verificados', color: 'text-sun-400' },
+              { valor: '100%', label: 'funciona sin internet', color: 'text-laguna-300' },
+              { valor: '$0', label: 'comisión a prestadores', color: 'text-sun-400' },
+              { valor: '2', label: 'municipios activos, más en camino', color: 'text-laguna-300' },
             ].map((s) => (
               <div key={s.label}>
-                <div className="font-display font-bold text-2xl sm:text-3xl text-white">
+                <div className={`font-display font-bold text-2xl sm:text-3xl ${s.color}`}>
                   {s.valor}
                 </div>
                 <div className="text-obsidiana-100/60 text-xs sm:text-sm mt-1 leading-snug">
@@ -203,7 +203,7 @@ export default function LandingPage({ usuario = null }: LandingProps) {
       </section>
 
       {/* CTA FINAL */}
-      <section className="py-16 sm:py-24 bg-amate-50">
+      <section className="py-16 sm:py-24 bg-jungle-50">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
           <div className="w-12 h-12 mx-auto mb-5 rounded-2xl bg-jungle-700 flex items-center justify-center">
             <ShieldCheck className="text-white" size={22} />
@@ -216,7 +216,7 @@ export default function LandingPage({ usuario = null }: LandingProps) {
           </p>
           <Link
             to="/app"
-            className="inline-flex items-center gap-2 bg-obsidiana-900 hover:bg-obsidiana-800 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl shadow-obsidiana-900/20 transition-colors"
+            className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl shadow-jungle-700/25 transition-colors"
           >
             Empezar ahora
             <ChevronRight size={20} />
@@ -239,45 +239,70 @@ export default function LandingPage({ usuario = null }: LandingProps) {
   );
 }
 
-// ─── Collage de fotos — reemplaza el carrusel con setInterval ──
-// Estático, sin JS corriendo en segundo plano (mejor para batería
-// en celular). Cuatro fotos reales, tamaños y rotación distintos,
-// como un mood-board — no una sola caja con fade automático.
+// ─── Collage de fotos — animado, pero 100% CSS ──────────────
+// Cada tarjeta flota suavemente (translateY) y alterna entre DOS
+// fotos reales con un crossfade — se ve vivo como el carrusel
+// anterior, pero sin ningún setInterval de JS corriendo en segundo
+// plano (mejor para batería en celular, y el navegador puede pausarlo
+// solo si la pestaña no está visible).
+function TarjetaCollage({
+  fotoA,
+  fotoB,
+  className,
+  animacion,
+}: {
+  fotoA: string;
+  fotoB: string;
+  className: string;
+  animacion: 'animate-float' | 'animate-float-delayed' | 'animate-float-slow';
+}) {
+  return (
+    <div className={`absolute rounded-3xl shadow-xl shadow-obsidiana-900/15 ${className}`}>
+      <div className={`relative w-full h-full rounded-3xl overflow-hidden ${animacion}`}>
+        <img
+          src={fotoA}
+          alt="Los Tuxtlas"
+          className="absolute inset-0 w-full h-full object-cover animate-crossfade-a"
+          loading="eager"
+        />
+        <img
+          src={fotoB}
+          alt="Los Tuxtlas"
+          className="absolute inset-0 w-full h-full object-cover animate-crossfade-b"
+          loading="lazy"
+        />
+      </div>
+    </div>
+  );
+}
+
 function PhotoCollage() {
   return (
     <div className="relative h-[420px] sm:h-[480px]">
-      <div className="absolute top-0 left-4 w-[58%] h-[62%] rounded-3xl overflow-hidden shadow-xl shadow-obsidiana-900/15 -rotate-2">
-        <img
-          src="/img/slide_01.jpg"
-          alt="Los Tuxtlas"
-          className="w-full h-full object-cover"
-          loading="eager"
-        />
-      </div>
-      <div className="absolute top-6 right-0 w-[42%] h-[46%] rounded-3xl overflow-hidden shadow-xl shadow-obsidiana-900/15 rotate-3">
-        <img
-          src="/img/slide_05.jpg"
-          alt="Los Tuxtlas"
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
-      </div>
-      <div className="absolute bottom-6 right-6 w-[46%] h-[42%] rounded-3xl overflow-hidden shadow-xl shadow-obsidiana-900/15 -rotate-3">
-        <img
-          src="/img/slide_09.jpg"
-          alt="Los Tuxtlas"
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
-      </div>
-      <div className="absolute bottom-0 left-0 w-[38%] h-[32%] rounded-3xl overflow-hidden shadow-xl shadow-obsidiana-900/15 rotate-2">
-        <img
-          src="/img/slide_13.jpg"
-          alt="Los Tuxtlas"
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
-      </div>
+      <TarjetaCollage
+        fotoA="/img/slide_01.jpg"
+        fotoB="/img/slide_02.jpg"
+        className="top-0 left-4 w-[58%] h-[62%] -rotate-2"
+        animacion="animate-float"
+      />
+      <TarjetaCollage
+        fotoA="/img/slide_05.jpg"
+        fotoB="/img/slide_06.jpg"
+        className="top-6 right-0 w-[42%] h-[46%] rotate-3"
+        animacion="animate-float-delayed"
+      />
+      <TarjetaCollage
+        fotoA="/img/slide_09.jpg"
+        fotoB="/img/slide_10.jpg"
+        className="bottom-6 right-6 w-[46%] h-[42%] -rotate-3"
+        animacion="animate-float-slow"
+      />
+      <TarjetaCollage
+        fotoA="/img/slide_13.jpg"
+        fotoB="/img/slide_14.jpg"
+        className="bottom-0 left-0 w-[38%] h-[32%] rotate-2"
+        animacion="animate-float"
+      />
     </div>
   );
 }

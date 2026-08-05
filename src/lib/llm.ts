@@ -33,6 +33,7 @@ import {
   getCatalogoActivo,
   detectarIntent,
   detectarMunicipio,
+  esSolicitudInapropiada,
   type MensajeChat,
   type PreferenciasUsuario,
 } from './chatbot';
@@ -377,6 +378,19 @@ export async function responderConNube(
     const data = await r.json();
     if (!data.texto) throw new Error('IA_NUBE_RESPUESTA_VACIA');
     const limpio = limpiarMarkdown(data.texto);
+
+    // Guardrail de SALIDA — hasta ahora solo revisábamos lo que
+    // escribe el turista (esSolicitudInapropiada como filtro de
+    // ENTRADA, antes de llegar aquí). Esto es defensa en profundidad:
+    // si algo se coló por el filtro de entrada (una variante que la
+    // lista de palabras no cubre, o el modelo lo generó sin que el
+    // turista lo haya pedido así de explícito), esto lo detiene antes
+    // de mostrarlo, igual que ya se hace con las alucinaciones de
+    // lugares/precios inventados.
+    if (esSolicitudInapropiada(limpio)) {
+      console.warn('[TuxtlasGO IA] Respuesta de la nube bloqueada por el guardrail de salida (contenido inapropiado).');
+      return { texto: '', valida: false };
+    }
 
     if (pareceInventada(limpio, ctx.lugares)) {
       console.warn('[TuxtlasGO IA] Posible alucinación (nube) detectada y descartada:', limpio);

@@ -746,6 +746,35 @@ export function extraerGrupoLiteral(texto: string): GrupoViaje | null {
 // del viaje) son un punto de partida razonable, NO una calibración
 // basada en precios reales de mercado — conviene ajustarlos conforme
 // crezca el catálogo de precios reales de los prestadores.
+// Detecta un presupuesto CUALITATIVO ("barato", "económico", "caro",
+// "de lujo") — a diferencia de extraerPresupuestoLiteral (que exige
+// un monto en pesos exacto), esto reconoce palabras comunes sin
+// número y se compara directo contra el campo `precio` (bajo/medio/
+// alto) de cada lugar.
+//
+// Hallazgo real de campo: "qué lugares son baratos para comer en
+// Catemaco" no activaba ningún filtro — ni el literal (no hay monto),
+// ni nada más — así que caía al orden por calificación de siempre,
+// ignorando por completo la palabra "baratos" que sí dio el turista.
+export function extraerPresupuestoCualitativo(texto: string): Presupuesto | null {
+  const tokens = tokenizar(texto);
+  if (
+    ['barato', 'baratos', 'barata', 'baratas', 'economico', 'economicos', 'economica', 'economicas', 'accesible', 'accesibles'].some(
+      (p) => tokens.includes(p)
+    )
+  ) {
+    return 'bajo';
+  }
+  if (
+    ['caro', 'caros', 'cara', 'caras', 'lujo', 'lujoso', 'lujosa', 'premium'].some((p) =>
+      tokens.includes(p)
+    )
+  ) {
+    return 'alto';
+  }
+  return null;
+}
+
 export function extraerPresupuestoLiteral(
   texto: string,
   diasParaPromedio: number
@@ -1343,6 +1372,7 @@ export function responderTextoLibre(
     // completo — "¿hay un hotel que no supere los $3,000?" listaba
     // todos los hospedajes sin filtrar ni confirmar cuáles entraban.
     const presupuestoPregunta = extraerPresupuestoLiteral(texto, 1);
+    const presupuestoCualitativo = extraerPresupuestoCualitativo(texto);
 
     let sugerencias: Lugar[];
     let notaFiltro = '';
@@ -1380,6 +1410,20 @@ export function responderTextoLibre(
         notaFiltro = `Por ahora no tengo ninguna opción confirmada por debajo de ${formatearMXN(presupuestoPregunta.monto)} — la más cercana es esta:\n\n`;
       } else {
         sugerencias = [];
+      }
+    } else if (presupuestoCualitativo) {
+      // Sin monto exacto, pero SÍ dijo "barato"/"caro"/etc. — se
+      // compara contra el nivel de precio (bajo/medio/alto) de cada
+      // lugar en vez de un número, y se avisa si nadie cae justo en
+      // ese nivel en vez de mostrar el orden genérico sin explicar.
+      const delNivel = candidatos
+        .filter((l) => l.precio === presupuestoCualitativo)
+        .sort((a, b) => b.rating - a.rating);
+      if (delNivel.length > 0) {
+        sugerencias = delNivel.slice(0, 3);
+      } else {
+        sugerencias = candidatos.sort((a, b) => b.rating - a.rating).slice(0, 3);
+        notaFiltro = `No tengo ninguno marcado específicamente como ${presupuestoCualitativo === 'bajo' ? 'económico' : 'de lujo'} en esta categoría — aquí tienes las mejores opciones que sí tengo:\n\n`;
       }
     } else if (esPreguntaSobreMascotas(texto)) {
       // Mismo hallazgo real de campo que ya arreglamos para

@@ -1381,6 +1381,21 @@ export function responderTextoLibre(
       } else {
         sugerencias = [];
       }
+    } else if (esPreguntaSobreMascotas(texto)) {
+      // Mismo hallazgo real de campo que ya arreglamos para
+      // presupuesto y grupo: "qué hoteles en Catemaco aceptan
+      // perros" activa la categoría Hospedaje, así que sin este
+      // tier la pregunta de mascotas se ignoraba por completo — se
+      // devolvía el top-3 genérico de hospedaje sin decir nada del
+      // perro. Usa el dato real (`mascotas`), nunca especula.
+      const conDato = candidatos.filter((l) => l.mascotas !== undefined);
+      if (conDato.length > 0) {
+        sugerencias = conDato.slice(0, 3);
+        notaFiltro = `Esto es lo que tengo registrado sobre mascotas en ${cat.toLowerCase()}${municipioMencionado ? ` en ${municipioMencionado}` : ''}:\n\n${conDato.map((l) => `${l.nombre}: ${l.mascotas}`).join('\n')}\n\n`;
+      } else {
+        sugerencias = candidatos.sort((a, b) => b.rating - a.rating).slice(0, 3);
+        notaFiltro = `Todavía no tengo registrada la política de mascotas de ningún lugar de ${cat.toLowerCase()}${municipioMencionado ? ` en ${municipioMencionado}` : ''} — te recomiendo confirmar directamente antes de ir. Mientras tanto, aquí tienes las mejores opciones:\n\n`;
+      }
     } else if (grupoPregunta) {
       // Sin presupuesto explícito, pero SÍ se dijo con quién viaja
       // ("con niños", "en pareja", etc.) — prioriza los lugares

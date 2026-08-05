@@ -112,29 +112,6 @@ export default function LandingPage({ usuario = null }: LandingProps) {
         </div>
       </section>
 
-      {/* FRANJA DE CONFIANZA — solo cifras reales, nada inventado */}
-      <section className="bg-obsidiana-900 py-10 sm:py-12">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-8 text-center">
-            {[
-              { valor: '10+', label: 'lugares verificados', color: 'text-sun-400' },
-              { valor: '100%', label: 'funciona sin internet', color: 'text-laguna-300' },
-              { valor: '$0', label: 'comisión a prestadores', color: 'text-sun-400' },
-              { valor: '2', label: 'municipios activos, más en camino', color: 'text-laguna-300' },
-            ].map((s) => (
-              <div key={s.label}>
-                <div className={`font-display font-bold text-2xl sm:text-3xl ${s.color}`}>
-                  {s.valor}
-                </div>
-                <div className="text-obsidiana-100/60 text-xs sm:text-sm mt-1 leading-snug">
-                  {s.label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* FEATURES */}
       <section id="features" className="bg-white py-16 sm:py-24">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -224,13 +201,13 @@ export default function LandingPage({ usuario = null }: LandingProps) {
         </div>
       </section>
 
-      <footer className="bg-obsidiana-950 text-obsidiana-100 py-8">
+      <footer className="bg-jungle-950 text-jungle-100 py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm space-y-2">
           <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-8 w-auto object-contain brightness-0 invert" />
-          <div className="opacity-60">
+          <div className="opacity-70">
             Proyecto InnovaTecNM 2026 · ITSSAT · Folio 68894-17
           </div>
-          <div className="opacity-40 text-xs">
+          <div className="opacity-50 text-xs">
             Bienes de Consumo Final · Soluciones y Productos Digitales
           </div>
         </div>

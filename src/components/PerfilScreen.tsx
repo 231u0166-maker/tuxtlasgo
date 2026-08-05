@@ -43,6 +43,7 @@ interface ServicioAPI {
   duracion?: string;
   como_llegar?: string;
   tip?: string;
+  mascotas?: string;
   ideal_para?: string[] | string;
 }
 
@@ -58,6 +59,7 @@ interface FormServicio {
   duracion: string;
   como_llegar: string;
   tip: string;
+  mascotas: string;
   ideal_para: string[];
 }
 
@@ -414,7 +416,7 @@ function PerfilPrestador({
   const [form, setForm]           = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
-    duracion: '', como_llegar: '', tip: '', ideal_para: [],
+    duracion: '', como_llegar: '', tip: '', mascotas: '', ideal_para: [],
   });
 
   async function cargar() {
@@ -446,6 +448,7 @@ function PerfilPrestador({
           duracion:    srv.duracion    ?? '',
           como_llegar: srv.como_llegar ?? '',
           tip:         srv.tip         ?? '',
+          mascotas:    srv.mascotas    ?? '',
           ideal_para:  parseIdeal(srv.ideal_para),
         });
       } else {
@@ -519,6 +522,7 @@ function PerfilPrestador({
       duracion:      form.duracion     || undefined,
       comoLlegar:    form.como_llegar  || undefined,
       tip:           form.tip          || undefined,
+      mascotas:      form.mascotas     || undefined,
       idealPara:     form.ideal_para.length ? form.ideal_para : undefined,
       foto:          fotos[0]          || undefined,
     });
@@ -716,6 +720,13 @@ function PerfilPrestador({
                         className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                     </div>
                     <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">🐾 ¿Aceptan mascotas?</label>
+                      <input value={form.mascotas} onChange={e => setForm({ ...form, mascotas: e.target.value })}
+                        placeholder="ej: Sí, aceptamos perros / No se permiten mascotas / Solo en la terraza"
+                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                      <p className="text-[11px] text-jungle-500 mt-1">Si lo dejas vacío, el asistente dirá honestamente que no tiene ese dato — nunca lo inventa.</p>
+                    </div>
+                    <div>
                       <label className="text-xs font-semibold text-jungle-700 mb-2 block">Ideal para</label>
                       <div className="flex flex-wrap gap-2">
                         {IDEAL_OPCIONES.map(op => (
@@ -751,6 +762,7 @@ function PerfilPrestador({
                     <InfoFila icono={null}  label="Duración"    valor={servicio.duracion} />
                     <InfoFila icono={null}  label="Cómo llegar" valor={servicio.como_llegar} />
                     <InfoFila icono={null}  label="Consejo"     valor={servicio.tip} />
+                    <InfoFila icono={null}  label="🐾 Mascotas"  valor={servicio.mascotas} />
                     <div className="bg-jungle-50 rounded-xl p-3">
                       <p className="text-xs font-semibold text-jungle-500 mb-1">Descripción</p>
                       <p className="text-sm text-jungle-800">{servicio.descripcion}</p>

@@ -54,6 +54,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       nombre, categoria, municipio, descripcion, precio, contacto,
       // Campos nuevos (Módulo 1 — consistencia PlaceCard)
       horario, dias_abierto, duracion, como_llegar, tip, ideal_para,
+      // Política de mascotas — texto libre corto, ej. "Sí, aceptamos
+      // perros" / "No se permiten mascotas". Sin dato = no se sabe,
+      // el chat nunca debe inventarlo.
+      mascotas,
     } = req.body ?? {};
 
     const campos: string[] = [];
@@ -107,6 +111,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       campos.push(`tip = $${idx++}`);
       valores.push(tip.trim() || null);
     }
+    if (typeof mascotas === 'string') {
+      campos.push(`mascotas = $${idx++}`);
+      valores.push(mascotas.trim() || null);
+    }
     if (Array.isArray(ideal_para)) {
       campos.push(`ideal_para = $${idx++}`);
       valores.push(JSON.stringify(ideal_para));
@@ -129,6 +137,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               contacto, lat, lng, estado, codigo_seguimiento,
               motivo_rechazo, fotos,
               horario, dias_abierto, duracion, como_llegar, tip, ideal_para,
+              mascotas,
               creado_en, actualizado_en
        FROM servicios WHERE id = $1`,
       [servicioId]

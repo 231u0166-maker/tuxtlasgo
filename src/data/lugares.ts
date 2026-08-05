@@ -41,6 +41,15 @@ export interface Lugar {
   // Prestador con plan Premium activo ($89 MXN/mes) → prioridad en
   // el algoritmo de recomendación de la IA (ver chatbot.ts, llm.ts).
   premium?: boolean;
+  // Política de mascotas — el prestador la declara al registrarse.
+  // Texto corto y libre (ej. "Sí, aceptamos perros" / "No se permiten
+  // mascotas" / "Solo en la terraza, con correa"). Si no está
+  // definida (undefined), significa que NO tenemos ese dato — el
+  // chat debe decir honestamente que no lo sabe, nunca inventarlo ni
+  // suponerlo a partir de otra cosa (ver hallazgo real de campo: la
+  // nube llegó a "sugerir" que una selva tropical probablemente no
+  // permite perros — puro invento).
+  mascotas?: string;
 }
 
 export const LUGARES: Lugar[] = [

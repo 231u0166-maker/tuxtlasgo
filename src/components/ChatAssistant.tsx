@@ -27,6 +27,7 @@ import {
   formatearMXN,
   extraerGrupoLiteral,
   grupoTextoLegible,
+  esPreguntaSobreMascotas,
 } from '../lib/chatbot';
 
 import { guardarRuta, mapaDescargado } from '../lib/db';
@@ -318,6 +319,17 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
       const texto = lugar.ideal.includes(grupoPregunta)
         ? `Sí — ${lugar.nombre} está marcado como una buena opción para ${grupoTextoLegible(grupoPregunta)}. ${lugar.descripcion}`
         : `${lugar.nombre} no está marcado específicamente como ideal para ${grupoTextoLegible(grupoPregunta)} — no tengo el detalle exacto para confirmarte si aplica, revisa su ficha completa antes de decidir. Lo que sí tengo: ${lugar.descripcionCorta}`;
+      responderBot(
+        { id: crypto.randomUUID(), role: 'bot', texto, lugares: [lugar], timestamp: Date.now() },
+        300
+      );
+      return;
+    }
+
+    if (esPreguntaSobreMascotas(textoOriginal)) {
+      const texto = lugar.mascotas
+        ? `${lugar.nombre}: ${lugar.mascotas}`
+        : `No tengo registrada la política de mascotas de ${lugar.nombre} — te recomiendo confirmar directamente con ellos antes de ir.`;
       responderBot(
         { id: crypto.randomUUID(), role: 'bot', texto, lugares: [lugar], timestamp: Date.now() },
         300

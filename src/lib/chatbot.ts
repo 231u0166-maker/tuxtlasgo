@@ -684,6 +684,19 @@ function extraerDiasLiteral(texto: string): Dias | null {
 // que ver con viajar solo. Por eso, a diferencia de las demás, exige
 // una frase de dos palabras (verbo + solo/sola), nunca la palabra
 // suelta.
+// Detecta si preguntan por la política de mascotas de un lugar. Se
+// usa el campo real `mascotas` (lo declara el prestador al
+// registrarse) — si no está definido para ningún lugar relevante, se
+// dice honestamente que no se tiene el dato, nunca se especula (ver
+// hallazgo real de campo: la nube llegó a "sugerir" que una selva
+// tropical probablemente no permite perros — puro invento).
+export function esPreguntaSobreMascotas(texto: string): boolean {
+  const tokens = tokenizar(texto);
+  return ['perro', 'perros', 'perrito', 'perritos', 'mascota', 'mascotas'].some(
+    (p) => tokens.includes(p)
+  );
+}
+
 export function extraerGrupoLiteral(texto: string): GrupoViaje | null {
   const tokens = tokenizar(texto);
   const tieneAlguna = (palabras: string[]) =>
@@ -1472,6 +1485,38 @@ export function responderTextoLibre(
         timestamp: Date.now(),
       };
     }
+  }
+
+  // PASO 2.6: preguntan por política de mascotas ("¿qué lugares
+  // aceptan perros?"). Usa el dato real (campo `mascotas`, lo declara
+  // el prestador) — si nadie lo tiene registrado, dice honestamente
+  // que no lo sabe en vez de especular con el nombre o la categoría
+  // del lugar (ver hallazgo real de campo arriba de la función).
+  if (esPreguntaSobreMascotas(texto)) {
+    let candidatosMascotas = catalogoActivo.filter((l) => l.mascotas !== undefined);
+    if (municipioMencionado) {
+      const enMunicipio = candidatosMascotas.filter((l) => l.municipio === municipioMencionado);
+      if (enMunicipio.length > 0) candidatosMascotas = enMunicipio;
+    }
+    if (candidatosMascotas.length > 0) {
+      const listado = candidatosMascotas
+        .slice(0, 5)
+        .map((l) => `${l.nombre}: ${l.mascotas}`)
+        .join('\n');
+      return {
+        id: crypto.randomUUID(),
+        role: 'bot',
+        texto: `Esto es lo que tengo registrado sobre mascotas:\n\n${listado}`,
+        lugares: candidatosMascotas.slice(0, 3),
+        timestamp: Date.now(),
+      };
+    }
+    return {
+      id: crypto.randomUUID(),
+      role: 'bot',
+      texto: 'Todavía no tengo registrada la política de mascotas de ningún lugar — te recomiendo confirmar directamente con ellos antes de ir.',
+      timestamp: Date.now(),
+    };
   }
 
   // PASO 3: caso especial monos / fauna

@@ -10,6 +10,7 @@ import {
   Route,
   Lightbulb,
   BadgeCheck,
+  PawPrint,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Lugar } from '../data/lugares';
@@ -170,6 +171,19 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
                 Consejo
               </div>
               <p className="text-sm text-amber-900">{lugar.tip}</p>
+            </div>
+          )}
+
+          {/* Política de mascotas — solo se muestra si el prestador la
+              declaró. Sin dato, no se dice nada aquí (nunca se
+              inventa ni se supone "seguramente sí/no permite"). */}
+          {lugar.mascotas && (
+            <div className="bg-jungle-50 rounded-xl p-4">
+              <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
+                <PawPrint size={12} />
+                Mascotas
+              </div>
+              <p className="text-sm text-jungle-900">{lugar.mascotas}</p>
             </div>
           )}
 

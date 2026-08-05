@@ -208,6 +208,7 @@ function lugarAFicha(l: Lugar): string {
     `- ${l.nombre}${l.premium ? ' [Socio Premium TuxtlasGO]' : ''} (${l.categoria}, ${l.municipio})`,
     `  ${l.descripcionCorta}`,
     `  Precio: ${l.precioMxn} · Horario: ${l.abierto.dias} ${l.abierto.horario}`,
+    l.mascotas ? `  Mascotas: ${l.mascotas}` : '',
     l.tip ? `  Tip: ${l.tip}` : '',
     l.comoLlegar ? `  Cómo llegar: ${l.comoLlegar}` : '',
   ];

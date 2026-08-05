@@ -47,6 +47,7 @@ export interface ServicioPrestador {
   duracion?: string;      // ej: "2-3 horas"
   comoLlegar?: string;   // Indicaciones de cómo llegar
   tip?: string;           // Consejo insider para el turista
+  mascotas?: string;      // Política de mascotas, ej: "Sí, aceptamos perros"
   idealPara?: string[];  // ej: ['pareja', 'familia', 'grupos', 'solo']
   // ── Plan Premium $89 MXN/mes (Módulo 2 — monetización) ─────
   // Beneficio contratado: posicionamiento prioritario en el
@@ -264,6 +265,7 @@ export function servicioComoLugar(s: ServicioPrestador): Lugar {
     },
     comoLlegar: s.comoLlegar || `En ${s.municipio}. Contacto: ${s.contacto}`,
     tip: s.tip,
+    mascotas: s.mascotas,
     verificado: s.estado === 'aprobado',
     contacto: s.contacto,
     premium: !!s.premium && (!s.premiumHasta || s.premiumHasta > Date.now()),

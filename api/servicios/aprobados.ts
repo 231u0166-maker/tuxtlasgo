@@ -43,6 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       SELECT s.id, s.nombre, s.categoria, s.municipio, s.descripcion,
              s.precio, s.contacto, s.lat, s.lng, s.codigo_seguimiento, s.fotos,
              s.horario, s.dias_abierto, s.duracion, s.como_llegar, s.tip, s.ideal_para,
+             s.mascotas,
              u.nombre AS propietario
       FROM servicios s
       JOIN usuarios u ON u.id = s.usuario_id
@@ -84,6 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         tip:        s.tip         || undefined,
         verificado: true,
         contacto:   s.contacto   || '',
+        mascotas:   s.mascotas   || undefined,
         esPrestador: true,
         codigoSeguimiento: s.codigo_seguimiento,
       };

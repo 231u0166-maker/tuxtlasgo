@@ -70,9 +70,19 @@ interface Props {
   // como siempre — solo se activa el atajo cuando dias+presupuesto+
   // grupo están los tres presentes (ver nota en el estado inicial).
   prefsDesdeFiltros?: Partial<PreferenciasUsuario>;
+
+  // El toggle de mascotas de la barra NO filtra lugares (el dato de
+  // cada lugar es texto libre declarado por el prestador — filtrar
+  // automáticamente arriesgaría excluir opciones válidas por una mala
+  // lectura del texto, justo lo que este motor evita a propósito en
+  // otros lados). En vez de eso, cuando es true, la ruta generada
+  // agrega una nota aparte con el dato REAL de mascotas de cada lugar
+  // incluido (o avisa honestamente cuando no hay dato) — se relaya,
+  // nunca se infiere.
+  viajaConMascota?: boolean;
 }
 
-export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsDesdeFiltros }: Props) {
+export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsDesdeFiltros, viajaConMascota }: Props) {
   // Se usa para decidir si intentar el cálculo de distancia/tiempo en
   // vivo desde la ubicación del turista — ver nota junto a
   // pareceSolicitudDeDistancia más abajo: ese cálculo SIEMPRE necesita
@@ -589,6 +599,39 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
       }, 1200 + i * 900);
     });
 
+    // Nota de mascotas — SOLO relay del dato real que declaró cada
+    // prestador (`lugar.mascotas`), nunca una suposición. Si viajas
+    // con mascota y algún lugar de la ruta no tiene el dato
+    // registrado, se dice honestamente en vez de omitirlo o inventar
+    // una respuesta.
+    if (viajaConMascota) {
+      const lugaresRuta = dias.flatMap((d) => d.lugares);
+      const conDato = lugaresRuta.filter((l) => l.mascotas !== undefined);
+      const sinDato = lugaresRuta.filter((l) => l.mascotas === undefined);
+      const lineas: string[] = [];
+      if (conDato.length > 0) {
+        lineas.push(...conDato.map((l) => `${l.nombre}: ${l.mascotas}`));
+      }
+      const notaSinDato =
+        sinDato.length > 0
+          ? `\n\nSin dato registrado todavía: ${sinDato.map((l) => l.nombre).join(', ')} — confirma directo con ellos antes de ir.`
+          : '';
+      setTimeout(() => {
+        setMensajes((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto:
+              lineas.length > 0
+                ? `🐾 Como marcaste que viajas con mascota, esto es lo que tengo registrado en esta ruta:\n\n${lineas.join('\n')}${notaSinDato}`
+                : `🐾 Marcaste que viajas con mascota, pero todavía no tengo la política registrada de ningún lugar de esta ruta — te recomiendo confirmar directo con cada uno antes de ir.`,
+            timestamp: Date.now(),
+          },
+        ]);
+      }, 1200 + dias.length * 900);
+    }
+
     // Mensaje final con opción de reiniciar
     setTimeout(() => {
       setMensajes((prev) => [
@@ -757,16 +800,16 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
         extraidas.dias !== undefined && otrasSenalesDeViaje >= 1;
 
       if (pareceSolicitudDeRuta(texto) || sueneAViajeCompleto) {
-        const diasFinal = extraidas.dias ?? prefsParcial.dias ?? 2;
+        const diasFinal = extraidas.dias ?? prefsParcial.dias ?? prefsDesdeFiltros?.dias ?? 2;
         const interesesFinal = extraidas.intereses ?? prefsParcial.intereses ?? ['Naturaleza'];
-        const presupuestoFinal = extraidas.presupuesto ?? prefsParcial.presupuesto ?? 'medio';
-        const grupoFinal = extraidas.grupo ?? prefsParcial.grupo ?? 'pareja';
+        const presupuestoFinal = extraidas.presupuesto ?? prefsParcial.presupuesto ?? prefsDesdeFiltros?.presupuesto ?? 'medio';
+        const grupoFinal = extraidas.grupo ?? prefsParcial.grupo ?? prefsDesdeFiltros?.grupo ?? 'pareja';
         // Municipio: detección por palabra clave ya existente (no
         // necesita el modelo de embeddings) — tolerante a errores de
         // escritura vía pln.ts. Es opcional a propósito: si no se
         // menciona ninguno, la ruta sigue repartiendo entre varios
         // municipios como siempre.
-        const municipioDetectado = detectarMunicipio(texto) ?? undefined;
+        const municipioDetectado = detectarMunicipio(texto) ?? prefsDesdeFiltros?.municipio ?? undefined;
 
         const prefsCompletas: PreferenciasUsuario = {
           dias: diasFinal,
@@ -845,24 +888,24 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
             // burbuja vacía: caemos al motor de reglas para ESTE
             // mensaje, que nunca inventa datos.
             console.warn('[TuxtlasGO IA] Respuesta de nube descartada por posible alucinación');
-            responderBot(responderTextoLibre(texto, null), 200);
+            responderBot(responderTextoLibre(texto, prefsDesdeFiltros ?? null), 200);
           }
         } catch (e) {
           console.error('[TuxtlasGO IA] Nube falló, cae a reglas:', e);
           setEscribiendo(false);
-          responderBot(responderTextoLibre(texto, null), 300);
+          responderBot(responderTextoLibre(texto, prefsDesdeFiltros ?? null), 300);
         }
         return;
       }
 
       // 4) Sin internet → motor de reglas, siempre disponible.
-      responderBot(responderTextoLibre(texto, null), 400);
+      responderBot(responderTextoLibre(texto, prefsDesdeFiltros ?? null), 400);
     } catch (err) {
       // Si algo truena a media respuesta, no dejamos la burbuja a medias:
       // caemos al motor de reglas.
       console.error('Error generando respuesta:', err);
       setEscribiendo(false);
-      responderBot(responderTextoLibre(texto, null), 200);
+      responderBot(responderTextoLibre(texto, prefsDesdeFiltros ?? null), 200);
     } finally {
       setGenerandoIA(false);
     }

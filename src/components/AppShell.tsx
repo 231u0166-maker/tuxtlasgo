@@ -584,6 +584,7 @@ export default function AppShell() {
                 onVerRutaEnMapa={verRutaEnMapa}
                 llm={llm}
                 prefsDesdeFiltros={prefsDesdeFiltros}
+                viajaConMascota={filtros?.quien.mascotas}
               />
             </div>
           </div>

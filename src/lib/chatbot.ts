@@ -1346,18 +1346,28 @@ function lugaresDeConocimiento(
 }
 
 // ─────────────── RESPUESTAS A TEXTO LIBRE ───────────────
+// El segundo parámetro venía sin usarse (`_prefs`, siempre `null` en
+// cada llamada) — bug real encontrado en pruebas: si el turista pone
+// "San Andrés Tuxtla" en la barra de Dónde y luego ESCRIBE una
+// pregunta que no repite el nombre del municipio ("quiero un hotel
+// cerca de la ciudad"), `detectarMunicipio` no encuentra nada en ese
+// texto y la respuesta salía sin acotar a ningún municipio — cayendo
+// en lo que mejor puntuara en TODO el catálogo (terminó recomendando
+// Catemaco). Ahora, si el texto mismo no menciona un municipio,
+// grupo o presupuesto, se usa lo que haya en la barra de filtros
+// como respaldo — el texto escrito siempre gana si lo menciona.
 export function responderTextoLibre(
   texto: string,
-  _prefs: PreferenciasUsuario | null
+  prefsFiltro: Partial<PreferenciasUsuario> | null
 ): MensajeChat {
   const intent = detectarIntent(texto);
-  const municipioMencionado = detectarMunicipio(texto);
+  const municipioMencionado = detectarMunicipio(texto) ?? prefsFiltro?.municipio ?? null;
   // Hallazgo real de campo (QA): "Viajo con niños pequeños. ¿Qué
   // actividades recomiendas?" no filtraba nada por eso — el campo
   // `ideal` (familia/pareja/solo/amigos) ya existe en cada lugar y ya
   // se usa en el flujo de botones, pero el texto libre nunca lo
   // conectaba. Se detecta aquí para usarlo en dos casos más abajo.
-  const grupoPregunta = extraerGrupoLiteral(texto);
+  const grupoPregunta = extraerGrupoLiteral(texto) ?? prefsFiltro?.grupo ?? null;
 
   // Saludo
   if (intent === 'saludo') {
@@ -1430,7 +1440,7 @@ export function responderTextoLibre(
     // completo — "¿hay un hotel que no supere los $3,000?" listaba
     // todos los hospedajes sin filtrar ni confirmar cuáles entraban.
     const presupuestoPregunta = extraerPresupuestoLiteral(texto, 1);
-    const presupuestoCualitativo = extraerPresupuestoCualitativo(texto);
+    const presupuestoCualitativo = extraerPresupuestoCualitativo(texto) ?? prefsFiltro?.presupuesto ?? null;
 
     let sugerencias: Lugar[];
     let notaFiltro = '';

@@ -4,12 +4,19 @@ import {
   Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
   PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import AuthModal from './AuthModal';
 import BottomNav, { type Tab } from './BottomNav';
 import ExploreScreen from './ExploreScreen';
-import { getCatalogoActivo } from '../lib/chatbot';
+import {
+  getCatalogoActivo,
+  grupoDesdeQuien,
+  presupuestoDesdeNivel,
+  diasDesdeFechas,
+  type PreferenciasUsuario,
+} from '../lib/chatbot';
+import FiltrosViaje, { type FiltrosViajeValor } from './FiltrosViaje';
 import MapScreen from './MapScreen';
 import ChatAssistant from './ChatAssistant';
 import { useLLM } from '../hooks/useLLM';
@@ -94,6 +101,22 @@ export default function AppShell() {
       return nuevo;
     });
   };
+
+  // Base-visual SECTION-04 / módulo de rutas: estado de la barra de
+  // filtros, elevado aquí (no vive dentro de FiltrosViaje) para poder
+  // traducirlo al modelo del chat. Se deriva a PreferenciasUsuario
+  // parcial con useMemo — ChatAssistant solo actúa cuando los tres
+  // campos que le importan (dias/presupuesto/grupo) están completos.
+  const [filtros, setFiltros] = useState<FiltrosViajeValor | undefined>(undefined);
+  const prefsDesdeFiltros = useMemo((): Partial<PreferenciasUsuario> | undefined => {
+    if (!filtros) return undefined;
+    const dias = diasDesdeFechas(filtros.desde, filtros.hasta);
+    return {
+      ...(dias ? { dias } : {}),
+      presupuesto: presupuestoDesdeNivel(filtros.presupuesto),
+      grupo: grupoDesdeQuien(filtros.quien),
+    };
+  }, [filtros]);
 
   useEffect(() => {
     if (!menuMovilAbierto) return;
@@ -545,7 +568,17 @@ export default function AppShell() {
             />
           )}
           <div style={{ display: tab === 'chat' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
-            <ChatAssistant onVerLugar={verLugar} onVerRutaEnMapa={verRutaEnMapa} llm={llm} />
+            <div className="flex-shrink-0 px-3 pt-3 pb-2 bg-jungle-50 border-b border-jungle-100 overflow-x-auto">
+              <FiltrosViaje valor={filtros} onCambiar={setFiltros} />
+            </div>
+            <div className="flex-1 min-h-0">
+              <ChatAssistant
+                onVerLugar={verLugar}
+                onVerRutaEnMapa={verRutaEnMapa}
+                llm={llm}
+                prefsDesdeFiltros={prefsDesdeFiltros}
+              />
+            </div>
           </div>
           {tab === 'favoritos' && (
             <div className="h-full overflow-y-auto">

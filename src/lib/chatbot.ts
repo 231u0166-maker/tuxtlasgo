@@ -410,6 +410,64 @@ export function mensajeGrupo(): MensajeChat {
   };
 }
 
+// ─────────────── PUENTE CON LA BARRA DE FILTROS (base-visual) ───────────────
+// Traducen lo que ya llenó el turista en el filtro estructurado
+// (Dónde/Cuándo/Quién/Presupuesto, ver FiltrosViaje.tsx) al modelo
+// que ya usa este motor — así el flujo guiado del chat NO vuelve a
+// preguntar presupuesto/grupo/días si ya se contestaron ahí arriba.
+// Un solo motor de recomendación, sin duplicar la pregunta por dos
+// caminos distintos (chat vs. filtro).
+
+// Heurística documentada, no una detección perfecta: a partir de
+// solo un conteo de personas no se puede distinguir con certeza
+// "pareja" de "dos amigos viajando juntos" — se elige "pareja" para
+// el caso de 2 adultos por ser el más común, igual que ya elegía el
+// flujo de botones antes de que existiera este filtro.
+export function grupoDesdeQuien(quien: { adultos: number; ninos: number; bebes: number }): GrupoViaje {
+  if (quien.ninos > 0 || quien.bebes > 0) return 'familia';
+  if (quien.adultos <= 1) return 'solo';
+  if (quien.adultos === 2) return 'pareja';
+  return 'amigos';
+}
+
+export function presupuestoDesdeNivel(nivel: 1 | 2 | 3): Presupuesto {
+  return (['bajo', 'medio', 'alto'] as const)[nivel - 1];
+}
+
+// null si falta alguna fecha o no se puede interpretar — nunca se
+// inventa un número de días que el turista no dio.
+export function diasDesdeFechas(desde: string, hasta: string): Dias | null {
+  if (!desde || !hasta) return null;
+  const ms = new Date(hasta).getTime() - new Date(desde).getTime();
+  if (Number.isNaN(ms)) return null;
+  const diferencia = Math.round(ms / 86_400_000) + 1; // inclusivo, mismo día = 1 día
+  if (diferencia <= 1) return 1;
+  if (diferencia === 2) return 2;
+  return 3; // el modelo Dias solo llega hasta "3 o más"
+}
+
+// Bienvenida alterna para cuando el filtro de arriba ya trae
+// días+presupuesto+grupo resueltos: reconoce lo ya sabido y salta
+// directo a la única pregunta que el filtro no puede responder por
+// su cuenta (qué te mueve al viajar es preferencia abierta, no un
+// conteo).
+export function mensajeBienvenidaConFiltros(): MensajeChat {
+  return {
+    id: crypto.randomUUID(),
+    role: 'bot',
+    texto:
+      '¡Hola! Con lo que pusiste arriba (fechas, quién viaja y presupuesto) ya tengo la mitad de tu ruta. Solo dime qué te mueve cuando viajas — toca todos los que te interesen y dale a "Listo".',
+    opciones: [
+      { label: '🌳 Naturaleza', valor: 'Naturaleza' },
+      { label: '🥾 Aventura', valor: 'Aventura' },
+      { label: '🍤 Gastronomía', valor: 'Gastronomia' },
+      { label: '🛏️ Hospedaje', valor: 'Hospedaje' },
+      { label: '✅ Listo, ya escogí', valor: '__done__' },
+    ],
+    timestamp: Date.now(),
+  };
+}
+
 // ─────────────── NÚCLEO: FILTRADO Y RANKING (motor de inferencia) ───────────────
 interface LugarConScore {
   lugar: Lugar;

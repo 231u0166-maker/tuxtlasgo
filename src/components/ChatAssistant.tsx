@@ -10,6 +10,7 @@ import {
   type GrupoViaje,
   type Dias,
   mensajeBienvenida,
+  mensajeBienvenidaConFiltros,
   mensajeIntereses,
   mensajePresupuesto,
   mensajeGrupo,
@@ -61,9 +62,17 @@ interface Props {
   // Instancia COMPARTIDA del hook de IA — vive en AppShell (no aquí)
   // para que cualquier pestaña use el mismo estado de la nube.
   llm: ReturnType<typeof useLLM>;
+
+  // Base-visual SECTION-04 / módulo de rutas: lo que ya se llenó en
+  // la barra de filtros (Dónde/Cuándo/Quién/Presupuesto), traducido
+  // al modelo de preferencias. Opcional y aditivo a propósito: si no
+  // llega (o llega incompleto), el flujo guiado se comporta EXACTO
+  // como siempre — solo se activa el atajo cuando dias+presupuesto+
+  // grupo están los tres presentes (ver nota en el estado inicial).
+  prefsDesdeFiltros?: Partial<PreferenciasUsuario>;
 }
 
-export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Props) {
+export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsDesdeFiltros }: Props) {
   // Se usa para decidir si intentar el cálculo de distancia/tiempo en
   // vivo desde la ubicación del turista — ver nota junto a
   // pareceSolicitudDeDistancia más abajo: ese cálculo SIEMPRE necesita
@@ -127,6 +136,27 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
   );
   // Intereses seleccionados (multi-selección)
   const [interesesTemp, setInteresesTemp] = useState<Categoria[]>([]);
+
+  // Base-visual / módulo de rutas: si la barra de filtros de arriba
+  // ya trae días+presupuesto+grupo resueltos, se aplican UNA sola vez
+  // y solo si la conversación sigue intacta (nadie contestó nada
+  // todavía) — así tocar un filtro después de haber empezado a
+  // platicar con el asistente nunca le borra la charla a medias.
+  const filtrosYaAplicados = useRef(false);
+  useEffect(() => {
+    if (filtrosYaAplicados.current) return;
+    if (!prefsDesdeFiltros) return;
+    const { dias, presupuesto, grupo } = prefsDesdeFiltros;
+    if (dias == null || presupuesto == null || grupo == null) return;
+
+    const conversacionIntacta = estado === 'preguntando_dias' && mensajes.length <= 1;
+    if (!conversacionIntacta) return;
+
+    filtrosYaAplicados.current = true;
+    setPrefsParcial({ dias, presupuesto, grupo });
+    setEstado('preguntando_intereses');
+    setMensajes([mensajeBienvenidaConFiltros()]);
+  }, [prefsDesdeFiltros, estado, mensajes.length]);
   // Mientras se espera que el turista elija cuál de varios lugares
   // ambiguos quiso decir — se guarda el texto ORIGINAL (para revisar
   // si además pedía distancia/tiempo) y las opciones que se le
@@ -443,6 +473,24 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm }: Prop
           return;
         }
         agregarUsuario(`Me interesa: ${interesesTemp.join(', ')}`);
+
+        // Si presupuesto y grupo ya vinieron de la barra de filtros
+        // (ver prefsDesdeFiltros / el efecto de arriba), no se
+        // vuelven a preguntar por chat — se genera la ruta directo.
+        // Si falta cualquiera de los dos, sigue el flujo de siempre.
+        if (prefsParcial.presupuesto && prefsParcial.grupo) {
+          const prefsCompletas: PreferenciasUsuario = {
+            dias: prefsParcial.dias ?? 2,
+            intereses: interesesTemp,
+            presupuesto: prefsParcial.presupuesto,
+            grupo: prefsParcial.grupo,
+          };
+          setPrefsParcial(prefsCompletas);
+          setEstado('generando');
+          generarYMostrarRuta(prefsCompletas);
+          return;
+        }
+
         setPrefsParcial((p) => ({ ...p, intereses: interesesTemp }));
         setEstado('preguntando_presupuesto');
         responderBot(mensajePresupuesto());

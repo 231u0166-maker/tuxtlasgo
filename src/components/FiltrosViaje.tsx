@@ -1,14 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
-import { MapPin, Calendar, Users, DollarSign, ChevronDown, Minus, Plus } from 'lucide-react';
+import { MapPin, Calendar, Users, DollarSign, ChevronDown, Minus, Plus, X } from 'lucide-react';
 
 // ============================================================
 // BARRA DE FILTROS — Dónde / Cuándo / Quién / Presupuesto
 // ============================================================
 // Base-visual SECTION-04. Es el molde visual nada más: guarda su
 // propio estado y lo expone por onCambiar, pero no llama a
-// chatbot.ts/routing.ts todavía — esa conexión es del módulo de
-// rutas/itinerarios (siguiente pieza), que reemplaza la doble
-// pregunta por chat con este filtro estructurado (PDF págs. 52-53).
+// chatbot.ts/routing.ts directamente — esa conexión vive en AppShell
+// (ver prefsDesdeFiltros en ChatAssistant.tsx).
+//
+// REGLAS "OPCIÓN A" (ver filtro-claro-vs-oscuro.html, aprobado) — se
+// mantiene la identidad clara amate/jungle de siempre, pero cada
+// popover es un MODAL real, no un tooltip chiquito: título + botón
+// de cerrar circular, ancho fijo consistente (340px, no variable por
+// contenido), radio 20px, sombra propia de tarjeta flotante, campos
+// con fondo amate-50 en vez de blanco liso, y un botón "Guardar"
+// explícito que cierra el modal — así se ve deliberado, no un
+// dropdown genérico de librería.
+export const RADIO_MODAL = 'rounded-[20px]';
+export const SOMBRA_MODAL = 'shadow-[0_20px_45px_-12px_rgba(28,25,23,0.18)]';
 
 export interface QuienViaja {
   adultos: number;
@@ -73,7 +83,7 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
   return (
     <div
       ref={contenedorRef}
-      className="inline-flex flex-wrap items-center gap-2 bg-white rounded-full border border-obsidiana-900/10 p-1.5 shadow-sm"
+      className="inline-flex flex-wrap items-center gap-0.5 bg-white rounded-full border border-obsidiana-900/10 p-[5px] shadow-[0_2px_10px_rgba(28,25,23,0.05)]"
     >
       {/* DÓNDE */}
       <div className="relative">
@@ -84,33 +94,19 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
           onClick={() => setAbierto(abierto === 'donde' ? null : 'donde')}
         />
         {abierto === 'donde' && (
-          <Popover>
-            <label className="text-xs font-semibold text-obsidiana-800/60 uppercase tracking-wide">
-              Ubicación
-            </label>
-            <input
-              type="text"
-              value={estado.donde}
-              onChange={(e) => actualizar({ donde: e.target.value })}
+          <Modal titulo="Dónde" onCerrar={() => setAbierto(null)}>
+            <Campo
               placeholder="Catemaco, San Andrés Tuxtla..."
-              className="w-full mt-1.5 mb-3 px-3 py-2 rounded-lg border border-obsidiana-900/10 text-sm focus:outline-none focus:border-jungle-400"
+              value={estado.donde}
+              onChange={(v) => actualizar({ donde: v })}
             />
-            <label className="flex items-center justify-between text-sm text-obsidiana-800">
-              ¿Viaje por carretera?
-              <button
-                type="button"
-                onClick={() => actualizar({ porCarretera: !estado.porCarretera })}
-                className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${estado.porCarretera ? 'bg-jungle-700' : 'bg-obsidiana-900/15'
-                  }`}
-                aria-pressed={estado.porCarretera}
-              >
-                <span
-                  className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${estado.porCarretera ? 'translate-x-[18px]' : 'translate-x-0.5'
-                    }`}
-                />
-              </button>
-            </label>
-          </Popover>
+            <FilaToggle
+              etiqueta="¿Viaje por carretera?"
+              valor={estado.porCarretera}
+              onCambiar={(v) => actualizar({ porCarretera: v })}
+            />
+            <BotonGuardar onClick={() => setAbierto(null)} />
+          </Modal>
         )}
       </div>
 
@@ -123,26 +119,24 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
           onClick={() => setAbierto(abierto === 'cuando' ? null : 'cuando')}
         />
         {abierto === 'cuando' && (
-          <Popover>
-            <label className="text-xs font-semibold text-obsidiana-800/60 uppercase tracking-wide">
-              Fechas
-            </label>
-            <div className="flex items-center gap-2 mt-1.5">
+          <Modal titulo="Cuándo" onCerrar={() => setAbierto(null)}>
+            <div className="flex items-center gap-2 mb-5">
               <input
                 type="date"
                 value={estado.desde}
                 onChange={(e) => actualizar({ desde: e.target.value })}
-                className="flex-1 px-2 py-2 rounded-lg border border-obsidiana-900/10 text-sm focus:outline-none focus:border-jungle-400"
+                className="flex-1 min-w-0 px-3.5 py-3 rounded-xl border border-obsidiana-900/10 bg-amate-50 text-sm focus:outline-none focus:border-jungle-400"
               />
-              <span className="text-obsidiana-800/40">–</span>
+              <span className="text-obsidiana-800/30 flex-shrink-0">–</span>
               <input
                 type="date"
                 value={estado.hasta}
                 onChange={(e) => actualizar({ hasta: e.target.value })}
-                className="flex-1 px-2 py-2 rounded-lg border border-obsidiana-900/10 text-sm focus:outline-none focus:border-jungle-400"
+                className="flex-1 min-w-0 px-3.5 py-3 rounded-xl border border-obsidiana-900/10 bg-amate-50 text-sm focus:outline-none focus:border-jungle-400"
               />
             </div>
-          </Popover>
+            <BotonGuardar onClick={() => setAbierto(null)} />
+          </Modal>
         )}
       </div>
 
@@ -155,41 +149,36 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
           onClick={() => setAbierto(abierto === 'quien' ? null : 'quien')}
         />
         {abierto === 'quien' && (
-          <Popover ancho="w-72">
-            <ContadorQuien
-              etiqueta="Adultos"
-              valor={estado.quien.adultos}
-              min={1}
-              onCambiar={(n) => actualizar({ quien: { ...estado.quien, adultos: n } })}
-            />
-            <ContadorQuien
-              etiqueta="Niños"
-              valor={estado.quien.ninos}
-              min={0}
-              onCambiar={(n) => actualizar({ quien: { ...estado.quien, ninos: n } })}
-            />
-            <ContadorQuien
-              etiqueta="Bebés"
-              valor={estado.quien.bebes}
-              min={0}
-              onCambiar={(n) => actualizar({ quien: { ...estado.quien, bebes: n } })}
-            />
-            <label className="flex items-center justify-between text-sm text-obsidiana-800 pt-2 mt-1 border-t border-obsidiana-900/8">
-              Mascotas
-              <button
-                type="button"
-                onClick={() => actualizar({ quien: { ...estado.quien, mascotas: !estado.quien.mascotas } })}
-                className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${estado.quien.mascotas ? 'bg-jungle-700' : 'bg-obsidiana-900/15'
-                  }`}
-                aria-pressed={estado.quien.mascotas}
-              >
-                <span
-                  className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${estado.quien.mascotas ? 'translate-x-[18px]' : 'translate-x-0.5'
-                    }`}
-                />
-              </button>
-            </label>
-          </Popover>
+          <Modal titulo="Quién viaja" onCerrar={() => setAbierto(null)}>
+            <div className="space-y-0.5 mb-1">
+              <ContadorQuien
+                etiqueta="Adultos"
+                valor={estado.quien.adultos}
+                min={1}
+                onCambiar={(n) => actualizar({ quien: { ...estado.quien, adultos: n } })}
+              />
+              <ContadorQuien
+                etiqueta="Niños"
+                valor={estado.quien.ninos}
+                min={0}
+                onCambiar={(n) => actualizar({ quien: { ...estado.quien, ninos: n } })}
+              />
+              <ContadorQuien
+                etiqueta="Bebés"
+                valor={estado.quien.bebes}
+                min={0}
+                onCambiar={(n) => actualizar({ quien: { ...estado.quien, bebes: n } })}
+              />
+            </div>
+            <div className="pt-3 mt-2 border-t border-obsidiana-900/8">
+              <FilaToggle
+                etiqueta="Mascotas"
+                valor={estado.quien.mascotas}
+                onCambiar={(v) => actualizar({ quien: { ...estado.quien, mascotas: v } })}
+              />
+            </div>
+            <BotonGuardar onClick={() => setAbierto(null)} />
+          </Modal>
         )}
       </div>
 
@@ -202,26 +191,24 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
           onClick={() => setAbierto(abierto === 'presupuesto' ? null : 'presupuesto')}
         />
         {abierto === 'presupuesto' && (
-          <Popover ancho="w-56">
-            <label className="text-xs font-semibold text-obsidiana-800/60 uppercase tracking-wide mb-2 block">
-              Presupuesto
-            </label>
-            <div className="flex gap-2">
+          <Modal titulo="Presupuesto" onCerrar={() => setAbierto(null)}>
+            <div className="flex gap-2 mb-5">
               {([1, 2, 3] as const).map((nivel) => (
                 <button
                   key={nivel}
                   type="button"
                   onClick={() => actualizar({ presupuesto: nivel })}
-                  className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${estado.presupuesto === nivel
+                  className={`flex-1 py-3 rounded-xl text-sm font-bold border transition-colors ${estado.presupuesto === nivel
                     ? 'bg-jungle-700 border-jungle-700 text-white'
-                    : 'border-obsidiana-900/10 text-obsidiana-800/70 hover:border-jungle-300'
+                    : 'border-obsidiana-900/10 bg-amate-50 text-obsidiana-800/70 hover:border-jungle-300'
                     }`}
                 >
                   {'$'.repeat(nivel)}
                 </button>
               ))}
             </div>
-          </Popover>
+            <BotonGuardar onClick={() => setAbierto(null)} />
+          </Modal>
         )}
       </div>
     </div>
@@ -243,7 +230,7 @@ function Pastilla({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-semibold transition-colors ${activo ? 'bg-jungle-50 text-jungle-800' : 'text-obsidiana-800/80 hover:bg-obsidiana-900/5'
+      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full text-[13.5px] font-medium transition-colors ${activo ? 'bg-jungle-50 text-jungle-700' : 'text-obsidiana-800/75 hover:bg-obsidiana-900/5'
         }`}
     >
       <Icon size={15} className="flex-shrink-0" />
@@ -253,13 +240,96 @@ function Pastilla({
   );
 }
 
-function Popover({ children, ancho = 'w-64' }: { children: React.ReactNode; ancho?: string }) {
+// Modal real — no un dropdown de dos líneas de CSS. Ancho fijo
+// (340px) en las cuatro instancias, a propósito: mindtrip nunca hace
+// que el popover "respire" según su contenido, y esa consistencia es
+// justo lo que se sentía descuidado antes.
+function Modal({
+  titulo,
+  onCerrar,
+  children,
+}: {
+  titulo: string;
+  onCerrar: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <div
-      className={`absolute top-[calc(100%+8px)] left-0 ${ancho} bg-white rounded-2xl shadow-xl border border-obsidiana-900/8 p-4 z-50 animate-fade-in`}
+      className={`absolute top-[calc(100%+10px)] left-0 w-[340px] bg-white border border-obsidiana-900/8 ${RADIO_MODAL} ${SOMBRA_MODAL} p-[22px] z-50 animate-fade-in`}
     >
+      <div className="flex items-center justify-between mb-4">
+        <span className="font-display font-bold text-[15px] text-obsidiana-900">{titulo}</span>
+        <button
+          type="button"
+          onClick={onCerrar}
+          aria-label="Cerrar"
+          className="w-[26px] h-[26px] rounded-full bg-amate-100 flex items-center justify-center text-obsidiana-800/50 hover:text-obsidiana-900 transition-colors"
+        >
+          <X size={13} />
+        </button>
+      </div>
       {children}
     </div>
+  );
+}
+
+function Campo({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full mb-5 px-3.5 py-3 rounded-xl border border-obsidiana-900/10 bg-amate-50 text-sm focus:outline-none focus:border-jungle-400"
+    />
+  );
+}
+
+function FilaToggle({
+  etiqueta,
+  valor,
+  onCambiar,
+}: {
+  etiqueta: string;
+  valor: boolean;
+  onCambiar: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between text-[13.5px] text-obsidiana-800 mb-5 last:mb-0">
+      {etiqueta}
+      <button
+        type="button"
+        onClick={() => onCambiar(!valor)}
+        className={`w-[38px] h-[22px] rounded-full transition-colors relative flex-shrink-0 ${valor ? 'bg-jungle-700' : 'bg-obsidiana-900/15'
+          }`}
+        aria-pressed={valor}
+      >
+        <span
+          className={`absolute top-0.5 w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${valor ? 'translate-x-[18px]' : 'translate-x-0.5'
+            }`}
+        />
+      </button>
+    </label>
+  );
+}
+
+function BotonGuardar({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full py-3 rounded-xl bg-jungle-700 hover:bg-jungle-800 text-white font-semibold text-sm transition-colors"
+    >
+      Guardar
+    </button>
   );
 }
 
@@ -275,7 +345,7 @@ function ContadorQuien({
   onCambiar: (n: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between py-1.5 text-sm text-obsidiana-800">
+    <div className="flex items-center justify-between py-2 text-sm text-obsidiana-800">
       {etiqueta}
       <div className="flex items-center gap-3">
         <button

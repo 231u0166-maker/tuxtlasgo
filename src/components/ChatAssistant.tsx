@@ -146,14 +146,14 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
   useEffect(() => {
     if (filtrosYaAplicados.current) return;
     if (!prefsDesdeFiltros) return;
-    const { dias, presupuesto, grupo } = prefsDesdeFiltros;
+    const { dias, presupuesto, grupo, municipio } = prefsDesdeFiltros;
     if (dias == null || presupuesto == null || grupo == null) return;
 
     const conversacionIntacta = estado === 'preguntando_dias' && mensajes.length <= 1;
     if (!conversacionIntacta) return;
 
     filtrosYaAplicados.current = true;
-    setPrefsParcial({ dias, presupuesto, grupo });
+    setPrefsParcial({ dias, presupuesto, grupo, ...(municipio ? { municipio } : {}) });
     setEstado('preguntando_intereses');
     setMensajes([mensajeBienvenidaConFiltros()]);
   }, [prefsDesdeFiltros, estado, mensajes.length]);
@@ -484,6 +484,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
             intereses: interesesTemp,
             presupuesto: prefsParcial.presupuesto,
             grupo: prefsParcial.grupo,
+            ...(prefsParcial.municipio ? { municipio: prefsParcial.municipio } : {}),
           };
           setPrefsParcial(prefsCompletas);
           setEstado('generando');

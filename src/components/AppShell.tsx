@@ -14,6 +14,7 @@ import {
   grupoDesdeQuien,
   presupuestoDesdeNivel,
   diasDesdeFechas,
+  detectarMunicipio,
   type PreferenciasUsuario,
 } from '../lib/chatbot';
 import FiltrosViaje, { type FiltrosViajeValor } from './FiltrosViaje';
@@ -111,10 +112,16 @@ export default function AppShell() {
   const prefsDesdeFiltros = useMemo((): Partial<PreferenciasUsuario> | undefined => {
     if (!filtros) return undefined;
     const dias = diasDesdeFechas(filtros.desde, filtros.hasta);
+    // Mismo detector que ya usa el chat en texto libre (tolera errores
+    // de escritura) — así "Dónde" se comporta idéntico haya venido de
+    // la barra o de un mensaje escrito, sin duplicar lógica de
+    // reconocimiento de municipios.
+    const municipio = filtros.donde.trim() ? detectarMunicipio(filtros.donde) : null;
     return {
       ...(dias ? { dias } : {}),
       presupuesto: presupuestoDesdeNivel(filtros.presupuesto),
       grupo: grupoDesdeQuien(filtros.quien),
+      ...(municipio ? { municipio } : {}),
     };
   }, [filtros]);
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type UsuarioSesion } from '../lib/auth';
 import {
@@ -9,8 +10,13 @@ import {
   ChevronRight,
   Download,
   ShieldCheck,
+  Percent,
+  TrendingUp,
+  Camera,
 } from 'lucide-react';
 import OfflineIndicator from './OfflineIndicator';
+import NavbarLanding, { type ModoLanding } from './NavbarLanding';
+import AuthModal from './AuthModal';
 
 interface LandingProps {
   usuario?: UsuarioSesion | null;
@@ -25,37 +31,60 @@ interface LandingProps {
 // rápida en celular con señal débil. El collage de fotos reemplaza
 // el carrusel con setInterval (menos JS corriendo todo el tiempo,
 // no solo se ve mejor).
-export default function LandingPage({ usuario = null }: LandingProps) {
+export default function LandingPage({ usuario = null, onUsuario }: LandingProps) {
+  // Base-visual SECTION-01: la landing tiene dos "modos" de contenido
+  // (turista / prestador) que viven en el mismo componente y la misma
+  // ruta "/" — no se navega a otra URL al cambiar, así el toggle del
+  // navbar es instantáneo. "/prestador" sigue intacta, ver spec.
+  const [modo, setModo] = useState<ModoLanding>('turista');
+  const [mostrarAuth, setMostrarAuth] = useState(false);
+  const esTurista = modo === 'turista';
+
   return (
     <div className="min-h-screen bg-amate-50">
       <OfflineIndicator />
 
-      {/* NAV */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-obsidiana-900/5 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <img
-            src="/logo-tuxtlasgo.png"
-            alt="TuxtlasGO"
-            className="h-9 w-auto object-contain"
-          />
-          <div className="flex items-center gap-2">
-            <Link
-              to="/prestador"
-              className="hidden sm:block text-sm text-obsidiana-800/70 hover:text-obsidiana-900 font-medium px-4 py-2 rounded-full hover:bg-obsidiana-900/5 transition-colors"
-            >
-              Soy prestador
-            </Link>
-            <Link
-              to="/app"
-              className="bg-jungle-700 hover:bg-jungle-800 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors flex items-center gap-1"
-            >
-              Abrir app
-              <ChevronRight size={16} />
-            </Link>
+      <NavbarLanding
+        modo={modo}
+        onCambiarModo={setModo}
+        onIniciarSesion={() => setMostrarAuth(true)}
+      />
+
+      {esTurista ? (
+        <SeccionesTurista />
+      ) : (
+        <SeccionesPrestador />
+      )}
+
+      <footer className="bg-jungle-950 text-jungle-100 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm space-y-2">
+          <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-8 w-auto object-contain brightness-0 invert" />
+          <div className="opacity-70">
+            Proyecto InnovaTecNM 2026 · ITSSAT · Folio 68894-17
+          </div>
+          <div className="opacity-50 text-xs">
+            Bienes de Consumo Final · Soluciones y Productos Digitales
           </div>
         </div>
-      </header>
+      </footer>
 
+      {mostrarAuth && (
+        <AuthModal
+          onClose={() => setMostrarAuth(false)}
+          onSuccess={(u) => {
+            onUsuario?.(u);
+            setMostrarAuth(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Modo turista — contenido existente, sin cambios de copy ───
+function SeccionesTurista() {
+  return (
+    <>
       {/* HERO — collage tipo mood-board, gradiente suave detrás */}
       <section className="relative overflow-hidden">
         <div
@@ -200,19 +229,148 @@ export default function LandingPage({ usuario = null }: LandingProps) {
           </Link>
         </div>
       </section>
+    </>
+  );
+}
 
-      <footer className="bg-jungle-950 text-jungle-100 py-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm space-y-2">
-          <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-8 w-auto object-contain brightness-0 invert" />
-          <div className="opacity-70">
-            Proyecto InnovaTecNM 2026 · ITSSAT · Folio 68894-17
-          </div>
-          <div className="opacity-50 text-xs">
-            Bienes de Consumo Final · Soluciones y Productos Digitales
+// ─── Modo prestador — nuevo (PDF págs. 1-5, 21) ───
+// Mismo esqueleto de secciones que el modo turista (hero + features +
+// CTA) para no introducir un segundo layout, solo cambia el contenido:
+// aquí se habla de alcance/comisiones/verificación, no de rutas.
+function SeccionesPrestador() {
+  return (
+    <>
+      <section className="relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute -top-40 right-0 w-[36rem] h-[36rem] rounded-full opacity-70 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #67e8f9 0%, transparent 70%)' }}
+        />
+        <div
+          className="pointer-events-none absolute top-40 -right-32 w-96 h-96 rounded-full opacity-60 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #fcd34d 0%, transparent 70%)' }}
+        />
+
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-14 pb-20 sm:pt-20 sm:pb-28">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6">
+              <div className="inline-flex items-center gap-2 bg-white text-obsidiana-800 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-sm border border-obsidiana-900/5">
+                <Percent size={13} className="text-sun-600" />
+                Sin comisiones abusivas
+              </div>
+              <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.5rem] text-obsidiana-900 leading-[1.05] tracking-tight">
+                Tu servicio,
+                <br />
+                frente a quien
+                <br />
+                <span className="text-jungle-700">ya viene para acá.</span>
+              </h1>
+              <p className="text-lg text-obsidiana-800/70 max-w-md leading-relaxed">
+                Regístrate en minutos y aparece ante turistas que están
+                planeando su viaje a Los Tuxtlas en este momento — con o sin
+                contenido previo en redes sociales.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-1">
+                <Link
+                  to="/prestador"
+                  className="bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 shadow-lg shadow-jungle-700/25 transition-colors"
+                >
+                  Únete ahora
+                  <ChevronRight size={18} />
+                </Link>
+              </div>
+            </div>
+
+            <PhotoCollage />
           </div>
         </div>
-      </footer>
-    </div>
+      </section>
+
+      <section id="features" className="bg-white py-16 sm:py-24">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="max-w-2xl mb-12">
+            <p className="text-sun-700 text-sm font-semibold uppercase tracking-wide mb-2">
+              Por qué registrarte en TuxtlasGO
+            </p>
+            <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
+              Hecho para prestadores locales
+            </h2>
+            <p className="text-obsidiana-800/60 text-[15px] leading-relaxed">
+              Sin intermediarios, sin depender de tener ya una presencia
+              armada en redes — empiezas con lo que tengas.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              {
+                icon: Percent,
+                title: 'Comisiones justas',
+                desc: 'A diferencia de otras plataformas, no te descontamos un porcentaje desproporcionado por cada reserva.',
+              },
+              {
+                icon: TrendingUp,
+                title: 'Visibilidad real',
+                desc: 'Apareces en las rutas que arma el asistente de IA cuando un turista busca algo que tú ofreces.',
+              },
+              {
+                icon: Camera,
+                title: 'Empieza con lo que ya tienes',
+                desc: 'Desde cero, vinculando tu Facebook o Instagram, o subiendo la foto de tu volante — tú eliges.',
+              },
+              {
+                icon: WifiOff,
+                title: 'Tu perfil, también offline',
+                desc: 'Una vez cargado, tu servicio sigue disponible para turistas sin señal, igual que el resto de la app.',
+              },
+              {
+                icon: Users,
+                title: 'Comunidad local',
+                desc: 'Formas parte del catálogo de prestadores verificados de Los Tuxtlas, no de un directorio genérico.',
+              },
+              {
+                icon: ShieldCheck,
+                title: 'Verificación simple',
+                desc: 'Confirmamos que tu servicio es real sin un formulario largo — lo justo para dar confianza al turista.',
+              },
+            ].map((f) => (
+              <div
+                key={f.title}
+                className="group rounded-2xl p-6 border border-obsidiana-900/8 hover:border-jungle-300 hover:shadow-[0_12px_32px_-16px_rgba(20,25,20,0.15)] transition-all bg-white"
+              >
+                <div className="w-11 h-11 rounded-xl bg-jungle-50 group-hover:bg-jungle-700 flex items-center justify-center mb-4 transition-colors">
+                  <f.icon className="w-5 h-5 text-jungle-700 group-hover:text-white transition-colors" />
+                </div>
+                <h3 className="font-display font-bold text-base text-obsidiana-900 mb-1.5">
+                  {f.title}
+                </h3>
+                <p className="text-sm text-obsidiana-800/60 leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 sm:py-24 bg-jungle-50">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
+          <div className="w-12 h-12 mx-auto mb-5 rounded-2xl bg-jungle-700 flex items-center justify-center">
+            <Percent className="text-white" size={22} />
+          </div>
+          <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
+            Súmate a los prestadores de Los Tuxtlas
+          </h2>
+          <p className="text-obsidiana-800/60 mb-8">
+            Registrar tu servicio es gratis. Tú decides qué información compartes.
+          </p>
+          <Link
+            to="/prestador"
+            className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl shadow-jungle-700/25 transition-colors"
+          >
+            Únete ahora
+            <ChevronRight size={20} />
+          </Link>
+        </div>
+      </section>
+    </>
   );
 }
 

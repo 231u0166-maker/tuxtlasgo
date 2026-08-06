@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut, MoreVertical,
-  Compass, Map, MessageCircle, Heart, TreePine, User, Navigation
+  Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
+  PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
@@ -72,6 +73,28 @@ export default function AppShell() {
   // ambas acciones, igual de accesibles pero sin ensuciar la vista.
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const menuMovilRef = useRef<HTMLDivElement>(null);
+
+  // Riel de escritorio colapsable (base-visual, SECTION-02) — solo
+  // afecta el <aside> de lg+, el bottom nav de celular no se toca.
+  // Se lee de localStorage en el primer render para que no "salte"
+  // de expandido a colapsado después de pintar la pantalla.
+  const [sidebarColapsado, setSidebarColapsado] = useState(() => {
+    try {
+      return localStorage.getItem('sidebar-colapsado') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const alternarSidebar = () => {
+    setSidebarColapsado((v) => {
+      const nuevo = !v;
+      try {
+        localStorage.setItem('sidebar-colapsado', String(nuevo));
+      } catch { /* no crítico */ }
+      return nuevo;
+    });
+  };
+
   useEffect(() => {
     if (!menuMovilAbierto) return;
     const cerrarSiFuera = (e: Event) => {
@@ -235,21 +258,32 @@ export default function AppShell() {
       <OfflineIndicator />
 
       {/* ══════════════ SIDEBAR (solo desktop) ══════════════ */}
-      <aside className="hidden lg:flex flex-col w-56 xl:w-64 flex-shrink-0 bg-jungle-900 text-white">
-        {/* Logo */}
-        <div className="px-5 py-5 border-b border-jungle-700/50">
-          <Link to="/" className="flex items-center gap-2 group">
-            <TreePine size={22} className="text-amber-400" />
-            <span className="font-display font-extrabold text-lg tracking-tight group-hover:text-amber-300 transition-colors">
-              TuxtlasGO
-            </span>
+      <aside
+        className={`hidden lg:flex flex-col flex-shrink-0 bg-jungle-900 text-white transition-[width] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : 'w-56 xl:w-64'
+          }`}
+      >
+        {/* Logo — colapsado: solo el ícono, sin wordmark ni subtítulo,
+            para no truncar "TuxtlasGO" a la mitad en 72px. */}
+        <div className={`py-5 border-b border-jungle-700/50 ${sidebarColapsado ? 'px-0 flex justify-center' : 'px-5'}`}>
+          <Link
+            to="/"
+            className="flex items-center gap-2 group"
+            title={sidebarColapsado ? 'TuxtlasGO' : undefined}
+          >
+            <TreePine size={22} className="text-amber-400 flex-shrink-0" />
+            {!sidebarColapsado && (
+              <span className="font-display font-extrabold text-lg tracking-tight group-hover:text-amber-300 transition-colors">
+                TuxtlasGO
+              </span>
+            )}
           </Link>
-          <p className="text-[11px] text-jungle-400 mt-0.5">Los Tuxtlas, Veracruz</p>
-
+          {!sidebarColapsado && (
+            <p className="text-[11px] text-jungle-400 mt-0.5">Los Tuxtlas, Veracruz</p>
+          )}
         </div>
 
         {/* Nav items */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className={`flex-1 py-4 space-y-1 ${sidebarColapsado ? 'px-2' : 'px-3'}`}>
           {TABS.map((t) => {
             const Icon = t.icon;
             const activo = t.id === tab;
@@ -257,51 +291,76 @@ export default function AppShell() {
               <button
                 key={t.id}
                 onClick={() => cambiarTab(t.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${activo
-                  ? 'bg-jungle-700 text-white shadow-sm'
-                  : 'text-jungle-300 hover:bg-jungle-800 hover:text-white'
+                title={sidebarColapsado ? t.label : undefined}
+                className={`w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
+                  } ${activo
+                    ? 'bg-jungle-700 text-white shadow-sm'
+                    : 'text-jungle-300 hover:bg-jungle-800 hover:text-white'
                   }`}
               >
-                <Icon size={18} strokeWidth={activo ? 2.5 : 2} />
-                {t.label}
+                <Icon size={18} strokeWidth={activo ? 2.5 : 2} className="flex-shrink-0" />
+                {!sidebarColapsado && t.label}
               </button>
             );
           })}
         </nav>
 
         {/* Acciones de usuario */}
-        <div className="px-3 py-4 border-t border-jungle-700/50 space-y-2">
+        <div className={`py-4 border-t border-jungle-700/50 space-y-2 ${sidebarColapsado ? 'px-2' : 'px-3'}`}>
           <Link
             to="/prestador"
-            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all"
+            title={sidebarColapsado ? 'Portal prestadores' : undefined}
+            className={`flex items-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
+              }`}
           >
-            <Briefcase size={16} />
-            Portal prestadores
+            <Briefcase size={16} className="flex-shrink-0" />
+            {!sidebarColapsado && 'Portal prestadores'}
           </Link>
 
-
-
           {usuario ? (
-            <div className="flex items-center gap-2 px-3 py-2">
-              <User size={15} className="text-jungle-400 flex-shrink-0" />
-              <span className="text-sm text-jungle-200 truncate flex-1">{usuario.nombre.split(' ')[0]}</span>
-              <button
-                onClick={async () => { await apiLogout(); setUsuario(null); }}
-                className="text-jungle-400 hover:text-red-400 transition-colors"
-                title="Cerrar sesión"
+            <div className={`flex items-center gap-2 py-2 ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'}`}>
+              <span
+                className="w-7 h-7 rounded-full bg-jungle-700 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0"
+                title={sidebarColapsado ? usuario.nombre : undefined}
               >
-                <LogOut size={15} />
-              </button>
+                {usuario.nombre.charAt(0).toUpperCase()}
+              </span>
+              {!sidebarColapsado && (
+                <>
+                  <span className="text-sm text-jungle-200 truncate flex-1">{usuario.nombre.split(' ')[0]}</span>
+                  <button
+                    onClick={async () => { await apiLogout(); setUsuario(null); }}
+                    className="text-jungle-400 hover:text-red-400 transition-colors"
+                    title="Cerrar sesión"
+                  >
+                    <LogOut size={15} />
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <button
               onClick={() => setMostrarAuth(true)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-jungle-950 transition-colors"
+              title={sidebarColapsado ? 'Iniciar sesión' : undefined}
+              className={`w-full flex items-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-jungle-950 transition-colors ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
+                }`}
             >
-              <User size={16} />
-              Iniciar sesión
+              <User size={16} className="flex-shrink-0" />
+              {!sidebarColapsado && 'Iniciar sesión'}
             </button>
           )}
+
+          {/* Colapsar/expandir — mismo eje que mindtrip (pág. 44 del PDF):
+              el riel se queda fijo, solo cambia su ancho. */}
+          <button
+            onClick={alternarSidebar}
+            title={sidebarColapsado ? 'Expandir menú' : 'Colapsar menú'}
+            className={`w-full flex items-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-jungle-400 hover:bg-jungle-800 hover:text-white transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
+              }`}
+          >
+            {sidebarColapsado ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {!sidebarColapsado && 'Colapsar menú'}
+          </button>
         </div>
       </aside>
 

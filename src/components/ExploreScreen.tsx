@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal, Map as MapIcon } from 'lucide-react';
 import { LUGARES, CATEGORIAS, type Categoria, type Lugar } from '../data/lugares';
 import PlaceCard from './PlaceCard';
 import { OfflineReadyBadge } from './OfflineIndicator';
@@ -7,9 +7,14 @@ import { OfflineReadyBadge } from './OfflineIndicator';
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   lugares?: Lugar[];
+  // Solo se usa en móvil (ver AppShell.tsx) — en escritorio el mapa
+  // ya está al lado, no hace falta un botón para pedirlo. Reemplaza
+  // el botón flotante fijo que tapaba contenido: este vive pegado al
+  // buscador, dentro del flujo normal, no encima de nada.
+  onVerMapa?: () => void;
 }
 
-export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Props) {
+export default function ExploreScreen({ onVerLugar, lugares: lugaresProps, onVerMapa }: Props) {
   const [busqueda, setBusqueda] = useState('');
   const [catActiva, setCatActiva] = useState<Categoria | 'todas'>('todas');
 
@@ -48,18 +53,28 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
         </p>
 
         {/* Buscador */}
-        <div className="relative">
-          <Search
-            size={18}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-600"
-          />
-          <input
-            type="search"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar lugares, comida, hoteles..."
-            className="w-full bg-white text-jungle-950 rounded-xl pl-10 pr-4 py-3 text-sm placeholder:text-jungle-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          />
+        <div className="relative flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search
+              size={18}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-600"
+            />
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar lugares, comida, hoteles..."
+              className="w-full bg-white text-jungle-950 rounded-xl pl-10 pr-4 py-3 text-sm placeholder:text-jungle-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </div>
+          {onVerMapa && (
+            <button
+              onClick={onVerMapa}
+              className="lg:hidden flex-shrink-0 bg-white/15 hover:bg-white/25 text-white rounded-xl px-3.5 py-3 text-sm font-semibold flex items-center gap-1.5 border border-white/20"
+            >
+              <MapIcon size={16} /> Mapa
+            </button>
+          )}
         </div>
       </div>
 

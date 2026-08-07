@@ -618,7 +618,11 @@ export default function AppShell() {
               className={`flex-1 lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full overflow-y-auto ${mapaExpandido ? 'lg:hidden' : ''
                 }`}
             >
-              <ExploreScreen onVerLugar={verLugar} lugares={getCatalogoActivo()} />
+              <ExploreScreen
+                onVerLugar={verLugar}
+                lugares={getCatalogoActivo()}
+                onVerMapa={() => cambiarTab('mapa')}
+              />
             </div>
           )}
 
@@ -636,6 +640,18 @@ export default function AppShell() {
                 llm={llm}
                 prefsDesdeFiltros={prefsDesdeFiltros}
                 viajaConMascota={(filtros?.quien.mascotas ?? 0) > 0}
+                accionSobreInput={
+                  rutaVisible ? (
+                    <div className="lg:hidden px-3 pt-2 flex-shrink-0">
+                      <button
+                        onClick={() => cambiarTab('mapa')}
+                        className="w-full flex items-center justify-center gap-1.5 bg-jungle-50 hover:bg-jungle-100 text-jungle-800 rounded-xl py-2.5 text-sm font-semibold border border-jungle-100"
+                      >
+                        <Map size={15} /> Ver ruta en el mapa
+                      </button>
+                    </div>
+                  ) : null
+                }
               />
             </div>
           </div>
@@ -708,20 +724,6 @@ export default function AppShell() {
             </div>
           </div>
         </main>
-
-        {/* Botón flotante "Ver mapa" — solo móvil, solo donde tiene
-            sentido (Explorar/Chat). Es el único camino al mapa ahora
-            que no es pestaña; en escritorio no hace falta, ya está
-            visible al lado. */}
-        {(tab === 'explorar' || tab === 'chat') && (
-          <button
-            onClick={() => cambiarTab('mapa')}
-            className="lg:hidden fixed bottom-20 right-4 z-30 bg-jungle-900 text-white rounded-full pl-4 pr-5 py-3 shadow-lg shadow-jungle-900/30 flex items-center gap-2 text-sm font-semibold"
-            style={{ marginBottom: 'env(safe-area-inset-bottom, 0)' }}
-          >
-            <Map size={16} /> Ver mapa
-          </button>
-        )}
 
         {/* Bottom nav solo en móvil */}
         <div className="lg:hidden">

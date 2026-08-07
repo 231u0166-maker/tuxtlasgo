@@ -80,9 +80,18 @@ interface Props {
   // incluido (o avisa honestamente cuando no hay dato) — se relaya,
   // nunca se infiere.
   viajaConMascota?: boolean;
+
+  // Contenido opcional que se muestra pegado ARRIBA de la barra de
+  // escribir, dentro del flujo normal — nunca flotando encima del
+  // contenido. Existe específicamente para el botón "Ver mapa" de
+  // móvil (AppShell.tsx): antes vivía como un botón fijo en la
+  // esquina, tapando cosas; el lugar real (según la referencia) es
+  // aquí, apareciendo solo cuando hay algo que ver, no todo el
+  // tiempo.
+  accionSobreInput?: React.ReactNode;
 }
 
-export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsDesdeFiltros, viajaConMascota }: Props) {
+export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsDesdeFiltros, viajaConMascota, accionSobreInput }: Props) {
   // Se usa para decidir si intentar el cálculo de distancia/tiempo en
   // vivo desde la ubicación del turista — ver nota junto a
   // pareceSolicitudDeDistancia más abajo: ese cálculo SIEMPRE necesita
@@ -1013,6 +1022,8 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
           </div>
         )}
       </div>
+
+      {accionSobreInput}
 
       {/* Input de texto libre */}
       <div

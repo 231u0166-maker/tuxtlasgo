@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { MapPin, Calendar, Users, DollarSign, ChevronDown, Minus, Plus, X } from 'lucide-react';
 import CalendarioRango from './CalendarioRango';
 
@@ -12,14 +12,14 @@ import CalendarioRango from './CalendarioRango';
 //
 // REGLAS "OPCIÓN A" (ver filtro-claro-vs-oscuro.html, aprobado) — se
 // mantiene la identidad clara amate/jungle de siempre, pero cada
-// popover es un MODAL real, no un tooltip chiquito: título + botón
-// de cerrar circular, ancho fijo consistente (340px, no variable por
-// contenido), radio 20px, sombra propia de tarjeta flotante, campos
-// con fondo amate-50 en vez de blanco liso, y un botón "Guardar"
-// explícito que cierra el modal — así se ve deliberado, no un
-// dropdown genérico de librería.
+// filtro abre un MODAL EMERGENTE real: fondo oscurecido cubriendo
+// toda la pantalla, tarjeta centrada en el viewport (NO anclada
+// debajo de la pastilla como un menú desplegable — corregido a
+// propósito, así se sentía "encerrado"), título + botón de cerrar
+// circular, ancho fijo 340px, radio 20px, sombra de tarjeta
+// flotante, campos con fondo amate-50, botón de confirmar explícito.
 export const RADIO_MODAL = 'rounded-[20px]';
-export const SOMBRA_MODAL = 'shadow-[0_20px_45px_-12px_rgba(28,25,23,0.18)]';
+export const SOMBRA_MODAL = 'shadow-[0_24px_60px_-8px_rgba(12,10,9,0.35)]';
 
 export interface QuienViaja {
   adultos: number;
@@ -60,17 +60,6 @@ type PopoverAbierto = 'donde' | 'cuando' | 'quien' | 'presupuesto' | null;
 export default function FiltrosViaje({ valor, onCambiar }: Props) {
   const [estado, setEstado] = useState<FiltrosViajeValor>({ ...VALOR_DEFAULT, ...valor });
   const [abierto, setAbierto] = useState<PopoverAbierto>(null);
-  const contenedorRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const cerrarSiFuera = (e: Event) => {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target as Node)) {
-        setAbierto(null);
-      }
-    };
-    document.addEventListener('mousedown', cerrarSiFuera);
-    return () => document.removeEventListener('mousedown', cerrarSiFuera);
-  }, []);
 
   const actualizar = (parcial: Partial<FiltrosViajeValor>) => {
     setEstado((prev) => {
@@ -82,138 +71,134 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
 
   const totalQuien = estado.quien.adultos + estado.quien.ninos + estado.quien.bebes;
   const etiquetaPresupuesto = { 1: '$', 2: '$$', 3: '$$$' }[estado.presupuesto];
+  const cerrar = () => setAbierto(null);
 
   return (
-    <div
-      ref={contenedorRef}
-      className="inline-flex flex-wrap items-center gap-0.5 bg-white rounded-full border border-obsidiana-900/10 p-[5px] shadow-[0_2px_10px_rgba(28,25,23,0.05)]"
-    >
-      {/* DÓNDE */}
-      <div className="relative">
+    <>
+      <div className="inline-flex flex-wrap items-center gap-0.5 bg-white rounded-full border border-obsidiana-900/10 p-[5px] shadow-[0_2px_10px_rgba(28,25,23,0.05)]">
         <Pastilla
           icon={MapPin}
           label={estado.donde || 'Dónde'}
           activo={abierto === 'donde'}
-          onClick={() => setAbierto(abierto === 'donde' ? null : 'donde')}
+          onClick={() => setAbierto('donde')}
         />
-        {abierto === 'donde' && (
-          <Modal titulo="Dónde" subtitulo="Cubrimos Los Tuxtlas — Catemaco, San Andrés y Santiago" onCerrar={() => setAbierto(null)}>
-            <Campo
-              placeholder="Catemaco, San Andrés Tuxtla..."
-              value={estado.donde}
-              onChange={(v) => actualizar({ donde: v })}
-            />
-            <FilaToggle
-              etiqueta="¿Viaje por carretera?"
-              valor={estado.porCarretera}
-              onCambiar={(v) => actualizar({ porCarretera: v })}
-            />
-            <BotonGuardar onClick={() => setAbierto(null)} />
-          </Modal>
-        )}
-      </div>
-
-      {/* CUÁNDO */}
-      <div className="relative">
         <Pastilla
           icon={Calendar}
           label={estado.desde ? `${estado.desde}${estado.hasta ? ` – ${estado.hasta}` : ''}` : 'Cuándo'}
           activo={abierto === 'cuando'}
-          onClick={() => setAbierto(abierto === 'cuando' ? null : 'cuando')}
+          onClick={() => setAbierto('cuando')}
         />
-        {abierto === 'cuando' && (
-          <Modal titulo="Cuándo" onCerrar={() => setAbierto(null)}>
-            <div className="mb-5">
-              <CalendarioRango
-                desde={estado.desde}
-                hasta={estado.hasta}
-                onCambiar={(desde, hasta) => actualizar({ desde, hasta })}
-              />
-            </div>
-            <BotonGuardar etiqueta="Actualizar" onClick={() => setAbierto(null)} />
-          </Modal>
-        )}
-      </div>
-
-      {/* QUIÉN */}
-      <div className="relative">
         <Pastilla
           icon={Users}
           label={totalQuien > 0 ? `${totalQuien} viajero${totalQuien === 1 ? '' : 's'}` : 'Quién'}
           activo={abierto === 'quien'}
-          onClick={() => setAbierto(abierto === 'quien' ? null : 'quien')}
+          onClick={() => setAbierto('quien')}
         />
-        {abierto === 'quien' && (
-          <Modal
-            titulo="Quién"
-            subtitulo={`${totalQuien} viajero${totalQuien === 1 ? '' : 's'}`}
-            onCerrar={() => setAbierto(null)}
-          >
-            <div className="space-y-1 mb-1">
-              <ContadorQuien
-                etiqueta="Adultos"
-                nota="A partir de 13 años"
-                valor={estado.quien.adultos}
-                min={1}
-                onCambiar={(n) => actualizar({ quien: { ...estado.quien, adultos: n } })}
-              />
-              <ContadorQuien
-                etiqueta="Niños"
-                nota="De 2 a 12 años"
-                valor={estado.quien.ninos}
-                min={0}
-                onCambiar={(n) => actualizar({ quien: { ...estado.quien, ninos: n } })}
-              />
-              <ContadorQuien
-                etiqueta="Bebés"
-                nota="Menores de 2 años"
-                valor={estado.quien.bebes}
-                min={0}
-                onCambiar={(n) => actualizar({ quien: { ...estado.quien, bebes: n } })}
-              />
-              <ContadorQuien
-                etiqueta="Mascotas"
-                nota="¿Va a llevar un animal de servicio?"
-                valor={estado.quien.mascotas}
-                min={0}
-                onCambiar={(n) => actualizar({ quien: { ...estado.quien, mascotas: n } })}
-              />
-            </div>
-            <BotonGuardar etiqueta="Actualizar" onClick={() => setAbierto(null)} />
-          </Modal>
-        )}
-      </div>
-
-      {/* PRESUPUESTO */}
-      <div className="relative">
         <Pastilla
           icon={DollarSign}
           label={etiquetaPresupuesto}
           activo={abierto === 'presupuesto'}
-          onClick={() => setAbierto(abierto === 'presupuesto' ? null : 'presupuesto')}
+          onClick={() => setAbierto('presupuesto')}
         />
-        {abierto === 'presupuesto' && (
-          <Modal titulo="Presupuesto" onCerrar={() => setAbierto(null)}>
-            <div className="flex gap-2 mb-5">
-              {([1, 2, 3] as const).map((nivel) => (
-                <button
-                  key={nivel}
-                  type="button"
-                  onClick={() => actualizar({ presupuesto: nivel })}
-                  className={`flex-1 py-3 rounded-xl text-sm font-bold border transition-colors ${estado.presupuesto === nivel
-                    ? 'bg-jungle-700 border-jungle-700 text-white'
-                    : 'border-obsidiana-900/10 bg-amate-50 text-obsidiana-800/70 hover:border-jungle-300'
-                    }`}
-                >
-                  {'$'.repeat(nivel)}
-                </button>
-              ))}
-            </div>
-            <BotonGuardar onClick={() => setAbierto(null)} />
-          </Modal>
-        )}
       </div>
-    </div>
+
+      {/* Un solo overlay compartido — el modal que corresponda se
+          decide por `abierto`, en vez de vivir anclado a su pastilla.
+          Así "emerge" sobre toda la pantalla, no como submenú. */}
+      {abierto && (
+        <Overlay onCerrar={cerrar}>
+          {abierto === 'donde' && (
+            <Modal titulo="Dónde" subtitulo="Cubrimos Los Tuxtlas — Catemaco, San Andrés y Santiago" onCerrar={cerrar}>
+              <Campo
+                placeholder="Catemaco, San Andrés Tuxtla..."
+                value={estado.donde}
+                onChange={(v) => actualizar({ donde: v })}
+              />
+              <FilaToggle
+                etiqueta="¿Viaje por carretera?"
+                valor={estado.porCarretera}
+                onCambiar={(v) => actualizar({ porCarretera: v })}
+              />
+              <BotonGuardar onClick={cerrar} />
+            </Modal>
+          )}
+
+          {abierto === 'cuando' && (
+            <Modal titulo="Cuándo" onCerrar={cerrar}>
+              <div className="mb-5">
+                <CalendarioRango
+                  desde={estado.desde}
+                  hasta={estado.hasta}
+                  onCambiar={(desde, hasta) => actualizar({ desde, hasta })}
+                />
+              </div>
+              <BotonGuardar etiqueta="Actualizar" onClick={cerrar} />
+            </Modal>
+          )}
+
+          {abierto === 'quien' && (
+            <Modal
+              titulo="Quién"
+              subtitulo={`${totalQuien} viajero${totalQuien === 1 ? '' : 's'}`}
+              onCerrar={cerrar}
+            >
+              <div className="space-y-1 mb-1">
+                <ContadorQuien
+                  etiqueta="Adultos"
+                  nota="A partir de 13 años"
+                  valor={estado.quien.adultos}
+                  min={1}
+                  onCambiar={(n) => actualizar({ quien: { ...estado.quien, adultos: n } })}
+                />
+                <ContadorQuien
+                  etiqueta="Niños"
+                  nota="De 2 a 12 años"
+                  valor={estado.quien.ninos}
+                  min={0}
+                  onCambiar={(n) => actualizar({ quien: { ...estado.quien, ninos: n } })}
+                />
+                <ContadorQuien
+                  etiqueta="Bebés"
+                  nota="Menores de 2 años"
+                  valor={estado.quien.bebes}
+                  min={0}
+                  onCambiar={(n) => actualizar({ quien: { ...estado.quien, bebes: n } })}
+                />
+                <ContadorQuien
+                  etiqueta="Mascotas"
+                  nota="¿Va a llevar un animal de servicio?"
+                  valor={estado.quien.mascotas}
+                  min={0}
+                  onCambiar={(n) => actualizar({ quien: { ...estado.quien, mascotas: n } })}
+                />
+              </div>
+              <BotonGuardar etiqueta="Actualizar" onClick={cerrar} />
+            </Modal>
+          )}
+
+          {abierto === 'presupuesto' && (
+            <Modal titulo="Presupuesto" onCerrar={cerrar}>
+              <div className="flex gap-2 mb-5">
+                {([1, 2, 3] as const).map((nivel) => (
+                  <button
+                    key={nivel}
+                    type="button"
+                    onClick={() => actualizar({ presupuesto: nivel })}
+                    className={`flex-1 py-3 rounded-xl text-sm font-bold border transition-colors ${estado.presupuesto === nivel
+                      ? 'bg-jungle-700 border-jungle-700 text-white'
+                      : 'border-obsidiana-900/10 bg-amate-50 text-obsidiana-800/70 hover:border-jungle-300'
+                      }`}
+                  >
+                    {'$'.repeat(nivel)}
+                  </button>
+                ))}
+              </div>
+              <BotonGuardar onClick={cerrar} />
+            </Modal>
+          )}
+        </Overlay>
+      )}
+    </>
   );
 }
 
@@ -242,10 +227,21 @@ function Pastilla({
   );
 }
 
-// Modal real — no un dropdown de dos líneas de CSS. Ancho fijo
-// (340px) en las cuatro instancias, a propósito: mindtrip nunca hace
-// que el popover "respire" según su contenido, y esa consistencia es
-// justo lo que se sentía descuidado antes.
+// Fondo oscurecido a pantalla completa + centrado del modal. `fixed`
+// e independiente de dónde vive la pastilla en el layout — así se
+// ve igual sin importar si el filtro está arriba del chat, del mapa,
+// o en cualquier otra pantalla que lo use más adelante.
+function Overlay({ onCerrar, children }: { onCerrar: () => void; children: React.ReactNode }) {
+  return (
+    <div
+      className="fixed inset-0 z-[200] bg-obsidiana-950/45 backdrop-blur-[2px] flex items-center justify-center p-4 animate-fade-in"
+      onClick={onCerrar}
+    >
+      <div onClick={(e) => e.stopPropagation()}>{children}</div>
+    </div>
+  );
+}
+
 function Modal({
   titulo,
   subtitulo,
@@ -258,9 +254,7 @@ function Modal({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className={`absolute top-[calc(100%+10px)] left-0 w-[340px] bg-white border border-obsidiana-900/8 ${RADIO_MODAL} ${SOMBRA_MODAL} p-[22px] z-50 animate-fade-in`}
-    >
+    <div className={`w-[340px] max-w-[90vw] bg-white ${RADIO_MODAL} ${SOMBRA_MODAL} p-[22px]`}>
       <div className="flex items-start justify-between mb-4">
         <div>
           <span className="block font-display font-bold text-[15px] text-obsidiana-900">{titulo}</span>

@@ -7,9 +7,12 @@ interface Props {
   onChange: (t: Tab) => void;
 }
 
+// "mapa" ya no aparece aquí a propósito — dejó de ser una pestaña.
+// Sigue siendo un valor válido de Tab (se usa para el peek de mapa a
+// pantalla completa en móvil, ver AppShell.tsx), pero se llega a él
+// desde el botón flotante "Ver mapa", no desde esta barra.
 const tabs: { id: Tab; label: string; icon: typeof Compass }[] = [
   { id: 'explorar', label: 'Explorar', icon: Compass },
-  { id: 'mapa', label: 'Mapa', icon: Map },
   { id: 'chat', label: 'Asistente', icon: MessageCircle },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },
   { id: 'perfil', label: "Mi Perfil", icon: User } // nuevo para el perfil

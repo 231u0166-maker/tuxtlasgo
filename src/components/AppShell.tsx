@@ -43,7 +43,6 @@ interface RutaVisible {
 
 const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
   { id: 'explorar', label: 'Explorar', icon: Compass },
-  { id: 'mapa', label: 'Mapa', icon: Map },
   { id: 'chat', label: 'Asistente IA', icon: MessageCircle },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },
   { id: 'perfil', label: "Mi Perfil", icon: User }
@@ -51,6 +50,10 @@ const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
 
 export default function AppShell() {
   const [tab, setTab] = useState<Tab>('explorar');
+  // Solo importa en móvil (el peek de mapa a pantalla completa) —
+  // en escritorio el mapa nunca "reemplaza" la pestaña, así que no
+  // hace falta volver a ningún lado.
+  const [tabAntesDeMapa, setTabAntesDeMapa] = useState<Tab>('explorar');
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal());
   const [mostrarAuth, setMostrarAuth] = useState(false);
   const [lugarSeleccionado, setLugarSeleccionado] = useState<Lugar | null>(null);
@@ -125,6 +128,21 @@ export default function AppShell() {
     };
   }, [filtros]);
 
+  // El mapa en escritorio se ve desde el primer render (al lado de
+  // Explorar) — ya no hay un momento de "entrar a la pestaña Mapa"
+  // que dispare el aviso de ubicación, así que se revisa una vez al
+  // montar. En móvil NO entra por aquí a propósito: ahí el mapa solo
+  // aparece cuando lo piden con el botón "Ver mapa", y ese momento
+  // sigue disparando el aviso desde cambiarTab (más abajo).
+  useEffect(() => {
+    if (!window.matchMedia('(min-width: 1024px)').matches) return;
+    try {
+      if (localStorage.getItem('ubicacion-explicada') !== 'true') {
+        setMostrarExplicacionUbicacion(true);
+      }
+    } catch { /* no crítico */ }
+  }, []);
+
   useEffect(() => {
     if (!menuMovilAbierto) return;
     const cerrarSiFuera = (e: Event) => {
@@ -180,6 +198,20 @@ export default function AppShell() {
     return origen;
   };
 
+  // El mapa ahora es una sola instancia persistente (no una pestaña
+  // que se "entra" y "sale"). En escritorio, si ya estás en Explorar
+  // o Chat, el mapa YA está visible al lado — no hace falta cambiar
+  // de pestaña, solo actualizar rutaVisible. Solo se cambia de
+  // pestaña cuando el mapa no está a la vista: en Favoritos/Perfil
+  // en escritorio, o en cualquier pestaña en móvil (ahí no hay
+  // "al lado" posible, es pantalla completa o nada).
+  const mostrarMapaConRuta = () => {
+    const mapaYaVisibleAlLado =
+      (tab === 'explorar' || tab === 'chat') &&
+      window.matchMedia('(min-width: 1024px)').matches;
+    if (!mapaYaVisibleAlLado) cambiarTab('mapa');
+  };
+
   const verEnMapa = async () => {
     if (!lugarSeleccionado) return;
     const destino = lugarSeleccionado;
@@ -213,7 +245,7 @@ export default function AppShell() {
       });
     }
     setCargandoRuta(false);
-    setTab('mapa');
+    mostrarMapaConRuta();
   };
 
   const verRutaEnMapa = async (lugares: Lugar[]) => {
@@ -239,20 +271,26 @@ export default function AppShell() {
         tramos: tramos.map((t) => t.geometria),
         paradas,
       });
-      setTab('mapa');
+      mostrarMapaConRuta();
     } catch (err) {
       console.warn('[TuxtlasGO] OSRM no disponible:', err);
       // Línea recta entre paradas — silencioso, sin toast de error
       setRutaVisible({ geometria: puntosRuta, tramos: [puntosRuta], paradas });
-      setTab('mapa');
+      mostrarMapaConRuta();
     } finally {
       setCargandoRuta(false);
     }
   };
 
   const cambiarTab = (nuevoTab: Tab) => {
-    if (nuevoTab !== 'mapa' && rutaVisible) setRutaVisible(null);
-    if (nuevoTab === 'mapa') {
+    // Antes esto borraba rutaVisible al salir de "mapa" — tenía
+    // sentido cuando el mapa era una pestaña que se "cerraba". Ahora
+    // es una instancia persistente: la ruta se queda dibujada hasta
+    // que el turista la quite explícitamente (botón "×" en
+    // MapScreen, onLimpiarRuta), sin importar a qué pestaña te
+    // muevas.
+    if (nuevoTab === 'mapa' && tab !== 'mapa') {
+      setTabAntesDeMapa(tab);
       try {
         if (localStorage.getItem('ubicacion-explicada') !== 'true') {
           setMostrarExplicacionUbicacion(true);
@@ -550,31 +588,30 @@ export default function AppShell() {
           </div>
         )}
 
-        {/* Contenido principal */}
-        <main className="flex-1 overflow-hidden min-h-0">
+        {/* Contenido principal — el mapa es UNA sola instancia que se
+            reposiciona (no una pestaña más): al lado de Explorar o
+            Chat en escritorio, a pantalla completa con "Volver" en
+            móvil. Se mantiene siempre montada, igual que el chat, para
+            no perder zoom/posición ni el estado de la conversación
+            cada vez que cambias de pestaña. */}
+        <main className="flex-1 overflow-hidden min-h-0 flex flex-col lg:flex-row">
           {/*para eacceder y poder entrar al perfil*/}
           {tab === 'perfil' && (
-            <div className="h-full overflow-y-auto">
-              <PerfilScreen onVolver={() => setTab('explorar')} />
+            <div className="flex-1 h-full overflow-y-auto">
+              <PerfilScreen onVolver={() => cambiarTab('explorar')} />
             </div>
           )}
 
           {tab === 'explorar' && (
-            <div className="h-full overflow-y-auto">
+            <div className="flex-1 lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full overflow-y-auto">
               <ExploreScreen onVerLugar={verLugar} lugares={getCatalogoActivo()} />
             </div>
           )}
-          {tab === 'mapa' && (
-            <MapScreen
-              onVerLugar={verLugar}
-              rutaResaltada={rutaVisible?.geometria}
-              tramosResaltados={rutaVisible?.tramos}
-              paradasResaltadas={rutaVisible?.paradas}
-              miUbicacion={miUbicacion ?? undefined}
-              onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); }}
-            />
-          )}
-          <div style={{ display: tab === 'chat' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+
+          <div
+            className="lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full min-h-0 flex-col"
+            style={{ display: tab === 'chat' ? 'flex' : 'none' }}
+          >
             <div className="flex-shrink-0 px-3 pt-3 pb-2 bg-jungle-50 border-b border-jungle-100 overflow-x-auto">
               <FiltrosViaje valor={filtros} onCambiar={setFiltros} />
             </div>
@@ -588,22 +625,67 @@ export default function AppShell() {
               />
             </div>
           </div>
+
           {tab === 'favoritos' && (
-            <div className="h-full overflow-y-auto">
-              <FavoritesScreen
-                onVerLugar={verLugar}
-                onVerRutaEnMapa={(lugares) => { verRutaEnMapa(lugares); setTab('mapa'); }}
-              />
+            <div className="flex-1 h-full overflow-y-auto">
+              <FavoritesScreen onVerLugar={verLugar} onVerRutaEnMapa={verRutaEnMapa} />
             </div>
           )}
 
-
-
+          {/* MAPA — instancia única y persistente. Su posición cambia
+              según la pestaña, pero nunca se desmonta:
+              - explorar/chat + escritorio: columna derecha, al lado.
+              - mapa (peek de móvil): pantalla completa, con "Volver".
+              - favoritos/perfil, o cualquiera en móvil: oculto. */}
+          <div
+            className={
+              tab === 'mapa'
+                ? 'flex-1 h-full min-h-0 flex flex-col'
+                : tab === 'explorar' || tab === 'chat'
+                  ? 'hidden lg:flex lg:flex-1 h-full min-h-0 flex-col'
+                  : 'hidden'
+            }
+          >
+            {tab === 'mapa' && (
+              <div className="lg:hidden flex-shrink-0 flex items-center gap-2 px-3 py-2.5 bg-white border-b border-jungle-100">
+                <button
+                  onClick={() => cambiarTab(tabAntesDeMapa)}
+                  className="flex items-center gap-1.5 text-sm font-semibold text-jungle-800"
+                >
+                  <ArrowLeft size={16} /> Volver
+                </button>
+              </div>
+            )}
+            <div className="flex-1 min-h-0 relative">
+              <MapScreen
+                onVerLugar={verLugar}
+                rutaResaltada={rutaVisible?.geometria}
+                tramosResaltados={rutaVisible?.tramos}
+                paradasResaltadas={rutaVisible?.paradas}
+                miUbicacion={miUbicacion ?? undefined}
+                onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); }}
+              />
+            </div>
+          </div>
         </main>
+
+        {/* Botón flotante "Ver mapa" — solo móvil, solo donde tiene
+            sentido (Explorar/Chat). Es el único camino al mapa ahora
+            que no es pestaña; en escritorio no hace falta, ya está
+            visible al lado. */}
+        {(tab === 'explorar' || tab === 'chat') && (
+          <button
+            onClick={() => cambiarTab('mapa')}
+            className="lg:hidden fixed bottom-20 right-4 z-30 bg-jungle-900 text-white rounded-full pl-4 pr-5 py-3 shadow-lg shadow-jungle-900/30 flex items-center gap-2 text-sm font-semibold"
+            style={{ marginBottom: 'env(safe-area-inset-bottom, 0)' }}
+          >
+            <Map size={16} /> Ver mapa
+          </button>
+        )}
 
         {/* Bottom nav solo en móvil */}
         <div className="lg:hidden">
-          <BottomNav activa={tab} onChange={cambiarTab} />
+          <BottomNav activa={tab === 'mapa' ? tabAntesDeMapa : tab} onChange={cambiarTab} />
         </div>
       </div>
 

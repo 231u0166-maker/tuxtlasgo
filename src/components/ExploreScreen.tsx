@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, SlidersHorizontal, Map as MapIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Search, SlidersHorizontal } from 'lucide-react';
 import { LUGARES, CATEGORIAS, type Categoria, type Lugar } from '../data/lugares';
 import PlaceCard from './PlaceCard';
 import { OfflineReadyBadge } from './OfflineIndicator';
@@ -7,45 +7,11 @@ import { OfflineReadyBadge } from './OfflineIndicator';
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   lugares?: Lugar[];
-  // Solo se usa en móvil (ver AppShell.tsx) — en escritorio el mapa
-  // ya está al lado, no hace falta un botón para pedirlo. Reemplaza
-  // el botón flotante fijo que tapaba contenido: este vive pegado al
-  // buscador, dentro del flujo normal, no encima de nada.
-  onVerMapa?: () => void;
 }
 
-export default function ExploreScreen({ onVerLugar, lugares: lugaresProps, onVerMapa }: Props) {
+export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Props) {
   const [busqueda, setBusqueda] = useState('');
   const [catActiva, setCatActiva] = useState<Categoria | 'todas'>('todas');
-
-  // El link "Ver mapa" de móvil se esconde al bajar y reaparece al
-  // subir (o al llegar arriba del todo) — así no ocupa espacio fijo
-  // todo el tiempo, pero sigue siendo predecible: siempre vuelve con
-  // el mismo gesto (subir un poco), nunca desaparece a mitad de un
-  // intento de tocarlo como pasaría con un temporizador al azar.
-  const raizRef = useRef<HTMLDivElement>(null);
-  const [mapaLinkVisible, setMapaLinkVisible] = useState(true);
-  const scrollAnteriorRef = useRef(0);
-
-  useEffect(() => {
-    const contenedorScroll = raizRef.current?.parentElement;
-    if (!contenedorScroll) return;
-
-    const manejarScroll = () => {
-      const y = contenedorScroll.scrollTop;
-      if (y < 32) {
-        setMapaLinkVisible(true);
-      } else if (y > scrollAnteriorRef.current + 4) {
-        setMapaLinkVisible(false); // bajando
-      } else if (y < scrollAnteriorRef.current - 4) {
-        setMapaLinkVisible(true); // subiendo
-      }
-      scrollAnteriorRef.current = y;
-    };
-
-    contenedorScroll.addEventListener('scroll', manejarScroll, { passive: true });
-    return () => contenedorScroll.removeEventListener('scroll', manejarScroll);
-  }, []);
 
   const todosLugares = lugaresProps ?? LUGARES;
 
@@ -68,14 +34,11 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps, onVer
   const destacados = todosLugares.filter((l) => l.destacado);
 
   return (
-    <div ref={raizRef} className="pb-24 lg:pb-8">
-      {/* Hero + buscador + categorías — DESKTOP SOLAMENTE a partir de
-          ahora. En móvil se pidió quitar "Descubre Los Tuxtlas /
-          Disponible offline / 17 lugares..." junto con el buscador y
-          las categorías, para simplificar (se veía todo junto). Eso
-          significa que en móvil, por ahora, no hay forma de buscar ni
-          filtrar por categoría desde esta pantalla — si se quiere de
-          vuelta, mejor en una versión chica, no como este bloque. */}
+    <div className="pb-24 lg:pb-8">
+      {/* Hero grande — SOLO escritorio. En móvil el mapa de arriba ya
+          cumple ese rol de "encabezado"; repetir el bloque verde con
+          título/insignia ahí se sentía redundante (lo que se quitó
+          la vez pasada, y sigue fuera). */}
       <div className="hidden lg:block bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 lg:px-8 pt-6 lg:pt-8 pb-8 rounded-b-3xl">
         <div className="flex items-center justify-between mb-1">
           <h1 className="font-display font-extrabold text-2xl lg:text-3xl">
@@ -86,27 +49,19 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps, onVer
         <p className="text-sm text-jungle-100 opacity-90 mb-5">
           {todosLugares.length} lugares verificados, listos para tu próxima aventura.
         </p>
-
-        {/* Buscador */}
-        <div className="relative flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search
-              size={18}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-600"
-            />
-            <input
-              type="search"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar lugares, comida, hoteles..."
-              className="w-full bg-white text-jungle-950 rounded-xl pl-10 pr-4 py-3 text-sm placeholder:text-jungle-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-          </div>
-        </div>
+        <Buscador value={busqueda} onChange={setBusqueda} claro />
       </div>
 
-      {/* Categorías */}
-      <div className="hidden lg:block px-4 lg:px-8 mt-5">
+      {/* Buscador — móvil, versión ligera (sin el bloque verde de
+          fondo, pegado directo debajo de la vista previa del mapa). */}
+      <div className="lg:hidden px-4 pt-4">
+        <Buscador value={busqueda} onChange={setBusqueda} />
+      </div>
+
+      {/* Categorías — en las dos versiones, mismas categorías reales
+          del catálogo (no se copian los rótulos de mindtrip, que no
+          coinciden con lo que de verdad tenemos). */}
+      <div className="px-4 lg:px-8 mt-4 lg:mt-5">
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scroll-smooth snap-x">
           <CategoryChip
             label="Todos"
@@ -124,23 +79,6 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps, onVer
             />
           ))}
         </div>
-      </div>
-
-      {/* Móvil: sin hero, pero el mapa sigue siendo alcanzable — un
-          link chico, no un botón grande dentro de una tarjeta. Se
-          esconde al bajar y vuelve al subir, ver el efecto arriba. */}
-      <div
-        className={`lg:hidden pt-4 px-4 flex justify-end overflow-hidden transition-[max-height,opacity,transform] duration-200 ease-out ${mapaLinkVisible ? 'max-h-12 opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-2 pointer-events-none'
-          }`}
-      >
-        {onVerMapa && (
-          <button
-            onClick={onVerMapa}
-            className="flex items-center gap-1.5 text-sm font-semibold text-jungle-700"
-          >
-            <MapIcon size={15} /> Ver mapa
-          </button>
-        )}
       </div>
 
       {/* Destacados (solo cuando no hay búsqueda activa) */}
@@ -188,6 +126,35 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps, onVer
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function Buscador({
+  value,
+  onChange,
+  claro,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  claro?: boolean;
+}) {
+  return (
+    <div className="relative">
+      <Search
+        size={18}
+        className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${claro ? 'text-jungle-600' : 'text-jungle-500'}`}
+      />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Buscar lugares, comida, hoteles..."
+        className={`w-full rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${claro
+          ? 'bg-white text-jungle-950 placeholder:text-jungle-500'
+          : 'bg-jungle-50 text-jungle-950 border border-jungle-100 placeholder:text-jungle-500'
+          }`}
+      />
     </div>
   );
 }

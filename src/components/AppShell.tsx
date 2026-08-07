@@ -4,7 +4,8 @@ import {
   Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
   PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import AuthModal from './AuthModal';
 import BottomNav, { type Tab } from './BottomNav';
@@ -59,6 +60,33 @@ export default function AppShell() {
   // columna — botón sobre el mapa mismo, solo escritorio (ver
   // NOTA ADICIONAL: "que el mapa no sea tan invasivo").
   const [mapaExpandido, setMapaExpandido] = useState(false);
+
+  // Reactivo (no un window.matchMedia suelto) porque ahora decide en
+  // qué lugar del árbol vive el mapa vía portal — si cambia mientras
+  // la app está abierta (girar el teléfono, redimensionar la
+  // ventana), el mapa se tiene que mover de verdad, no solo la
+  // primera vez.
+  const [esEscritorio, setEsEscritorio] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const actualizar = () => setEsEscritorio(mq.matches);
+    mq.addEventListener('change', actualizar);
+    return () => mq.removeEventListener('change', actualizar);
+  }, []);
+
+  // El mapa es UNA instancia (componente React) que vive montada una
+  // sola vez — nunca se desmonta, nunca pierde zoom/posición — y se
+  // TELETRANSPORTA (portal) al contenedor que corresponda según el
+  // contexto. Antes se lograba re-posicionando el mismo <div> con
+  // clases; ahora hace falta un lugar más: adentro del scroll de
+  // Explorar en móvil (vista previa, como en la referencia), que es
+  // un contenedor DISTINTO al de al lado en escritorio — con solo
+  // clases de CSS no alcanza, por eso el portal.
+  const refMapaPrincipal = useRef<HTMLDivElement>(null);
+  const refMapaInlineExplorar = useRef<HTMLDivElement>(null);
+  const [destinoMapa, setDestinoMapa] = useState<HTMLDivElement | null>(null);
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal());
   const [mostrarAuth, setMostrarAuth] = useState(false);
   const [lugarSeleccionado, setLugarSeleccionado] = useState<Lugar | null>(null);
@@ -183,6 +211,19 @@ export default function AppShell() {
   // en Chat solo cuando ya hay una ruta que mostrar — antes de
   // preguntar algo, ese espacio lo ocupan las sugerencias.
   const mostrarMapaAlLado = tab === 'explorar' || (tab === 'chat' && !!rutaVisible);
+
+  // Decide a qué contenedor apunta el portal del mapa. Corre DESPUÉS
+  // de que el DOM ya se actualizó (useLayoutEffect, no useEffect) —
+  // así los refs de los contenedores ya existen cuando se leen, sin
+  // parpadeo de un frame sin mapa.
+  useLayoutEffect(() => {
+    const destino =
+      tab === 'explorar' && !esEscritorio
+        ? refMapaInlineExplorar.current
+        : refMapaPrincipal.current;
+    setDestinoMapa(destino);
+  }, [tab, esEscritorio]);
+
 
   // El mapa ahora es una sola instancia persistente (no una pestaña
   // que se "entra" y "sale"). En escritorio, si ya estás en Explorar
@@ -316,24 +357,23 @@ export default function AppShell() {
         className={`hidden lg:flex flex-col flex-shrink-0 bg-jungle-900 text-white transition-[width] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : 'w-56 xl:w-64'
           }`}
       >
-        {/* Logo — colapsado: solo el ícono, sin wordmark ni subtítulo,
-            para no truncar "TuxtlasGO" a la mitad en 72px. */}
-        <div className={`py-5 border-b border-jungle-700/50 ${sidebarColapsado ? 'px-0 flex justify-center' : 'px-5'}`}>
-          <Link
-            to="/"
-            className="flex items-center gap-2 group"
-            title={sidebarColapsado ? 'TuxtlasGO' : undefined}
-          >
-            <TreePine size={22} className="text-amber-400 flex-shrink-0" />
-            {!sidebarColapsado && (
-              <span className="font-display font-extrabold text-lg tracking-tight group-hover:text-amber-300 transition-colors">
-                TuxtlasGO
-              </span>
-            )}
+        {/* Arriba: solo el ícono + el botón de colapsar, juntos —
+            igual que mindtrip (wordmark + flecha al mismo nivel). El
+            wordmark de texto se movió cerca del perfil, ver abajo. */}
+        <div
+          className={`border-b border-jungle-700/50 ${sidebarColapsado ? 'py-4 flex flex-col items-center gap-2' : 'py-4 px-4 flex items-center justify-between'
+            }`}
+        >
+          <Link to="/" title="TuxtlasGO" className="flex-shrink-0">
+            <TreePine size={22} className="text-amber-400" />
           </Link>
-          {!sidebarColapsado && (
-            <p className="text-[11px] text-jungle-400 mt-0.5">Los Tuxtlas, Veracruz</p>
-          )}
+          <button
+            onClick={alternarSidebar}
+            title={sidebarColapsado ? 'Expandir menú' : 'Colapsar menú'}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-jungle-300 hover:bg-jungle-800 hover:text-white transition-colors flex-shrink-0"
+          >
+            {sidebarColapsado ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
         </div>
 
         {/* Nav items */}
@@ -404,17 +444,13 @@ export default function AppShell() {
             </button>
           )}
 
-          {/* Colapsar/expandir — mismo eje que mindtrip (pág. 44 del PDF):
-              el riel se queda fijo, solo cambia su ancho. */}
-          <button
-            onClick={alternarSidebar}
-            title={sidebarColapsado ? 'Expandir menú' : 'Colapsar menú'}
-            className={`w-full flex items-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-jungle-400 hover:bg-jungle-800 hover:text-white transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
-              }`}
-          >
-            {sidebarColapsado ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-            {!sidebarColapsado && 'Colapsar menú'}
-          </button>
+          {/* Wordmark vertical, cerca del perfil — igual que mindtrip
+              lo trae en su riel angosto, no arriba junto al ícono. */}
+          <div className="flex justify-center pt-2">
+            <span className="text-jungle-500 text-[11px] font-display font-bold tracking-[0.15em] uppercase -rotate-90 whitespace-nowrap select-none">
+              TuxtlasGO
+            </span>
+          </div>
         </div>
       </aside>
 
@@ -507,10 +543,19 @@ export default function AppShell() {
               className={`flex-1 lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full overflow-y-auto ${mapaExpandido ? 'lg:hidden' : ''
                 }`}
             >
+              {/* Vista previa del mapa — solo móvil, dentro del mismo
+                  scroll que las tarjetas (como en la referencia real).
+                  Es el MISMO mapa de siempre movido aquí por portal,
+                  no una copia — tocar cualquier parte lleva a la
+                  vista completa. */}
+              <div
+                ref={refMapaInlineExplorar}
+                onClick={() => cambiarTab('mapa')}
+                className="lg:hidden h-56 flex-shrink-0 relative bg-jungle-100 cursor-pointer"
+              />
               <ExploreScreen
                 onVerLugar={verLugar}
                 lugares={getCatalogoActivo()}
-                onVerMapa={() => cambiarTab('mapa')}
               />
             </div>
           )}
@@ -562,11 +607,14 @@ export default function AppShell() {
 
           {/* MAPA — instancia única y persistente, nunca se desmonta:
               - explorar (escritorio): columna derecha, al lado.
+              - explorar (móvil): NO aquí — vive como vista previa
+                dentro del scroll de Explorar (portal, ver arriba).
               - chat + ya hay ruta (escritorio): columna derecha.
               - mapa (peek de móvil, o "expandir" en escritorio):
                 pantalla/columna completa.
               - favoritos/perfil, o chat sin ruta: oculto. */}
           <div
+            ref={refMapaPrincipal}
             className={
               tab === 'mapa' || (mostrarMapaAlLado && mapaExpandido)
                 ? 'flex-1 h-full min-h-0 flex flex-col relative'
@@ -600,19 +648,24 @@ export default function AppShell() {
                 {mapaExpandido ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
               </button>
             )}
-
-            <div className="flex-1 min-h-0 relative">
-              <MapScreen
-                onVerLugar={verLugar}
-                rutaResaltada={rutaVisible?.geometria}
-                tramosResaltados={rutaVisible?.tramos}
-                paradasResaltadas={rutaVisible?.paradas}
-                miUbicacion={miUbicacion ?? undefined}
-                onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); }}
-              />
-            </div>
           </div>
         </main>
+
+        {/* El mapa se renderiza UNA vez aquí y se teletransporta
+            (portal) al contenedor activo — nunca se desmonta al
+            cambiar de pestaña o de tamaño de pantalla, así conserva
+            zoom/posición siempre. */}
+        {destinoMapa && createPortal(
+          <MapScreen
+            onVerLugar={verLugar}
+            rutaResaltada={rutaVisible?.geometria}
+            tramosResaltados={rutaVisible?.tramos}
+            paradasResaltadas={rutaVisible?.paradas}
+            miUbicacion={miUbicacion ?? undefined}
+            onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); }}
+          />,
+          destinoMapa
+        )}
 
         {/* Bottom nav solo en móvil */}
         <div className="lg:hidden">

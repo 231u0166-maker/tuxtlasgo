@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapPin, Calendar, Users, DollarSign, ChevronDown, Minus, Plus, X } from 'lucide-react';
+import CalendarioRango from './CalendarioRango';
 
 // ============================================================
 // BARRA DE FILTROS — Dónde / Cuándo / Quién / Presupuesto
@@ -24,7 +25,9 @@ export interface QuienViaja {
   adultos: number;
   ninos: number;
   bebes: number;
-  mascotas: boolean;
+  // Contador, no un sí/no — así lo muestra mindtrip (imagen 5:
+  // "¿Va a llevar un animal de servicio?" con +/-, no un switch).
+  mascotas: number;
 }
 
 export interface FiltrosViajeValor {
@@ -36,7 +39,7 @@ export interface FiltrosViajeValor {
   presupuesto: 1 | 2 | 3;
 }
 
-const QUIEN_DEFAULT: QuienViaja = { adultos: 1, ninos: 0, bebes: 0, mascotas: false };
+const QUIEN_DEFAULT: QuienViaja = { adultos: 1, ninos: 0, bebes: 0, mascotas: 0 };
 
 const VALOR_DEFAULT: FiltrosViajeValor = {
   donde: '',
@@ -94,7 +97,7 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
           onClick={() => setAbierto(abierto === 'donde' ? null : 'donde')}
         />
         {abierto === 'donde' && (
-          <Modal titulo="Dónde" onCerrar={() => setAbierto(null)}>
+          <Modal titulo="Dónde" subtitulo="Cubrimos Los Tuxtlas — Catemaco, San Andrés y Santiago" onCerrar={() => setAbierto(null)}>
             <Campo
               placeholder="Catemaco, San Andrés Tuxtla..."
               value={estado.donde}
@@ -120,22 +123,14 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
         />
         {abierto === 'cuando' && (
           <Modal titulo="Cuándo" onCerrar={() => setAbierto(null)}>
-            <div className="flex items-center gap-2 mb-5">
-              <input
-                type="date"
-                value={estado.desde}
-                onChange={(e) => actualizar({ desde: e.target.value })}
-                className="flex-1 min-w-0 px-3.5 py-3 rounded-xl border border-obsidiana-900/10 bg-amate-50 text-sm focus:outline-none focus:border-jungle-400"
-              />
-              <span className="text-obsidiana-800/30 flex-shrink-0">–</span>
-              <input
-                type="date"
-                value={estado.hasta}
-                onChange={(e) => actualizar({ hasta: e.target.value })}
-                className="flex-1 min-w-0 px-3.5 py-3 rounded-xl border border-obsidiana-900/10 bg-amate-50 text-sm focus:outline-none focus:border-jungle-400"
+            <div className="mb-5">
+              <CalendarioRango
+                desde={estado.desde}
+                hasta={estado.hasta}
+                onCambiar={(desde, hasta) => actualizar({ desde, hasta })}
               />
             </div>
-            <BotonGuardar onClick={() => setAbierto(null)} />
+            <BotonGuardar etiqueta="Actualizar" onClick={() => setAbierto(null)} />
           </Modal>
         )}
       </div>
@@ -149,35 +144,42 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
           onClick={() => setAbierto(abierto === 'quien' ? null : 'quien')}
         />
         {abierto === 'quien' && (
-          <Modal titulo="Quién viaja" onCerrar={() => setAbierto(null)}>
-            <div className="space-y-0.5 mb-1">
+          <Modal
+            titulo="Quién"
+            subtitulo={`${totalQuien} viajero${totalQuien === 1 ? '' : 's'}`}
+            onCerrar={() => setAbierto(null)}
+          >
+            <div className="space-y-1 mb-1">
               <ContadorQuien
                 etiqueta="Adultos"
+                nota="A partir de 13 años"
                 valor={estado.quien.adultos}
                 min={1}
                 onCambiar={(n) => actualizar({ quien: { ...estado.quien, adultos: n } })}
               />
               <ContadorQuien
                 etiqueta="Niños"
+                nota="De 2 a 12 años"
                 valor={estado.quien.ninos}
                 min={0}
                 onCambiar={(n) => actualizar({ quien: { ...estado.quien, ninos: n } })}
               />
               <ContadorQuien
                 etiqueta="Bebés"
+                nota="Menores de 2 años"
                 valor={estado.quien.bebes}
                 min={0}
                 onCambiar={(n) => actualizar({ quien: { ...estado.quien, bebes: n } })}
               />
-            </div>
-            <div className="pt-3 mt-2 border-t border-obsidiana-900/8">
-              <FilaToggle
+              <ContadorQuien
                 etiqueta="Mascotas"
+                nota="¿Va a llevar un animal de servicio?"
                 valor={estado.quien.mascotas}
-                onCambiar={(v) => actualizar({ quien: { ...estado.quien, mascotas: v } })}
+                min={0}
+                onCambiar={(n) => actualizar({ quien: { ...estado.quien, mascotas: n } })}
               />
             </div>
-            <BotonGuardar onClick={() => setAbierto(null)} />
+            <BotonGuardar etiqueta="Actualizar" onClick={() => setAbierto(null)} />
           </Modal>
         )}
       </div>
@@ -246,10 +248,12 @@ function Pastilla({
 // justo lo que se sentía descuidado antes.
 function Modal({
   titulo,
+  subtitulo,
   onCerrar,
   children,
 }: {
   titulo: string;
+  subtitulo?: string;
   onCerrar: () => void;
   children: React.ReactNode;
 }) {
@@ -257,13 +261,18 @@ function Modal({
     <div
       className={`absolute top-[calc(100%+10px)] left-0 w-[340px] bg-white border border-obsidiana-900/8 ${RADIO_MODAL} ${SOMBRA_MODAL} p-[22px] z-50 animate-fade-in`}
     >
-      <div className="flex items-center justify-between mb-4">
-        <span className="font-display font-bold text-[15px] text-obsidiana-900">{titulo}</span>
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <span className="block font-display font-bold text-[15px] text-obsidiana-900">{titulo}</span>
+          {subtitulo && (
+            <span className="block text-[12.5px] text-obsidiana-800/50 mt-0.5">{subtitulo}</span>
+          )}
+        </div>
         <button
           type="button"
           onClick={onCerrar}
           aria-label="Cerrar"
-          className="w-[26px] h-[26px] rounded-full bg-amate-100 flex items-center justify-center text-obsidiana-800/50 hover:text-obsidiana-900 transition-colors"
+          className="w-[26px] h-[26px] rounded-full bg-amate-100 flex items-center justify-center text-obsidiana-800/50 hover:text-obsidiana-900 transition-colors flex-shrink-0"
         >
           <X size={13} />
         </button>
@@ -321,33 +330,38 @@ function FilaToggle({
   );
 }
 
-function BotonGuardar({ onClick }: { onClick: () => void }) {
+function BotonGuardar({ onClick, etiqueta = 'Guardar' }: { onClick: () => void; etiqueta?: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className="w-full py-3 rounded-xl bg-jungle-700 hover:bg-jungle-800 text-white font-semibold text-sm transition-colors"
     >
-      Guardar
+      {etiqueta}
     </button>
   );
 }
 
 function ContadorQuien({
   etiqueta,
+  nota,
   valor,
   min,
   onCambiar,
 }: {
   etiqueta: string;
+  nota?: string;
   valor: number;
   min: number;
   onCambiar: (n: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between py-2 text-sm text-obsidiana-800">
-      {etiqueta}
-      <div className="flex items-center gap-3">
+    <div className="flex items-center justify-between py-2.5 text-sm text-obsidiana-800">
+      <div>
+        <div>{etiqueta}</div>
+        {nota && <div className="text-[12px] text-obsidiana-800/45 mt-0.5">{nota}</div>}
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
         <button
           type="button"
           onClick={() => onCambiar(Math.max(min, valor - 1))}

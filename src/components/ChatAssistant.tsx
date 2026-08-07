@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, RotateCcw, MapPin, BookmarkPlus, CheckCircle2 } from 'lucide-react';
+import { Send, MapPin, BookmarkPlus, CheckCircle2 } from 'lucide-react';
 import type { useLLM } from '../hooks/useLLM';
 import type { Lugar } from '../data/lugares';
 import type { Categoria, Presupuesto } from '../data/lugares';
@@ -937,38 +937,13 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
           </button>
         </div>
       )}
-      {/* Header */}
-      <div className="bg-gradient-to-br from-jungle-800 to-jungle-950 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <img
-            src="/logo-tuxtlasgo.png"
-            alt="TuxtlasGO"
-            className="h-8 w-auto object-contain brightness-0 invert"
-          />
-          <div>
-            <div className="font-display font-bold leading-tight">
-              Guía TuxtlasGO
-            </div>
-            <div className="text-[11px] text-jungle-200 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-              Funciona sin internet
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={reiniciar}
-          className="text-jungle-200 hover:text-white p-2"
-          aria-label="Reiniciar conversación"
-          title="Reiniciar"
-        >
-          <RotateCcw size={18} />
-        </button>
-      </div>
-
-      {/* Nota: antes había aquí una barra de progreso de descarga del
-          modelo. Se quitó a propósito — el indicador de "escribiendo"
-          (los tres puntitos de abajo) ya cubre la espera de forma más
-          discreta, sin números de porcentaje que puedan confundir. */}
+      {/* El header oscuro "Guía TuxtlasGO / Funciona sin internet"
+          que vivía aquí se quitó a propósito (simplificación pedida):
+          en la referencia real, nada se interpone entre la barra de
+          filtros de arriba (AppShell.tsx) y el primer mensaje. El
+          botón de reiniciar conversación que vivía en esa barra
+          también se quitó — si hace falta recuperarlo, mejor como
+          ícono chico en otro lado, no como una banda completa. */}
 
       {/* Mensajes */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-3">

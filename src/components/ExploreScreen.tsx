@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, SlidersHorizontal, Map as MapIcon } from 'lucide-react';
 import { LUGARES, CATEGORIAS, type Categoria, type Lugar } from '../data/lugares';
 import PlaceCard from './PlaceCard';
@@ -17,6 +17,35 @@ interface Props {
 export default function ExploreScreen({ onVerLugar, lugares: lugaresProps, onVerMapa }: Props) {
   const [busqueda, setBusqueda] = useState('');
   const [catActiva, setCatActiva] = useState<Categoria | 'todas'>('todas');
+
+  // El link "Ver mapa" de móvil se esconde al bajar y reaparece al
+  // subir (o al llegar arriba del todo) — así no ocupa espacio fijo
+  // todo el tiempo, pero sigue siendo predecible: siempre vuelve con
+  // el mismo gesto (subir un poco), nunca desaparece a mitad de un
+  // intento de tocarlo como pasaría con un temporizador al azar.
+  const raizRef = useRef<HTMLDivElement>(null);
+  const [mapaLinkVisible, setMapaLinkVisible] = useState(true);
+  const scrollAnteriorRef = useRef(0);
+
+  useEffect(() => {
+    const contenedorScroll = raizRef.current?.parentElement;
+    if (!contenedorScroll) return;
+
+    const manejarScroll = () => {
+      const y = contenedorScroll.scrollTop;
+      if (y < 32) {
+        setMapaLinkVisible(true);
+      } else if (y > scrollAnteriorRef.current + 4) {
+        setMapaLinkVisible(false); // bajando
+      } else if (y < scrollAnteriorRef.current - 4) {
+        setMapaLinkVisible(true); // subiendo
+      }
+      scrollAnteriorRef.current = y;
+    };
+
+    contenedorScroll.addEventListener('scroll', manejarScroll, { passive: true });
+    return () => contenedorScroll.removeEventListener('scroll', manejarScroll);
+  }, []);
 
   const todosLugares = lugaresProps ?? LUGARES;
 
@@ -39,9 +68,15 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps, onVer
   const destacados = todosLugares.filter((l) => l.destacado);
 
   return (
-    <div className="pb-24 lg:pb-8">
-      {/* Hero compacto */}
-      <div className="bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 lg:px-8 pt-6 lg:pt-8 pb-8 rounded-b-3xl">
+    <div ref={raizRef} className="pb-24 lg:pb-8">
+      {/* Hero + buscador + categorías — DESKTOP SOLAMENTE a partir de
+          ahora. En móvil se pidió quitar "Descubre Los Tuxtlas /
+          Disponible offline / 17 lugares..." junto con el buscador y
+          las categorías, para simplificar (se veía todo junto). Eso
+          significa que en móvil, por ahora, no hay forma de buscar ni
+          filtrar por categoría desde esta pantalla — si se quiere de
+          vuelta, mejor en una versión chica, no como este bloque. */}
+      <div className="hidden lg:block bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 lg:px-8 pt-6 lg:pt-8 pb-8 rounded-b-3xl">
         <div className="flex items-center justify-between mb-1">
           <h1 className="font-display font-extrabold text-2xl lg:text-3xl">
             Descubre Los Tuxtlas
@@ -67,19 +102,11 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps, onVer
               className="w-full bg-white text-jungle-950 rounded-xl pl-10 pr-4 py-3 text-sm placeholder:text-jungle-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
           </div>
-          {onVerMapa && (
-            <button
-              onClick={onVerMapa}
-              className="lg:hidden flex-shrink-0 bg-white/15 hover:bg-white/25 text-white rounded-xl px-3.5 py-3 text-sm font-semibold flex items-center gap-1.5 border border-white/20"
-            >
-              <MapIcon size={16} /> Mapa
-            </button>
-          )}
         </div>
       </div>
 
       {/* Categorías */}
-      <div className="px-4 lg:px-8 mt-5">
+      <div className="hidden lg:block px-4 lg:px-8 mt-5">
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scroll-smooth snap-x">
           <CategoryChip
             label="Todos"
@@ -97,6 +124,23 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps, onVer
             />
           ))}
         </div>
+      </div>
+
+      {/* Móvil: sin hero, pero el mapa sigue siendo alcanzable — un
+          link chico, no un botón grande dentro de una tarjeta. Se
+          esconde al bajar y vuelve al subir, ver el efecto arriba. */}
+      <div
+        className={`lg:hidden pt-4 px-4 flex justify-end overflow-hidden transition-[max-height,opacity,transform] duration-200 ease-out ${mapaLinkVisible ? 'max-h-12 opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-2 pointer-events-none'
+          }`}
+      >
+        {onVerMapa && (
+          <button
+            onClick={onVerMapa}
+            className="flex items-center gap-1.5 text-sm font-semibold text-jungle-700"
+          >
+            <MapIcon size={15} /> Ver mapa
+          </button>
+        )}
       </div>
 
       {/* Destacados (solo cuando no hay búsqueda activa) */}

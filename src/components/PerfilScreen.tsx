@@ -11,6 +11,7 @@
 // ============================================================
 
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
@@ -94,9 +95,18 @@ function parseIdeal(raw: string[] | string | undefined): string[] {
 }
 
 // ─────────────── ENTRADA ───────────────
-interface Props { onVolver: () => void; }
+interface Props {
+  onVolver: () => void;
+  // Antes, iniciar/cerrar sesión en móvil solo vivía en el menú "⋮"
+  // flotante de arriba (ver AppShell.tsx) — al quitar ese menú para
+  // simplificar, esta pantalla necesita poder hacerlo por su cuenta,
+  // si no, no habría ninguna forma de entrar/salir de la cuenta
+  // desde el teléfono.
+  onIniciarSesion?: () => void;
+  onCerrarSesion?: () => void;
+}
 
-export default function PerfilScreen({ onVolver }: Props) {
+export default function PerfilScreen({ onVolver, onIniciarSesion, onCerrarSesion }: Props) {
   const usuario = getUsuarioLocal();
 
   if (!usuario) {
@@ -107,19 +117,39 @@ export default function PerfilScreen({ onVolver }: Props) {
             Inicia sesión para ver tu perfil.
           </p>
           <button
-            onClick={onVolver}
+            onClick={onIniciarSesion ?? onVolver}
             className="bg-jungle-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold"
           >
-            Volver al inicio
+            Iniciar sesión
           </button>
+          <Link
+            to="/prestador"
+            className="block mt-3 text-sm font-semibold text-jungle-700 underline underline-offset-2"
+          >
+            Soy prestador
+          </Link>
         </div>
       </div>
     );
   }
 
-  return usuario.tipo === 'prestador'
-    ? <PerfilPrestador usuario={usuario} onVolver={onVolver} />
-    : <PerfilTurista   usuario={usuario} onVolver={onVolver} />;
+  return (
+    <div className="relative">
+      {/* Cerrar sesión — solo móvil (en escritorio ya vive en el
+          riel lateral, duplicarlo ahí no aporta). */}
+      {onCerrarSesion && (
+        <button
+          onClick={onCerrarSesion}
+          className="lg:hidden absolute top-3 right-3 z-10 bg-white/90 backdrop-blur shadow-sm rounded-full px-3 py-1.5 text-xs font-semibold text-red-600 border border-red-100"
+        >
+          Cerrar sesión
+        </button>
+      )}
+      {usuario.tipo === 'prestador'
+        ? <PerfilPrestador usuario={usuario} onVolver={onVolver} />
+        : <PerfilTurista usuario={usuario} onVolver={onVolver} />}
+    </div>
+  );
 }
 
 // ============================================================

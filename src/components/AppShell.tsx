@@ -357,15 +357,20 @@ export default function AppShell() {
         className={`hidden lg:flex flex-col flex-shrink-0 bg-jungle-900 text-white transition-[width] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : 'w-56 xl:w-64'
           }`}
       >
-        {/* Arriba: solo el ícono + el botón de colapsar, juntos —
-            igual que mindtrip (wordmark + flecha al mismo nivel). El
-            wordmark de texto se movió cerca del perfil, ver abajo. */}
+        {/* Arriba: ícono + wordmark juntos como siempre — sueltos se
+            veían mal, ver captura. El botón de colapsar se queda acá
+            al lado (eso sí funcionaba bien). */}
         <div
           className={`border-b border-jungle-700/50 ${sidebarColapsado ? 'py-4 flex flex-col items-center gap-2' : 'py-4 px-4 flex items-center justify-between'
             }`}
         >
-          <Link to="/" title="TuxtlasGO" className="flex-shrink-0">
-            <TreePine size={22} className="text-amber-400" />
+          <Link to="/" title={sidebarColapsado ? 'TuxtlasGO' : undefined} className="flex items-center gap-2 flex-shrink-0 min-w-0">
+            <TreePine size={22} className="text-amber-400 flex-shrink-0" />
+            {!sidebarColapsado && (
+              <span className="font-display font-extrabold text-lg tracking-tight truncate">
+                TuxtlasGO
+              </span>
+            )}
           </Link>
           <button
             onClick={alternarSidebar}
@@ -443,14 +448,6 @@ export default function AppShell() {
               {!sidebarColapsado && 'Iniciar sesión'}
             </button>
           )}
-
-          {/* Wordmark vertical, cerca del perfil — igual que mindtrip
-              lo trae en su riel angosto, no arriba junto al ícono. */}
-          <div className="flex justify-center pt-2">
-            <span className="text-jungle-500 text-[11px] font-display font-bold tracking-[0.15em] uppercase -rotate-90 whitespace-nowrap select-none">
-              TuxtlasGO
-            </span>
-          </div>
         </div>
       </aside>
 

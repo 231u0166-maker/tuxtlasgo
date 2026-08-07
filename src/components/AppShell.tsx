@@ -22,6 +22,7 @@ import MapScreen from './MapScreen';
 import ChatAssistant from './ChatAssistant';
 import { useLLM } from '../hooks/useLLM';
 import FavoritesScreen from './FavoritesScreen';
+import SugerenciasChat from './SugerenciasChat';
 import PlaceDetail from './PlaceDetail';
 import OfflineIndicator from './OfflineIndicator';
 import type { Lugar } from '../data/lugares';
@@ -54,6 +55,10 @@ export default function AppShell() {
   // en escritorio el mapa nunca "reemplaza" la pestaña, así que no
   // hace falta volver a ningún lado.
   const [tabAntesDeMapa, setTabAntesDeMapa] = useState<Tab>('explorar');
+  // Colapsar el panel izquierdo para que el mapa tome toda la
+  // columna — botón sobre el mapa mismo, solo escritorio (ver
+  // NOTA ADICIONAL: "que el mapa no sea tan invasivo").
+  const [mapaExpandido, setMapaExpandido] = useState(false);
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal());
   const [mostrarAuth, setMostrarAuth] = useState(false);
   const [lugarSeleccionado, setLugarSeleccionado] = useState<Lugar | null>(null);
@@ -197,6 +202,11 @@ export default function AppShell() {
 
     return origen;
   };
+
+  // Derivado, no estado: el mapa se ve al lado en Explorar siempre, y
+  // en Chat solo cuando ya hay una ruta que mostrar — antes de
+  // preguntar algo, ese espacio lo ocupan las sugerencias.
+  const mostrarMapaAlLado = tab === 'explorar' || (tab === 'chat' && !!rutaVisible);
 
   // El mapa ahora es una sola instancia persistente (no una pestaña
   // que se "entra" y "sale"). En escritorio, si ya estás en Explorar
@@ -589,11 +599,12 @@ export default function AppShell() {
         )}
 
         {/* Contenido principal — el mapa es UNA sola instancia que se
-            reposiciona (no una pestaña más): al lado de Explorar o
-            Chat en escritorio, a pantalla completa con "Volver" en
-            móvil. Se mantiene siempre montada, igual que el chat, para
-            no perder zoom/posición ni el estado de la conversación
-            cada vez que cambias de pestaña. */}
+            reposiciona (no una pestaña más): al lado de Explorar
+            siempre, al lado de Chat SOLO cuando ya hay una ruta que
+            mostrar (antes de preguntar algo, ese espacio lo ocupan
+            sugerencias — ver SugerenciasChat, corrección de la pasada
+            anterior). En móvil, a pantalla completa con "Volver". Se
+            mantiene siempre montada para no perder zoom/posición. */}
         <main className="flex-1 overflow-hidden min-h-0 flex flex-col lg:flex-row">
           {/*para eacceder y poder entrar al perfil*/}
           {tab === 'perfil' && (
@@ -603,14 +614,17 @@ export default function AppShell() {
           )}
 
           {tab === 'explorar' && (
-            <div className="flex-1 lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full overflow-y-auto">
+            <div
+              className={`flex-1 lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full overflow-y-auto ${mapaExpandido ? 'lg:hidden' : ''
+                }`}
+            >
               <ExploreScreen onVerLugar={verLugar} lugares={getCatalogoActivo()} />
             </div>
           )}
 
           <div
-            className="lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full min-h-0 flex-col"
-            style={{ display: tab === 'chat' ? 'flex' : 'none' }}
+            className={`${tab === 'chat' ? 'flex' : 'hidden'} ${mapaExpandido ? 'lg:hidden' : ''
+              } flex-col lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full min-h-0`}
           >
             <div className="flex-shrink-0 px-3 pt-3 pb-2 bg-jungle-50 border-b border-jungle-100 overflow-x-auto">
               <FiltrosViaje valor={filtros} onCambiar={setFiltros} />
@@ -632,17 +646,27 @@ export default function AppShell() {
             </div>
           )}
 
-          {/* MAPA — instancia única y persistente. Su posición cambia
-              según la pestaña, pero nunca se desmonta:
-              - explorar/chat + escritorio: columna derecha, al lado.
-              - mapa (peek de móvil): pantalla completa, con "Volver".
-              - favoritos/perfil, o cualquiera en móvil: oculto. */}
+          {/* Sugerencias — ocupa el lugar del mapa en Chat mientras no
+              haya nada preguntado todavía. Solo escritorio: en móvil
+              el chat es de un solo panel, no hay "al lado". */}
+          {tab === 'chat' && !rutaVisible && (
+            <div className="hidden lg:block lg:flex-1 h-full min-h-0 overflow-y-auto bg-amate-50">
+              <SugerenciasChat onVerLugar={verLugar} />
+            </div>
+          )}
+
+          {/* MAPA — instancia única y persistente, nunca se desmonta:
+              - explorar (escritorio): columna derecha, al lado.
+              - chat + ya hay ruta (escritorio): columna derecha.
+              - mapa (peek de móvil, o "expandir" en escritorio):
+                pantalla/columna completa.
+              - favoritos/perfil, o chat sin ruta: oculto. */}
           <div
             className={
-              tab === 'mapa'
-                ? 'flex-1 h-full min-h-0 flex flex-col'
-                : tab === 'explorar' || tab === 'chat'
-                  ? 'hidden lg:flex lg:flex-1 h-full min-h-0 flex-col'
+              tab === 'mapa' || (mostrarMapaAlLado && mapaExpandido)
+                ? 'flex-1 h-full min-h-0 flex flex-col relative'
+                : mostrarMapaAlLado
+                  ? 'hidden lg:flex lg:flex-1 h-full min-h-0 flex-col relative'
                   : 'hidden'
             }
           >
@@ -656,6 +680,22 @@ export default function AppShell() {
                 </button>
               </div>
             )}
+
+            {/* Colapsar/expandir — solo tiene sentido en escritorio,
+                cuando el mapa está AL LADO de algo (si no hay nada al
+                lado, ya está a pantalla completa por default). Así se
+                reduce lo invasivo que se siente el mapa: quien quiera
+                más espacio para el chat lo puede pedir. */}
+            {tab !== 'mapa' && mostrarMapaAlLado && (
+              <button
+                onClick={() => setMapaExpandido((v) => !v)}
+                title={mapaExpandido ? 'Mostrar panel' : 'Expandir mapa'}
+                className="hidden lg:flex absolute top-3 left-3 z-30 w-9 h-9 bg-white rounded-full shadow-md border border-jungle-100 items-center justify-center text-jungle-800 hover:bg-jungle-50"
+              >
+                {mapaExpandido ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+              </button>
+            )}
+
             <div className="flex-1 min-h-0 relative">
               <MapScreen
                 onVerLugar={verLugar}

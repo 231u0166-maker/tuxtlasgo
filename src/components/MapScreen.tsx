@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Download, CheckCircle2, Loader2, X, Compass, Layers, Plus, Minus, Map as MapIcon, Mountain } from 'lucide-react';
+import { Download, CheckCircle2, Loader2, X, Compass, Layers, Plus, Minus, Map as MapIcon, Mountain, SlidersHorizontal } from 'lucide-react';
 import {
   LUGARES,
   LOS_TUXTLAS_BOUNDS,
@@ -352,7 +352,30 @@ export default function MapScreen({
     }
   }, []);
 
+  // Filtro por categoría — propio del mapa, no depende de que el
+  // padre pase `filtroCategorias`. Botón "Filtros" del cluster de
+  // controles, abajo. Solo nuestras categorías reales (CATEGORIAS de
+  // data/lugares.ts), no se copia el widget completo de mindtrip
+  // (avatares/precios no aplican aquí).
+  const [categoriaFiltroInterna, setCategoriaFiltroInterna] = useState<string | null>(null);
+  const [mostrarFiltroCategorias, setMostrarFiltroCategorias] = useState(false);
+
   const todosLosLugares = useMemo(() => {
+    let base = [...LUGARES, ...serviciosPrestadores];
+    if (filtroCategorias && filtroCategorias.length > 0) {
+      base = base.filter((l) => filtroCategorias.includes(l.categoria));
+    }
+    if (categoriaFiltroInterna) {
+      base = base.filter((l) => l.categoria === categoriaFiltroInterna);
+    }
+    return base;
+  }, [serviciosPrestadores, filtroCategorias, categoriaFiltroInterna]);
+
+  // Para los contadores del panel de filtro — ANTES de aplicar el
+  // filtro interno (si no, la categoría elegida siempre mostraría el
+  // total completo y las demás 0, cuando lo útil es ver cuántas hay
+  // de cada una para decidir a cuál cambiar).
+  const lugaresParaConteo = useMemo(() => {
     const base = [...LUGARES, ...serviciosPrestadores];
     if (filtroCategorias && filtroCategorias.length > 0) {
       return base.filter((l) => filtroCategorias.includes(l.categoria));
@@ -605,6 +628,55 @@ export default function MapScreen({
         style={{ position: 'absolute', bottom: '140px', right: '12px', zIndex: 30 }}
         className="flex flex-col items-end gap-2"
       >
+        {/* Filtros — categorías reales del catálogo. Blanco como el
+            resto del cluster a propósito: un botón verde sólido aquí
+            competía visualmente con los pines y con "Cerrar ruta" —
+            mismo lenguaje que Capas/Zoom/Brújula, solo el ARO interior
+            se pinta cuando hay un filtro activo, no el botón entero. */}
+        <div className="relative">
+          <button
+            onClick={() => setMostrarFiltroCategorias((v) => !v)}
+            className={`w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center border hover:bg-jungle-50 ${categoriaFiltroInterna ? 'border-jungle-600 text-jungle-700' : 'border-jungle-100 text-jungle-800'
+              }`}
+            title="Filtrar por categoría"
+            aria-label="Filtrar lugares por categoría"
+            aria-expanded={mostrarFiltroCategorias}
+          >
+            <SlidersHorizontal size={17} />
+          </button>
+
+          {mostrarFiltroCategorias && (
+            <div className="absolute right-12 bottom-0 w-56 bg-white rounded-2xl shadow-xl border border-jungle-100 p-2 max-h-[70vh] overflow-y-auto">
+              <button
+                onClick={() => { setCategoriaFiltroInterna(null); setMostrarFiltroCategorias(false); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-left ${!categoriaFiltroInterna ? 'bg-jungle-50 text-jungle-700' : 'text-jungle-800 hover:bg-jungle-50'
+                  }`}
+              >
+                <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${!categoriaFiltroInterna ? 'border-jungle-700 bg-jungle-700' : 'border-jungle-300'}`} />
+                Todos
+                <span className="ml-auto text-xs font-normal text-jungle-500">{lugaresParaConteo.length}</span>
+              </button>
+              {CATEGORIAS.map((c) => {
+                const cantidad = lugaresParaConteo.filter((l) => l.categoria === c.id).length;
+                const activa = categoriaFiltroInterna === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => { setCategoriaFiltroInterna(c.id); setMostrarFiltroCategorias(false); }}
+                    disabled={cantidad === 0}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-left disabled:opacity-35 ${activa ? 'bg-jungle-50 text-jungle-700' : 'text-jungle-800 hover:bg-jungle-50'
+                      }`}
+                  >
+                    <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${activa ? 'border-jungle-700 bg-jungle-700' : 'border-jungle-300'}`} />
+                    <span>{c.emoji} {c.id}</span>
+                    <span className="ml-auto text-xs font-normal text-jungle-500">{cantidad}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Capas: Calles / Terreno */}
         <div className="relative">
           <button

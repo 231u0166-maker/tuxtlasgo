@@ -111,7 +111,7 @@ export default defineConfig({
         background_color: '#f0fdf4',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: '/app',
         scope: '/',
         lang: 'es-MX',
         categories: ['travel', 'navigation', 'lifestyle'],

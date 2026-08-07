@@ -99,6 +99,21 @@ export interface VectorConocimiento {
   actualizadoEn: number;
 }
 
+// Una conversación completa del asistente, guardada para poder
+// reabrirla después — distinto de RutaGuardada (que guarda solo UN
+// día de una ruta, no la charla completa). El título sale del primer
+// mensaje que escribe la persona, recortado — nunca inventado por la
+// IA, así siempre existe aunque el modelo local no esté cargado.
+export interface ChatGuardado {
+  id: string;
+  titulo: string;
+  actualizadoEn: number;
+  // JSON.stringify de MensajeChat[] — se guarda como texto (mismo
+  // patrón que prefsJson en RutaGuardada) para no acoplar db.ts al
+  // tipo de chatbot.ts.
+  mensajesJson: string;
+}
+
 class TuxtlasDB extends Dexie {
   favoritos!: Table<Favorito, string>;
   rutas!: Table<RutaGuardada, number>;
@@ -107,6 +122,7 @@ class TuxtlasDB extends Dexie {
   vectores!: Table<VectorLugar, string>;
   conocimientoCache!: Table<ConocimientoCacheado, number>;
   vectoresConocimiento!: Table<VectorConocimiento, string>;
+  chats!: Table<ChatGuardado, string>;
 
   constructor() {
     super('tuxtlasgo-db');
@@ -163,6 +179,19 @@ class TuxtlasDB extends Dexie {
       vectores: 'id, actualizadoEn',
       conocimientoCache: 'id',
       vectoresConocimiento: 'clave, actualizadoEn',
+    });
+    // v7: historial de conversaciones completas del asistente (no
+    // solo un día guardado como RutaGuardada) — para poder listarlas
+    // y reabrirlas, como pedía la referencia de mindtrip.
+    this.version(7).stores({
+      favoritos: 'id, agregadoEn',
+      rutas: '++id, creadaEn',
+      prestadores: '++id, municipio, creadoEn, estado, codigoSeguimiento, premium',
+      rutasCache: 'clave, calculadaEn',
+      vectores: 'id, actualizadoEn',
+      conocimientoCache: 'id',
+      vectoresConocimiento: 'clave, actualizadoEn',
+      chats: 'id, actualizadoEn',
     });
   }
 }
@@ -355,4 +384,24 @@ export function mapaDescargado(): boolean {
   } catch {
     return false;
   }
+}
+
+// ─────────────── HISTORIAL DE CHATS ───────────────
+// `put` (no `add`) a propósito: se llama repetidas veces mientras la
+// conversación avanza, mismo id — así queda siempre actualizada, no
+// se acumulan copias viejas de la misma charla.
+export async function guardarChat(chat: ChatGuardado): Promise<void> {
+  await db.chats.put(chat);
+}
+
+export async function listarChats(): Promise<ChatGuardado[]> {
+  return db.chats.orderBy('actualizadoEn').reverse().toArray();
+}
+
+export async function obtenerChat(id: string): Promise<ChatGuardado | undefined> {
+  return db.chats.get(id);
+}
+
+export async function eliminarChat(id: string): Promise<void> {
+  await db.chats.delete(id);
 }

@@ -231,7 +231,7 @@ function Pastilla({
 // e independiente de dónde vive la pastilla en el layout — así se
 // ve igual sin importar si el filtro está arriba del chat, del mapa,
 // o en cualquier otra pantalla que lo use más adelante.
-function Overlay({ onCerrar, children }: { onCerrar: () => void; children: React.ReactNode }) {
+export function Overlay({ onCerrar, children }: { onCerrar: () => void; children: React.ReactNode }) {
   return (
     <div
       className="fixed inset-0 z-[200] bg-obsidiana-950/45 backdrop-blur-[2px] flex items-center justify-center p-4 animate-fade-in"
@@ -242,7 +242,7 @@ function Overlay({ onCerrar, children }: { onCerrar: () => void; children: React
   );
 }
 
-function Modal({
+export function Modal({
   titulo,
   subtitulo,
   onCerrar,

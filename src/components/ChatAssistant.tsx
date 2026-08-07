@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, MapPin, BookmarkPlus, CheckCircle2 } from 'lucide-react';
+import { Send, MapPin, BookmarkPlus, CheckCircle2, History, Plus } from 'lucide-react';
 import type { useLLM } from '../hooks/useLLM';
 import type { Lugar } from '../data/lugares';
 import type { Categoria, Presupuesto } from '../data/lugares';
@@ -31,7 +31,8 @@ import {
   esPreguntaSobreMascotas,
 } from '../lib/chatbot';
 
-import { guardarRuta, mapaDescargado } from '../lib/db';
+import { guardarRuta, mapaDescargado, guardarChat, type ChatGuardado } from '../lib/db';
+import HistorialChats from './HistorialChats';
 import { buscarRespuestaVerificada } from '../lib/embeddings';
 import {
   obtenerUbicacionGPS,
@@ -119,6 +120,43 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
     } catch { /* ok */ }
     return 'preguntando_dias';
   });
+
+  // Identificador de ESTA conversación — mismo id mientras dure la
+  // sesión (sessionStorage), para que el guardado automático de abajo
+  // actualice siempre el mismo registro en vez de crear uno nuevo
+  // cada vez que cambian los mensajes.
+  const [chatId, setChatId] = useState<string>(() => {
+    try {
+      const id = sessionStorage.getItem('tuxtlasgo-chat-id');
+      if (id) return id;
+    } catch { /* ok */ }
+    const nuevo = crypto.randomUUID();
+    try { sessionStorage.setItem('tuxtlasgo-chat-id', nuevo); } catch { /* ok */ }
+    return nuevo;
+  });
+  const [mostrarHistorial, setMostrarHistorial] = useState(false);
+
+  // Guardado automático en IndexedDB — corre cada vez que la
+  // conversación avanza. `put` (no `add`) porque el id es siempre el
+  // mismo mientras no se toque "Nuevo chat": se sobreescribe el mismo
+  // registro, nunca se acumulan copias a medio terminar. Solo guarda
+  // si hay más que el saludo inicial — una conversación que nadie
+  // empezó no merece aparecer en el historial.
+  useEffect(() => {
+    if (mensajes.length <= 1) return;
+    const primerMensajeUsuario = mensajes.find((m) => m.role === 'user');
+    if (!primerMensajeUsuario) return;
+    const titulo =
+      primerMensajeUsuario.texto.length > 48
+        ? `${primerMensajeUsuario.texto.slice(0, 48)}…`
+        : primerMensajeUsuario.texto;
+    guardarChat({
+      id: chatId,
+      titulo,
+      actualizadoEn: Date.now(),
+      mensajesJson: JSON.stringify(mensajes),
+    }).catch(() => { /* no crítico — sigue funcionando en memoria aunque no se guarde */ });
+  }, [mensajes, chatId]);
   const [input, setInput] = useState('');
   const [escribiendo, setEscribiendo] = useState(false);
   // Mientras el LLM genera, bloqueamos el envío para no encimar streams
@@ -436,6 +474,31 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
     setPrefsParcial({});
     setInteresesTemp([]);
     setRutasGuardadas(new Set());
+    // Nuevo id — la conversación anterior ya quedó guardada en su
+    // propio registro (el guardado automático de arriba), así que
+    // "Nuevo chat" no la pisa, solo empieza una aparte.
+    const nuevoId = crypto.randomUUID();
+    setChatId(nuevoId);
+    try { sessionStorage.setItem('tuxtlasgo-chat-id', nuevoId); } catch { /* ok */ }
+  }
+
+  // Reabre una conversación guardada del historial — reemplaza los
+  // mensajes en pantalla por los de ese chat y sigue guardando sobre
+  // SU id (no el de la conversación que estaba activa).
+  function abrirChatGuardado(chat: ChatGuardado) {
+    try {
+      setMensajes(JSON.parse(chat.mensajesJson) as MensajeChat[]);
+    } catch {
+      return; // datos corruptos — no reemplaza nada, mejor que romper la vista
+    }
+    setEstado('libre');
+    setPrefsParcial({});
+    setInteresesTemp([]);
+    setChatId(chat.id);
+    try {
+      sessionStorage.setItem('tuxtlasgo-chat-id', chat.id);
+      sessionStorage.setItem('tuxtlasgo-chat-estado', 'libre');
+    } catch { /* ok */ }
   }
 
   // ─────────── Manejo de opciones tocadas (botones) ───────────
@@ -938,12 +1001,33 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
         </div>
       )}
       {/* El header oscuro "Guía TuxtlasGO / Funciona sin internet"
-          que vivía aquí se quitó a propósito (simplificación pedida):
-          en la referencia real, nada se interpone entre la barra de
-          filtros de arriba (AppShell.tsx) y el primer mensaje. El
-          botón de reiniciar conversación que vivía en esa barra
-          también se quitó — si hace falta recuperarlo, mejor como
-          ícono chico en otro lado, no como una banda completa. */}
+          que vivía aquí se quitó a propósito (simplificación pedida).
+          Esta fila delgada es lo único que queda arriba del todo —
+          acceso al historial de conversaciones guardadas y para
+          empezar una nueva, nada más. */}
+      <div className="flex-shrink-0 flex items-center gap-1 px-3 py-2 border-b border-jungle-100">
+        <button
+          onClick={() => setMostrarHistorial(true)}
+          className="flex items-center gap-1.5 text-xs font-semibold text-jungle-700 hover:bg-jungle-50 rounded-lg px-2 py-1.5 transition-colors"
+        >
+          <History size={14} /> Historial
+        </button>
+        <button
+          onClick={reiniciar}
+          className="flex items-center gap-1.5 text-xs font-semibold text-jungle-700 hover:bg-jungle-50 rounded-lg px-2 py-1.5 transition-colors"
+        >
+          <Plus size={14} /> Nuevo chat
+        </button>
+      </div>
+
+      {mostrarHistorial && (
+        <HistorialChats
+          onCerrar={() => setMostrarHistorial(false)}
+          onAbrirChat={abrirChatGuardado}
+          onNuevoChat={reiniciar}
+          chatActivoId={chatId}
+        />
+      )}
 
       {/* Mensajes */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-3">

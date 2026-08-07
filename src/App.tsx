@@ -11,6 +11,27 @@ import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
 import { embeddingsListo, indexarCatalogo, indexarConocimiento, inicializarEmbeddings } from './lib/embeddings';
 import ActualizacionDisponible from './components/ActualizacionDisponible';
 
+// ============================================================
+// PWA INSTALADA — saltar la landing de marketing
+// ============================================================
+// Antes, abrir el ícono desde la pantalla de inicio SIEMPRE caía en
+// "/" (la landing de "Tu guía de Los Tuxtlas..."), igual que un
+// visitante nuevo en el navegador — aunque ya la hubieras instalado.
+// Cambiar `start_url` en el manifest (vite.config.ts) resuelve esto
+// para instalaciones NUEVAS, pero un ícono ya instalado en el
+// teléfono puede tener el `start_url` viejo grabado — así que esta
+// revisión en tiempo de carga es el respaldo real: si el navegador
+// reporta que se está corriendo como app instalada (display-mode
+// standalone en Android/desktop, `navigator.standalone` en iOS
+// Safari, que no soporta display-mode de la misma forma), entra
+// directo a la app, sin pasar por la landing.
+function corriendoComoPWAInstalada(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (window.matchMedia?.('(display-mode: standalone)').matches) return true;
+  if ((window.navigator as { standalone?: boolean }).standalone === true) return true;
+  return false;
+}
+
 // Función global para recargar catálogo (usada por GestorFotos y ProviderPanel)
 // Pre-cachea imágenes de Cloudinary para que estén disponibles offline
 async function precachearImagenes(lugares: any[]) {
@@ -95,7 +116,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route
+          path="/"
+          element={corriendoComoPWAInstalada() ? <Navigate to="/app" replace /> : <LandingPage />}
+        />
         <Route path="/app" element={<AppShell />} />
         <Route path="/prestador" element={<ProviderPanel />} />
         <Route path="/admin" element={<AdminPanel />} />

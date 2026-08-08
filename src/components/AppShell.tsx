@@ -684,7 +684,7 @@ export default function AppShell() {
                   casi completo — dos estados con imán al soltar, no
                   cualquier alto intermedio. */}
               <div
-                className="lg:hidden absolute inset-x-0 bottom-0 z-20 bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(12,10,9,0.18)] flex flex-col"
+                className="lg:hidden absolute inset-x-0 bottom-0 z-[45] bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(12,10,9,0.18)] flex flex-col"
                 style={alturaHojaEstilo}
               >
                 <div

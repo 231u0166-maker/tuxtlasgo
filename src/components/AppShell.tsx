@@ -363,7 +363,7 @@ export default function AppShell() {
 
   return (
     /* ── Layout raíz ── mobile: column flex  |  desktop: row flex ── */
-    <div className="flex flex-col lg:flex-row bg-jungle-50 h-screen [height:100dvh]">
+    <div className="flex flex-col lg:flex-row bg-jungle-50 h-screen [height:100dvh] overflow-hidden">
       <OfflineIndicator />
 
       {/* ══════════════ SIDEBAR (solo desktop) ══════════════ */}
@@ -471,7 +471,7 @@ export default function AppShell() {
       </aside>
 
       {/* ══════════════ ÁREA PRINCIPAL ══════════════ */}
-      <div className="flex flex-col flex-1 min-w-0 min-h-0">
+      <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
 
         {/* Toast error ruta */}
         {errorRuta && (

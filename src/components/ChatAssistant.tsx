@@ -1041,7 +1041,7 @@ export default function ChatAssistant({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-jungle-50">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-jungle-50">
       {/* Aviso: descarga el mapa antes de seguir la ruta */}
       {mostrarAvisoMapa && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-50 border border-amber-300 rounded-2xl shadow-xl px-4 py-3 max-w-xs w-[90vw] text-center animate-fade-in">

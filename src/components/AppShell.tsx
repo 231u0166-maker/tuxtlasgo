@@ -151,6 +151,67 @@ export default function AppShell() {
   // ExploreScreen; se pasa como prop controlado para que ambos
   // (el input flotante y la lista de abajo) usen el mismo valor.
   const [busquedaExplorar, setBusquedaExplorar] = useState('');
+
+  // Hoja arrastrable de Explorar en móvil — el mapa de fondo ocupa
+  // toda la pantalla; esta hoja blanca se arrastra encima para ver
+  // los servicios (subir = más hoja, más servicios; bajar = más
+  // mapa), igual que como pediste con la referencia de mindtrip. No
+  // es un scroll normal de página — es un panel con su propio alto
+  // que se controla con el dedo.
+  const ALTURA_HOJA_COLAPSADA = 130;
+  const [hojaExplorarAbierta, setHojaExplorarAbierta] = useState(false);
+  const [alturaArrastrePx, setAlturaArrastrePx] = useState<number | null>(null);
+  const refPanelExplorar = useRef<HTMLDivElement>(null);
+  const arrastreRef = useRef<{ y: number; alturaInicialPx: number; contenedorAlto: number; movioSuficiente: boolean } | null>(null);
+  const seMovioRef = useRef(false);
+
+  const iniciarArrastreHoja = (e: React.PointerEvent) => {
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    const contenedorAlto = refPanelExplorar.current?.clientHeight ?? window.innerHeight;
+    const alturaInicialPx = hojaExplorarAbierta ? contenedorAlto * 0.85 : ALTURA_HOJA_COLAPSADA;
+    arrastreRef.current = { y: e.clientY, alturaInicialPx, contenedorAlto, movioSuficiente: false };
+  };
+
+  const moverArrastreHoja = (e: React.PointerEvent) => {
+    const inicio = arrastreRef.current;
+    if (!inicio) return;
+    const delta = inicio.y - e.clientY; // arrastrar hacia arriba (Y menor) = hoja más alta
+    if (Math.abs(delta) > 6) inicio.movioSuficiente = true;
+    const nuevaAltura = Math.min(
+      Math.max(inicio.alturaInicialPx + delta, ALTURA_HOJA_COLAPSADA),
+      inicio.contenedorAlto * 0.9
+    );
+    setAlturaArrastrePx(nuevaAltura);
+  };
+
+  const terminarArrastreHoja = () => {
+    const inicio = arrastreRef.current;
+    seMovioRef.current = inicio?.movioSuficiente ?? false;
+    if (inicio && alturaArrastrePx !== null) {
+      const mitad = (ALTURA_HOJA_COLAPSADA + inicio.contenedorAlto * 0.85) / 2;
+      setHojaExplorarAbierta(alturaArrastrePx > mitad);
+    }
+    arrastreRef.current = null;
+    setAlturaArrastrePx(null);
+  };
+
+  const manejarClickAsaHoja = () => {
+    // Si el pointerup de arriba ya venía de un arrastre real, este
+    // click es el "fantasma" que el navegador dispara después — se
+    // ignora una vez, si no la hoja se movería dos veces con un solo
+    // gesto (el snap del arrastre + el toggle del tap).
+    if (seMovioRef.current) {
+      seMovioRef.current = false;
+      return;
+    }
+    setHojaExplorarAbierta((v) => !v);
+  };
+
+  const alturaHojaEstilo: React.CSSProperties =
+    alturaArrastrePx !== null
+      ? { height: `${alturaArrastrePx}px`, transition: 'none' }
+      : { height: hojaExplorarAbierta ? '85%' : `${ALTURA_HOJA_COLAPSADA}px`, transition: 'height 0.25s ease-out' };
+
   // Mensaje que viene del campo de texto de Inicio (o de una
   // "consulta rápida") — se guarda aquí un instante nada más,
   // mientras cambia a la pestaña de chat y se lo entrega.
@@ -579,20 +640,19 @@ export default function AppShell() {
 
           {tab === 'explorar' && (
             <div
-              className={`flex-1 lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full overflow-y-auto ${mapaExpandido ? 'lg:hidden' : ''
+              ref={refPanelExplorar}
+              className={`relative flex-1 lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full overflow-hidden lg:overflow-y-auto ${mapaExpandido ? 'lg:hidden' : ''
                 }`}
             >
-              {/* Vista previa del mapa — solo móvil, dentro del mismo
-                  scroll que las tarjetas (como en la referencia real).
-                  Es el MISMO mapa de siempre movido aquí por portal,
-                  no una copia — tocar el mapa (no el buscador) lleva
-                  a la vista completa. El buscador flota ENCIMA del
-                  mapa, como en la referencia — antes vivía como una
-                  fila aparte debajo, sin la forma de píldora esperada. */}
+              {/* MÓVIL: el mapa es el fondo, a pantalla completa
+                  dentro de este panel — ya no una cajita de 224px.
+                  Es el MISMO mapa de siempre movido aquí por portal.
+                  Tocar el mapa (no el buscador, no la hoja) lleva a
+                  la vista completa. */}
               <div
                 ref={refMapaInlineExplorar}
                 onClick={() => cambiarTab('mapa')}
-                className="lg:hidden h-56 flex-shrink-0 relative bg-jungle-100 cursor-pointer"
+                className="lg:hidden absolute inset-0 bg-jungle-100 cursor-pointer"
               >
                 <div
                   className="absolute top-3 left-3 right-3 z-10 flex items-center gap-2"
@@ -617,12 +677,49 @@ export default function AppShell() {
                   </button>
                 </div>
               </div>
-              <ExploreScreen
-                onVerLugar={verLugar}
-                lugares={getCatalogoActivo()}
-                busqueda={busquedaExplorar}
-                onBusquedaChange={setBusquedaExplorar}
-              />
+
+              {/* MÓVIL: hoja arrastrable con los servicios, ENCIMA del
+                  mapa. Arrastra el asa (o tócala) para subirla y ver
+                  Explorar; suéltala abajo para volver a ver el mapa
+                  casi completo — dos estados con imán al soltar, no
+                  cualquier alto intermedio. */}
+              <div
+                className="lg:hidden absolute inset-x-0 bottom-0 z-20 bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(12,10,9,0.18)] flex flex-col"
+                style={alturaHojaEstilo}
+              >
+                <div
+                  onPointerDown={iniciarArrastreHoja}
+                  onPointerMove={moverArrastreHoja}
+                  onPointerUp={terminarArrastreHoja}
+                  onPointerCancel={terminarArrastreHoja}
+                  onClick={manejarClickAsaHoja}
+                  className="flex-shrink-0 pt-2.5 pb-2 flex flex-col items-center gap-1.5 cursor-grab active:cursor-grabbing touch-none select-none"
+                >
+                  <div className="w-10 h-1.5 rounded-full bg-obsidiana-900/15" />
+                  <span className="text-[11px] font-semibold text-obsidiana-800/50">
+                    {hojaExplorarAbierta ? 'Volver al mapa' : 'Ver servicios'}
+                  </span>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                  <ExploreScreen
+                    onVerLugar={verLugar}
+                    lugares={getCatalogoActivo()}
+                    busqueda={busquedaExplorar}
+                    onBusquedaChange={setBusquedaExplorar}
+                  />
+                </div>
+              </div>
+
+              {/* ESCRITORIO: sin mapa aquí (va en su propia columna al
+                  lado) — scroll normal de toda la vida, sin hoja. */}
+              <div className="hidden lg:block h-full overflow-y-auto">
+                <ExploreScreen
+                  onVerLugar={verLugar}
+                  lugares={getCatalogoActivo()}
+                  busqueda={busquedaExplorar}
+                  onBusquedaChange={setBusquedaExplorar}
+                />
+              </div>
             </div>
           )}
 

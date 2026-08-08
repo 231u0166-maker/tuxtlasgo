@@ -108,17 +108,23 @@ export default function NavbarLanding({
       </div>
 
       {/* Panel completo — mismo patrón que la referencia (mindtrip):
-          tapa toda la pantalla, no un dropdown chico. Fondo oscurecido
-          detrás para que se sienta como una capa real, no un menú
-          flotando encima del contenido sin más. */}
+          tapa toda la pantalla, no un dropdown chico. El fondo se
+          desvanece; el panel blanco entra deslizándose y SIEMPRE
+          sólido — antes los dos usaban el mismo fade de opacidad, así
+          que el panel también se volvía transparente durante esos
+          0.3s de entrada y se veía el contenido de atrás mezclado con
+          los links (justo lo que se ve en la captura). */}
       {menuMovil && (
-        <div className="md:hidden fixed inset-0 z-50 animate-fade-in">
+        <div className="md:hidden fixed inset-0 z-[60]">
           <div
-            className="absolute inset-0 bg-obsidiana-950/40"
+            className="absolute inset-0 bg-obsidiana-950/40 animate-fade-in"
             onClick={() => setMenuMovil(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-y-0 left-0 w-[85vw] max-w-sm bg-white shadow-2xl flex flex-col">
+          <div
+            className="absolute inset-y-0 left-0 w-[85vw] max-w-sm shadow-2xl flex flex-col animate-slide-in-left"
+            style={{ backgroundColor: '#ffffff' }}
+          >
             <div className="flex items-center justify-between px-5 py-5 border-b border-obsidiana-900/5 flex-shrink-0">
               <span className="flex items-center gap-2 font-display font-extrabold text-lg text-obsidiana-900">
                 <TreePine size={20} className="text-jungle-700" />

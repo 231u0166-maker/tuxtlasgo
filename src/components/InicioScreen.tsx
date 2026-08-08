@@ -103,7 +103,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && enviar()}
             placeholder="Pregunta lo que quieras..."
-            className="flex-1 bg-jungle-50 rounded-full px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-300"
+            className="flex-1 bg-white border border-jungle-200 rounded-full px-4 py-3 text-sm text-jungle-950 placeholder:text-jungle-400 focus:outline-none focus:ring-2 focus:ring-jungle-300 focus:border-jungle-400"
           />
           <button
             onClick={enviar}

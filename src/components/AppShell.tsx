@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut,
   Home, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
-  PanelLeftClose, PanelLeftOpen
+  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -146,6 +146,10 @@ export default function AppShell() {
     setMensajeInicialChat(texto);
     cambiarTab('chat');
   };
+  // Doble clic en "Asistente IA" del riel (solo escritorio) abre el
+  // historial — cada clic sube el número, el efecto en ChatAssistant
+  // reacciona a CUALQUIER cambio, no a un valor específico.
+  const [dispararHistorial, setDispararHistorial] = useState(0);
   const prefsDesdeFiltros = useMemo((): Partial<PreferenciasUsuario> | undefined => {
     if (!filtros) return undefined;
     const dias = diasDesdeFechas(filtros.desde, filtros.hasta);
@@ -387,11 +391,15 @@ export default function AppShell() {
             title={sidebarColapsado ? 'Expandir menú' : 'Colapsar menú'}
             className="w-8 h-8 rounded-full flex items-center justify-center text-jungle-300 hover:bg-jungle-800 hover:text-white transition-colors flex-shrink-0"
           >
-            {sidebarColapsado ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {sidebarColapsado ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
         </div>
 
-        {/* Nav items */}
+        {/* Nav items — doble clic en "Asistente IA" abre el
+            historial de conversaciones (ver dispararHistorial más
+            abajo): en escritorio ya se ve el chat con solo un clic,
+            así que un ícono aparte solo para el historial hubiera
+            sido redundante con el botón de colapsar de arriba. */}
         <nav className={`flex-1 py-4 space-y-1 ${sidebarColapsado ? 'px-2' : 'px-3'}`}>
           {TABS.map((t) => {
             const Icon = t.icon;
@@ -400,6 +408,7 @@ export default function AppShell() {
               <button
                 key={t.id}
                 onClick={() => cambiarTab(t.id)}
+                onDoubleClick={() => { if (t.id === 'chat') setDispararHistorial((v) => v + 1); }}
                 title={sidebarColapsado ? t.label : undefined}
                 className={`w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
                   } ${activo
@@ -593,6 +602,7 @@ export default function AppShell() {
                 viajaConMascota={(filtros?.quien.mascotas ?? 0) > 0}
                 mensajeInicial={mensajeInicialChat}
                 onMensajeInicialConsumido={() => setMensajeInicialChat(undefined)}
+                dispararHistorial={dispararHistorial}
                 accionSobreInput={
                   rutaVisible ? (
                     <div className="lg:hidden px-3 pt-2 flex-shrink-0">

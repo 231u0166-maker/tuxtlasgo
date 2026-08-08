@@ -97,6 +97,12 @@ interface Props {
   // AppShell que ya se usó, para que no se reenvíe en cada render.
   mensajeInicial?: string;
   onMensajeInicialConsumido?: () => void;
+
+  // Escritorio: doble clic en "Asistente IA" del riel lateral abre
+  // el historial (ver AppShell.tsx) — se avisa aquí subiendo este
+  // número cada vez, en vez de mostrar un ícono aparte que ya sería
+  // redundante con el botón de colapsar que ahí ya existe.
+  dispararHistorial?: number;
 }
 
 export default function ChatAssistant({
@@ -108,6 +114,7 @@ export default function ChatAssistant({
   accionSobreInput,
   mensajeInicial,
   onMensajeInicialConsumido,
+  dispararHistorial,
 }: Props) {
   // Se usa para decidir si intentar el cálculo de distancia/tiempo en
   // vivo desde la ubicación del turista — ver nota junto a
@@ -242,6 +249,16 @@ export default function ChatAssistant({
     onMensajeInicialConsumido?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mensajeInicial]);
+
+  // Ver nota del prop más arriba — cada incremento abre el historial,
+  // sin importar el valor exacto (por eso no hay guard de "> 0": un
+  // useEffect solo corre cuando el valor CAMBIA, así que el primer
+  // valor real ya dispara, y solo se ignora el estado inicial
+  // `undefined` gracias al `if (!dispararHistorial)`).
+  useEffect(() => {
+    if (!dispararHistorial) return;
+    setMostrarHistorial(true);
+  }, [dispararHistorial]);
 
   // Mientras se espera que el turista elija cuál de varios lugares
   // ambiguos quiso decir — se guarda el texto ORIGINAL (para revisar
@@ -1030,10 +1047,13 @@ export default function ChatAssistant({
         </div>
       )}
       {/* El header oscuro "Guía TuxtlasGO / Funciona sin internet"
-          que vivía aquí se quitó a propósito. Lo que queda arriba del
-          todo es solo el ícono de "las tres franjas" — abre el mismo
-          historial de siempre, ya no hay una fila de texto aparte. */}
-      <div className="flex-shrink-0 flex items-center px-3 py-2 border-b border-jungle-100">
+          que vivía aquí se quitó a propósito. En escritorio ya no
+          hace falta este ícono — la barra lateral ya tiene su propio
+          botón de colapsar, y doble clic en "Asistente IA" (ahí
+          mismo) abre este mismo historial (ver AppShell.tsx). Mostrar
+          las dos cosas juntas en escritorio era redundante. En móvil
+          sigue siendo el único camino, así que se queda. */}
+      <div className="lg:hidden flex-shrink-0 flex items-center px-3 py-2 border-b border-jungle-100">
         <button
           onClick={() => setMostrarHistorial(true)}
           aria-label="Historial de chats"
@@ -1135,7 +1155,7 @@ export default function ChatAssistant({
             autoComplete="off"
             autoCorrect="on"
             autoCapitalize="sentences"
-            className="flex-1 min-w-0 bg-jungle-50 rounded-2xl px-4 py-3 text-base leading-snug resize-none overflow-y-auto max-h-[120px] focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0 disabled:opacity-60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex-1 min-w-0 bg-white border border-jungle-200 rounded-2xl px-4 py-3 text-base text-jungle-950 leading-snug resize-none overflow-y-auto max-h-[120px] focus:outline-none focus:ring-2 focus:ring-jungle-400 focus:border-jungle-400 placeholder:text-jungle-400 disabled:opacity-60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           />
           <button
             onClick={() => enviarTexto()}

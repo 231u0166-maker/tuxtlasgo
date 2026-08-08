@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Menu, X, MessageCircle, Compass, TreePine } from 'lucide-react';
 import { type UsuarioSesion } from '../lib/auth';
@@ -31,8 +32,9 @@ export default function NavbarLanding({
   const [menuMovil, setMenuMovil] = useState(false);
 
   return (
-    <header className="bg-white/80 backdrop-blur-md border-b border-obsidiana-900/5 sticky top-0 z-40">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+    <>
+      <header className="bg-white/80 backdrop-blur-md border-b border-obsidiana-900/5 sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         <button
           onClick={() => onCambiarModo('turista')}
           className="flex-shrink-0"
@@ -106,98 +108,134 @@ export default function NavbarLanding({
           </button>
         </div>
       </div>
+      </header>
 
-      {/* Panel completo — mismo patrón que la referencia (mindtrip):
-          tapa toda la pantalla, no un dropdown chico. El fondo se
-          desvanece; el panel blanco entra deslizándose y SIEMPRE
-          sólido — antes los dos usaban el mismo fade de opacidad, así
-          que el panel también se volvía transparente durante esos
-          0.3s de entrada y se veía el contenido de atrás mezclado con
-          los links (justo lo que se ve en la captura). */}
       {menuMovil && (
-        <div className="md:hidden fixed inset-0 z-[60]">
-          <div
-            className="absolute inset-0 bg-obsidiana-950/40 animate-fade-in"
-            onClick={() => setMenuMovil(false)}
-            aria-hidden="true"
-          />
-          <div
-            className="absolute inset-y-0 left-0 w-[85vw] max-w-sm shadow-2xl flex flex-col animate-slide-in-left"
-            style={{ backgroundColor: '#ffffff' }}
-          >
-            <div className="flex items-center justify-between px-5 py-5 border-b border-obsidiana-900/5 flex-shrink-0">
-              <span className="flex items-center gap-2 font-display font-extrabold text-lg text-obsidiana-900">
-                <TreePine size={20} className="text-jungle-700" />
-                TuxtlasGO
-              </span>
-              <button
-                onClick={() => setMenuMovil(false)}
-                className="w-9 h-9 flex items-center justify-center text-obsidiana-800 rounded-full hover:bg-obsidiana-900/5"
-                aria-label="Cerrar menú"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-3 py-3">
-              <ItemMenu
-                icon={MessageCircle}
-                label="Empezar a chatear"
-                to="/app?tab=chat"
-                onClick={() => setMenuMovil(false)}
-              />
-              <ItemMenu
-                icon={Compass}
-                label="Explorar"
-                to="/app?tab=explorar"
-                onClick={() => setMenuMovil(false)}
-              />
-
-              <div className="h-px bg-obsidiana-900/5 my-2" />
-
-              <ItemMenu
-                label="Para turistas"
-                activo={esTurista}
-                onClick={() => { onCambiarModo('turista'); setMenuMovil(false); }}
-              />
-              <ItemMenu
-                label="Para prestadores"
-                activo={!esTurista}
-                onClick={() => { onCambiarModo('prestador'); setMenuMovil(false); }}
-              />
-              <ItemMenu label="Galería" inerte />
-              <ItemMenu label="Comunidad" inerte />
-
-              <div className="h-px bg-obsidiana-900/5 my-2" />
-
-              {/* Sin páginas propias de políticas todavía — se dejan
-                  inertes, mismo trato que Galería/Comunidad, en vez de
-                  apuntar a un link que no existe. */}
-              <ItemMenu label="Política de privacidad" inerte compacto />
-              <ItemMenu label="Condiciones de uso" inerte compacto />
-            </div>
-
-            <div className="p-4 border-t border-obsidiana-900/5 flex-shrink-0">
-              {usuario ? (
-                <button
-                  onClick={() => { onCerrarSesion(); setMenuMovil(false); }}
-                  className="w-full text-center py-3 rounded-full border border-obsidiana-900/10 text-sm font-semibold text-obsidiana-800 hover:bg-obsidiana-900/5 transition-colors"
-                >
-                  Cerrar sesión
-                </button>
-              ) : (
-                <button
-                  onClick={() => { onIniciarSesion(); setMenuMovil(false); }}
-                  className="w-full text-center py-3 rounded-full border border-obsidiana-900/10 text-sm font-semibold text-obsidiana-800 hover:bg-obsidiana-900/5 transition-colors"
-                >
-                  Inicio sesión
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <MenuMovil
+          modo={modo}
+          onCambiarModo={onCambiarModo}
+          usuario={usuario}
+          onIniciarSesion={onIniciarSesion}
+          onCerrarSesion={onCerrarSesion}
+          onCerrar={() => setMenuMovil(false)}
+        />
       )}
-    </header>
+    </>
+  );
+}
+
+// Panel completo, por portal — mismo patrón que la referencia
+// (mindtrip): tapa toda la pantalla, no un dropdown chico.
+//
+// Hallazgo real de campo: este panel vivía DENTRO del <header>, que
+// tiene `backdrop-blur-md`. En CSS, cualquier elemento con
+// `backdrop-filter` crea su propio "contenedor" para los hijos en
+// `position: fixed` — así que el panel, aunque decía `fixed inset-0`,
+// quedaba atrapado dentro de los 64px del header en vez de cubrir la
+// pantalla completa (se veía solo la tira de arriba, el resto del
+// menú invisible). La solución real es sacarlo de ahí del todo: se
+// manda por portal directo a `document.body`, sin ningún ancestro que
+// pueda volver a encerrarlo por accidente.
+function MenuMovil({
+  modo,
+  onCambiarModo,
+  usuario,
+  onIniciarSesion,
+  onCerrarSesion,
+  onCerrar,
+}: {
+  modo: ModoLanding;
+  onCambiarModo: (modo: ModoLanding) => void;
+  usuario?: UsuarioSesion | null;
+  onIniciarSesion: () => void;
+  onCerrarSesion: () => void;
+  onCerrar: () => void;
+}) {
+  const esTurista = modo === 'turista';
+
+  return createPortal(
+    <div className="md:hidden fixed inset-0 z-[60]">
+      <div
+        className="absolute inset-0 bg-obsidiana-950/40 animate-fade-in"
+        onClick={onCerrar}
+        aria-hidden="true"
+      />
+      <div
+        className="absolute inset-y-0 left-0 w-[85vw] max-w-sm shadow-2xl flex flex-col animate-slide-in-left"
+        style={{ backgroundColor: '#ffffff' }}
+      >
+        <div className="flex items-center justify-between px-5 py-5 border-b border-obsidiana-900/5 flex-shrink-0">
+          <span className="flex items-center gap-2 font-display font-extrabold text-lg text-obsidiana-900">
+            <TreePine size={20} className="text-jungle-700" />
+            TuxtlasGO
+          </span>
+          <button
+            onClick={onCerrar}
+            className="w-9 h-9 flex items-center justify-center text-obsidiana-800 rounded-full hover:bg-obsidiana-900/5"
+            aria-label="Cerrar menú"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 py-3">
+          <ItemMenu
+            icon={MessageCircle}
+            label="Empezar a chatear"
+            to="/app?tab=chat"
+            onClick={onCerrar}
+          />
+          <ItemMenu
+            icon={Compass}
+            label="Explorar"
+            to="/app?tab=explorar"
+            onClick={onCerrar}
+          />
+
+          <div className="h-px bg-obsidiana-900/5 my-2" />
+
+          <ItemMenu
+            label="Para turistas"
+            activo={esTurista}
+            onClick={() => { onCambiarModo('turista'); onCerrar(); }}
+          />
+          <ItemMenu
+            label="Para prestadores"
+            activo={!esTurista}
+            onClick={() => { onCambiarModo('prestador'); onCerrar(); }}
+          />
+          <ItemMenu label="Galería" inerte />
+          <ItemMenu label="Comunidad" inerte />
+
+          <div className="h-px bg-obsidiana-900/5 my-2" />
+
+          {/* Sin páginas propias de políticas todavía — se dejan
+              inertes, mismo trato que Galería/Comunidad, en vez de
+              apuntar a un link que no existe. */}
+          <ItemMenu label="Política de privacidad" inerte compacto />
+          <ItemMenu label="Condiciones de uso" inerte compacto />
+        </div>
+
+        <div className="p-4 border-t border-obsidiana-900/5 flex-shrink-0">
+          {usuario ? (
+            <button
+              onClick={() => { onCerrarSesion(); onCerrar(); }}
+              className="w-full text-center py-3 rounded-full border border-obsidiana-900/10 text-sm font-semibold text-obsidiana-800 hover:bg-obsidiana-900/5 transition-colors"
+            >
+              Cerrar sesión
+            </button>
+          ) : (
+            <button
+              onClick={() => { onIniciarSesion(); onCerrar(); }}
+              className="w-full text-center py-3 rounded-full border border-obsidiana-900/10 text-sm font-semibold text-obsidiana-800 hover:bg-obsidiana-900/5 transition-colors"
+            >
+              Inicio sesión
+            </button>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 

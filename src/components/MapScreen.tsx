@@ -293,6 +293,12 @@ interface Props {
   // los pines normales de lugares y de las paradas numeradas.
   miUbicacion?: [number, number];
   onLimpiarRuta?: () => void;
+  // true cuando el mapa se ve chico (la vista previa de 224px dentro
+  // de Explorar en móvil) — ahí no cabe bien la píldora de "mapa
+  // disponible offline" al lado del buscador que flota encima
+  // (chocaban, hallazgo real de campo). En la vista completa se
+  // sigue mostrando igual que siempre.
+  vistaCompacta?: boolean;
 }
 
 export default function MapScreen({
@@ -303,6 +309,7 @@ export default function MapScreen({
   paradasResaltadas,
   miUbicacion,
   onLimpiarRuta,
+  vistaCompacta,
 }: Props) {
   const mapRef = useRef<MapRef>(null);
   // Posición actual del muñeco caminando sobre la ruta ([lng, lat]) —
@@ -754,7 +761,10 @@ export default function MapScreen({
         </button>
       )}
 
-      {/* Boton de descarga de mapa offline */}
+      {/* Boton de descarga de mapa offline — oculto en la vista
+          previa chica de Explorar, ahí choca con el buscador que
+          flota encima (ver nota en Props). */}
+      {!vistaCompacta && (
       <div className="absolute top-3 right-3 z-30">
         {tilesListos ? (
           <div className="bg-white shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-jungle-800">
@@ -793,6 +803,7 @@ export default function MapScreen({
           </button>
         )}
       </div>
+      )}
 
       {/* Modal de ayuda antes de descargar */}
       {mostrarAyuda && (

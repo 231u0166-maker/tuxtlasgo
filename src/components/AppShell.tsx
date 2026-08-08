@@ -599,18 +599,18 @@ export default function AppShell() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="relative flex-1">
-                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/60" />
+                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-jungle-500" />
                     <input
                       type="search"
                       value={busquedaExplorar}
                       onChange={(e) => setBusquedaExplorar(e.target.value)}
                       placeholder="Buscar lugares, comida, hoteles..."
-                      className="w-full bg-obsidiana-950/80 backdrop-blur-sm text-white placeholder:text-white/50 rounded-full pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/30"
+                      className="w-full bg-white text-jungle-950 placeholder:text-jungle-500 rounded-full pl-10 pr-4 py-3 text-sm shadow-lg focus:outline-none focus:ring-2 focus:ring-jungle-400"
                     />
                   </div>
                   <button
                     type="button"
-                    className="w-11 h-11 flex-shrink-0 rounded-full bg-obsidiana-950/80 backdrop-blur-sm text-white flex items-center justify-center"
+                    className="w-11 h-11 flex-shrink-0 rounded-full bg-white text-jungle-700 shadow-lg flex items-center justify-center"
                     aria-label="Filtros del mapa"
                   >
                     <SlidersHorizontal size={16} />
@@ -732,6 +732,7 @@ export default function AppShell() {
             paradasResaltadas={rutaVisible?.paradas}
             miUbicacion={miUbicacion ?? undefined}
             onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); }}
+            vistaCompacta={tab === 'explorar' && !esEscritorio}
           />,
           destinoMapa
         )}

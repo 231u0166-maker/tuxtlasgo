@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, MapPin, BookmarkPlus, CheckCircle2, History, Plus } from 'lucide-react';
+import { Send, MapPin, BookmarkPlus, CheckCircle2, Menu } from 'lucide-react';
 import type { useLLM } from '../hooks/useLLM';
 import type { Lugar } from '../data/lugares';
 import type { Categoria, Presupuesto } from '../data/lugares';
@@ -90,9 +90,25 @@ interface Props {
   // aquí, apareciendo solo cuando hay algo que ver, no todo el
   // tiempo.
   accionSobreInput?: React.ReactNode;
+
+  // Mensaje que llega desde la pantalla de Inicio (su propio campo de
+  // "Pregunta lo que quieras") — se envía una sola vez al llegar, como
+  // si la persona lo hubiera escrito aquí mismo. `onConsumido` avisa a
+  // AppShell que ya se usó, para que no se reenvíe en cada render.
+  mensajeInicial?: string;
+  onMensajeInicialConsumido?: () => void;
 }
 
-export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsDesdeFiltros, viajaConMascota, accionSobreInput }: Props) {
+export default function ChatAssistant({
+  onVerLugar,
+  onVerRutaEnMapa,
+  llm,
+  prefsDesdeFiltros,
+  viajaConMascota,
+  accionSobreInput,
+  mensajeInicial,
+  onMensajeInicialConsumido,
+}: Props) {
   // Se usa para decidir si intentar el cálculo de distancia/tiempo en
   // vivo desde la ubicación del turista — ver nota junto a
   // pareceSolicitudDeDistancia más abajo: ese cálculo SIEMPRE necesita
@@ -214,6 +230,19 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
     setEstado('preguntando_intereses');
     setMensajes([mensajeBienvenidaConFiltros()]);
   }, [prefsDesdeFiltros, estado, mensajes.length]);
+
+  // Mensaje que llega desde Inicio — se envía una sola vez. El
+  // `if (!mensajeInicial) return` de guardia evita que se dispare de
+  // nuevo solo porque el componente volvió a renderizar por otra
+  // razón; `onMensajeInicialConsumido` es lo que realmente lo apaga
+  // (AppShell limpia su propio estado al recibirlo).
+  useEffect(() => {
+    if (!mensajeInicial) return;
+    enviarTexto(mensajeInicial);
+    onMensajeInicialConsumido?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mensajeInicial]);
+
   // Mientras se espera que el turista elija cuál de varios lugares
   // ambiguos quiso decir — se guarda el texto ORIGINAL (para revisar
   // si además pedía distancia/tiempo) y las opciones que se le
@@ -749,8 +778,8 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
   //      redactado por un modelo en la nube, con la misma validación
   //      anti-alucinación.
   //   4) Motor de reglas — siempre disponible, sin excepción.
-  async function enviarTexto() {
-    const texto = input.trim();
+  async function enviarTexto(textoForzado?: string) {
+    const texto = (textoForzado ?? input).trim();
     if (!texto || generandoIA) return; // no encimar mientras genera
     agregarUsuario(texto);
     setInput('');
@@ -1001,22 +1030,17 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
         </div>
       )}
       {/* El header oscuro "Guía TuxtlasGO / Funciona sin internet"
-          que vivía aquí se quitó a propósito (simplificación pedida).
-          Esta fila delgada es lo único que queda arriba del todo —
-          acceso al historial de conversaciones guardadas y para
-          empezar una nueva, nada más. */}
-      <div className="flex-shrink-0 flex items-center gap-1 px-3 py-2 border-b border-jungle-100">
+          que vivía aquí se quitó a propósito. Lo que queda arriba del
+          todo es solo el ícono de "las tres franjas" — abre el mismo
+          historial de siempre, ya no hay una fila de texto aparte. */}
+      <div className="flex-shrink-0 flex items-center px-3 py-2 border-b border-jungle-100">
         <button
           onClick={() => setMostrarHistorial(true)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-jungle-700 hover:bg-jungle-50 rounded-lg px-2 py-1.5 transition-colors"
+          aria-label="Historial de chats"
+          title="Historial de chats"
+          className="w-8 h-8 flex items-center justify-center text-jungle-700 hover:bg-jungle-50 rounded-lg transition-colors"
         >
-          <History size={14} /> Historial
-        </button>
-        <button
-          onClick={reiniciar}
-          className="flex items-center gap-1.5 text-xs font-semibold text-jungle-700 hover:bg-jungle-50 rounded-lg px-2 py-1.5 transition-colors"
-        >
-          <Plus size={14} /> Nuevo chat
+          <Menu size={18} />
         </button>
       </div>
 
@@ -1114,7 +1138,7 @@ export default function ChatAssistant({ onVerLugar, onVerRutaEnMapa, llm, prefsD
             className="flex-1 min-w-0 bg-jungle-50 rounded-2xl px-4 py-3 text-base leading-snug resize-none overflow-y-auto max-h-[120px] focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0 disabled:opacity-60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           />
           <button
-            onClick={enviarTexto}
+            onClick={() => enviarTexto()}
             disabled={!input.trim() || generandoIA}
             className="w-10 h-10 rounded-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white flex items-center justify-center flex-shrink-0"
             aria-label="Enviar"

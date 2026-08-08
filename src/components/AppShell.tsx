@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut,
-  Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
+  Home, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
   PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
@@ -10,6 +10,7 @@ import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import AuthModal from './AuthModal';
 import BottomNav, { type Tab } from './BottomNav';
 import ExploreScreen from './ExploreScreen';
+import InicioScreen from './InicioScreen';
 import {
   getCatalogoActivo,
   grupoDesdeQuien,
@@ -44,6 +45,7 @@ interface RutaVisible {
 }
 
 const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
+  { id: 'inicio', label: 'Inicio', icon: Home },
   { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'chat', label: 'Asistente IA', icon: MessageCircle },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },
@@ -51,7 +53,7 @@ const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
 ];
 
 export default function AppShell() {
-  const [tab, setTab] = useState<Tab>('explorar');
+  const [tab, setTab] = useState<Tab>('inicio');
   // Solo importa en móvil (el peek de mapa a pantalla completa) —
   // en escritorio el mapa nunca "reemplaza" la pestaña, así que no
   // hace falta volver a ningún lado.
@@ -136,6 +138,14 @@ export default function AppShell() {
   // parcial con useMemo — ChatAssistant solo actúa cuando los tres
   // campos que le importan (dias/presupuesto/grupo) están completos.
   const [filtros, setFiltros] = useState<FiltrosViajeValor | undefined>(undefined);
+  // Mensaje que viene del campo de texto de Inicio (o de una
+  // "consulta rápida") — se guarda aquí un instante nada más,
+  // mientras cambia a la pestaña de chat y se lo entrega.
+  const [mensajeInicialChat, setMensajeInicialChat] = useState<string | undefined>(undefined);
+  const preguntarDesdeInicio = (texto: string) => {
+    setMensajeInicialChat(texto);
+    cambiarTab('chat');
+  };
   const prefsDesdeFiltros = useMemo((): Partial<PreferenciasUsuario> | undefined => {
     if (!filtros) return undefined;
     const dias = diasDesdeFechas(filtros.desde, filtros.hasta);
@@ -528,9 +538,19 @@ export default function AppShell() {
           {tab === 'perfil' && (
             <div className="flex-1 h-full overflow-y-auto">
               <PerfilScreen
-                onVolver={() => cambiarTab('explorar')}
+                onVolver={() => cambiarTab('inicio')}
                 onIniciarSesion={() => setMostrarAuth(true)}
                 onCerrarSesion={async () => { await apiLogout(); setUsuario(null); }}
+              />
+            </div>
+          )}
+
+          {tab === 'inicio' && (
+            <div className="flex-1 h-full">
+              <InicioScreen
+                onVerLugar={verLugar}
+                onPreguntar={preguntarDesdeInicio}
+                ubicacion={filtros?.donde}
               />
             </div>
           )}
@@ -571,6 +591,8 @@ export default function AppShell() {
                 llm={llm}
                 prefsDesdeFiltros={prefsDesdeFiltros}
                 viajaConMascota={(filtros?.quien.mascotas ?? 0) > 0}
+                mensajeInicial={mensajeInicialChat}
+                onMensajeInicialConsumido={() => setMensajeInicialChat(undefined)}
                 accionSobreInput={
                   rutaVisible ? (
                     <div className="lg:hidden px-3 pt-2 flex-shrink-0">

@@ -2,7 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut,
   Home, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
-  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight
+  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal
 } from 'lucide-react';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -146,6 +146,11 @@ export default function AppShell() {
   // parcial con useMemo — ChatAssistant solo actúa cuando los tres
   // campos que le importan (dias/presupuesto/grupo) están completos.
   const [filtros, setFiltros] = useState<FiltrosViajeValor | undefined>(undefined);
+  // Buscador de Explorar — elevado aquí porque en móvil vive
+  // flotando sobre la vista previa del mapa (AppShell), no dentro de
+  // ExploreScreen; se pasa como prop controlado para que ambos
+  // (el input flotante y la lista de abajo) usen el mismo valor.
+  const [busquedaExplorar, setBusquedaExplorar] = useState('');
   // Mensaje que viene del campo de texto de Inicio (o de una
   // "consulta rápida") — se guarda aquí un instante nada más,
   // mientras cambia a la pestaña de chat y se lo entrega.
@@ -580,16 +585,43 @@ export default function AppShell() {
               {/* Vista previa del mapa — solo móvil, dentro del mismo
                   scroll que las tarjetas (como en la referencia real).
                   Es el MISMO mapa de siempre movido aquí por portal,
-                  no una copia — tocar cualquier parte lleva a la
-                  vista completa. */}
+                  no una copia — tocar el mapa (no el buscador) lleva
+                  a la vista completa. El buscador flota ENCIMA del
+                  mapa, como en la referencia — antes vivía como una
+                  fila aparte debajo, sin la forma de píldora esperada. */}
               <div
                 ref={refMapaInlineExplorar}
                 onClick={() => cambiarTab('mapa')}
                 className="lg:hidden h-56 flex-shrink-0 relative bg-jungle-100 cursor-pointer"
-              />
+              >
+                <div
+                  className="absolute top-3 left-3 right-3 z-10 flex items-center gap-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="relative flex-1">
+                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/60" />
+                    <input
+                      type="search"
+                      value={busquedaExplorar}
+                      onChange={(e) => setBusquedaExplorar(e.target.value)}
+                      placeholder="Buscar lugares, comida, hoteles..."
+                      className="w-full bg-obsidiana-950/80 backdrop-blur-sm text-white placeholder:text-white/50 rounded-full pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/30"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="w-11 h-11 flex-shrink-0 rounded-full bg-obsidiana-950/80 backdrop-blur-sm text-white flex items-center justify-center"
+                    aria-label="Filtros del mapa"
+                  >
+                    <SlidersHorizontal size={16} />
+                  </button>
+                </div>
+              </div>
               <ExploreScreen
                 onVerLugar={verLugar}
                 lugares={getCatalogoActivo()}
+                busqueda={busquedaExplorar}
+                onBusquedaChange={setBusquedaExplorar}
               />
             </div>
           )}

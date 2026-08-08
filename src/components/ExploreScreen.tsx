@@ -7,38 +7,65 @@ import { OfflineReadyBadge } from './OfflineIndicator';
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   lugares?: Lugar[];
+  // Controlado desde AppShell en móvil (la caja de búsqueda vive
+  // flotando sobre la vista previa del mapa, no aquí dentro — ver
+  // AppShell.tsx). Si no llega el prop (nadie más usa este
+  // componente todavía, pero por si acaso), se cae a estado propio
+  // para no romper nada.
+  busqueda?: string;
+  onBusquedaChange?: (v: string) => void;
 }
 
-export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Props) {
-  const [busqueda, setBusqueda] = useState('');
+// Secciones por categoría — antes solo existían "Destacados" +
+// una sola cuadrícula plana ("se ve muy simple"). Mismas categorías
+// reales del catálogo, con la etiqueta que pidió el usuario
+// (Restaurantes/Actividades/Alojamientos), no los rótulos de
+// mindtrip que no coinciden con lo que de verdad tenemos.
+const SECCIONES: { titulo: string; categoria: Categoria }[] = [
+  { titulo: 'Restaurantes', categoria: 'Gastronomia' },
+  { titulo: 'Actividades', categoria: 'Aventura' },
+  { titulo: 'Alojamientos', categoria: 'Hospedaje' },
+  { titulo: 'Naturaleza', categoria: 'Naturaleza' },
+];
+
+export default function ExploreScreen({
+  onVerLugar,
+  lugares: lugaresProps,
+  busqueda: busquedaProp,
+  onBusquedaChange,
+}: Props) {
+  const [busquedaLocal, setBusquedaLocal] = useState('');
+  const busqueda = busquedaProp ?? busquedaLocal;
+  const setBusqueda = onBusquedaChange ?? setBusquedaLocal;
+
   const [catActiva, setCatActiva] = useState<Categoria | 'todas'>('todas');
 
   const todosLugares = lugaresProps ?? LUGARES;
 
+  const normalizar = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
   const filtrados = useMemo(() => {
-    const q = busqueda
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+    const q = normalizar(busqueda);
     return todosLugares.filter((l) => {
       if (catActiva !== 'todas' && l.categoria !== catActiva) return false;
       if (!q) return true;
-      const haystack = `${l.nombre} ${l.descripcionCorta} ${l.municipio} ${l.tags.join(' ')}`
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
+      const haystack = normalizar(`${l.nombre} ${l.descripcionCorta} ${l.municipio} ${l.tags.join(' ')}`);
       return haystack.includes(q);
     });
   }, [busqueda, catActiva]);
 
   const destacados = todosLugares.filter((l) => l.destacado);
+  // Solo se muestran las secciones cuando de verdad no hay nada
+  // filtrado — si ya buscaste o elegiste categoría, tiene más sentido
+  // ver directo el resultado (el grid de abajo) que siete carruseles.
+  const sinFiltro = !busqueda && catActiva === 'todas';
 
   return (
     <div className="pb-24 lg:pb-8">
       {/* Hero grande — SOLO escritorio. En móvil el mapa de arriba ya
-          cumple ese rol de "encabezado"; repetir el bloque verde con
-          título/insignia ahí se sentía redundante (lo que se quitó
-          la vez pasada, y sigue fuera). */}
+          cumple ese rol de "encabezado", y el buscador ahí vive
+          flotando sobre el mapa (AppShell.tsx), no aquí. */}
       <div className="hidden lg:block bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 lg:px-8 pt-6 lg:pt-8 pb-8 rounded-b-3xl">
         <div className="flex items-center justify-between mb-1">
           <h1 className="font-display font-extrabold text-2xl lg:text-3xl">
@@ -52,15 +79,7 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
         <Buscador value={busqueda} onChange={setBusqueda} claro />
       </div>
 
-      {/* Buscador — móvil, versión ligera (sin el bloque verde de
-          fondo, pegado directo debajo de la vista previa del mapa). */}
-      <div className="lg:hidden px-4 pt-4">
-        <Buscador value={busqueda} onChange={setBusqueda} />
-      </div>
-
-      {/* Categorías — en las dos versiones, mismas categorías reales
-          del catálogo (no se copian los rótulos de mindtrip, que no
-          coinciden con lo que de verdad tenemos). */}
+      {/* Categorías */}
       <div className="px-4 lg:px-8 mt-4 lg:mt-5">
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scroll-smooth snap-x">
           <CategoryChip
@@ -81,29 +100,40 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
         </div>
       </div>
 
-      {/* Destacados (solo cuando no hay búsqueda activa) */}
-      {!busqueda && catActiva === 'todas' && (
-        <section className="px-4 lg:px-8 mt-6">
-          <h2 className="font-display font-bold text-lg text-jungle-950 mb-3">
-            Destacados
-          </h2>
-          <div className="flex gap-3 overflow-x-auto -mx-4 px-4 pb-2 snap-x">
-            {destacados.map((l) => (
-              <div key={l.id} className="snap-start flex-shrink-0 w-64">
-                <PlaceCard lugar={l} onClick={() => onVerLugar(l)} />
-              </div>
-            ))}
-          </div>
-        </section>
+      {/* Destacados */}
+      {sinFiltro && destacados.length > 0 && (
+        <FilaHorizontal titulo="Destacados" lugares={destacados} onVerLugar={onVerLugar} />
       )}
 
-      {/* Grid */}
+      {/* Una sección por categoría — Restaurantes/Actividades/
+          Alojamientos/Naturaleza, cada una con sus propios lugares.
+          Se salta la sección si no hay ningún lugar de esa categoría
+          todavía, en vez de mostrar un carrusel vacío. */}
+      {sinFiltro &&
+        SECCIONES.map((s) => {
+          const lugaresSeccion = todosLugares.filter((l) => l.categoria === s.categoria);
+          if (lugaresSeccion.length === 0) return null;
+          return (
+            <FilaHorizontal
+              key={s.categoria}
+              titulo={s.titulo}
+              lugares={lugaresSeccion}
+              onVerLugar={onVerLugar}
+            />
+          );
+        })}
+
+      {/* Grid — catch-all con TODO (incluye Comercio/Cooperativa/Otro,
+          que no tienen su propia sección arriba), y es lo único que se
+          ve cuando hay búsqueda o categoría activa. */}
       <section className="px-4 lg:px-8 mt-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-display font-bold text-lg text-jungle-950">
-            {catActiva === 'todas'
+            {sinFiltro
               ? 'Todos los lugares'
-              : CATEGORIAS.find((c) => c.id === catActiva)?.id}
+              : catActiva === 'todas'
+                ? 'Resultados'
+                : CATEGORIAS.find((c) => c.id === catActiva)?.id}
           </h2>
           <span className="text-xs text-jungle-600">
             {filtrados.length} resultado{filtrados.length !== 1 ? 's' : ''}
@@ -127,6 +157,29 @@ export default function ExploreScreen({ onVerLugar, lugares: lugaresProps }: Pro
         )}
       </section>
     </div>
+  );
+}
+
+function FilaHorizontal({
+  titulo,
+  lugares,
+  onVerLugar,
+}: {
+  titulo: string;
+  lugares: Lugar[];
+  onVerLugar: (l: Lugar) => void;
+}) {
+  return (
+    <section className="px-4 lg:px-8 mt-6">
+      <h2 className="font-display font-bold text-lg text-jungle-950 mb-3">{titulo}</h2>
+      <div className="flex gap-3 overflow-x-auto -mx-4 px-4 pb-2 snap-x">
+        {lugares.map((l) => (
+          <div key={l.id} className="snap-start flex-shrink-0 w-64">
+            <PlaceCard lugar={l} onClick={() => onVerLugar(l)} />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

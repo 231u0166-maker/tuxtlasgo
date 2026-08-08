@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Menu, X } from 'lucide-react';
 
 // ============================================================
 // NAVBAR DE LANDING — modo turista / modo prestador
@@ -18,6 +19,13 @@ interface Props {
 
 export default function NavbarLanding({ modo, onCambiarModo, onIniciarSesion }: Props) {
   const esTurista = modo === 'turista';
+  // Hallazgo real: los links de arriba (incluido "Para prestadores")
+  // y "Inicio sesión" estaban con `hidden md:flex` / `hidden sm:block`
+  // — en móvil solo quedaban el logo y "Reservar". Eso dejaba sin
+  // camino, desde el teléfono, a quien quiere registrarse como
+  // prestador — justo el caso que más importa cubrir en un país
+  // donde mucha gente entra a internet solo desde el celular.
+  const [menuMovil, setMenuMovil] = useState(false);
 
   return (
     <header className="bg-white/80 backdrop-blur-md border-b border-obsidiana-900/5 sticky top-0 z-40">
@@ -74,8 +82,52 @@ export default function NavbarLanding({ modo, onCambiarModo, onIniciarSesion }: 
             Reservar
             <ChevronRight size={16} />
           </Link>
+
+          {/* Hamburguesa — solo móvil, es lo que faltaba */}
+          <button
+            onClick={() => setMenuMovil((v) => !v)}
+            className="md:hidden w-9 h-9 flex items-center justify-center text-obsidiana-800 rounded-full hover:bg-obsidiana-900/5 transition-colors flex-shrink-0"
+            aria-label="Menú"
+            aria-expanded={menuMovil}
+          >
+            {menuMovil ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
       </div>
+
+      {/* Panel móvil — mismos links que la barra de escritorio, nada
+          nuevo inventado, solo el camino para llegar a ellos. */}
+      {menuMovil && (
+        <div className="md:hidden border-t border-obsidiana-900/5 bg-white px-4 py-3 space-y-1 animate-fade-in">
+          <button
+            onClick={() => { onCambiarModo('turista'); setMenuMovil(false); }}
+            className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${esTurista ? 'bg-jungle-50 text-jungle-800' : 'text-obsidiana-800/70 hover:bg-obsidiana-900/5'
+              }`}
+          >
+            Para turistas
+          </button>
+          <button
+            onClick={() => { onCambiarModo('prestador'); setMenuMovil(false); }}
+            className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${!esTurista ? 'bg-jungle-50 text-jungle-800' : 'text-obsidiana-800/70 hover:bg-obsidiana-900/5'
+              }`}
+          >
+            Para prestadores
+          </button>
+          <span className="block px-3 py-2.5 text-sm font-medium text-obsidiana-800/30 select-none">
+            Galería
+          </span>
+          <span className="block px-3 py-2.5 text-sm font-medium text-obsidiana-800/30 select-none">
+            Comunidad
+          </span>
+          <div className="h-px bg-obsidiana-900/5 my-1" />
+          <button
+            onClick={() => { onIniciarSesion(); setMenuMovil(false); }}
+            className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-obsidiana-800/70 hover:bg-obsidiana-900/5 transition-colors"
+          >
+            Inicio sesión
+          </button>
+        </div>
+      )}
     </header>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Send, Sparkles } from 'lucide-react';
 import PlaceCard from './PlaceCard';
 import type { Lugar } from '../data/lugares';
@@ -30,6 +30,18 @@ interface Props {
 export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Props) {
   const [texto, setTexto] = useState('');
   const destacados = getCatalogoActivo().filter((l) => l.destacado).slice(0, 6);
+
+  // Mismo comportamiento que el textarea de la pestaña Asistente —
+  // crece con el texto hasta un tope, y no pierde de vista el cursor
+  // al pasar ese tope. Ver la nota completa en ChatAssistant.tsx.
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    el.scrollTop = el.scrollHeight;
+  }, [texto]);
 
   const enviar = () => {
     const limpio = texto.trim();
@@ -98,12 +110,19 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
       >
         <div className="flex items-end gap-2">
-          <input
+          <textarea
+            ref={inputRef}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && enviar()}
-            placeholder="Pregunta lo que quieras..."
-            className="flex-1 bg-white border border-jungle-200 rounded-full px-4 py-3 text-sm text-jungle-950 placeholder:text-jungle-400 focus:outline-none focus:ring-2 focus:ring-jungle-300 focus:border-jungle-400"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                enviar();
+              }
+            }}
+            placeholder="Escribir un mensaje..."
+            rows={1}
+            className="flex-1 min-w-0 bg-white border border-jungle-200 rounded-2xl px-4 py-3 text-base text-jungle-950 leading-snug resize-none overflow-y-auto max-h-[160px] focus:outline-none focus:ring-2 focus:ring-jungle-300 focus:border-jungle-400 placeholder:text-jungle-400 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           />
           <button
             onClick={enviar}

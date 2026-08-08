@@ -316,13 +316,24 @@ export default function ChatAssistant({
   // Un <input> normal nunca hace salto de línea, solo se desborda
   // horizontalmente sin importar el CSS que se le ponga — por eso se
   // cambió a <textarea>. Esto la hace crecer sola conforme el texto
-  // ocupa más líneas, hasta un tope (120px) — después de eso, se
+  // ocupa más líneas, hasta un tope (160px) — después de eso, se
   // vuelve desplazable en vez de seguir creciendo sin límite.
+  //
+  // Hallazgo real de campo: el truco de "height: auto, luego el
+  // valor real" para medir el alto correcto REINICIA el scroll del
+  // textarea a 0 en cada tecla — una vez que el texto ya pasaba del
+  // tope y tocaba desplazarse, cada letra nueva te devolvía arriba
+  // del todo, lejos de donde ibas escribiendo ("el mensaje se
+  // pierde"). El `scrollTop = scrollHeight` de la última línea es lo
+  // que lo corrige: después de medir, se manda la vista al final,
+  // que es siempre donde está el cursor mientras escribes hacia
+  // adelante.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    el.scrollTop = el.scrollHeight;
   }, [input]);
   // Agrega un mensaje del bot con un pequeño retardo (sensación de "escribiendo")
   function responderBot(msg: MensajeChat, delay = 500) {
@@ -1147,7 +1158,7 @@ export default function ChatAssistant({
                 enviarTexto();
               }
             }}
-            placeholder={generandoIA ? 'Pensando…' : 'Escribe tu pregunta...'}
+            placeholder={generandoIA ? 'Pensando…' : 'Escribir un mensaje...'}
             disabled={generandoIA}
             rows={1}
             inputMode="text"
@@ -1155,7 +1166,7 @@ export default function ChatAssistant({
             autoComplete="off"
             autoCorrect="on"
             autoCapitalize="sentences"
-            className="flex-1 min-w-0 bg-white border border-jungle-200 rounded-2xl px-4 py-3 text-base text-jungle-950 leading-snug resize-none overflow-y-auto max-h-[120px] focus:outline-none focus:ring-2 focus:ring-jungle-400 focus:border-jungle-400 placeholder:text-jungle-400 disabled:opacity-60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex-1 min-w-0 bg-white border border-jungle-200 rounded-2xl px-4 py-3 text-base text-jungle-950 leading-snug resize-none overflow-y-auto max-h-[160px] focus:outline-none focus:ring-2 focus:ring-jungle-400 focus:border-jungle-400 placeholder:text-jungle-400 disabled:opacity-60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           />
           <button
             onClick={() => enviarTexto()}

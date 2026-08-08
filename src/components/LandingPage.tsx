@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { type UsuarioSesion } from '../lib/auth';
+import { apiLogout, type UsuarioSesion } from '../lib/auth';
 import {
   MapPin,
   WifiOff,
@@ -20,7 +20,7 @@ import AuthModal from './AuthModal';
 
 interface LandingProps {
   usuario?: UsuarioSesion | null;
-  onUsuario?: (u: UsuarioSesion) => void;
+  onUsuario?: (u: UsuarioSesion | null) => void;
 }
 
 // ============================================================
@@ -48,6 +48,8 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
         modo={modo}
         onCambiarModo={setModo}
         onIniciarSesion={() => setMostrarAuth(true)}
+        usuario={usuario}
+        onCerrarSesion={async () => { await apiLogout(); onUsuario?.(null); }}
       />
 
       {esTurista ? (

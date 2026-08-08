@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut,
   Home, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
@@ -53,7 +53,15 @@ const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
 ];
 
 export default function AppShell() {
-  const [tab, setTab] = useState<Tab>('inicio');
+  // "Empezar a chatear" / "Explorar" del menú de la landing (móvil)
+  // llegan aquí como /app?tab=chat o /app?tab=explorar — se lee UNA
+  // vez al montar, no hace falta que sea reactivo a cambios después.
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => {
+    const deLaUrl = searchParams.get('tab');
+    const validos: Tab[] = ['inicio', 'explorar', 'chat', 'favoritos', 'perfil'];
+    return validos.includes(deLaUrl as Tab) ? (deLaUrl as Tab) : 'inicio';
+  });
   // Solo importa en móvil (el peek de mapa a pantalla completa) —
   // en escritorio el mapa nunca "reemplaza" la pestaña, así que no
   // hace falta volver a ningún lado.

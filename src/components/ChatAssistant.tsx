@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, MapPin, BookmarkPlus, CheckCircle2, Menu } from 'lucide-react';
+import { Send, MapPin, BookmarkPlus, CheckCircle2 } from 'lucide-react';
 import type { useLLM } from '../hooks/useLLM';
 import type { Lugar } from '../data/lugares';
 import type { Categoria, Presupuesto } from '../data/lugares';
@@ -1058,22 +1058,12 @@ export default function ChatAssistant({
         </div>
       )}
       {/* El header oscuro "Guía TuxtlasGO / Funciona sin internet"
-          que vivía aquí se quitó a propósito. En escritorio ya no
-          hace falta este ícono — la barra lateral ya tiene su propio
-          botón de colapsar, y doble clic en "Asistente IA" (ahí
-          mismo) abre este mismo historial (ver AppShell.tsx). Mostrar
-          las dos cosas juntas en escritorio era redundante. En móvil
-          sigue siendo el único camino, así que se queda. */}
-      <div className="lg:hidden flex-shrink-0 flex items-center px-3 py-2 border-b border-jungle-100">
-        <button
-          onClick={() => setMostrarHistorial(true)}
-          aria-label="Historial de chats"
-          title="Historial de chats"
-          className="w-8 h-8 flex items-center justify-center text-jungle-700 hover:bg-jungle-50 rounded-lg transition-colors"
-        >
-          <Menu size={18} />
-        </button>
-      </div>
+          que vivía aquí se quitó a propósito. El ícono de "las tres
+          franjas" que vivía aquí en móvil se movió a AppShell.tsx —
+          ahora vive en una superficie verde propia junto al filtro
+          consolidado, en vez de una fila suelta sin fondo. Sigue
+          abriendo este MISMO historial (vía dispararHistorial, el
+          mismo mecanismo que ya usaba el doble clic de escritorio). */}
 
       {mostrarHistorial && (
         <HistorialChats

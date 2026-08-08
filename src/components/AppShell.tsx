@@ -2,7 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut,
   Home, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
-  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal
+  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Menu
 } from 'lucide-react';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -727,7 +727,15 @@ export default function AppShell() {
             className={`${tab === 'chat' ? 'flex' : 'hidden'} ${mapaExpandido ? 'lg:hidden' : ''
               } flex-col lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full min-h-0`}
           >
-            <div className="flex-shrink-0 px-3 pt-3 pb-2 bg-jungle-50 border-b border-jungle-100 overflow-x-auto">
+            <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5 lg:pt-3 lg:pb-2 bg-jungle-800 lg:bg-jungle-50 border-b border-jungle-900/40 lg:border-jungle-100 overflow-x-auto">
+              <button
+                onClick={() => setDispararHistorial((v) => v + 1)}
+                aria-label="Historial de chats"
+                title="Historial de chats"
+                className="lg:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-full text-white/90 hover:bg-white/10 transition-colors"
+              >
+                <Menu size={18} />
+              </button>
               <FiltrosViaje valor={filtros} onCambiar={setFiltros} />
             </div>
             <div className="flex-1 min-h-0">

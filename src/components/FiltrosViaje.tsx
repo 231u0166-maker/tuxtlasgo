@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, Calendar, Users, DollarSign, ChevronDown, Minus, Plus, X } from 'lucide-react';
+import { MapPin, Calendar, Users, DollarSign, ChevronDown, Minus, Plus, X, SlidersHorizontal } from 'lucide-react';
 import CalendarioRango from './CalendarioRango';
 
 // ============================================================
@@ -37,6 +37,11 @@ export interface FiltrosViajeValor {
   hasta: string;
   quien: QuienViaja;
   presupuesto: 1 | 2 | 3;
+  // Preferencias libres — "cuéntanos lo que sabes hasta ahora" de la
+  // referencia. Se captura aquí y queda visible/editable, pero por
+  // ahora NO se conecta a la generación de rutas (chatbot.ts) — eso
+  // es un paso aparte, ver aviso en AppShell.
+  notas: string;
 }
 
 const QUIEN_DEFAULT: QuienViaja = { adultos: 1, ninos: 0, bebes: 0, mascotas: 0 };
@@ -48,6 +53,7 @@ const VALOR_DEFAULT: FiltrosViajeValor = {
   hasta: '',
   quien: QUIEN_DEFAULT,
   presupuesto: 2,
+  notas: '',
 };
 
 interface Props {
@@ -55,7 +61,7 @@ interface Props {
   onCambiar?: (valor: FiltrosViajeValor) => void;
 }
 
-type PopoverAbierto = 'donde' | 'cuando' | 'quien' | 'presupuesto' | null;
+type PopoverAbierto = 'donde' | 'cuando' | 'quien' | 'presupuesto' | 'todo' | null;
 
 export default function FiltrosViaje({ valor, onCambiar }: Props) {
   const [estado, setEstado] = useState<FiltrosViajeValor>({ ...VALOR_DEFAULT, ...valor });
@@ -75,7 +81,8 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
 
   return (
     <>
-      <div className="inline-flex flex-wrap items-center gap-0.5 bg-white rounded-full border border-obsidiana-900/10 p-[5px] shadow-[0_2px_10px_rgba(28,25,23,0.05)]">
+      {/* Escritorio — igual que siempre, sin tocar */}
+      <div className="hidden lg:inline-flex flex-wrap items-center gap-0.5 bg-white rounded-full border border-obsidiana-900/10 p-[5px] shadow-[0_2px_10px_rgba(28,25,23,0.05)]">
         <Pastilla
           icon={MapPin}
           label={estado.donde || 'Dónde'}
@@ -101,6 +108,18 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
           onClick={() => setAbierto('presupuesto')}
         />
       </div>
+
+      {/* Móvil — un solo ícono en vez de 4 pastillas, abre un
+          formulario consolidado (todo junto, como la referencia). */}
+      <button
+        type="button"
+        onClick={() => setAbierto('todo')}
+        className="lg:hidden w-9 h-9 flex items-center justify-center rounded-full text-white/90 hover:bg-white/10 transition-colors flex-shrink-0"
+        aria-label="Filtros del viaje"
+        title="Filtros del viaje"
+      >
+        <SlidersHorizontal size={18} />
+      </button>
 
       {/* Un solo overlay compartido — el modal que corresponda se
           decide por `abierto`, en vez de vivir anclado a su pastilla.
@@ -198,6 +217,105 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
           )}
         </Overlay>
       )}
+
+      {/* Móvil — formulario consolidado, todo en una sola hoja que
+          entra desde abajo (no 4 modales separados). Mismos
+          subcomponentes de arriba, reusados tal cual. */}
+      {abierto === 'todo' && (
+        <HojaInferior onCerrar={cerrar}>
+          <div className="max-h-[75vh] overflow-y-auto px-5 pt-2 pb-5">
+            <label className="text-xs font-semibold text-obsidiana-800/50 uppercase tracking-wide">
+              Dónde
+            </label>
+            <Campo
+              placeholder="Catemaco, San Andrés Tuxtla..."
+              value={estado.donde}
+              onChange={(v) => actualizar({ donde: v })}
+            />
+
+            <label className="text-xs font-semibold text-obsidiana-800/50 uppercase tracking-wide">
+              Cuándo
+            </label>
+            <div className="mb-5 mt-1.5">
+              <CalendarioRango
+                desde={estado.desde}
+                hasta={estado.hasta}
+                onCambiar={(desde, hasta) => actualizar({ desde, hasta })}
+              />
+            </div>
+
+            <label className="text-xs font-semibold text-obsidiana-800/50 uppercase tracking-wide">
+              Quién viaja
+            </label>
+            <div className="space-y-1 mb-5 mt-1">
+              <ContadorQuien
+                etiqueta="Adultos"
+                nota="A partir de 13 años"
+                valor={estado.quien.adultos}
+                min={1}
+                onCambiar={(n) => actualizar({ quien: { ...estado.quien, adultos: n } })}
+              />
+              <ContadorQuien
+                etiqueta="Niños"
+                nota="De 2 a 12 años"
+                valor={estado.quien.ninos}
+                min={0}
+                onCambiar={(n) => actualizar({ quien: { ...estado.quien, ninos: n } })}
+              />
+              <ContadorQuien
+                etiqueta="Bebés"
+                nota="Menores de 2 años"
+                valor={estado.quien.bebes}
+                min={0}
+                onCambiar={(n) => actualizar({ quien: { ...estado.quien, bebes: n } })}
+              />
+              <ContadorQuien
+                etiqueta="Mascotas"
+                nota="¿Va a llevar un animal de servicio?"
+                valor={estado.quien.mascotas}
+                min={0}
+                onCambiar={(n) => actualizar({ quien: { ...estado.quien, mascotas: n } })}
+              />
+            </div>
+
+            <label className="text-xs font-semibold text-obsidiana-800/50 uppercase tracking-wide mb-2 block">
+              Presupuesto
+            </label>
+            <div className="flex gap-2 mb-5">
+              {([1, 2, 3] as const).map((nivel) => (
+                <button
+                  key={nivel}
+                  type="button"
+                  onClick={() => actualizar({ presupuesto: nivel })}
+                  className={`flex-1 py-3 rounded-xl text-sm font-bold border transition-colors ${estado.presupuesto === nivel
+                    ? 'bg-jungle-700 border-jungle-700 text-white'
+                    : 'border-obsidiana-900/10 bg-amate-50 text-obsidiana-800/70 hover:border-jungle-300'
+                    }`}
+                >
+                  {'$'.repeat(nivel)}
+                </button>
+              ))}
+            </div>
+
+            <label className="text-xs font-semibold text-obsidiana-800/50 uppercase tracking-wide">
+              Preferencias adicionales
+            </label>
+            <textarea
+              value={estado.notas}
+              onChange={(e) => actualizar({ notas: e.target.value })}
+              placeholder="Cuéntanos lo que sabes hasta ahora: compañeros de viaje, cosas que no te puedes perder, preferencias..."
+              rows={3}
+              maxLength={500}
+              className="w-full mt-1.5 mb-1 px-3.5 py-3 rounded-xl border border-obsidiana-900/10 bg-amate-50 text-sm resize-none focus:outline-none focus:border-jungle-400"
+            />
+            <p className="text-[11px] text-obsidiana-800/40 text-right mb-4">
+              {estado.notas.length}/500 caracteres
+            </p>
+
+            <BotonGuardar etiqueta="Guardar" onClick={cerrar} />
+          </div>
+        </HojaInferior>
+      )}
     </>
   );
 }
@@ -238,6 +356,43 @@ export function Overlay({ onCerrar, children }: { onCerrar: () => void; children
       onClick={onCerrar}
     >
       <div onClick={(e) => e.stopPropagation()}>{children}</div>
+    </div>
+  );
+}
+
+// Hoja anclada abajo — para el formulario consolidado de móvil.
+// Entra deslizándose desde abajo (nunca transparente, mismo cuidado
+// que el menú de NavbarLanding), fondo oscurecido detrás, tocar
+// fuera cierra.
+function HojaInferior({ onCerrar, children }: { onCerrar: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-[200]">
+      <div
+        className="absolute inset-0 bg-obsidiana-950/45 animate-fade-in"
+        onClick={onCerrar}
+        aria-hidden="true"
+      />
+      <div
+        className={`absolute inset-x-0 bottom-0 ${RADIO_MODAL} rounded-b-none animate-slide-in-bottom`}
+        style={{ backgroundColor: '#ffffff' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1.5 rounded-full bg-obsidiana-900/15" />
+        </div>
+        <div className="flex items-center justify-between px-5 pb-2">
+          <span className="font-display font-bold text-[15px] text-obsidiana-900">Tu viaje</span>
+          <button
+            type="button"
+            onClick={onCerrar}
+            aria-label="Cerrar"
+            className="w-[26px] h-[26px] rounded-full bg-amate-100 flex items-center justify-center text-obsidiana-800/50 hover:text-obsidiana-900 transition-colors"
+          >
+            <X size={13} />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

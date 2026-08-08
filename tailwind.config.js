@@ -74,6 +74,9 @@ export default {
         // mueve, nunca se vuelve transparente, así el fondo de atrás
         // no se alcanza a ver ni un instante durante la entrada.
         'slide-in-left': 'slideInLeft 0.25s ease-out',
+        // Para hojas ancladas abajo (filtro consolidado de chat en
+        // móvil) — aparece deslizándose desde abajo, nunca transparente.
+        'slide-in-bottom': 'slideInBottom 0.25s ease-out',
         'pulse-slow': 'pulse 3s ease-in-out infinite',
         'float': 'float 3.2s ease-in-out infinite',
         'float-delayed': 'float 3.6s ease-in-out infinite 0.6s',
@@ -89,6 +92,10 @@ export default {
         slideInLeft: {
           '0%': { transform: 'translateX(-100%)' },
           '100%': { transform: 'translateX(0)' },
+        },
+        slideInBottom: {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
         },
         slideUp: {
           '0%': { transform: 'translateY(20px)', opacity: '0' },

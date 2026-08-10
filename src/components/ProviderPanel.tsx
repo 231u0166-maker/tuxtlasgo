@@ -9,6 +9,7 @@ import { buscarPorCodigo } from '../lib/db';
 import { getUsuarioLocal, getToken, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import OfflineIndicator from './OfflineIndicator';
 import AuthModal from './AuthModal';
+import GestorFotos from './GestorFotos';
 
 // ============================================================
 // PANEL DEL PRESTADOR — v3 (ver MEJORAS DISEÑO PANEL PRESTADOR)
@@ -198,8 +199,28 @@ function PantallaInicio({
   );
 }
 
-// ─────────────── REGISTRAR NEGOCIO (pantalla propia, no un modal) ───────────────
+// ─────────────── REGISTRAR NEGOCIO (asistente por pasos) ───────────────
+// Hallazgo real de campo: el formulario largo de una sola pantalla
+// "no convencía" — se pidió por secciones, más interactivo, y sobre
+// todo que la foto fuera parte de ENVIAR LA SOLICITUD, no algo que
+// solo aparece después en Mi Perfil. La foto se sube DESPUÉS de que
+// el servicio ya existe en la base (GestorFotos necesita un servicio
+// real al que asociarla vía el token) — por eso "Fotos" es el paso
+// que sigue justo después de enviar los datos, antes de la
+// confirmación final, no antes.
+type PasoRegistro = 'info' | 'descripcion' | 'precio' | 'contacto' | 'fotos' | 'listo';
+const ORDEN_PASOS: PasoRegistro[] = ['info', 'descripcion', 'precio', 'contacto', 'fotos', 'listo'];
+const TITULO_PASO: Record<PasoRegistro, string> = {
+  info: 'Información básica',
+  descripcion: 'Descripción',
+  precio: 'Precio',
+  contacto: 'Contacto y ubicación',
+  fotos: 'Fotos de tu negocio',
+  listo: '¡Listo!',
+};
+
 function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito: () => void }) {
+  const [paso, setPaso] = useState<PasoRegistro>('info');
   const [nombreNegocio, setNombreNegocio] = useState('');
   const [categoria, setCategoria] = useState('Gastronomia');
   const [municipio, setMunicipio] = useState('Catemaco');
@@ -216,6 +237,9 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   const [error, setError] = useState('');
   const [codigo, setCodigo] = useState('');
   const [copiado, setCopiado] = useState(false);
+  const [fotosSubidas, setFotosSubidas] = useState<string[]>([]);
+
+  const indicePaso = ORDEN_PASOS.indexOf(paso);
 
   function precioFinal(): string {
     const nivel = NIVELES_PRECIO.find((n) => n.id === nivelPrecio)!;
@@ -254,11 +278,10 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     }
   }
 
-  async function enviar(e: React.FormEvent) {
-    e.preventDefault();
+  // Envía los datos y crea el servicio — pasa al paso de fotos si
+  // sale bien, porque GestorFotos necesita que el servicio YA exista.
+  async function enviarYContinuar() {
     setError('');
-    if (!nombreNegocio.trim() || nombreNegocio.trim().length < 3) return setError('Escribe el nombre de tu negocio.');
-    if (!descripcion.trim() || descripcion.trim().length < 20) return setError('La descripción debe tener al menos 20 caracteres.');
     if (!ubicacionGuardada) return setError('Marca tu ubicación en el mapa antes de continuar.');
     if (!terminos) return setError('Debes aceptar los términos y condiciones.');
     const token = getToken();
@@ -282,12 +305,10 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
       });
       const data = await r.json();
       if (r.ok && data.ok) {
-        // El backend ya convirtió al usuario en prestador — se
-        // actualiza también la copia local para que el resto de la
-        // app lo reconozca sin pedir otro login.
         const actual = getUsuarioLocal();
         if (actual) setUsuarioLocal({ ...actual, tipo: 'prestador' });
         setCodigo(data.servicio?.codigo_seguimiento ?? '');
+        setPaso('fotos');
       } else {
         setError(data.error ?? 'No se pudo enviar tu solicitud.');
       }
@@ -298,166 +319,217 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     }
   }
 
-  if (codigo) {
-    return (
-      <div className="bg-white border border-obsidiana-900/8 rounded-2xl p-6 text-center">
-        <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-jungle-700 flex items-center justify-center">
-          <CheckCircle2 className="text-white" size={26} />
-        </div>
-        <h2 className="font-display font-bold text-xl text-obsidiana-900 mb-2">¡Solicitud enviada!</h2>
-        <p className="text-sm text-obsidiana-800/60 mb-4 leading-relaxed">
-          Nuestro equipo va a validar tu negocio. Guarda este código para consultar el estado:
-        </p>
-        <div className="flex items-center justify-center gap-2 bg-amate-50 rounded-xl px-4 py-3 mb-5">
-          <span className="font-mono font-bold text-lg tracking-wider text-jungle-800">{codigo}</span>
-          <button
-            onClick={() => { navigator.clipboard.writeText(codigo).catch(() => {}); setCopiado(true); }}
-            className="text-jungle-600 hover:text-jungle-800"
-          >
-            {copiado ? <CheckCircle2 size={18} /> : <Copy size={18} />}
-          </button>
-        </div>
-        <button onClick={onExito} className="text-sm font-semibold text-jungle-700 underline">
-          Entendido
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div>
       <button onClick={onVolver} className="inline-flex items-center gap-1.5 text-jungle-700 hover:text-jungle-900 text-sm font-medium mb-4">
         <ArrowLeft size={16} /> Volver
       </button>
 
-      <form onSubmit={enviar} className="bg-white border border-obsidiana-900/8 rounded-2xl p-6 space-y-4">
-        <div>
-          <h2 className="font-display font-bold text-xl text-obsidiana-900 mb-1">Registrar tu servicio</h2>
-          <p className="text-sm text-obsidiana-800/60">Llena tu información — la revisamos y te avisamos.</p>
-        </div>
+      {/* Barra de progreso por secciones */}
+      <div className="flex gap-1.5 mb-2">
+        {ORDEN_PASOS.map((p, i) => (
+          <div key={p} className={`h-1 flex-1 rounded-full transition-colors ${i <= indicePaso ? 'bg-jungle-600' : 'bg-jungle-100'}`} />
+        ))}
+      </div>
+      <p className="text-xs font-semibold text-jungle-600 uppercase tracking-wide mb-4">
+        Paso {indicePaso + 1} de {ORDEN_PASOS.length} · {TITULO_PASO[paso]}
+      </p>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>}
+      <div className="bg-white border border-obsidiana-900/8 rounded-2xl p-6">
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
 
-        <div>
-          <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Nombre de empresa o servicio <span className="text-red-500">*</span></label>
-          <div className="relative">
-            <Building2 size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
-            <input type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} placeholder="Ej: Hotel Lago Encantado"
-              className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+        {paso === 'info' && (
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Nombre de empresa o servicio <span className="text-red-500">*</span></label>
+              <div className="relative">
+                <Building2 size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
+                <input type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} placeholder="Ej: Hotel Lago Encantado"
+                  className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Categoría <span className="text-red-500">*</span></label>
+                <select value={categoria} onChange={(e) => setCategoria(e.target.value)}
+                  className="w-full border border-jungle-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                  {['Gastronomia', 'Naturaleza', 'Aventura', 'Hospedaje', 'Comercio', 'Cooperativa', 'Otro'].map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Municipio <span className="text-red-500">*</span></label>
+                <select value={municipio} onChange={(e) => setMunicipio(e.target.value)}
+                  className="w-full border border-jungle-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                  {['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'].map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="grid grid-cols-2 gap-3">
+        {paso === 'descripcion' && (
           <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Categoría <span className="text-red-500">*</span></label>
-            <select value={categoria} onChange={(e) => setCategoria(e.target.value)}
-              className="w-full border border-jungle-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-              {['Gastronomia', 'Naturaleza', 'Aventura', 'Hospedaje', 'Comercio', 'Cooperativa', 'Otro'].map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Municipio <span className="text-red-500">*</span></label>
-            <select value={municipio} onChange={(e) => setMunicipio(e.target.value)}
-              className="w-full border border-jungle-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-              {['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'].map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-semibold text-jungle-700 block">Descripción <span className="text-red-500">*</span></label>
-            <button type="button" onClick={generarDescripcionIA} disabled={generandoDescripcion}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-jungle-700 hover:text-jungle-900 disabled:opacity-50">
-              {generandoDescripcion ? <Loader2 size={12} className="animate-spin" /> : <span>✨</span>}
-              Generar descripción con IA
-            </button>
-          </div>
-          <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="¿Qué ofreces? ¿Qué te hace especial? (mín. 20 caracteres)" rows={3}
-            className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
-          <p className="text-[11px] text-jungle-500 mt-1">Es de suma importancia para que las personas vean bien tu servicio — si la IA te ayuda, léela y ajusta antes de enviar.</p>
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Precio aproximado</label>
-          <div className="grid grid-cols-4 gap-1.5 mb-2">
-            {NIVELES_PRECIO.map((n) => (
-              <button key={n.id} type="button" onClick={() => setNivelPrecio(n.id)}
-                className={`rounded-xl py-2 text-center border-2 transition-colors ${nivelPrecio === n.id ? 'border-jungle-500 bg-jungle-50' : 'border-jungle-100'}`}>
-                <div className="font-display font-bold text-jungle-800 text-sm">{n.simbolo}</div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-jungle-700 block">Descripción <span className="text-red-500">*</span></label>
+              <button type="button" onClick={generarDescripcionIA} disabled={generandoDescripcion}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-jungle-700 hover:text-jungle-900 disabled:opacity-50">
+                {generandoDescripcion ? <Loader2 size={12} className="animate-spin" /> : <span>✨</span>}
+                Generar descripción con IA
               </button>
-            ))}
-          </div>
-          <p className="text-[11px] text-jungle-500 mb-2">{NIVELES_PRECIO.find((n) => n.id === nivelPrecio)?.label}</p>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400 text-sm">$</span>
-              <input type="number" min={0} value={precioMin} onChange={(e) => setPrecioMin(e.target.value)} placeholder="Desde"
-                className="w-full border border-jungle-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
             </div>
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400 text-sm">$</span>
-              <input type="number" min={0} value={precioMax} onChange={(e) => setPrecioMax(e.target.value)} placeholder="Hasta"
-                className="w-full border border-jungle-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-            </div>
+            <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="¿Qué ofreces? ¿Qué te hace especial? (mín. 20 caracteres)" rows={5}
+              className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+            <p className="text-[11px] text-jungle-500 mt-1">Es de suma importancia para que las personas vean bien tu servicio — si la IA te ayuda, léela y ajusta antes de continuar.</p>
           </div>
-          {precioMin && precioMax && !Number.isNaN(parseFloat(precioMin)) && !Number.isNaN(parseFloat(precioMax)) && (
-            <p className="text-[11px] text-jungle-500 mt-1.5">
-              ≈ ${Math.round(parseFloat(precioMin) / TASA_USD_REFERENCIA)} – ${Math.round(parseFloat(precioMax) / TASA_USD_REFERENCIA)} USD (tasa de referencia, no en vivo)
+        )}
+
+        {paso === 'precio' && (
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Precio aproximado</label>
+            <div className="grid grid-cols-4 gap-1.5 mb-2">
+              {NIVELES_PRECIO.map((n) => (
+                <button key={n.id} type="button" onClick={() => setNivelPrecio(n.id)}
+                  className={`rounded-xl py-3 text-center border-2 transition-colors ${nivelPrecio === n.id ? 'border-jungle-500 bg-jungle-50' : 'border-jungle-100'}`}>
+                  <div className="font-display font-bold text-jungle-800 text-base">{n.simbolo}</div>
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-jungle-500 mb-3">{NIVELES_PRECIO.find((n) => n.id === nivelPrecio)?.label}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400 text-sm">$</span>
+                <input type="number" min={0} value={precioMin} onChange={(e) => setPrecioMin(e.target.value)} placeholder="Desde"
+                  className="w-full border border-jungle-200 rounded-xl pl-7 pr-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+              </div>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400 text-sm">$</span>
+                <input type="number" min={0} value={precioMax} onChange={(e) => setPrecioMax(e.target.value)} placeholder="Hasta"
+                  className="w-full border border-jungle-200 rounded-xl pl-7 pr-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+              </div>
+            </div>
+            {precioMin && precioMax && !Number.isNaN(parseFloat(precioMin)) && !Number.isNaN(parseFloat(precioMax)) && (
+              <p className="text-[11px] text-jungle-500 mt-2">
+                ≈ ${Math.round(parseFloat(precioMin) / TASA_USD_REFERENCIA)} – ${Math.round(parseFloat(precioMax) / TASA_USD_REFERENCIA)} USD (tasa de referencia, no en vivo)
+              </p>
+            )}
+          </div>
+        )}
+
+        {paso === 'contacto' && (
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">WhatsApp o correo</label>
+              <input type="text" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="9521234567"
+                className="w-full border border-jungle-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">
+                <MapPin size={11} className="inline mr-1" />
+                Marca tu ubicación en el mapa <span className="text-red-500">*</span>
+              </label>
+              <p className="text-[11px] text-jungle-500 mb-2">Toca el mapa donde está tu negocio para colocar el marcador</p>
+              <div className="rounded-xl overflow-hidden border-2 border-jungle-200" style={{ height: '240px', position: 'relative' }}>
+                <MapContainer center={TUXTLAS_CENTER} zoom={11} style={{ height: '100%', width: '100%' }} zoomControl attributionControl={false}>
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <ClickCaptor onUbicacion={(lat, lng) => { setUbicacion([lat, lng]); setUbicacionGuardada(false); }} />
+                  {ubicacion && <Marker position={ubicacion} icon={iconoPrestador} />}
+                </MapContainer>
+              </div>
+              {ubicacion && !ubicacionGuardada && (
+                <button type="button" onClick={() => setUbicacionGuardada(true)}
+                  className="w-full mt-2 bg-jungle-600 hover:bg-jungle-700 text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors">
+                  <Navigation size={13} /> Guardar ubicación
+                </button>
+              )}
+              {ubicacionGuardada && (
+                <div className="mt-2 flex items-center gap-2 bg-jungle-50 border border-jungle-200 rounded-xl px-3 py-2">
+                  <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
+                  <p className="text-xs text-jungle-700 font-medium">Ubicación guardada ({ubicacion![0].toFixed(4)}, {ubicacion![1].toFixed(4)})</p>
+                  <button type="button" onClick={() => { setUbicacionGuardada(false); setUbicacion(null); }} className="ml-auto text-[10px] text-jungle-500 underline">cambiar</button>
+                </div>
+              )}
+            </div>
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={terminos} onChange={(e) => setTerminos(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-jungle-300 text-jungle-600" />
+              <span className="text-xs text-jungle-600">Acepto los <span className="text-jungle-800 underline font-semibold">términos y condiciones</span> del sistema</span>
+            </label>
+          </div>
+        )}
+
+        {paso === 'fotos' && (
+          <div>
+            <p className="text-sm text-obsidiana-800/60 mb-4">
+              Último paso — sube al menos <strong>una foto</strong> real de tu negocio. Es lo primero que va a ver la gente.
             </p>
-          )}
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">WhatsApp o correo</label>
-          <input type="text" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="9521234567"
-            className="w-full border border-jungle-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">
-            <MapPin size={11} className="inline mr-1" />
-            Marca tu ubicación en el mapa <span className="text-red-500">*</span>
-          </label>
-          <p className="text-[11px] text-jungle-500 mb-2">Toca el mapa donde está tu negocio para colocar el marcador</p>
-          <div className="rounded-xl overflow-hidden border-2 border-jungle-200" style={{ height: '240px', position: 'relative' }}>
-            <MapContainer center={TUXTLAS_CENTER} zoom={11} style={{ height: '100%', width: '100%' }} zoomControl attributionControl={false}>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <ClickCaptor onUbicacion={(lat, lng) => { setUbicacion([lat, lng]); setUbicacionGuardada(false); }} />
-              {ubicacion && <Marker position={ubicacion} icon={iconoPrestador} />}
-            </MapContainer>
+            <GestorFotos codigoSeguimiento={codigo} onFotosActualizadas={setFotosSubidas} />
           </div>
-          {ubicacion && !ubicacionGuardada && (
-            <button type="button" onClick={() => setUbicacionGuardada(true)}
-              className="w-full mt-2 bg-jungle-600 hover:bg-jungle-700 text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors">
-              <Navigation size={13} /> Guardar ubicación
+        )}
+
+        {paso === 'listo' && (
+          <div className="text-center py-4">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-jungle-700 flex items-center justify-center">
+              <CheckCircle2 className="text-white" size={26} />
+            </div>
+            <h2 className="font-display font-bold text-xl text-obsidiana-900 mb-2">¡Solicitud enviada!</h2>
+            <p className="text-sm text-obsidiana-800/60 mb-4 leading-relaxed">
+              Nuestro equipo va a validar tu negocio. Guarda este código para consultar el estado:
+            </p>
+            <div className="flex items-center justify-center gap-2 bg-amate-50 rounded-xl px-4 py-3 mb-5">
+              <span className="font-mono font-bold text-lg tracking-wider text-jungle-800">{codigo}</span>
+              <button onClick={() => { navigator.clipboard.writeText(codigo).catch(() => {}); setCopiado(true); }} className="text-jungle-600 hover:text-jungle-800">
+                {copiado ? <CheckCircle2 size={18} /> : <Copy size={18} />}
+              </button>
+            </div>
+            <button onClick={onExito} className="text-sm font-semibold text-jungle-700 underline">Entendido</button>
+          </div>
+        )}
+      </div>
+
+      {/* Navegación entre pasos */}
+      {paso !== 'listo' && paso !== 'fotos' && (
+        <div className="flex items-center gap-3 mt-4">
+          {indicePaso > 0 && (
+            <button onClick={() => setPaso(ORDEN_PASOS[indicePaso - 1])}
+              className="w-12 h-12 rounded-2xl border-2 border-jungle-100 flex items-center justify-center text-jungle-800 flex-shrink-0">
+              <ArrowLeft size={18} />
             </button>
           )}
-          {ubicacionGuardada && (
-            <div className="mt-2 flex items-center gap-2 bg-jungle-50 border border-jungle-200 rounded-xl px-3 py-2">
-              <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
-              <p className="text-xs text-jungle-700 font-medium">Ubicación guardada ({ubicacion![0].toFixed(4)}, {ubicacion![1].toFixed(4)})</p>
-              <button type="button" onClick={() => { setUbicacionGuardada(false); setUbicacion(null); }} className="ml-auto text-[10px] text-jungle-500 underline">cambiar</button>
-            </div>
+          {paso === 'contacto' ? (
+            <button onClick={enviarYContinuar} disabled={cargando}
+              className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
+              {cargando && <Loader2 size={18} className="animate-spin" />}
+              Enviar solicitud de registro
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                if (paso === 'info' && (!nombreNegocio.trim() || nombreNegocio.trim().length < 3)) return setError('Escribe el nombre de tu negocio.');
+                if (paso === 'descripcion' && (!descripcion.trim() || descripcion.trim().length < 20)) return setError('La descripción debe tener al menos 20 caracteres.');
+                setError('');
+                setPaso(ORDEN_PASOS[indicePaso + 1]);
+              }}
+              className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-3.5 rounded-2xl transition-colors"
+            >
+              Siguiente
+            </button>
           )}
         </div>
+      )}
 
-        <label className="flex items-start gap-2.5 cursor-pointer">
-          <input type="checkbox" checked={terminos} onChange={(e) => setTerminos(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-jungle-300 text-jungle-600" />
-          <span className="text-xs text-jungle-600">Acepto los <span className="text-jungle-800 underline font-semibold">términos y condiciones</span> del sistema</span>
-        </label>
-
-        <button type="submit" disabled={cargando}
-          className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
-          {cargando && <Loader2 size={18} className="animate-spin" />}
-          Enviar solicitud de registro
+      {paso === 'fotos' && (
+        <button
+          onClick={() => setPaso('listo')}
+          disabled={fotosSubidas.length === 0}
+          className="w-full mt-4 bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-3.5 rounded-2xl disabled:opacity-40 disabled:pointer-events-none transition-colors"
+        >
+          {fotosSubidas.length === 0 ? 'Sube al menos una foto para continuar' : 'Finalizar registro'}
         </button>
-      </form>
+      )}
     </div>
   );
 }

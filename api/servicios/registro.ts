@@ -24,7 +24,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const sess = await pool.query('SELECT u.id, u.tipo FROM sesiones s JOIN usuarios u ON u.id=s.usuario_id WHERE s.token=$1 AND s.expira_en>NOW()', [token]);
       if (sess.rows.length === 0) return res.status(401).json({ error: 'Sesión inválida' });
       const usuario = sess.rows[0];
-      if (usuario.tipo !== 'prestador') return res.status(403).json({ error: 'Solo prestadores' });
+      // Hallazgo real de campo: antes esto exigía tipo === 'prestador'
+      // desde el registro de cuenta — pero ahora el signup es simple
+      // para todos, y "convertirse en prestador" pasa justo AQUÍ, al
+      // enviar su primer servicio (doc MEJORAS DISEÑO PANEL PRESTADOR).
+      if (usuario.tipo === 'admin') return res.status(403).json({ error: 'No aplica para administradores' });
       const { nombre, categoria, municipio, descripcion, precio, contacto, lat, lng } = req.body;
       if (!nombre?.trim() || nombre.trim().length < 3) return res.status(400).json({ error: 'Nombre muy corto' });
       if (!descripcion?.trim() || descripcion.trim().length < 20) return res.status(400).json({ error: 'Descripción mínimo 20 caracteres' });
@@ -32,7 +36,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (ya.rows.length > 0) return res.status(409).json({ error: 'Ya tienes un servicio activo' });
       const codigo = generarCodigo('TGO');
       const r = await pool.query('INSERT INTO servicios (usuario_id,nombre,categoria,municipio,descripcion,precio,contacto,lat,lng,codigo_seguimiento) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,nombre,categoria,municipio,estado,codigo_seguimiento,creado_en', [usuario.id,nombre.trim(),categoria,municipio,descripcion.trim(),precio??null,contacto??null,lat??null,lng??null,codigo]);
-      return res.status(200).json({ ok: true, servicio: r.rows[0], mensaje: `Tu código: ${codigo}` });
+      // Esta solicitud es la que convierte al usuario en prestador —
+      // si todavía era 'turista', se actualiza aquí para que el resto
+      // de la app (Mi Perfil, /prestador) lo reconozca correctamente.
+      if (usuario.tipo !== 'prestador') {
+        await pool.query("UPDATE usuarios SET tipo = 'prestador' WHERE id = $1", [usuario.id]);
+      }
+      return res.status(200).json({ ok: true, servicio: r.rows[0], mensaje: `Tu código: ${codigo}`, tipoUsuario: 'prestador' });
     }
     return res.status(405).json({ error: 'Método no permitido' });
   } catch (err) {

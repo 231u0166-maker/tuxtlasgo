@@ -7,6 +7,13 @@ import { apiLogin, apiRegistro, apiRecuperar, type UsuarioSesion } from '../lib/
 
 type Vista = 'login' | 'registro' | 'recuperar' | 'codigo';
 
+// Mismo criterio que api/auth/registro.ts — se valida en los dos
+// lados: aquí para el error instantáneo, en el servidor porque el
+// cliente nunca es de fiar (alguien puede mandar la petición directo
+// a la API sin pasar por este formulario).
+const NOMBRE_VALIDO = /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'\- ]{1,59}$/;
+const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 interface Props {
   onClose: () => void;
   onSuccess: (usuario: UsuarioSesion) => void;
@@ -60,6 +67,10 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
   async function handleRegistro(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    // Mismo criterio que el servidor — se valida aquí también para
+    // dar el error al instante, sin esperar el viaje de ida y vuelta.
+    if (!NOMBRE_VALIDO.test(nombre.trim())) return setError('Escribe un nombre real (solo letras y espacios)');
+    if (!CORREO_VALIDO.test(correoReg.trim())) return setError('Escribe un correo válido (ej. nombre@dominio.com)');
     if (passReg !== passConf) return setError('Las contraseñas no coinciden');
     if (passReg.length < 6) return setError('La contraseña debe tener mínimo 6 caracteres');
     if (!terminos) return setError('Debes aceptar los términos y condiciones');

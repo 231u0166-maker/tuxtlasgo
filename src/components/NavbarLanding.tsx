@@ -93,7 +93,7 @@ export default function NavbarLanding({
             to={esTurista ? '/app' : '/prestador'}
             className="bg-jungle-700 hover:bg-jungle-800 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors flex items-center gap-1"
           >
-            Reservar
+            Go
             <ChevronRight size={16} />
           </Link>
 

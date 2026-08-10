@@ -47,6 +47,13 @@ const NIVELES_PRECIO: { id: NivelPrecio; simbolo: string; label: string }[] = [
 // cuando si se nota muy desfasada.
 const TASA_USD_REFERENCIA = 17.1;
 
+// Mismo criterio que api/servicios/registro.ts — validado en los dos
+// lados por la misma razón de siempre: el cliente da el error al
+// instante, el servidor es el que de verdad protege los datos.
+const NOMBRE_NEGOCIO_VALIDO = /[A-Za-zÀ-ÖØ-öø-ÿ]{2,}/;
+const TELEFONO_VALIDO = /^\+?[\d\s-]{10,15}$/;
+const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function ProviderPanel() {
   const [vista, setVista] = useState<Vista>('inicio');
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal());
@@ -72,7 +79,7 @@ export default function ProviderPanel() {
             Tu negocio en TuxtlasGO
           </h1>
           <p className="text-sm text-obsidiana-800/60 mt-1.5 leading-relaxed">
-            Da a conocerte a quien ya viene por acá.
+            Da a conocerte a quien ya viene por acá. Sin intermediarios, sin comisiones.
           </p>
         </div>
       </header>
@@ -279,6 +286,9 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   async function enviarYContinuar() {
     setError('');
     if (!ubicacionGuardada) return setError('Marca tu ubicación en el mapa antes de continuar.');
+    if (contacto.trim() && !TELEFONO_VALIDO.test(contacto.trim()) && !CORREO_VALIDO.test(contacto.trim())) {
+      return setError('El contacto debe ser un teléfono (10 dígitos) o un correo válido.');
+    }
     if (!terminos) return setError('Debes aceptar los términos y condiciones.');
     const token = getToken();
     if (!token) return setError('Tu sesión expiró — vuelve a iniciar sesión.');
@@ -316,7 +326,9 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   }
 
   function siguiente() {
-    if (paso === 'info' && (!nombreNegocio.trim() || nombreNegocio.trim().length < 3)) return setError('Escribe el nombre de tu negocio.');
+    if (paso === 'info' && (!nombreNegocio.trim() || nombreNegocio.trim().length < 3 || !NOMBRE_NEGOCIO_VALIDO.test(nombreNegocio.trim()))) {
+      return setError('Escribe el nombre real de tu negocio (no solo números o símbolos).');
+    }
     if (paso === 'descripcion' && (!descripcion.trim() || descripcion.trim().length < 20)) return setError('La descripción debe tener al menos 20 caracteres.');
     setError('');
     irA(ORDEN_PASOS[indicePaso + 1], 1);

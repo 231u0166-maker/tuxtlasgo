@@ -101,10 +101,6 @@ function SeccionesTurista() {
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-14 pb-20 sm:pt-20 sm:pb-28">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 bg-white text-obsidiana-800 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-sm border border-obsidiana-900/5">
-                <Sparkles size={13} className="text-sun-600" />
-                Guía turística con IA — 100% offline
-              </div>
               <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.5rem] text-obsidiana-900 leading-[1.05] tracking-tight">
                 Tu guía de
                 <br />

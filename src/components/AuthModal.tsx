@@ -12,9 +12,31 @@ type Vista = 'login' | 'registro' | 'recuperar' | 'codigo';
 interface Props {
   onClose: () => void;
   onSuccess: (usuario: UsuarioSesion) => void;
+  // Permite abrir el modal directo en el registro, con la casilla de
+  // prestador ya marcada — usado por el CTA "Registrar mi negocio"
+  // de /prestador, que antes caía al login genérico sin ningún
+  // contexto (hallazgo real de campo, doc MEJORAS DISEÑO PANEL
+  // PRESTADOR, punto 2).
+  vistaInicial?: Vista;
+  prestadorInicial?: boolean;
 }
 
 const TUXTLAS_CENTER: [number, number] = [18.45, -95.18];
+
+type NivelPrecio = 'limitado' | 'razonable' | 'lujo' | 'muy_lujo';
+
+const NIVELES_PRECIO: { id: NivelPrecio; simbolo: string; label: string }[] = [
+  { id: 'limitado', simbolo: '$', label: 'Presupuesto limitado' },
+  { id: 'razonable', simbolo: '$$', label: 'Precio razonable' },
+  { id: 'lujo', simbolo: '$$$', label: 'De lujo' },
+  { id: 'muy_lujo', simbolo: '$$$$', label: 'Muy lujo' },
+];
+
+// Tasa de referencia MXN → USD, solo para dar una idea aproximada al
+// prestador — NO es una tasa en vivo (eso necesitaría una API externa
+// nueva). Verificada al momento de escribir esto (~17.1 MXN/USD);
+// revisar de vez en cuando si se nota muy desfasada.
+const TASA_USD_REFERENCIA = 17.1;
 
 // Ícono personalizado para el marcador del prestador
 const iconoPrestador = L.divIcon({
@@ -34,17 +56,23 @@ function ClickCaptor({ onUbicacion }: { onUbicacion: (lat: number, lng: number) 
   return null;
 }
 
-export default function AuthModal({ onClose, onSuccess }: Props) {
-  const [vista, setVista] = useState<Vista>('login');
+export default function AuthModal({ onClose, onSuccess, vistaInicial, prestadorInicial }: Props) {
+  const [vista, setVista] = useState<Vista>(vistaInicial ?? 'login');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [verPass, setVerPass] = useState(false);
-  const [esPrestador, setEsPrestador] = useState(false);
+  const [esPrestador, setEsPrestador] = useState(prestadorInicial ?? false);
   // Paso 2 del registro de prestador
   const [categoria, setCategoria] = useState('Gastronomia');
   const [municipio, setMunicipio] = useState('Catemaco');
   const [descripcion, setDescripcion] = useState('');
-  const [precio, setPrecio] = useState('');
+  const [generandoDescripcion, setGenerandoDescripcion] = useState(false);
+  // Precio: nivel (para el símbolo $/$$/$$$/$$$$) + rango en pesos.
+  // El nivel es solo una guía visual — lo que de verdad se guarda es
+  // el rango de precios que la persona escriba.
+  const [nivelPrecio, setNivelPrecio] = useState<NivelPrecio>('razonable');
+  const [precioMin, setPrecioMin] = useState('');
+  const [precioMax, setPrecioMax] = useState('');
   const [contacto, setContacto] = useState('');
   const [codigoMostrado, setCodigoMostrado] = useState('');
   const [codigoCopiado, setCodigoCopiado] = useState(false);
@@ -71,6 +99,55 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
   const [codigoRec, setCodigoRec] = useState('');
   const [passNueva, setPassNueva] = useState('');
   const [recuperado, setRecuperado] = useState(false);
+
+  // Arma el texto de precio final a partir del nivel + rango que la
+  // persona escribió, con el equivalente aproximado en dólares.
+  function precioFinal(): string {
+    const nivel = NIVELES_PRECIO.find((n) => n.id === nivelPrecio)!;
+    const min = parseFloat(precioMin);
+    const max = parseFloat(precioMax);
+    if (Number.isNaN(min) || Number.isNaN(max) || min <= 0 || max <= 0) {
+      return 'A consultar';
+    }
+    const usdMin = Math.round(min / TASA_USD_REFERENCIA);
+    const usdMax = Math.round(max / TASA_USD_REFERENCIA);
+    return `${nivel.simbolo} $${min.toLocaleString('es-MX')} – $${max.toLocaleString('es-MX')} MXN (aprox. $${usdMin} – $${usdMax} USD)`;
+  }
+
+  async function generarDescripcionIA() {
+    if (!nombreNegocio.trim()) {
+      setError('Escribe primero el nombre de tu negocio para poder generar la descripción.');
+      return;
+    }
+    setGenerandoDescripcion(true);
+    setError('');
+    try {
+      const r = await fetch('/api/ia/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemPrompt:
+            'Eres un redactor de descripciones cortas para negocios turísticos de Los Tuxtlas, Veracruz. Con los datos que te den (nombre, categoría, municipio), escribe una descripción de 2 a 3 frases, cálida y profesional, en español. NUNCA inventes detalles específicos que no te dieron (no inventes platillos, actividades ni servicios concretos que no mencionaron) — describe de forma genérica pero atractiva según su categoría. Responde solo con la descripción, sin comillas ni texto extra.',
+          mensajes: [
+            {
+              role: 'user',
+              content: `Nombre: ${nombreNegocio.trim()}. Categoría: ${categoria}. Municipio: ${municipio}. Escribe la descripción.`,
+            },
+          ],
+        }),
+      });
+      const data = await r.json();
+      if (r.ok && data.texto) {
+        setDescripcion(data.texto.trim());
+      } else {
+        setError('No se pudo generar la descripción ahora mismo — escríbela tú, no hay problema.');
+      }
+    } catch {
+      setError('Necesitas internet para generar la descripción con IA.');
+    } finally {
+      setGenerandoDescripcion(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -112,7 +189,7 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
               categoria,
               municipio,
               descripcion: descripcion.trim() || `Servicio turístico de ${nombreNegocio.trim()} en Los Tuxtlas.`,
-              precio: precio.trim() || 'A consultar',
+              precio: precioFinal(),
               contacto: contacto.trim() || correoReg,
               lat: ubicacion[0],
               lng: ubicacion[1],
@@ -333,130 +410,165 @@ export default function AuthModal({ onClose, onSuccess }: Props) {
                   {passConf && passReg !== passConf && <p className="text-xs text-red-500 mt-1">Las contraseñas no coinciden</p>}
                 </div>
 
-                {/* Checkbox prestador */}
-                <div className={`border-2 rounded-2xl overflow-hidden transition-colors ${esPrestador ? 'border-jungle-500 bg-jungle-50' : 'border-jungle-100'}`}>
-                  <button type="button" onClick={() => setEsPrestador(!esPrestador)}
-                    className="w-full flex items-center justify-between p-4 text-left">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${esPrestador ? 'bg-jungle-600 border-jungle-600' : 'border-jungle-300'}`}>
-                        {esPrestador && <CheckCircle2 size={12} className="text-white" />}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-jungle-900">¿Eres proveedor de servicios?</p>
-                        <p className="text-xs text-jungle-500">Hotel, restaurante, ecoturismo u otro servicio turístico</p>
+                {/* Toggle prestador — ya NO abre una caja anidada
+                    dentro del formulario; lo que sigue es parte del
+                    MISMO formulario continuo (hallazgo real de campo:
+                    "formulario dentro de formulario... se ve muy
+                    pequeño y ambiguo", doc MEJORAS DISEÑO PANEL
+                    PRESTADOR). */}
+                <button type="button" onClick={() => setEsPrestador(!esPrestador)}
+                  className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-colors text-left ${esPrestador ? 'border-jungle-500 bg-jungle-50' : 'border-jungle-100 bg-white'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${esPrestador ? 'bg-jungle-600 border-jungle-600' : 'border-jungle-300'}`}>
+                      {esPrestador && <CheckCircle2 size={12} className="text-white" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-jungle-900">¿Eres proveedor de servicios?</p>
+                      <p className="text-xs text-jungle-500">Hotel, restaurante, ecoturismo u otro servicio turístico</p>
+                    </div>
+                  </div>
+                  {esPrestador ? <ChevronUp size={18} className="text-jungle-600 flex-shrink-0" /> : <ChevronDown size={18} className="text-jungle-400 flex-shrink-0" />}
+                </button>
+
+                {esPrestador && (
+                  <>
+                    <div className="bg-sun-50 border border-sun-200 rounded-xl p-3">
+                      <p className="text-xs font-bold text-sun-800 mb-1">🎁 ¡1 mes GRATIS de promoción!</p>
+                      <p className="text-xs text-sun-700">Visibilidad en el mapa · recomendaciones de la IA · perfil verificado. Sujeto a validación.</p>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Nombre de empresa o servicio <span className="text-red-500">*</span></label>
+                      <div className="relative">
+                        <Building2 size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
+                        <input type="text" value={nombreNegocio} onChange={e => setNombreNegocio(e.target.value)} placeholder="Ej: Hotel Lago Encantado"
+                          className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                       </div>
                     </div>
-                    {esPrestador ? <ChevronUp size={18} className="text-jungle-600 flex-shrink-0" /> : <ChevronDown size={18} className="text-jungle-400 flex-shrink-0" />}
-                  </button>
 
-                  {esPrestador && (
-                    <div className="px-4 pb-4 space-y-3 border-t border-jungle-100 pt-3">
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                        <p className="text-xs font-bold text-amber-800 mb-1">🎁 ¡1 mes GRATIS de promoción!</p>
-                        <p className="text-xs text-amber-700">Visibilidad en el mapa · recomendaciones de la IA · perfil verificado. Sujeto a validación.</p>
-                      </div>
-
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre de empresa o servicio <span className="text-red-500">*</span></label>
-                        <div className="relative">
-                          <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-jungle-400" />
-                          <input type="text" value={nombreNegocio} onChange={e => setNombreNegocio(e.target.value)} placeholder="Ej: Hotel Lago Encantado"
-                            className="w-full border border-jungle-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                        </div>
+                        <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Categoría <span className="text-red-500">*</span></label>
+                        <select value={categoria} onChange={e => setCategoria(e.target.value)}
+                          className="w-full border border-jungle-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                          {['Gastronomia','Naturaleza','Aventura','Hospedaje','Comercio','Cooperativa','Otro'].map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
                       </div>
-
-                      {/* Categoría y Municipio */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría <span className="text-red-500">*</span></label>
-                          <select value={categoria} onChange={e => setCategoria(e.target.value)}
-                            className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                            {['Gastronomia','Naturaleza','Aventura','Hospedaje','Comercio','Cooperativa','Otro'].map(c => (
-                              <option key={c} value={c}>{c}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio <span className="text-red-500">*</span></label>
-                          <select value={municipio} onChange={e => setMunicipio(e.target.value)}
-                            className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                            {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
-                              <option key={m} value={m}>{m}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Descripción */}
                       <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Descripción <span className="text-red-500">*</span></label>
-                        <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)}
-                          placeholder="¿Qué ofreces? ¿Qué te hace especial? (mín. 20 caracteres)" rows={3}
-                          className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+                        <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Municipio <span className="text-red-500">*</span></label>
+                        <select value={municipio} onChange={e => setMunicipio(e.target.value)}
+                          className="w-full border border-jungle-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                          {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
                       </div>
+                    </div>
 
-                      {/* Precio y Contacto */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
-                          <input type="text" value={precio} onChange={e => setPrecio(e.target.value)}
-                            placeholder="$200 MXN" className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp o correo</label>
-                          <input type="text" value={contacto} onChange={e => setContacto(e.target.value)}
-                            placeholder="9521234567" className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                        </div>
+                    {/* Descripción + generar con IA */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-semibold text-jungle-700 block">Descripción <span className="text-red-500">*</span></label>
+                        <button type="button" onClick={generarDescripcionIA} disabled={generandoDescripcion}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-jungle-700 hover:text-jungle-900 disabled:opacity-50">
+                          {generandoDescripcion ? <Loader2 size={12} className="animate-spin" /> : <span>✨</span>}
+                          Generar descripción con IA
+                        </button>
                       </div>
+                      <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)}
+                        placeholder="¿Qué ofreces? ¿Qué te hace especial? (mín. 20 caracteres) — o pulsa 'Generar descripción con IA' arriba" rows={3}
+                        className="w-full border border-jungle-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+                      <p className="text-[11px] text-jungle-500 mt-1">Es de suma importancia para que las personas vean bien tu servicio — si la IA te ayuda a redactarla, léela y ajusta lo que haga falta antes de enviar.</p>
+                    </div>
 
-                      {/* Mini mapa de ubicación */}
-                      <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">
-                          <MapPin size={11} className="inline mr-1" />
-                          Marca tu ubicación en el mapa <span className="text-red-500">*</span>
-                        </label>
-                        <p className="text-[10px] text-jungle-500 mb-2">Toca el mapa donde está tu negocio para colocar el marcador</p>
-                        <div className="rounded-xl overflow-hidden border-2 border-jungle-200" style={{ height: '220px', position: 'relative' }}>
-                          <MapContainer
-                            center={TUXTLAS_CENTER}
-                            zoom={11}
-                            style={{ height: '100%', width: '100%' }}
-                            zoomControl={true}
-                            attributionControl={false}
-                          >
-                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                            <ClickCaptor onUbicacion={(lat, lng) => {
-                              setUbicacion([lat, lng]);
-                              setUbicacionGuardada(false);
-                            }} />
-                            {ubicacion && (
-                              <Marker position={ubicacion} icon={iconoPrestador} />
-                            )}
-                          </MapContainer>
-                        </div>
-
-                        {ubicacion && !ubicacionGuardada && (
-                          <button type="button"
-                            onClick={() => setUbicacionGuardada(true)}
-                            className="w-full mt-2 bg-jungle-600 hover:bg-jungle-700 text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors">
-                            <Navigation size={13} />
-                            Guardar ubicación
+                    {/* Precio — nivel + rango + equivalente en USD */}
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Precio aproximado</label>
+                      <div className="grid grid-cols-4 gap-1.5 mb-2">
+                        {NIVELES_PRECIO.map((n) => (
+                          <button key={n.id} type="button" onClick={() => setNivelPrecio(n.id)}
+                            className={`rounded-xl py-2 text-center border-2 transition-colors ${nivelPrecio === n.id ? 'border-jungle-500 bg-jungle-50' : 'border-jungle-100'}`}>
+                            <div className="font-display font-bold text-jungle-800 text-sm">{n.simbolo}</div>
                           </button>
-                        )}
-                        {ubicacionGuardada && (
-                          <div className="mt-2 flex items-center gap-2 bg-jungle-50 border border-jungle-200 rounded-xl px-3 py-2">
-                            <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
-                            <p className="text-xs text-jungle-700 font-medium">
-                              Ubicación guardada ({ubicacion![0].toFixed(4)}, {ubicacion![1].toFixed(4)})
-                            </p>
-                            <button type="button" onClick={() => { setUbicacionGuardada(false); setUbicacion(null); }}
-                              className="ml-auto text-[10px] text-jungle-500 underline">cambiar</button>
-                          </div>
-                        )}
+                        ))}
                       </div>
+                      <p className="text-[11px] text-jungle-500 mb-2">
+                        {NIVELES_PRECIO.find((n) => n.id === nivelPrecio)?.label}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400 text-sm">$</span>
+                          <input type="number" min={0} value={precioMin} onChange={e => setPrecioMin(e.target.value)} placeholder="Desde"
+                            className="w-full border border-jungle-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400 text-sm">$</span>
+                          <input type="number" min={0} value={precioMax} onChange={e => setPrecioMax(e.target.value)} placeholder="Hasta"
+                            className="w-full border border-jungle-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                        </div>
+                      </div>
+                      {precioMin && precioMax && !Number.isNaN(parseFloat(precioMin)) && !Number.isNaN(parseFloat(precioMax)) && (
+                        <p className="text-[11px] text-jungle-500 mt-1.5">
+                          ≈ ${Math.round(parseFloat(precioMin) / TASA_USD_REFERENCIA)} – ${Math.round(parseFloat(precioMax) / TASA_USD_REFERENCIA)} USD (tasa de referencia, no en vivo)
+                        </p>
+                      )}
                     </div>
-                  )}
-                </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">WhatsApp o correo</label>
+                      <input type="text" value={contacto} onChange={e => setContacto(e.target.value)}
+                        placeholder="9521234567" className="w-full border border-jungle-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                    </div>
+
+                    {/* Mini mapa de ubicación */}
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">
+                        <MapPin size={11} className="inline mr-1" />
+                        Marca tu ubicación en el mapa <span className="text-red-500">*</span>
+                      </label>
+                      <p className="text-[11px] text-jungle-500 mb-2">Toca el mapa donde está tu negocio para colocar el marcador</p>
+                      <div className="rounded-xl overflow-hidden border-2 border-jungle-200" style={{ height: '220px', position: 'relative' }}>
+                        <MapContainer
+                          center={TUXTLAS_CENTER}
+                          zoom={11}
+                          style={{ height: '100%', width: '100%' }}
+                          zoomControl={true}
+                          attributionControl={false}
+                        >
+                          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                          <ClickCaptor onUbicacion={(lat, lng) => {
+                            setUbicacion([lat, lng]);
+                            setUbicacionGuardada(false);
+                          }} />
+                          {ubicacion && (
+                            <Marker position={ubicacion} icon={iconoPrestador} />
+                          )}
+                        </MapContainer>
+                      </div>
+
+                      {ubicacion && !ubicacionGuardada && (
+                        <button type="button"
+                          onClick={() => setUbicacionGuardada(true)}
+                          className="w-full mt-2 bg-jungle-600 hover:bg-jungle-700 text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors">
+                          <Navigation size={13} />
+                          Guardar ubicación
+                        </button>
+                      )}
+                      {ubicacionGuardada && (
+                        <div className="mt-2 flex items-center gap-2 bg-jungle-50 border border-jungle-200 rounded-xl px-3 py-2">
+                          <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
+                          <p className="text-xs text-jungle-700 font-medium">
+                            Ubicación guardada ({ubicacion![0].toFixed(4)}, {ubicacion![1].toFixed(4)})
+                          </p>
+                          <button type="button" onClick={() => { setUbicacionGuardada(false); setUbicacion(null); }}
+                            className="ml-auto text-[10px] text-jungle-500 underline">cambiar</button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 {/* Términos */}
                 <label className="flex items-start gap-2.5 cursor-pointer">

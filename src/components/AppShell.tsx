@@ -62,6 +62,11 @@ export default function AppShell() {
     const validos: Tab[] = ['inicio', 'explorar', 'chat', 'favoritos', 'perfil'];
     return validos.includes(deLaUrl as Tab) ? (deLaUrl as Tab) : 'inicio';
   });
+  // /app?registro=prestador — CTA de "Registrar mi negocio" (landing
+  // y /prestador) abre el modal DIRECTO en modo prestador, en vez de
+  // caer al login genérico sin contexto (doc MEJORAS DISEÑO PANEL
+  // PRESTADOR, punto 2 — antes había que buscar la casilla a mano).
+  const registroDesdeUrl = searchParams.get('registro') === 'prestador';
   // Solo importa en móvil (el peek de mapa a pantalla completa) —
   // en escritorio el mapa nunca "reemplaza" la pestaña, así que no
   // hace falta volver a ningún lado.
@@ -98,7 +103,7 @@ export default function AppShell() {
   const refMapaInlineExplorar = useRef<HTMLDivElement>(null);
   const [destinoMapa, setDestinoMapa] = useState<HTMLDivElement | null>(null);
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal());
-  const [mostrarAuth, setMostrarAuth] = useState(false);
+  const [mostrarAuth, setMostrarAuth] = useState(registroDesdeUrl);
   const [lugarSeleccionado, setLugarSeleccionado] = useState<Lugar | null>(null);
   const [rutaVisible, setRutaVisible] = useState<RutaVisible | null>(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
@@ -868,6 +873,8 @@ export default function AppShell() {
 
       {mostrarAuth && (
         <AuthModal
+          vistaInicial={registroDesdeUrl ? 'registro' : undefined}
+          prestadorInicial={registroDesdeUrl}
           onClose={() => setMostrarAuth(false)}
           onSuccess={(u: UsuarioSesion) => { setUsuario(u); setMostrarAuth(false); }}
         />

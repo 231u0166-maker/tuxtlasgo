@@ -90,10 +90,10 @@ function PantallaInicio({
             Créate una cuenta desde la app y marca la opción de prestador de servicios.
           </p>
           <Link
-            to="/app"
+            to="/app?registro=prestador"
             className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3 rounded-full font-semibold text-sm transition-colors"
           >
-            Más información
+            Registrar mi negocio
           </Link>
         </div>
       )}

@@ -323,37 +323,58 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   }
 
   const variantesPaso = {
-    entra: (dir: 1 | -1) => ({ x: dir > 0 ? 40 : -40, opacity: 0 }),
+    entra: (dir: 1 | -1) => ({ x: dir > 0 ? 60 : -60, opacity: 0 }),
     centro: { x: 0, opacity: 1 },
-    sale: (dir: 1 | -1) => ({ x: dir > 0 ? -40 : 40, opacity: 0 }),
+    sale: (dir: 1 | -1) => ({ x: dir > 0 ? -60 : 60, opacity: 0 }),
   };
 
+  const CATEGORIAS_OPCIONES = [
+    { id: 'Gastronomia', emoji: '🍤' },
+    { id: 'Naturaleza', emoji: '🌿' },
+    { id: 'Aventura', emoji: '🥾' },
+    { id: 'Hospedaje', emoji: '🛏️' },
+    { id: 'Comercio', emoji: '🛍️' },
+    { id: 'Cooperativa', emoji: '🤝' },
+    { id: 'Otro', emoji: '⭐' },
+  ];
+  const MUNICIPIOS_OPCIONES = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
+
   return (
-    <div>
-      <button onClick={onVolver} className="inline-flex items-center gap-1.5 text-jungle-700 hover:text-jungle-900 text-sm font-medium mb-6">
-        <ArrowLeft size={16} /> Volver
-      </button>
+    // -mx-4 sm:-mx-6 rompe el padding del <main> del panel para que
+    // cada paso pueda ocupar TODO el ancho — hallazgo real de campo:
+    // con el padding normal, cada sección se seguía viendo como un
+    // bloque de formulario metido en una columna angosta, sin
+    // importar que ya no tuviera caja ni borde.
+    <div className="-mx-4 sm:-mx-6">
+      <div className="px-4 sm:px-6">
+        <button onClick={onVolver} className="inline-flex items-center gap-1.5 text-jungle-700 hover:text-jungle-900 text-sm font-medium mb-2">
+          <ArrowLeft size={16} /> Volver
+        </button>
 
-      <div className="flex gap-1.5 mb-2">
-        {ORDEN_PASOS.map((p, i) => (
-          <div key={p} className="h-1 flex-1 rounded-full bg-jungle-100 overflow-hidden">
-            <motion.div
-              className="h-full bg-jungle-600"
-              initial={false}
-              animate={{ width: i <= indicePaso ? '100%' : '0%' }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
-            />
-          </div>
-        ))}
+        <div className="flex gap-1.5 mb-2 mt-4">
+          {ORDEN_PASOS.map((p, i) => (
+            <div key={p} className="h-1 flex-1 rounded-full bg-jungle-100 overflow-hidden">
+              <motion.div
+                className="h-full bg-jungle-600"
+                initial={false}
+                animate={{ width: i <= indicePaso ? '100%' : '0%' }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+              />
+            </div>
+          ))}
+        </div>
+        <p className="text-xs font-semibold text-jungle-600 uppercase tracking-wide">
+          Paso {indicePaso + 1} de {ORDEN_PASOS.length}
+        </p>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mt-4">{error}</div>
+        )}
       </div>
-      <p className="text-xs font-semibold text-jungle-600 uppercase tracking-wide mb-6">
-        Paso {indicePaso + 1} de {ORDEN_PASOS.length} · {TITULO_PASO[paso]}
-      </p>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-5">{error}</div>
-      )}
-
+      {/* Cada paso ocupa la mayor parte de la pantalla, centrado —
+          nada de "etiqueta chica + caja de input" apilado como
+          formulario típico. La pregunta ES el título grande. */}
       <AnimatePresence mode="wait" custom={direccion}>
         <motion.div
           key={paso}
@@ -362,84 +383,90 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
           initial="entra"
           animate="centro"
           exit="sale"
-          transition={{ duration: 0.25, ease: 'easeOut' }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="min-h-[62vh] sm:min-h-[68vh] flex flex-col justify-center px-4 sm:px-6 py-8"
         >
           {paso === 'info' && (
-            <div className="space-y-6">
+            <div className="space-y-10 max-w-xl">
               <div>
-                <label className="text-sm font-semibold text-jungle-800 mb-2 block">Nombre de empresa o servicio <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <Building2 size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-jungle-400" />
-                  <input type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} placeholder="Ej: Hotel Lago Encantado"
-                    className="w-full bg-white border border-jungle-200 rounded-2xl pl-12 pr-4 py-4 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-5">
+                  ¿Cómo se llama tu negocio?
+                </h2>
+                <input
+                  type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)}
+                  placeholder="Ej: Hotel Lago Encantado" autoFocus
+                  className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-2xl sm:text-3xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors"
+                />
+              </div>
+
+              <div>
+                <h3 className="font-display font-bold text-xl text-obsidiana-900 mb-4">¿Qué tipo de negocio es?</h3>
+                <div className="flex flex-wrap gap-2.5">
+                  {CATEGORIAS_OPCIONES.map((c) => (
+                    <motion.button key={c.id} whileTap={{ scale: 0.94 }} type="button" onClick={() => setCategoria(c.id)}
+                      className={`px-4 py-3 rounded-2xl border-2 font-semibold text-sm flex items-center gap-2 transition-colors ${categoria === c.id ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-obsidiana-800'}`}>
+                      <span>{c.emoji}</span> {c.id}
+                    </motion.button>
+                  ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-jungle-800 mb-2 block">Categoría <span className="text-red-500">*</span></label>
-                  <select value={categoria} onChange={(e) => setCategoria(e.target.value)}
-                    className="w-full bg-white border border-jungle-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                    {['Gastronomia', 'Naturaleza', 'Aventura', 'Hospedaje', 'Comercio', 'Cooperativa', 'Otro'].map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-jungle-800 mb-2 block">Municipio <span className="text-red-500">*</span></label>
-                  <select value={municipio} onChange={(e) => setMunicipio(e.target.value)}
-                    className="w-full bg-white border border-jungle-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                    {['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'].map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
+
+              <div>
+                <h3 className="font-display font-bold text-xl text-obsidiana-900 mb-4">¿En qué municipio está?</h3>
+                <div className="flex flex-wrap gap-2.5">
+                  {MUNICIPIOS_OPCIONES.map((m) => (
+                    <motion.button key={m} whileTap={{ scale: 0.94 }} type="button" onClick={() => setMunicipio(m)}
+                      className={`px-5 py-3 rounded-2xl border-2 font-semibold text-sm transition-colors ${municipio === m ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-obsidiana-800'}`}>
+                      {m}
+                    </motion.button>
+                  ))}
                 </div>
               </div>
             </div>
           )}
 
           {paso === 'descripcion' && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-semibold text-jungle-800 block">Descripción <span className="text-red-500">*</span></label>
-                <motion.button whileTap={{ scale: 0.95 }} type="button" onClick={generarDescripcionIA} disabled={generandoDescripcion}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-jungle-700 hover:text-jungle-900 disabled:opacity-50">
-                  {generandoDescripcion ? <Loader2 size={14} className="animate-spin" /> : <span>✨</span>}
+            <div className="max-w-xl">
+              <div className="flex items-start justify-between gap-4 mb-5">
+                <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900">
+                  Describe tu negocio
+                </h2>
+                <motion.button whileTap={{ scale: 0.94 }} type="button" onClick={generarDescripcionIA} disabled={generandoDescripcion}
+                  className="flex-shrink-0 inline-flex items-center gap-1.5 bg-sun-50 text-sun-700 px-3.5 py-2 rounded-full text-xs font-bold disabled:opacity-50">
+                  {generandoDescripcion ? <Loader2 size={13} className="animate-spin" /> : <span>✨</span>}
                   Generar con IA
                 </motion.button>
               </div>
               <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
-                placeholder="¿Qué ofreces? ¿Qué te hace especial? (mín. 20 caracteres)" rows={8}
-                className="w-full bg-white border border-jungle-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
-              <p className="text-xs text-jungle-500 mt-2">Es de suma importancia para que las personas vean bien tu servicio — si la IA te ayuda, léela y ajusta antes de continuar.</p>
+                placeholder="¿Qué ofreces? ¿Qué te hace especial?" rows={7}
+                className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-lg sm:text-xl text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none resize-none transition-colors" />
+              <p className="text-xs text-jungle-500 mt-3">Mínimo 20 caracteres — es lo primero que va a leer la gente de tu servicio.</p>
             </div>
           )}
 
           {paso === 'precio' && (
-            <div>
-              <label className="text-sm font-semibold text-jungle-800 mb-3 block">Precio aproximado</label>
-              <div className="grid grid-cols-4 gap-2 mb-3">
+            <div className="max-w-xl">
+              <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-6">
+                ¿Cuál es tu rango de precios?
+              </h2>
+              <div className="flex flex-wrap gap-2.5 mb-2">
                 {NIVELES_PRECIO.map((n) => (
-                  <motion.button key={n.id} whileTap={{ scale: 0.95 }} type="button" onClick={() => setNivelPrecio(n.id)}
-                    className={`rounded-2xl py-4 text-center border-2 transition-colors ${nivelPrecio === n.id ? 'border-jungle-500 bg-jungle-50' : 'border-jungle-100 bg-white'}`}>
-                    <div className="font-display font-bold text-jungle-800 text-lg">{n.simbolo}</div>
+                  <motion.button key={n.id} whileTap={{ scale: 0.94 }} type="button" onClick={() => setNivelPrecio(n.id)}
+                    className={`px-5 py-3.5 rounded-2xl border-2 font-display font-bold text-lg transition-colors ${nivelPrecio === n.id ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-jungle-800'}`}>
+                    {n.simbolo}
                   </motion.button>
                 ))}
               </div>
-              <p className="text-xs text-jungle-500 mb-4">{NIVELES_PRECIO.find((n) => n.id === nivelPrecio)?.label}</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-jungle-400">$</span>
-                  <input type="number" min={0} value={precioMin} onChange={(e) => setPrecioMin(e.target.value)} placeholder="Desde"
-                    className="w-full bg-white border border-jungle-200 rounded-2xl pl-8 pr-4 py-4 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                </div>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-jungle-400">$</span>
-                  <input type="number" min={0} value={precioMax} onChange={(e) => setPrecioMax(e.target.value)} placeholder="Hasta"
-                    className="w-full bg-white border border-jungle-200 rounded-2xl pl-8 pr-4 py-4 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                </div>
+              <p className="text-sm text-jungle-500 mb-8">{NIVELES_PRECIO.find((n) => n.id === nivelPrecio)?.label}</p>
+              <div className="flex items-center gap-4">
+                <input type="number" min={0} value={precioMin} onChange={(e) => setPrecioMin(e.target.value)} placeholder="Desde"
+                  className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-2 text-2xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors" />
+                <span className="text-jungle-300 text-2xl">—</span>
+                <input type="number" min={0} value={precioMax} onChange={(e) => setPrecioMax(e.target.value)} placeholder="Hasta"
+                  className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-2 text-2xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors" />
               </div>
               {precioMin && precioMax && !Number.isNaN(parseFloat(precioMin)) && !Number.isNaN(parseFloat(precioMax)) && (
-                <p className="text-xs text-jungle-500 mt-3">
+                <p className="text-sm text-jungle-500 mt-4">
                   ≈ ${Math.round(parseFloat(precioMin) / TASA_USD_REFERENCIA)} – ${Math.round(parseFloat(precioMax) / TASA_USD_REFERENCIA)} USD (tasa de referencia, no en vivo)
                 </p>
               )}
@@ -447,19 +474,21 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
           )}
 
           {paso === 'contacto' && (
-            <div className="space-y-6">
+            <div className="max-w-2xl space-y-10">
               <div>
-                <label className="text-sm font-semibold text-jungle-800 mb-2 block">WhatsApp o correo</label>
-                <input type="text" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="9521234567"
-                  className="w-full bg-white border border-jungle-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-5">
+                  ¿Cómo te contactamos?
+                </h2>
+                <input type="text" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="WhatsApp o correo"
+                  className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-2xl sm:text-3xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors" />
               </div>
+
               <div>
-                <label className="text-sm font-semibold text-jungle-800 mb-2 block">
-                  <MapPin size={13} className="inline mr-1" />
-                  Marca tu ubicación en el mapa <span className="text-red-500">*</span>
-                </label>
-                <p className="text-xs text-jungle-500 mb-3">Toca el mapa donde está tu negocio para colocar el marcador</p>
-                <div className="rounded-2xl overflow-hidden border-2 border-jungle-200" style={{ height: '320px' }}>
+                <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-2">
+                  ¿Dónde está?
+                </h2>
+                <p className="text-sm text-jungle-500 mb-4">Toca el mapa donde está tu negocio para colocar el marcador.</p>
+                <div className="rounded-3xl overflow-hidden border-2 border-jungle-200" style={{ height: '340px' }}>
                   <Map
                     initialViewState={{ longitude: TUXTLAS_CENTER[1], latitude: TUXTLAS_CENTER[0], zoom: 11 }}
                     minZoom={8}
@@ -477,7 +506,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                 </div>
                 {ubicacion && !ubicacionGuardada && (
                   <motion.button whileTap={{ scale: 0.97 }} type="button" onClick={() => setUbicacionGuardada(true)}
-                    className="w-full mt-3 bg-jungle-600 hover:bg-jungle-700 text-white text-sm font-bold py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+                    className="w-full mt-3 bg-jungle-600 hover:bg-jungle-700 text-white text-sm font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-colors">
                     <Navigation size={15} /> Guardar ubicación
                   </motion.button>
                 )}
@@ -489,24 +518,28 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                   </div>
                 )}
               </div>
+
               <label className="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" checked={terminos} onChange={(e) => setTerminos(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-jungle-300 text-jungle-600" />
+                <input type="checkbox" checked={terminos} onChange={(e) => setTerminos(e.target.checked)} className="mt-0.5 w-5 h-5 rounded border-jungle-300 text-jungle-600" />
                 <span className="text-sm text-jungle-600">Acepto los <span className="text-jungle-800 underline font-semibold">términos y condiciones</span> del sistema</span>
               </label>
             </div>
           )}
 
           {paso === 'fotos' && (
-            <div>
-              <p className="text-sm text-obsidiana-800/60 mb-5">
-                Último paso — sube al menos <strong>una foto</strong> real de tu negocio. Es lo primero que va a ver la gente.
+            <div className="max-w-2xl">
+              <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-2">
+                Sube fotos de tu negocio
+              </h2>
+              <p className="text-sm text-obsidiana-800/60 mb-6">
+                Al menos <strong>una foto</strong> real — es lo primero que va a ver la gente.
               </p>
               <GestorFotos codigoSeguimiento={codigo} onFotosActualizadas={setFotosSubidas} />
             </div>
           )}
 
           {paso === 'listo' && (
-            <div className="text-center py-6">
+            <div className="text-center max-w-md mx-auto">
               <motion.div
                 initial={{ scale: 0.6, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -515,11 +548,11 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
               >
                 <CheckCircle2 className="text-white" size={28} />
               </motion.div>
-              <h2 className="font-display font-bold text-2xl text-obsidiana-900 mb-2">¡Solicitud enviada!</h2>
-              <p className="text-sm text-obsidiana-800/60 mb-5 leading-relaxed max-w-sm mx-auto">
+              <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-2">¡Solicitud enviada!</h2>
+              <p className="text-sm text-obsidiana-800/60 mb-6 leading-relaxed">
                 Nuestro equipo va a validar tu negocio. Guarda este código para consultar el estado:
               </p>
-              <div className="inline-flex items-center justify-center gap-2 bg-amate-50 rounded-2xl px-5 py-4 mb-6">
+              <div className="inline-flex items-center justify-center gap-2 bg-amate-50 rounded-2xl px-5 py-4 mb-8">
                 <span className="font-mono font-bold text-xl tracking-wider text-jungle-800">{codigo}</span>
                 <button onClick={() => { navigator.clipboard.writeText(codigo).catch(() => {}); setCopiado(true); }} className="text-jungle-600 hover:text-jungle-800">
                   {copiado ? <CheckCircle2 size={20} /> : <Copy size={20} />}
@@ -533,38 +566,41 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
         </motion.div>
       </AnimatePresence>
 
-      {paso !== 'listo' && paso !== 'fotos' && (
-        <div className="flex items-center gap-3 mt-8">
-          {indicePaso > 0 && (
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => irA(ORDEN_PASOS[indicePaso - 1], -1)}
-              className="w-14 h-14 rounded-2xl border-2 border-jungle-100 flex items-center justify-center text-jungle-800 flex-shrink-0">
-              <ArrowLeft size={20} />
-            </motion.button>
-          )}
-          {paso === 'contacto' ? (
-            <motion.button whileTap={{ scale: 0.98 }} onClick={enviarYContinuar} disabled={cargando}
-              className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
-              {cargando && <Loader2 size={18} className="animate-spin" />}
-              Enviar solicitud de registro
-            </motion.button>
-          ) : (
-            <motion.button whileTap={{ scale: 0.98 }} onClick={siguiente}
-              className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl transition-colors">
-              Siguiente
-            </motion.button>
-          )}
-        </div>
-      )}
+      {/* Navegación entre pasos — fija abajo, fuera del área animada */}
+      <div className="px-4 sm:px-6">
+        {paso !== 'listo' && paso !== 'fotos' && (
+          <div className="flex items-center gap-3 pb-6">
+            {indicePaso > 0 && (
+              <motion.button whileTap={{ scale: 0.95 }} onClick={() => irA(ORDEN_PASOS[indicePaso - 1], -1)}
+                className="w-14 h-14 rounded-2xl border-2 border-jungle-100 flex items-center justify-center text-jungle-800 flex-shrink-0">
+                <ArrowLeft size={20} />
+              </motion.button>
+            )}
+            {paso === 'contacto' ? (
+              <motion.button whileTap={{ scale: 0.98 }} onClick={enviarYContinuar} disabled={cargando}
+                className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
+                {cargando && <Loader2 size={18} className="animate-spin" />}
+                Enviar solicitud de registro
+              </motion.button>
+            ) : (
+              <motion.button whileTap={{ scale: 0.98 }} onClick={siguiente}
+                className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl transition-colors">
+                Siguiente
+              </motion.button>
+            )}
+          </div>
+        )}
 
-      {paso === 'fotos' && (
-        <motion.button whileTap={{ scale: 0.98 }}
-          onClick={() => irA('listo', 1)}
-          disabled={fotosSubidas.length === 0}
-          className="w-full mt-8 bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl disabled:opacity-40 disabled:pointer-events-none transition-colors"
-        >
-          {fotosSubidas.length === 0 ? 'Sube al menos una foto para continuar' : 'Finalizar registro'}
-        </motion.button>
-      )}
+        {paso === 'fotos' && (
+          <motion.button whileTap={{ scale: 0.98 }}
+            onClick={() => irA('listo', 1)}
+            disabled={fotosSubidas.length === 0}
+            className="w-full pb-6 mt-0 bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl disabled:opacity-40 disabled:pointer-events-none transition-colors"
+          >
+            {fotosSubidas.length === 0 ? 'Sube al menos una foto para continuar' : 'Finalizar registro'}
+          </motion.button>
+        )}
+      </div>
     </div>
   );
 }

@@ -48,11 +48,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (srv.rows.length === 0) return res.status(404).json({ error: 'Sin servicio registrado' });
 
     const servicio = srv.rows[0];
-    // Solo prestadores aprobados pueden subir fotos
-    const aprobado = await pool.query(
-      `SELECT id FROM servicios WHERE usuario_id=$1 AND estado='aprobado' LIMIT 1`,
-      [usuarioId]
-    );
 
     const fotosActuales: string[] = servicio.fotos ?? [];
 
@@ -61,7 +56,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
-      if (aprobado.rows.length === 0) return res.status(403).json({ error: 'Servicio aún no aprobado' });
+      // Hallazgo real de campo: antes esto exigía estado='aprobado',
+      // pensado para cuando la foto solo se gestionaba desde Mi
+      // Perfil DESPUÉS de la validación. Ahora la foto es parte de la
+      // SOLICITUD INICIAL (el servicio todavía está 'pendiente' en
+      // este punto) — con el candado viejo, la subida fallaba
+      // siempre, para todo mundo, sin excepción.
       const { url } = req.body;
       if (!url?.startsWith('https://')) return res.status(400).json({ error: 'URL inválida' });
       if (fotosActuales.length >= 8) return res.status(400).json({ error: 'Máximo 8 fotos' });

@@ -38,7 +38,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
   const fotasSubidas = fotos.filter((f) => f.url && !f.error);
 
   // ── Guardar URL en Neon ──
-  async function guardarUrlEnNeon(url: string): Promise<boolean> {
+  async function guardarUrlEnNeon(url: string): Promise<{ ok: boolean; error?: string }> {
     try {
       const res = await fetch('/api/servicios/fotos', {
         method: 'POST',
@@ -48,11 +48,11 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
       const data = await res.json();
       if (data.ok) {
         onFotosActualizadas?.(data.fotos);
-        return true;
+        return { ok: true };
       }
-      return false;
+      return { ok: false, error: data.error };
     } catch {
-      return false;
+      return { ok: false, error: 'Sin conexión — necesitas internet para subir fotos.' };
     }
   }
 
@@ -108,15 +108,15 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
         );
 
         if (url) {
-          const ok = await guardarUrlEnNeon(url);
+          const resultado = await guardarUrlEnNeon(url);
           setFotos((prev) =>
             prev.map((f) =>
               f.id === id
-                ? { ...f, url, publicId: publicId ?? undefined, preview: undefined, subiendo: false, progreso: 100, error: ok ? undefined : 'Error al guardar en base de datos' }
+                ? { ...f, url, publicId: publicId ?? undefined, preview: undefined, subiendo: false, progreso: 100, error: resultado.ok ? undefined : (resultado.error ?? 'Error al guardar en base de datos') }
                 : f
             )
           );
-          if (ok) recargarCatalogo().catch(() => {});
+          if (resultado.ok) recargarCatalogo().catch(() => {});
           URL.revokeObjectURL(preview);
         }
       });

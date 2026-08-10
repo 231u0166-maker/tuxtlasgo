@@ -72,7 +72,7 @@ export default function ProviderPanel() {
             Tu negocio en TuxtlasGO
           </h1>
           <p className="text-sm text-obsidiana-800/60 mt-1.5 leading-relaxed">
-            Da a conocerte a quien ya viene por acá. Sin intermediarios, sin comisiones.
+            Da a conocerte a quien ya viene por acá.
           </p>
         </div>
       </header>

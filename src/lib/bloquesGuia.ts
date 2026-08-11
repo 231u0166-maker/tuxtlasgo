@@ -1,18 +1,11 @@
 // ============================================================
-// BLOQUES DE CONTENIDO — Guía del prestador (Módulo 2)
+// BLOQUES — Información adicional del servicio (Módulo 2)
 // ============================================================
-// Reemplaza el "editar = formulario duplicado" (ver MEJORAS DISEÑO
-// PANEL PRESTADOR, sección "Congruencia en información") por un
-// editor de bloques estilo Centro de Creadores de Mindtrip.
-//
-// Adaptación consciente vs. la referencia de Mindtrip:
-// - Sin "Elige tu diseño" (pantalla dividida/completa) ni plantilla
-//   de itinerario por días — un servicio no es un viaje de varios
-//   días, es una sola ficha. Se guarda directo al elegir método.
-// - Sin bloques "Día" / "Guía" (son para itinerarios multi-día).
-// - Con bloques: títulos (3 tamaños), texto, imagen/video, enlace,
-//   separador, cita, actividad y lugar — los que sí aplican a
-//   describir un servicio turístico.
+// Contenido libre y reordenable que el prestador agrega más allá
+// de los campos fijos de Mi Servicio: fotos, citas, actividades
+// cercanas, enlaces, texto libre. Se llama "Información adicional"
+// en la interfaz (no "guía") para no confundir con un itinerario
+// de varios días — aquí es contenido de UN servicio.
 // ============================================================
 
 export type TipoBloque =
@@ -38,27 +31,26 @@ export interface BloqueContenido {
   url?: string;
 }
 
-export type EstadoGuia = 'borrador' | 'publicado';
+export type EstadoInfoAdicional = 'borrador' | 'publicado';
 
 export interface InfoTipoBloque {
   tipo: TipoBloque;
   etiqueta: string;
   placeholder: string;
+  grupo: 'texto' | 'medio' | 'estructura' | 'referencia';
 }
 
-// Orden y textos exactamente como los pide el documento de mejoras,
-// menos "Día"/"Guía" (ver nota arriba).
 export const TIPOS_BLOQUE: InfoTipoBloque[] = [
-  { tipo: 'cita',           etiqueta: 'Cita',           placeholder: '"Una experiencia inolvidable..."' },
-  { tipo: 'imagen',         etiqueta: 'Imagen/Video',   placeholder: '' },
-  { tipo: 'enlace',         etiqueta: 'Enlace',         placeholder: 'https://instagram.com/tu_negocio' },
-  { tipo: 'separador',      etiqueta: 'Separador',      placeholder: '' },
-  { tipo: 'titulo_normal',  etiqueta: 'Título normal',  placeholder: 'Escribe un título' },
-  { tipo: 'titulo_mediano', etiqueta: 'Título mediano', placeholder: 'Escribe un título' },
-  { tipo: 'titulo_grande',  etiqueta: 'Título grande',  placeholder: 'Escribe un título' },
-  { tipo: 'texto',          etiqueta: 'Texto del cuerpo', placeholder: 'Cuéntale al visitante más sobre esto…' },
-  { tipo: 'actividad',      etiqueta: 'Actividad',      placeholder: 'ej: Paseo en lancha por la laguna' },
-  { tipo: 'lugar',          etiqueta: 'Lugar',          placeholder: 'ej: Muelle de Catemaco' },
+  { tipo: 'titulo_grande',  etiqueta: 'Título grande',    placeholder: 'Escribe un título',                  grupo: 'texto' },
+  { tipo: 'titulo_mediano', etiqueta: 'Título mediano',   placeholder: 'Escribe un título',                  grupo: 'texto' },
+  { tipo: 'titulo_normal',  etiqueta: 'Título normal',    placeholder: 'Escribe un título',                  grupo: 'texto' },
+  { tipo: 'texto',          etiqueta: 'Texto',            placeholder: 'Cuéntale al visitante más sobre esto…', grupo: 'texto' },
+  { tipo: 'cita',           etiqueta: 'Cita',             placeholder: '"Una experiencia inolvidable..."',   grupo: 'texto' },
+  { tipo: 'imagen',         etiqueta: 'Foto',             placeholder: '',                                   grupo: 'medio' },
+  { tipo: 'enlace',         etiqueta: 'Enlace',           placeholder: 'https://instagram.com/tu_negocio',   grupo: 'medio' },
+  { tipo: 'separador',      etiqueta: 'Separador',        placeholder: '',                                   grupo: 'estructura' },
+  { tipo: 'actividad',      etiqueta: 'Actividad',        placeholder: 'ej: Paseo en lancha por la laguna',  grupo: 'referencia' },
+  { tipo: 'lugar',          etiqueta: 'Lugar cercano',    placeholder: 'ej: Muelle de Catemaco',             grupo: 'referencia' },
 ];
 
 export function nuevoBloqueId(): string {

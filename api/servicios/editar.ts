@@ -60,6 +60,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       mascotas,
       // Centro de Prestador — pestaña Enlaces (shell, sin pagos reales).
       enlaces,
+      // Información adicional (editor de bloques). `contenido_guia` es
+      // el array de bloques tal cual lo arma EditorInfoAdicional.tsx;
+      // `estado_guia` es 'borrador' | 'publicado'. Solo lo publicado
+      // llega al turista (ver aprobados.ts).
+      contenido_guia, estado_guia,
     } = req.body ?? {};
 
     const campos: string[] = [];
@@ -125,6 +130,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       campos.push(`enlaces = $${idx++}`);
       valores.push(JSON.stringify(enlaces));
     }
+    if (Array.isArray(contenido_guia)) {
+      campos.push(`contenido_guia = $${idx++}`);
+      valores.push(JSON.stringify(contenido_guia));
+    }
+    if (estado_guia === 'borrador' || estado_guia === 'publicado') {
+      campos.push(`estado_guia = $${idx++}`);
+      valores.push(estado_guia);
+    }
 
     if (campos.length === 0)
       return res.status(400).json({ error: 'Sin campos para actualizar' });
@@ -143,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               contacto, lat, lng, estado, codigo_seguimiento,
               motivo_rechazo, fotos,
               horario, dias_abierto, duracion, como_llegar, tip, ideal_para,
-              mascotas, enlaces,
+              mascotas, enlaces, contenido_guia, estado_guia,
               creado_en, actualizado_en
        FROM servicios WHERE id = $1`,
       [servicioId]

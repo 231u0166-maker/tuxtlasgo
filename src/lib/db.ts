@@ -1,6 +1,7 @@
 import Dexie, { Table } from 'dexie';
 import type { Lugar } from '../data/lugares';
 import type { EnlaceServicio } from './enlaces';
+import type { BloqueContenido, EstadoInfoAdicional } from './bloquesGuia';
 
 // ============================================================
 // BASE DE DATOS LOCAL (IndexedDB vía Dexie)
@@ -60,6 +61,12 @@ export interface ServicioPrestador {
   // ── Centro de Prestador — pestaña Enlaces (shell, Módulo 2) ──
   // Redes sociales / sitio del prestador. Sin lógica de pagos.
   enlaces?: EnlaceServicio[];
+  // ── Información adicional (editor de bloques, Módulo 2) ──────
+  // Contenido libre y reordenable, aparte de los campos fijos de
+  // arriba. Solo se muestra al turista si estadoInfoAdicional ===
+  // 'publicado' — un borrador nunca es público.
+  contenidoGuia?: BloqueContenido[];
+  estadoGuia?: EstadoInfoAdicional;
 }
 
 // Geometría de una ruta calculada por OSRM, cacheada para uso offline
@@ -303,6 +310,7 @@ export function servicioComoLugar(s: ServicioPrestador): Lugar {
     contacto: s.contacto,
     premium: !!s.premium && (!s.premiumHasta || s.premiumHasta > Date.now()),
     enlaces: s.enlaces && s.enlaces.length > 0 ? s.enlaces : undefined,
+    contenidoGuia: s.estadoGuia === 'publicado' ? s.contenidoGuia : undefined,
   };
 }
 

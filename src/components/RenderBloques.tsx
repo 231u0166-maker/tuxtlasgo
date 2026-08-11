@@ -1,10 +1,9 @@
 import { MapPin, Compass, Quote } from 'lucide-react';
 import type { BloqueContenido } from '../lib/bloquesGuia';
 
-// Vista de solo lectura de una guía — la usa tanto la Vista previa
-// del editor del prestador como la ficha que ve el turista en
-// PlaceDetail.tsx. Un único lugar para el "cómo se ve", así nunca
-// se desincroniza el preview de lo que el turista ve de verdad.
+// Vista de solo lectura de la Información adicional — la usa tanto
+// la Vista previa del editor del prestador como la ficha que ve el
+// turista en PlaceDetail.tsx. Un único lugar para el "cómo se ve".
 export default function RenderBloques({ bloques }: { bloques: BloqueContenido[] }) {
   if (!bloques || bloques.length === 0) return null;
 
@@ -14,27 +13,19 @@ export default function RenderBloques({ bloques }: { bloques: BloqueContenido[] 
         switch (b.tipo) {
           case 'titulo_grande':
             return b.texto ? (
-              <h3 key={b.id} className="font-display font-extrabold text-2xl text-jungle-950">
-                {b.texto}
-              </h3>
+              <h3 key={b.id} className="font-display font-extrabold text-2xl text-jungle-950">{b.texto}</h3>
             ) : null;
           case 'titulo_mediano':
             return b.texto ? (
-              <h4 key={b.id} className="font-display font-bold text-xl text-jungle-950">
-                {b.texto}
-              </h4>
+              <h4 key={b.id} className="font-display font-bold text-xl text-jungle-950">{b.texto}</h4>
             ) : null;
           case 'titulo_normal':
             return b.texto ? (
-              <h5 key={b.id} className="font-display font-bold text-base text-jungle-900">
-                {b.texto}
-              </h5>
+              <h5 key={b.id} className="font-display font-bold text-base text-jungle-900">{b.texto}</h5>
             ) : null;
           case 'texto':
             return b.texto ? (
-              <p key={b.id} className="text-sm text-jungle-800 leading-relaxed whitespace-pre-wrap">
-                {b.texto}
-              </p>
+              <p key={b.id} className="text-sm text-jungle-800 leading-relaxed whitespace-pre-wrap">{b.texto}</p>
             ) : null;
           case 'imagen':
             return b.url ? (
@@ -44,13 +35,8 @@ export default function RenderBloques({ bloques }: { bloques: BloqueContenido[] 
             return <hr key={b.id} className="border-jungle-100" />;
           case 'enlace':
             return b.url ? (
-              <a
-                key={b.id}
-                href={b.url}
-                target="_blank"
-                rel="noreferrer"
-                className="block bg-jungle-50 hover:bg-jungle-100 rounded-xl p-3 text-sm font-semibold text-jungle-700 underline break-all"
-              >
+              <a key={b.id} href={b.url} target="_blank" rel="noreferrer"
+                className="block bg-jungle-50 hover:bg-jungle-100 rounded-xl p-3 text-sm font-semibold text-jungle-700 underline break-all">
                 {b.texto || b.url}
               </a>
             ) : null;

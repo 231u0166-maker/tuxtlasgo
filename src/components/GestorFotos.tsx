@@ -5,6 +5,7 @@ import { Upload, X, ImagePlus, CheckCircle2, AlertCircle, Loader2, GripVertical 
 import { subirFoto } from '../lib/cloudinary';
 import { recargarCatalogo } from '../App';
 import { getToken } from '../lib/auth';
+import { useArrastreReordenable } from '../lib/useArrastreReordenable';
 
 interface Props {
   codigoSeguimiento: string;
@@ -137,12 +138,35 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
     setFotos((prev) => prev.filter((f) => f.id !== foto.id));
   }
 
-  // ── Drag & Drop ──
+  // ── Drag & Drop (subir archivos nuevos) ──
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setArrastrandoSobre(false);
     procesarArchivos(e.dataTransfer.files);
   }, [procesarArchivos]);
+
+  // ── Arrastrar para reordenar fotos ya subidas (portada = la primera) ──
+  const [guardandoOrden, setGuardandoOrden] = useState(false);
+  async function reordenarFotos(nuevoOrden: FotoLocal[]) {
+    setFotos(nuevoOrden);
+    const urls = nuevoOrden.filter((f) => f.url && !f.error).map((f) => f.url!);
+    setGuardandoOrden(true);
+    try {
+      const res = await fetch('/api/servicios/fotos', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ orden: urls }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        onFotosActualizadas?.(data.fotos);
+        recargarCatalogo().catch(() => {});
+      }
+    } catch { /* sin conexión — el orden queda solo en pantalla por ahora */ }
+    setGuardandoOrden(false);
+  }
+  const { indiceArrastrando, indiceSobre, registrarNodo, iniciar } =
+    useArrastreReordenable(fotos, reordenarFotos, 'horizontal');
 
   const puedeSeguirSubiendo = fotasSubidas.length < 8;
 
@@ -152,7 +176,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
         <div>
           <h3 className="font-display font-bold text-jungle-950">Fotos de tu servicio</h3>
           <p className="text-xs text-jungle-600 mt-0.5">
-            Sube hasta 8 fotos. La primera será la imagen principal.
+            Arrastra para ordenar — la primera será la imagen principal.
           </p>
         </div>
         <span className={`text-xs font-bold px-2 py-1 rounded-full ${fotasSubidas.length >= 8 ? 'bg-amber-100 text-amber-700' : 'bg-jungle-100 text-jungle-700'}`}>
@@ -164,7 +188,17 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
       {fotos.length > 0 && (
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
           {fotos.map((foto, i) => (
-            <div key={foto.id} className="relative aspect-square rounded-xl overflow-hidden bg-jungle-100 group">
+            <div
+              key={foto.id}
+              ref={(el) => registrarNodo(i, el)}
+              className={`relative aspect-square rounded-xl overflow-hidden bg-jungle-100 group transition-all ${
+                indiceArrastrando === i
+                  ? 'ring-2 ring-sun-400 scale-105 shadow-xl z-10 rotate-1'
+                  : indiceArrastrando !== null && indiceSobre === i
+                    ? 'ring-2 ring-jungle-400 ring-dashed'
+                    : ''
+              }`}
+            >
               {/* Badge primera foto */}
               {i === 0 && foto.url && (
                 <div className="absolute top-1 left-1 z-10 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
@@ -208,6 +242,17 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
                 <div className="absolute bottom-1 right-1">
                   <CheckCircle2 size={14} className="text-green-400 drop-shadow" />
                 </div>
+              )}
+
+              {/* Asa de arrastre (solo fotos ya subidas) */}
+              {foto.url && !foto.subiendo && (
+                <button
+                  onPointerDown={iniciar(i)}
+                  className="absolute bottom-1 left-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
+                  title="Arrastrar para reordenar"
+                >
+                  <GripVertical size={11} />
+                </button>
               )}
 
               {/* Botón eliminar */}
@@ -268,6 +313,11 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
       {fotasSubidas.length > 0 && fotasSubidas.length < 3 && (
         <p className="text-xs text-jungle-500 bg-jungle-50 rounded-xl px-3 py-2">
             Los servicios con 3 o más fotos reciben un 40% más de visitas. ¡Agrega más!
+        </p>
+      )}
+      {guardandoOrden && (
+        <p className="text-xs text-jungle-400 flex items-center gap-1.5">
+          <Loader2 size={11} className="animate-spin" /> Guardando el nuevo orden…
         </p>
       )}
     </div>

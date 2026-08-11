@@ -52,7 +52,6 @@ const TASA_USD_REFERENCIA = 17.1;
 // instante, el servidor es el que de verdad protege los datos.
 const NOMBRE_NEGOCIO_VALIDO = /[A-Za-zÀ-ÖØ-öø-ÿ]{2,}/;
 const TELEFONO_VALIDO = /^\+?[\d\s-]{10,15}$/;
-const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ProviderPanel() {
   const [vista, setVista] = useState<Vista>('inicio');
@@ -286,8 +285,8 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   async function enviarYContinuar() {
     setError('');
     if (!ubicacionGuardada) return setError('Marca tu ubicación en el mapa antes de continuar.');
-    if (contacto.trim() && !TELEFONO_VALIDO.test(contacto.trim()) && !CORREO_VALIDO.test(contacto.trim())) {
-      return setError('El contacto debe ser un teléfono (10 dígitos) o un correo válido.');
+    if (contacto.trim() && !TELEFONO_VALIDO.test(contacto.trim())) {
+      return setError('El contacto debe ser un número de teléfono (10 dígitos).');
     }
     if (!terminos) return setError('Debes aceptar los términos y condiciones.');
     const token = getToken();
@@ -489,9 +488,9 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
             <div className="max-w-2xl space-y-10">
               <div>
                 <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-5">
-                  ¿Cómo te contactamos?
+                  ¿A qué número te marcamos?
                 </h2>
-                <input type="text" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="WhatsApp o correo"
+                <input type="tel" inputMode="tel" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="9521234567"
                   className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-2xl sm:text-3xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors" />
               </div>
 

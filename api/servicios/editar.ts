@@ -7,7 +7,7 @@ import { v2 as cloudinary } from 'cloudinary';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME ?? 'din6nzl1s',
-  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
@@ -185,18 +185,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       valores.push(JSON.stringify(cuenta_cobro));
     }
     if (typeof acepta_reservaciones === 'boolean') {
-      // Solo se puede activar si el servicio ya es Premium — se
-      // revalida aquí porque el frontend puede mentir, la base de
-      // datos no.
+      // Premium y Reservaciones son independientes (visibilidad vs.
+      // comisión por reservación — ver plan de negocio: "cada peso
+      // corresponde a un beneficio recibido"). Lo único que de
+      // verdad hace falta para activar reservaciones es tener
+      // Mercado Pago conectado — sin eso no hay a dónde depositarle
+      // su parte cuando se pague una reserva. Se revalida aquí
+      // porque el frontend puede mentir, la base de datos no.
       if (acepta_reservaciones) {
-        const premiumRow = await pool.query(
-          `SELECT premium, premium_hasta FROM servicios WHERE id = $1`,
+        const mpRow = await pool.query(
+          `SELECT mp_conectado FROM servicios WHERE id = $1`,
           [servicioId]
         );
-        const p = premiumRow.rows[0];
-        const premiumActivo = p?.premium && (!p.premium_hasta || new Date(p.premium_hasta) > new Date());
-        if (!premiumActivo) {
-          return res.status(403).json({ error: 'Necesitas el Plan Premium activo para aceptar reservaciones' });
+        if (!mpRow.rows[0]?.mp_conectado) {
+          return res.status(403).json({ error: 'Conecta tu cuenta de Mercado Pago antes de aceptar reservaciones' });
         }
       }
       campos.push(`acepta_reservaciones = $${idx++}`);

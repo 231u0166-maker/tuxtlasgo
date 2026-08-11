@@ -58,6 +58,24 @@ interface ServicioAPI {
   cuenta_cobro?: { tipo: 'mercadopago' | 'paypal'; correo: string } | null;
   mp_conectado?: boolean;
   mp_user_id?: string;
+  acepta_reservaciones?: boolean;
+  politica_cancelacion?: 'flexible' | 'no_reembolsable';
+  fechas_bloqueadas?: string[];
+}
+
+interface ReservacionPrestador {
+  id: number;
+  fecha: string;
+  nombre_viajero: string;
+  numero_personas: number;
+  presupuesto?: string;
+  notas?: string;
+  estado: 'pendiente' | 'confirmada' | 'rechazada' | 'cancelada';
+  politica: string;
+  creado_en: string;
+  turista_nombre: string;
+  turista_correo: string;
+  servicio_nombre: string;
 }
 
 interface FormServicio {
@@ -443,7 +461,7 @@ function PerfilTurista({
 // Estadísticas muestran solo datos reales, nada de lógica de pagos
 // todavía — ver MEJORAS DISEÑO PANEL PRESTADOR).
 type CentroTab = 'servicio' | 'externa';
-type SubTabServicio = 'servicio' | 'fotos' | 'preview';
+type SubTabServicio = 'servicio' | 'fotos' | 'preview' | 'reservaciones';
 
 function PerfilPrestador({
   usuario,
@@ -517,6 +535,11 @@ function PerfilPrestador({
   }
 
   useEffect(() => { cargar(); }, []);
+
+  useEffect(() => {
+    if (tab === 'reservaciones') cargarReservacionesEntrantes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   // Regreso del checkout de Mercado Pago (?premium=exito|error|pendiente).
   // El webhook es quien realmente activa Premium, no esto — esto solo
@@ -669,6 +692,75 @@ function PerfilPrestador({
     }
   }
 
+  // ── Reservaciones (pieza 2) ──────────────────────────────────
+  const [reservacionesEntrantes, setReservacionesEntrantes] = useState<ReservacionPrestador[] | null>(null);
+  const [cargandoReservaciones, setCargandoReservaciones] = useState(false);
+  const [guardandoReservConfig, setGuardandoReservConfig] = useState(false);
+  const [nuevaFechaBloqueada, setNuevaFechaBloqueada] = useState('');
+
+  async function cargarReservacionesEntrantes() {
+    setCargandoReservaciones(true);
+    try {
+      const res = await fetch('/api/reservaciones', { headers: { Authorization: `Bearer ${getToken()}` } });
+      const data = await res.json();
+      if (data.ok) setReservacionesEntrantes(data.reservaciones);
+    } catch { /* sin conexión */ }
+    setCargandoReservaciones(false);
+  }
+
+  async function actualizarConfigReservaciones(cambios: { acepta_reservaciones?: boolean; politica_cancelacion?: string; fechas_bloqueadas?: string[] }) {
+    setGuardandoReservConfig(true);
+    try {
+      const res = await fetch('/api/servicios/editar', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify(cambios),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setServicio(s => (s ? { ...s, ...data.servicio } : s));
+      } else {
+        alert(data.error ?? 'No se pudo guardar');
+      }
+    } catch {
+      alert('Sin conexión. Verifica tu internet.');
+    }
+    setGuardandoReservConfig(false);
+  }
+
+  function agregarFechaBloqueada() {
+    if (!nuevaFechaBloqueada || !servicio) return;
+    const actuales = servicio.fechas_bloqueadas ?? [];
+    if (actuales.includes(nuevaFechaBloqueada)) { setNuevaFechaBloqueada(''); return; }
+    const nuevas = [...actuales, nuevaFechaBloqueada].sort();
+    actualizarConfigReservaciones({ fechas_bloqueadas: nuevas });
+    setNuevaFechaBloqueada('');
+  }
+
+  function quitarFechaBloqueada(fecha: string) {
+    if (!servicio) return;
+    const nuevas = (servicio.fechas_bloqueadas ?? []).filter(f => f !== fecha);
+    actualizarConfigReservaciones({ fechas_bloqueadas: nuevas });
+  }
+
+  async function responderReservacion(id: number, accion: 'confirmar' | 'rechazar') {
+    try {
+      const res = await fetch('/api/reservaciones', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ id, accion }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setReservacionesEntrantes(prev => prev?.map(r => r.id === id ? { ...r, estado: data.estado } : r) ?? null);
+      } else {
+        alert(data.error ?? 'No se pudo procesar');
+      }
+    } catch {
+      alert('Sin conexión. Verifica tu internet.');
+    }
+  }
+
   function agregarEnlace() {
     if (!nuevaUrlEnlace.trim()) return;
     setEnlaces(e => [...e, { id: nuevoEnlaceId(), tipo: nuevoTipoEnlace, url: nuevaUrlEnlace.trim() }]);
@@ -709,6 +801,7 @@ function PerfilPrestador({
   const labelEstado = servicio?.estado === 'pendiente' ? '⏳ En revisión'
                     : servicio?.estado === 'aprobado'  ? '✅ Aprobado'
                     : '❌ Rechazado';
+  const premiumActivo = !!servicio?.premium && (!servicio?.premium_hasta || new Date(servicio.premium_hasta) > new Date());
 
   return (
     <div className="min-h-screen bg-jungle-50 pb-10">
@@ -839,17 +932,18 @@ function PerfilPrestador({
 
           {centroTab === 'servicio' && (
             <>
-              {/* Sub-tabs (sin cambios de antes) */}
-              <div className="px-4 mb-4 flex gap-2">
+              {/* Sub-tabs (sin cambios de antes + Reservaciones nueva) */}
+              <div className="px-4 mb-4 flex gap-2 overflow-x-auto">
                 {([
-                  { id: 'servicio' as SubTabServicio, label: '📋 Mi Servicio' },
-                  { id: 'fotos'    as SubTabServicio, label: '📸 Fotos' },
-                  { id: 'preview'  as SubTabServicio, label: '👁️ Preview' },
+                  { id: 'servicio'       as SubTabServicio, label: '📋 Mi Servicio' },
+                  { id: 'fotos'          as SubTabServicio, label: '📸 Fotos' },
+                  { id: 'preview'        as SubTabServicio, label: '👁️ Preview' },
+                  { id: 'reservaciones'  as SubTabServicio, label: '📅 Reservaciones' },
                 ]).map(t => (
                   <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                    className={`flex-1 flex-shrink-0 py-2.5 px-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
                       tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
                     }`}
                   >
@@ -1049,6 +1143,24 @@ function PerfilPrestador({
                 <PreviewCard lugar={buildPreview()} />
               </div>
             )}
+
+            {/* ── TAB: Reservaciones (pieza 2 — sin pagos todavía) ── */}
+            {tab === 'reservaciones' && (
+              <PanelReservacionesPrestador
+                servicio={servicio}
+                premiumActivo={premiumActivo}
+                reservaciones={reservacionesEntrantes}
+                cargando={cargandoReservaciones}
+                guardandoConfig={guardandoReservConfig}
+                nuevaFechaBloqueada={nuevaFechaBloqueada}
+                setNuevaFechaBloqueada={setNuevaFechaBloqueada}
+                onCambiarAcepta={(v) => actualizarConfigReservaciones({ acepta_reservaciones: v })}
+                onCambiarPolitica={(v) => actualizarConfigReservaciones({ politica_cancelacion: v })}
+                onAgregarFechaBloqueada={agregarFechaBloqueada}
+                onQuitarFechaBloqueada={quitarFechaBloqueada}
+                onResponder={responderReservacion}
+              />
+            )}
           </div>
             </>
           )}
@@ -1205,6 +1317,178 @@ function formatearMes(iso: string): string {
 // Panel resumen — Ganancias + Estadísticas juntas, antes eran 2 tabs
 // aparte; ahora se abren desde el contador junto a la foto de
 // perfil. Mismo contenido de antes, solo un lugar distinto.
+// Panel de Reservaciones — pieza 2, a propósito sin nada de pagos.
+// El prestador decide si acepta, qué política usa, y qué fechas
+// bloquea; y responde a las solicitudes que le lleguen.
+function PanelReservacionesPrestador({
+  servicio, premiumActivo, reservaciones, cargando, guardandoConfig,
+  nuevaFechaBloqueada, setNuevaFechaBloqueada,
+  onCambiarAcepta, onCambiarPolitica, onAgregarFechaBloqueada, onQuitarFechaBloqueada, onResponder,
+}: {
+  servicio: ServicioAPI;
+  premiumActivo: boolean;
+  reservaciones: ReservacionPrestador[] | null;
+  cargando: boolean;
+  guardandoConfig: boolean;
+  nuevaFechaBloqueada: string;
+  setNuevaFechaBloqueada: (v: string) => void;
+  onCambiarAcepta: (v: boolean) => void;
+  onCambiarPolitica: (v: 'flexible' | 'no_reembolsable') => void;
+  onAgregarFechaBloqueada: () => void;
+  onQuitarFechaBloqueada: (fecha: string) => void;
+  onResponder: (id: number, accion: 'confirmar' | 'rechazar') => void;
+}) {
+  const acepta = !!servicio.acepta_reservaciones;
+  const politica = servicio.politica_cancelacion ?? 'flexible';
+  const bloqueadas = servicio.fechas_bloqueadas ?? [];
+  const pendientes = reservaciones?.filter(r => r.estado === 'pendiente') ?? [];
+  const resueltas = reservaciones?.filter(r => r.estado !== 'pendiente') ?? [];
+  const hoy = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div className="px-4 space-y-3">
+      {/* Activar reservaciones — bloqueado sin Premium */}
+      <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-sm font-semibold text-jungle-900">Acepto reservaciones</p>
+          <button
+            onClick={() => premiumActivo && onCambiarAcepta(!acepta)}
+            disabled={!premiumActivo || guardandoConfig}
+            className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 disabled:opacity-40 ${acepta ? 'bg-jungle-700' : 'bg-jungle-200'}`}
+          >
+            <span className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${acepta ? 'left-6' : 'left-1'}`} />
+          </button>
+        </div>
+        {!premiumActivo ? (
+          <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-2">
+            Necesitas el Plan Premium activo para esto — actívalo desde la tarjeta de Ganancias.
+          </p>
+        ) : (
+          <p className="text-xs text-jungle-500">
+            El turista podrá reservar tu servicio directo desde la app.
+          </p>
+        )}
+      </div>
+
+      {acepta && premiumActivo && (
+        <>
+          {/* Política de cancelación */}
+          <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+            <p className="text-sm font-semibold text-jungle-900 mb-3">Política de cancelación</p>
+            <div className="space-y-2">
+              <button
+                onClick={() => onCambiarPolitica('flexible')}
+                className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${politica === 'flexible' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100'}`}
+              >
+                <p className="text-sm font-semibold text-jungle-900">Flexible</p>
+                <p className="text-xs text-jungle-500 mt-0.5">Cancelación gratuita hasta 24–48h antes.</p>
+              </button>
+              <button
+                onClick={() => onCambiarPolitica('no_reembolsable')}
+                className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${politica === 'no_reembolsable' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100'}`}
+              >
+                <p className="text-sm font-semibold text-jungle-900">No reembolsable</p>
+                <p className="text-xs text-jungle-500 mt-0.5">Más económica para el turista, sin cancelación.</p>
+              </button>
+            </div>
+          </div>
+
+          {/* Fechas bloqueadas */}
+          <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+            <p className="text-sm font-semibold text-jungle-900 mb-1">Fechas no disponibles</p>
+            <p className="text-xs text-jungle-500 mb-3">Bloquea los días que ya no tengas cupo.</p>
+            {bloqueadas.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {bloqueadas.map(f => (
+                  <span key={f} className="flex items-center gap-1.5 bg-jungle-50 text-jungle-700 text-xs font-semibold px-2.5 py-1.5 rounded-full">
+                    {new Date(f + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                    <button onClick={() => onQuitarFechaBloqueada(f)} className="text-jungle-400 hover:text-red-600"><X size={12} /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="date"
+                min={hoy}
+                value={nuevaFechaBloqueada}
+                onChange={(e) => setNuevaFechaBloqueada(e.target.value)}
+                className="flex-1 bg-jungle-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
+              />
+              <button onClick={onAgregarFechaBloqueada} disabled={!nuevaFechaBloqueada}
+                className="bg-jungle-100 disabled:opacity-40 text-jungle-700 px-3 rounded-xl">
+                <Plus size={16} />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Solicitudes entrantes */}
+      <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+        <p className="text-sm font-semibold text-jungle-900 mb-3">Solicitudes</p>
+        {cargando && (
+          <div className="text-center py-6 text-jungle-400">
+            <Loader2 size={22} className="animate-spin mx-auto mb-2" />
+            <p className="text-xs">Cargando…</p>
+          </div>
+        )}
+        {!cargando && pendientes.length === 0 && resueltas.length === 0 && (
+          <p className="text-xs text-jungle-400 text-center py-4">Todavía no tienes solicitudes de reservación.</p>
+        )}
+        {!cargando && pendientes.length > 0 && (
+          <div className="space-y-2.5 mb-3">
+            {pendientes.map(r => (
+              <div key={r.id} className="border border-amber-200 bg-amber-50 rounded-xl p-3">
+                <div className="flex items-start justify-between mb-1">
+                  <p className="text-sm font-semibold text-jungle-900">{r.nombre_viajero}</p>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">Pendiente</span>
+                </div>
+                <p className="text-xs text-jungle-600">
+                  {new Date(r.fecha + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })} · {r.numero_personas} persona{r.numero_personas > 1 ? 's' : ''}
+                </p>
+                {r.presupuesto && <p className="text-xs text-jungle-500 mt-0.5">Presupuesto: {r.presupuesto}</p>}
+                {r.notas && <p className="text-xs text-jungle-500 mt-0.5 italic">"{r.notas}"</p>}
+                <div className="flex gap-2 mt-2.5">
+                  <button onClick={() => onResponder(r.id, 'confirmar')}
+                    className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white text-xs font-semibold py-2 rounded-lg">
+                    Confirmar
+                  </button>
+                  <button onClick={() => onResponder(r.id, 'rechazar')}
+                    className="flex-1 bg-white border border-jungle-200 hover:bg-jungle-50 text-jungle-700 text-xs font-semibold py-2 rounded-lg">
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {!cargando && resueltas.length > 0 && (
+          <div className="space-y-2">
+            {resueltas.map(r => (
+              <div key={r.id} className="flex items-center justify-between border-t border-jungle-100 pt-2.5">
+                <div>
+                  <p className="text-xs font-semibold text-jungle-800">{r.nombre_viajero}</p>
+                  <p className="text-[11px] text-jungle-400">
+                    {new Date(r.fecha + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                  </p>
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  r.estado === 'confirmada' ? 'bg-green-100 text-green-800'
+                  : r.estado === 'rechazada' ? 'bg-red-100 text-red-800'
+                  : 'bg-jungle-100 text-jungle-500'
+                }`}>
+                  {r.estado === 'confirmada' ? 'Confirmada' : r.estado === 'rechazada' ? 'Rechazada' : 'Cancelada'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PanelResumenPrestador({
   servicio, fotos, enlaces, labelEstado, onCerrar,
 }: {

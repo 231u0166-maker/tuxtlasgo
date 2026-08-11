@@ -1,17 +1,34 @@
 import { useEffect, useState } from 'react';
-import { Heart, Route, Trash2, Calendar, MapPin } from 'lucide-react';
+import { Heart, Route, Trash2, Calendar, MapPin, BookmarkCheck, Clock, X, Loader2 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
 import { LUGARES, type Lugar } from '../data/lugares';
 import PlaceCard from './PlaceCard';
+import { getToken, getUsuarioLocal } from '../lib/auth';
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   onVerRutaEnMapa?: (lugares: Lugar[]) => void;
 }
 
+interface ReservacionTurista {
+  id: number;
+  fecha: string;
+  nombre_viajero: string;
+  numero_personas: number;
+  presupuesto?: string;
+  notas?: string;
+  estado: 'pendiente' | 'confirmada' | 'rechazada' | 'cancelada';
+  politica: 'flexible' | 'no_reembolsable';
+  servicio_id: number;
+  servicio_nombre: string;
+  municipio: string;
+  categoria: string;
+}
+
 export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) {
-  const [tab, setTab] = useState<'favoritos' | 'rutas'>('favoritos');
+  const [tab, setTab] = useState<'favoritos' | 'rutas' | 'reservaciones'>('favoritos');
+  const usuario = getUsuarioLocal();
 
   const favoritos = useLiveQuery(async () => {
     const favs = await db.favoritos.orderBy('agregadoEn').reverse().toArray();
@@ -23,6 +40,41 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
     () => db.rutas.orderBy('creadaEn').reverse().toArray(),
     []
   );
+
+  const [reservaciones, setReservaciones] = useState<ReservacionTurista[] | null>(null);
+  const [cargandoReservas, setCargandoReservas] = useState(false);
+
+  async function cargarReservaciones() {
+    if (!usuario || usuario.tipo !== 'turista') return;
+    setCargandoReservas(true);
+    try {
+      const res = await fetch('/api/reservaciones', { headers: { Authorization: `Bearer ${getToken()}` } });
+      const data = await res.json();
+      if (data.ok) setReservaciones(data.reservaciones);
+    } catch { /* sin conexión */ }
+    setCargandoReservas(false);
+  }
+
+  useEffect(() => {
+    if (tab === 'reservaciones') cargarReservaciones();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  async function cancelarReservacion(id: number) {
+    if (!confirm('¿Cancelar esta reservación?')) return;
+    try {
+      const res = await fetch('/api/reservaciones', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ id, accion: 'cancelar' }),
+      });
+      const data = await res.json();
+      if (data.ok) setReservaciones((prev) => prev?.map((r) => (r.id === id ? { ...r, estado: 'cancelada' } : r)) ?? null);
+      else alert(data.error ?? 'No se pudo cancelar');
+    } catch {
+      alert('Sin conexión. Verifica tu internet.');
+    }
+  }
 
   const eliminarRuta = async (id: number) => {
     if (confirm('¿Eliminar esta ruta?')) {
@@ -41,7 +93,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
         <div className="flex bg-white/15 backdrop-blur rounded-xl p-1">
           <button
             onClick={() => setTab('favoritos')}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
               tab === 'favoritos' ? 'bg-white text-jungle-900' : 'text-white'
             }`}
           >
@@ -49,12 +101,22 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
           </button>
           <button
             onClick={() => setTab('rutas')}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
               tab === 'rutas' ? 'bg-white text-jungle-900' : 'text-white'
             }`}
           >
             <Route size={14} /> Rutas ({rutas?.length || 0})
           </button>
+          {usuario?.tipo === 'turista' && (
+            <button
+              onClick={() => setTab('reservaciones')}
+              className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
+                tab === 'reservaciones' ? 'bg-white text-jungle-900' : 'text-white'
+              }`}
+            >
+              <BookmarkCheck size={14} /> Reservas
+            </button>
+          )}
         </div>
       </header>
 
@@ -165,8 +227,78 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
             )}
           </>
         )}
+
+        {tab === 'reservaciones' && (
+          <>
+            {cargandoReservas && (
+              <div className="text-center py-10 text-jungle-400">
+                <Loader2 size={26} className="animate-spin mx-auto mb-2" />
+                <p className="text-sm">Cargando tus reservaciones…</p>
+              </div>
+            )}
+            {!cargandoReservas && (!reservaciones || reservaciones.length === 0) && (
+              <EmptyState
+                icon={BookmarkCheck}
+                titulo="No tienes reservaciones"
+                texto="Cuando reserves un servicio, aparecerá aquí."
+              />
+            )}
+            {!cargandoReservas && reservaciones && reservaciones.length > 0 && (
+              <div className="space-y-3">
+                {reservaciones.map((r) => (
+                  <div key={r.id} className="bg-white rounded-2xl p-4 border border-jungle-100 shadow-sm">
+                    <div className="flex items-start justify-between mb-1.5">
+                      <div>
+                        <p className="font-display font-bold text-jungle-950">{r.servicio_nombre}</p>
+                        <p className="text-xs text-jungle-500 flex items-center gap-1 mt-0.5">
+                          <MapPin size={11} /> {r.municipio}
+                        </p>
+                      </div>
+                      <EtiquetaEstado estado={r.estado} />
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-jungle-600 mt-2">
+                      <span className="flex items-center gap-1">
+                        <Calendar size={12} />
+                        {new Date(r.fecha + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                      <span>{r.numero_personas} persona{r.numero_personas > 1 ? 's' : ''}</span>
+                    </div>
+                    {(r.estado === 'pendiente' || r.estado === 'confirmada') && (
+                      <button
+                        onClick={() => cancelarReservacion(r.id)}
+                        className="mt-3 text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
+                      >
+                        <X size={12} /> Cancelar reservación
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+function EtiquetaEstado({ estado }: { estado: ReservacionTurista['estado'] }) {
+  const estilos: Record<string, string> = {
+    pendiente: 'bg-amber-100 text-amber-800',
+    confirmada: 'bg-green-100 text-green-800',
+    rechazada: 'bg-red-100 text-red-800',
+    cancelada: 'bg-jungle-100 text-jungle-500',
+  };
+  const etiquetas: Record<string, string> = {
+    pendiente: 'Pendiente',
+    confirmada: 'Confirmada',
+    rechazada: 'Rechazada',
+    cancelada: 'Cancelada',
+  };
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 flex items-center gap-1 ${estilos[estado]}`}>
+      <Clock size={10} /> {etiquetas[estado]}
+    </span>
   );
 }
 

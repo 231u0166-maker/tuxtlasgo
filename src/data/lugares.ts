@@ -54,6 +54,10 @@ export interface Lugar {
   mascotas?: string;
   // Redes sociales / sitio del prestador (Centro de Prestador — Enlaces).
   enlaces?: EnlaceServicio[];
+  // Reservaciones (Módulo 2 — pieza 2). servicioId es el id numérico
+  // real en Neon (distinto de `id`, que es "prestador-<n>").
+  aceptaReservaciones?: boolean;
+  servicioId?: number;
 }
 
 export const LUGARES: Lugar[] = [

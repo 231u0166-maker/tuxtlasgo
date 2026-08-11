@@ -60,6 +60,9 @@ export interface ServicioPrestador {
   // ── Centro de Prestador — pestaña Enlaces (shell, Módulo 2) ──
   // Redes sociales / sitio del prestador. Sin lógica de pagos.
   enlaces?: EnlaceServicio[];
+  // ── Reservaciones (Módulo 2 — pieza 2) ──────────────────────
+  // Solo se puede activar con Premium — se revalida server-side.
+  aceptaReservaciones?: boolean;
 }
 
 // Geometría de una ruta calculada por OSRM, cacheada para uso offline
@@ -303,6 +306,8 @@ export function servicioComoLugar(s: ServicioPrestador): Lugar {
     contacto: s.contacto,
     premium: !!s.premium && (!s.premiumHasta || s.premiumHasta > Date.now()),
     enlaces: s.enlaces && s.enlaces.length > 0 ? s.enlaces : undefined,
+    aceptaReservaciones: !!s.aceptaReservaciones,
+    servicioId: s.id,
   };
 }
 

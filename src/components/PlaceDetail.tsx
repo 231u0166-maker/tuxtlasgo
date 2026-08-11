@@ -15,6 +15,7 @@ import {
   Facebook,
   MessageCircle,
   Globe,
+  CalendarCheck,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Lugar } from '../data/lugares';
@@ -22,6 +23,7 @@ import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
 import { manejarErrorImagen } from '../lib/imagenLugar';
 import type { TipoEnlace } from '../lib/enlaces';
+import ModalReservacion from './ModalReservacion';
 
 interface Props {
   lugar: Lugar;
@@ -31,6 +33,7 @@ interface Props {
 
 export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
   const [fav, setFav] = useState(false);
+  const [mostrarReservacion, setMostrarReservacion] = useState(false);
   const cat = CATEGORIAS.find((c) => c.id === lugar.categoria);
 
   useEffect(() => {
@@ -215,13 +218,24 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
             </div>
           </div>
 
-          <button
-            onClick={onVerEnMapa}
-            className="w-full bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-          >
-            <Route size={18} />
-            Ver en el mapa
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={onVerEnMapa}
+              className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+            >
+              <Route size={18} />
+              Ver en el mapa
+            </button>
+            {lugar.aceptaReservaciones && (
+              <button
+                onClick={() => setMostrarReservacion(true)}
+                className="flex-1 bg-sun-500 hover:bg-sun-400 text-obsidiana-950 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+              >
+                <CalendarCheck size={18} />
+                Reservar
+              </button>
+            )}
+          </div>
 
           {/* Enlaces del prestador (Centro de Prestador — Enlaces) */}
           {lugar.enlaces && lugar.enlaces.length > 0 && (
@@ -242,6 +256,10 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
           )}
         </div>
       </div>
+
+      {mostrarReservacion && (
+        <ModalReservacion lugar={lugar} onCerrar={() => setMostrarReservacion(false)} />
+      )}
     </div>
   );
 }

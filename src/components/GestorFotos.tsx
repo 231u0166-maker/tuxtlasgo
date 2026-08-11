@@ -40,7 +40,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
   // ── Guardar URL en Neon ──
   async function guardarUrlEnNeon(url: string): Promise<{ ok: boolean; error?: string }> {
     try {
-      const res = await fetch('/api/servicios/fotos', {
+      const res = await fetch('/api/servicios/editar?recurso=fotos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ url }),
@@ -59,7 +59,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
   // ── Eliminar URL de Neon ──
   async function eliminarUrlDeNeon(url: string, publicId?: string): Promise<boolean> {
     try {
-      const res = await fetch('/api/servicios/fotos', {
+      const res = await fetch('/api/servicios/editar?recurso=fotos', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ url, publicId }),

@@ -20,7 +20,7 @@ interface ResumenReserva {
   titulo: string;
 }
 
-export default function NotificacionesBurbuja({ onIrAReservas }: { onIrAReservas: () => void }) {
+export default function NotificacionesBurbuja({ onIrAReservas, evitarChatInput }: { onIrAReservas: () => void; evitarChatInput?: boolean }) {
   const usuario = getUsuarioLocal();
   const [abierta, setAbierta] = useState(false);
   const [resumen, setResumen] = useState<ResumenReserva[]>([]);
@@ -59,7 +59,7 @@ export default function NotificacionesBurbuja({ onIrAReservas }: { onIrAReservas
   if (total === 0 && !abierta) return null;
 
   return (
-    <div className="fixed bottom-20 lg:bottom-6 right-4 sm:right-6 z-[70]">
+    <div className={`fixed right-4 sm:right-6 z-[70] ${evitarChatInput ? 'bottom-36 lg:bottom-24' : 'bottom-20 lg:bottom-6'}`}>
       {abierta && (
         <div className="mb-3 w-80 max-w-[85vw] bg-white rounded-2xl shadow-2xl border border-jungle-100 overflow-hidden">
           <div className="bg-jungle-800 text-white px-4 py-3 flex items-center justify-between">

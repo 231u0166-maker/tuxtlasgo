@@ -920,6 +920,7 @@ export default function AppShell() {
         {usuario && (
           <NotificacionesBurbuja
             onIrAReservas={() => cambiarTab(usuario.tipo === 'prestador' ? 'perfil' : 'favoritos')}
+            evitarChatInput={tab === 'chat'}
           />
         )}
       </div>

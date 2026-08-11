@@ -16,7 +16,7 @@ import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
   Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
-  MessageCircle, Globe, Calendar,
+  MessageCircle, Globe, Calendar, ChevronRight,
 } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
@@ -75,15 +75,15 @@ interface FormUsuario {
 }
 
 const IDEAL_OPCIONES = [
-  { id: 'pareja', label: '💕 Parejas' },
+  { id: 'pareja',  label: '💕 Parejas' },
   { id: 'familia', label: '👨‍👩‍👧 Familias' },
-  { id: 'grupos', label: '🎉 Grupos' },
-  { id: 'solo', label: '🧭 Viajeros solos' },
+  { id: 'grupos',  label: '🎉 Grupos' },
+  { id: 'solo',    label: '🧭 Viajeros solos' },
 ];
 
 const COLORES_ESTADO: Record<string, string> = {
   pendiente: 'bg-amber-100 text-amber-800',
-  aprobado: 'bg-green-100 text-green-800',
+  aprobado:  'bg-green-100 text-green-800',
   rechazado: 'bg-red-100   text-red-700',
 };
 
@@ -168,16 +168,16 @@ function PerfilTurista({
   usuario: UsuarioSesion;
   onVolver: () => void;
 }) {
-  const [editando, setEditando] = useState(false);
-  const [guardando, setGuardando] = useState(false);
-  const [form, setForm] = useState<FormUsuario>({ nombre: usuario.nombre, bio: '' });
+  const [editando, setEditando]     = useState(false);
+  const [guardando, setGuardando]   = useState(false);
+  const [form, setForm]             = useState<FormUsuario>({ nombre: usuario.nombre, bio: '' });
   const [fotoSubiendo, setFotoSubiendo] = useState(false);
   const [fotoPerfil, setFotoPerfil] = useState(usuario.foto_url ?? '');
   // Álbum de fotos del turista
-  const [album, setAlbum] = useState<string[]>([]);
+  const [album, setAlbum]           = useState<string[]>([]);
   const [subiendoAlbum, setSubiendoAlbum] = useState(false);
-  const inputFotoRef = useRef<HTMLInputElement>(null);
-  const inputAlbumRef = useRef<HTMLInputElement>(null);
+  const inputFotoRef    = useRef<HTMLInputElement>(null);
+  const inputAlbumRef   = useRef<HTMLInputElement>(null);
 
   // Cargar bio y fotos desde el servidor
   useEffect(() => {
@@ -192,7 +192,7 @@ function PerfilTurista({
           if (d.usuario.foto_url) setFotoPerfil(d.usuario.foto_url);
         }
       })
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
   // Guarda nombre y bio
@@ -273,7 +273,7 @@ function PerfilTurista({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
       body: JSON.stringify({ fotos: JSON.stringify(nuevasfotos) }),
-    }).catch(() => { });
+    }).catch(() => {});
   }
 
   const iniciales = usuario.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -446,20 +446,20 @@ function PerfilPrestador({
   onVolver: () => void;
 }) {
   const [centroTab, setCentroTab] = useState<CentroTab>('servicio');
-  const [tab, setTab] = useState<SubTabServicio>('servicio');
-  const [servicio, setServicio] = useState<ServicioAPI | null>(null);
-  const [fotos, setFotos] = useState<string[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState('');
-  const [editando, setEditando] = useState(false);
+  const [tab, setTab]             = useState<SubTabServicio>('servicio');
+  const [servicio, setServicio]   = useState<ServicioAPI | null>(null);
+  const [fotos, setFotos]         = useState<string[]>([]);
+  const [cargando, setCargando]   = useState(true);
+  const [error, setError]         = useState('');
+  const [editando, setEditando]   = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [exito, setExito] = useState(false);
-  const [enlaces, setEnlaces] = useState<EnlaceServicio[]>([]);
+  const [exito, setExito]         = useState(false);
+  const [enlaces, setEnlaces]     = useState<EnlaceServicio[]>([]);
   const [guardandoEnlaces, setGuardandoEnlaces] = useState(false);
   const [nuevoTipoEnlace, setNuevoTipoEnlace] = useState<TipoEnlace>('instagram');
   const [nuevaUrlEnlace, setNuevaUrlEnlace] = useState('');
   const [mostrarResumen, setMostrarResumen] = useState(false);
-  const [form, setForm] = useState<FormServicio>({
+  const [form, setForm]           = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
     duracion: '', como_llegar: '', tip: '', mascotas: '', ideal_para: [],
@@ -484,19 +484,19 @@ function PerfilPrestador({
         setFotos(parseFotos(srv.fotos));
         setEnlaces(parseEnlaces(srv.enlaces));
         setForm({
-          nombre: srv.nombre ?? '',
-          categoria: srv.categoria ?? '',
-          municipio: srv.municipio ?? '',
+          nombre:      srv.nombre      ?? '',
+          categoria:   srv.categoria   ?? '',
+          municipio:   srv.municipio   ?? '',
           descripcion: srv.descripcion ?? '',
-          precio: srv.precio ?? '',
-          contacto: srv.contacto ?? '',
-          horario: srv.horario ?? '',
+          precio:      srv.precio      ?? '',
+          contacto:    srv.contacto    ?? '',
+          horario:     srv.horario     ?? '',
           dias_abierto: srv.dias_abierto ?? '',
-          duracion: srv.duracion ?? '',
+          duracion:    srv.duracion    ?? '',
           como_llegar: srv.como_llegar ?? '',
-          tip: srv.tip ?? '',
-          mascotas: srv.mascotas ?? '',
-          ideal_para: parseIdeal(srv.ideal_para),
+          tip:         srv.tip         ?? '',
+          mascotas:    srv.mascotas    ?? '',
+          ideal_para:  parseIdeal(srv.ideal_para),
         });
       } else {
         setServicio(null);
@@ -532,7 +532,7 @@ function PerfilPrestador({
         setExito(true);
         setTimeout(() => setExito(false), 3000);
         // Actualiza el catálogo en tiempo real — el turista ve los cambios de inmediato
-        recargarCatalogo().catch(() => { });
+        recargarCatalogo().catch(() => {});
       } else {
         alert(data.error ?? 'Error al guardar');
       }
@@ -565,7 +565,7 @@ function PerfilPrestador({
       const data = await res.json();
       if (data.ok) {
         setServicio(s => (s ? { ...s, enlaces: data.servicio.enlaces } : s));
-        recargarCatalogo().catch(() => { });
+        recargarCatalogo().catch(() => {});
       } else {
         alert(data.error ?? 'Error al guardar');
       }
@@ -588,33 +588,33 @@ function PerfilPrestador({
   function buildPreview(): Lugar {
     return servicioComoLugar({
       id: servicio?.id,
-      nombreNegocio: form.nombre || servicio?.nombre || 'Mi Negocio',
-      categoria: form.categoria || 'Gastronomia',
-      municipio: form.municipio || 'Catemaco',
-      descripcion: form.descripcion || 'Descripción del servicio.',
-      precio: form.precio || '',
-      contacto: form.contacto || '',
-      ubicacionLat: servicio?.lat ?? 18.42,
-      ubicacionLng: servicio?.lng ?? -95.11,
-      creadoEn: Date.now(),
-      estado: (servicio?.estado ?? 'pendiente') as any,
-      horario: form.horario || undefined,
-      diasAbierto: form.dias_abierto || undefined,
-      duracion: form.duracion || undefined,
-      comoLlegar: form.como_llegar || undefined,
-      tip: form.tip || undefined,
-      mascotas: form.mascotas || undefined,
-      idealPara: form.ideal_para.length ? form.ideal_para : undefined,
-      foto: fotos[0] || undefined,
+      nombreNegocio: form.nombre  || servicio?.nombre  || 'Mi Negocio',
+      categoria:     form.categoria || 'Gastronomia',
+      municipio:     form.municipio || 'Catemaco',
+      descripcion:   form.descripcion || 'Descripción del servicio.',
+      precio:        form.precio   || '',
+      contacto:      form.contacto || '',
+      ubicacionLat:  servicio?.lat ?? 18.42,
+      ubicacionLng:  servicio?.lng ?? -95.11,
+      creadoEn:      Date.now(),
+      estado:        (servicio?.estado ?? 'pendiente') as any,
+      horario:       form.horario      || undefined,
+      diasAbierto:   form.dias_abierto || undefined,
+      duracion:      form.duracion     || undefined,
+      comoLlegar:    form.como_llegar  || undefined,
+      tip:           form.tip          || undefined,
+      mascotas:      form.mascotas     || undefined,
+      idealPara:     form.ideal_para.length ? form.ideal_para : undefined,
+      foto:          fotos[0]          || undefined,
     });
   }
 
-  const fotoUrl = usuario.foto_url;
-  const iniciales = usuario.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const fotoUrl    = usuario.foto_url;
+  const iniciales  = usuario.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const colorEstado = servicio ? (COLORES_ESTADO[servicio.estado] ?? 'bg-gray-100 text-gray-600') : '';
   const labelEstado = servicio?.estado === 'pendiente' ? '⏳ En revisión'
-    : servicio?.estado === 'aprobado' ? '✅ Aprobado'
-      : '❌ Rechazado';
+                    : servicio?.estado === 'aprobado'  ? '✅ Aprobado'
+                    : '❌ Rechazado';
 
   return (
     <div className="min-h-screen bg-jungle-50 pb-10">
@@ -644,19 +644,6 @@ function PerfilPrestador({
               <span className="text-white font-bold text-2xl">{iniciales}</span>
             </div>
           )}
-          {/* Contador de ganancias — antes era un tab aparte junto con
-              Estadísticas; ahora es un solo badge junto a la foto, y
-              al tocarlo se abre el resumen completo (ver PanelResumen). */}
-          {servicio && (
-            <button
-              onClick={() => setMostrarResumen(true)}
-              title="Ver ganancias y estadísticas"
-              className="absolute -top-1 -right-1 bg-jungle-900 hover:bg-jungle-800 text-white rounded-full pl-2 pr-2.5 py-1.5 flex items-center gap-1 shadow-lg border-2 border-white transition-colors"
-            >
-              <DollarSign size={12} />
-              <span className="text-[11px] font-bold">$0</span>
-            </button>
-          )}
         </div>
         <h1 className="font-display font-bold text-xl text-jungle-950 text-center leading-snug max-w-xs break-words">
           {servicio?.nombre ?? usuario.nombre}
@@ -677,6 +664,25 @@ function PerfilPrestador({
           </p>
         )}
       </div>
+
+      {/* Tarjeta de Ganancias — visible directamente (no escondida en
+          un badge), como el "Centro de creadores" de referencia.
+          Tocarla abre el resumen completo con Estadísticas también. */}
+      {servicio && (
+        <div className="px-4 mb-5">
+          <button
+            onClick={() => setMostrarResumen(true)}
+            className="w-full text-left bg-gradient-to-br from-jungle-900 to-jungle-950 hover:from-jungle-800 hover:to-jungle-900 rounded-2xl p-5 text-white relative overflow-hidden transition-colors"
+          >
+            <DollarSign size={80} className="absolute -right-3 -bottom-4 text-white/5" />
+            <p className="text-xs text-jungle-300 uppercase tracking-wide font-semibold mb-1">Ganancias totales</p>
+            <p className="font-display font-extrabold text-3xl">$0.00 MXN</p>
+            <p className="text-xs text-jungle-300 mt-2 relative flex items-center gap-1">
+              Ver estadísticas y Plan Premium <ChevronRight size={13} />
+            </p>
+          </button>
+        </div>
+      )}
 
       {cargando && (
         <div className="px-4">
@@ -712,14 +718,15 @@ function PerfilPrestador({
               quedan las 2 secciones que sí son "páginas" distintas. */}
           <div className="px-4 mb-3 flex gap-1.5 overflow-x-auto">
             {([
-              { id: 'servicio' as CentroTab, label: 'Servicio', icono: Store },
-              { id: 'externa' as CentroTab, label: 'Información externa', icono: Link2 },
+              { id: 'servicio' as CentroTab, label: 'Servicio',            icono: Store },
+              { id: 'externa'  as CentroTab, label: 'Información externa', icono: Link2 },
             ]).map(t => (
               <button
                 key={t.id}
                 onClick={() => setCentroTab(t.id)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-colors ${centroTab === t.id ? 'bg-jungle-900 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
-                  }`}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-colors ${
+                  centroTab === t.id ? 'bg-jungle-900 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
+                }`}
               >
                 <t.icono size={13} /> {t.label}
               </button>
@@ -732,14 +739,15 @@ function PerfilPrestador({
               <div className="px-4 mb-4 flex gap-2">
                 {([
                   { id: 'servicio' as SubTabServicio, label: '📋 Mi Servicio' },
-                  { id: 'fotos' as SubTabServicio, label: '📸 Fotos' },
-                  { id: 'preview' as SubTabServicio, label: '👁️ Preview' },
+                  { id: 'fotos'    as SubTabServicio, label: '📸 Fotos' },
+                  { id: 'preview'  as SubTabServicio, label: '👁️ Preview' },
                 ]).map(t => (
                   <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-colors ${tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
-                      }`}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                      tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
+                    }`}
                   >
                     {t.label}
                   </button>
@@ -749,194 +757,195 @@ function PerfilPrestador({
               <div className="px-4">
                 {/* ── TAB: Mi Servicio ── */}
                 {tab === 'servicio' && (
-                  <div className="bg-white rounded-2xl border border-jungle-100 p-4 space-y-4">
-                    {exito && (
-                      <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2 text-sm text-green-800">
-                        <CheckCircle2 size={16} className="text-green-600 flex-shrink-0" />
-                        Cambios guardados. Tu PlaceCard ya refleja la info actualizada.
-                      </div>
-                    )}
-                    {servicio.estado === 'rechazado' && servicio.motivo_rechazo && (
-                      <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
-                        <strong>Motivo de rechazo:</strong> {servicio.motivo_rechazo}
-                      </div>
-                    )}
-
-                    {editando ? (
-                      <div className="space-y-4">
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre del negocio <span className="text-red-500">*</span></label>
-                          <input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
-                            className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría</label>
-                            <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
-                              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                              {['Gastronomia', 'Naturaleza', 'Aventura', 'Hospedaje', 'Comercio', 'Cooperativa', 'Otro'].map(c => (
-                                <option key={c} value={c}>{c}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
-                            <select value={form.municipio} onChange={e => setForm({ ...form, municipio: e.target.value })}
-                              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                              {['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'].map(m => (
-                                <option key={m} value={m}>{m}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">Descripción <span className="text-red-500">*</span></label>
-                          <textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}
-                            rows={4} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
-                            <input value={form.precio} onChange={e => setForm({ ...form, precio: e.target.value })}
-                              placeholder="$200 MXN"
-                              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp / correo</label>
-                            <input value={form.contacto} onChange={e => setForm({ ...form, contacto: e.target.value })}
-                              placeholder="9521234567"
-                              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
-                            <input value={form.horario} onChange={e => setForm({ ...form, horario: e.target.value })}
-                              placeholder="9:00 am – 6:00 pm"
-                              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Días abierto</label>
-                            <input value={form.dias_abierto} onChange={e => setForm({ ...form, dias_abierto: e.target.value })}
-                              placeholder="Todos los días"
-                              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
-                          <input value={form.duracion} onChange={e => setForm({ ...form, duracion: e.target.value })}
-                            placeholder="ej: 2-3 horas, Día completo"
-                            className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">Cómo llegar</label>
-                          <textarea value={form.como_llegar} onChange={e => setForm({ ...form, como_llegar: e.target.value })}
-                            placeholder="ej: A 45 minutos de Catemaco por carretera costera."
-                            rows={2} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">💡 Consejo para el visitante</label>
-                          <input value={form.tip} onChange={e => setForm({ ...form, tip: e.target.value })}
-                            placeholder="ej: Lleva efectivo, no siempre hay señal."
-                            className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-1 block">🐾 ¿Aceptan mascotas?</label>
-                          <input value={form.mascotas} onChange={e => setForm({ ...form, mascotas: e.target.value })}
-                            placeholder="ej: Sí, aceptamos perros / No se permiten mascotas / Solo en la terraza"
-                            className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                          <p className="text-[11px] text-jungle-500 mt-1">Si lo dejas vacío, el asistente dirá honestamente que no tiene ese dato — nunca lo inventa.</p>
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-jungle-700 mb-2 block">Ideal para</label>
-                          <div className="flex flex-wrap gap-2">
-                            {IDEAL_OPCIONES.map(op => (
-                              <button key={op.id} type="button" onClick={() => toggleIdeal(op.id)}
-                                className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
-                                  }`}>
-                                {op.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex gap-3 pt-2">
-                          <button onClick={guardar} disabled={guardando}
-                            className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
-                            {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                            Guardar cambios
-                          </button>
-                          <button onClick={() => setEditando(false)}
-                            className="px-5 bg-jungle-100 hover:bg-jungle-200 text-jungle-700 py-3 rounded-xl text-sm font-semibold">
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <InfoFila icono={<Store size={14} />} label="Categoría" valor={servicio.categoria} />
-                        <InfoFila icono={null} label="Municipio" valor={servicio.municipio} />
-                        <InfoFila icono={<Phone size={14} />} label="Contacto" valor={servicio.contacto} />
-                        <InfoFila icono={null} label="Precio" valor={servicio.precio} />
-                        <InfoFila icono={<Clock size={14} />} label="Horario"
-                          valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
-                        <InfoFila icono={null} label="Duración" valor={servicio.duracion} />
-                        <InfoFila icono={null} label="Cómo llegar" valor={servicio.como_llegar} />
-                        <InfoFila icono={null} label="Consejo" valor={servicio.tip} />
-                        <InfoFila icono={null} label="🐾 Mascotas" valor={servicio.mascotas} />
-                        <div className="bg-jungle-50 rounded-xl p-3">
-                          <p className="text-xs font-semibold text-jungle-500 mb-1">Descripción</p>
-                          <p className="text-sm text-jungle-800">{servicio.descripcion}</p>
-                        </div>
-                        {parseIdeal(servicio.ideal_para).length > 0 && (
-                          <div>
-                            <p className="text-xs font-semibold text-jungle-500 mb-1.5">Ideal para</p>
-                            <div className="flex flex-wrap gap-2">
-                              {parseIdeal(servicio.ideal_para).map(id => {
-                                const op = IDEAL_OPCIONES.find(o => o.id === id);
-                                return op ? (
-                                  <span key={id} className="text-xs px-2.5 py-1 bg-jungle-100 text-jungle-700 rounded-full font-medium">{op.label}</span>
-                                ) : null;
-                              })}
-                            </div>
-                          </div>
-                        )}
-                        <div className="bg-jungle-50 rounded-xl p-3 flex items-center gap-3">
-                          <div>
-                            <p className="text-[10px] text-jungle-500 uppercase tracking-wide font-semibold">Código de seguimiento</p>
-                            <p className="font-display font-bold text-lg text-jungle-900 tracking-wider">{servicio.codigo_seguimiento}</p>
-                          </div>
-                        </div>
-                        <button onClick={() => setEditando(true)}
-                          className="w-full flex items-center justify-center gap-2 border border-jungle-200 hover:bg-jungle-50 text-jungle-700 py-3 rounded-xl text-sm font-semibold transition-colors">
-                          <Edit3 size={15} /> Editar información del servicio
-                        </button>
-                      </div>
-                    )}
+              <div className="bg-white rounded-2xl border border-jungle-100 p-4 space-y-4">
+                {exito && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2 text-sm text-green-800">
+                    <CheckCircle2 size={16} className="text-green-600 flex-shrink-0" />
+                    Cambios guardados. Tu PlaceCard ya refleja la info actualizada.
+                  </div>
+                )}
+                {servicio.estado === 'rechazado' && servicio.motivo_rechazo && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+                    <strong>Motivo de rechazo:</strong> {servicio.motivo_rechazo}
                   </div>
                 )}
 
-                {/* ── TAB: Fotos ── */}
-                {tab === 'fotos' && (
-                  <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-                    {servicio.estado === 'aprobado' ? (
-                      <GestorFotos codigoSeguimiento={servicio.codigo_seguimiento} fotosIniciales={fotos} onFotosActualizadas={setFotos} />
-                    ) : (
-                      <div className="text-center py-8 text-jungle-400">
-                        <p className="text-sm font-medium mb-1">Fotos disponibles cuando el servicio sea aprobado.</p>
-                        <p className="text-xs">Estado actual: <strong>{labelEstado}</strong></p>
+                {editando ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre del negocio <span className="text-red-500">*</span></label>
+                      <input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
+                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría</label>
+                        <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                          {['Gastronomia','Naturaleza','Aventura','Hospedaje','Comercio','Cooperativa','Otro'].map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
+                        <select value={form.municipio} onChange={e => setForm({ ...form, municipio: e.target.value })}
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                          {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Descripción <span className="text-red-500">*</span></label>
+                      <textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}
+                        rows={4} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
+                        <input value={form.precio} onChange={e => setForm({ ...form, precio: e.target.value })}
+                          placeholder="$200 MXN"
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp / correo</label>
+                        <input value={form.contacto} onChange={e => setForm({ ...form, contacto: e.target.value })}
+                          placeholder="9521234567"
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
+                        <input value={form.horario} onChange={e => setForm({ ...form, horario: e.target.value })}
+                          placeholder="9:00 am – 6:00 pm"
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Días abierto</label>
+                        <input value={form.dias_abierto} onChange={e => setForm({ ...form, dias_abierto: e.target.value })}
+                          placeholder="Todos los días"
+                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
+                      <input value={form.duracion} onChange={e => setForm({ ...form, duracion: e.target.value })}
+                        placeholder="ej: 2-3 horas, Día completo"
+                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Cómo llegar</label>
+                      <textarea value={form.como_llegar} onChange={e => setForm({ ...form, como_llegar: e.target.value })}
+                        placeholder="ej: A 45 minutos de Catemaco por carretera costera."
+                        rows={2} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">💡 Consejo para el visitante</label>
+                      <input value={form.tip} onChange={e => setForm({ ...form, tip: e.target.value })}
+                        placeholder="ej: Lleva efectivo, no siempre hay señal."
+                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">🐾 ¿Aceptan mascotas?</label>
+                      <input value={form.mascotas} onChange={e => setForm({ ...form, mascotas: e.target.value })}
+                        placeholder="ej: Sí, aceptamos perros / No se permiten mascotas / Solo en la terraza"
+                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                      <p className="text-[11px] text-jungle-500 mt-1">Si lo dejas vacío, el asistente dirá honestamente que no tiene ese dato — nunca lo inventa.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-jungle-700 mb-2 block">Ideal para</label>
+                      <div className="flex flex-wrap gap-2">
+                        {IDEAL_OPCIONES.map(op => (
+                          <button key={op.id} type="button" onClick={() => toggleIdeal(op.id)}
+                            className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${
+                              form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
+                            }`}>
+                            {op.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      <button onClick={guardar} disabled={guardando}
+                        className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+                        {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                        Guardar cambios
+                      </button>
+                      <button onClick={() => setEditando(false)}
+                        className="px-5 bg-jungle-100 hover:bg-jungle-200 text-jungle-700 py-3 rounded-xl text-sm font-semibold">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <InfoFila icono={<Store size={14} />}  label="Categoría"   valor={servicio.categoria} />
+                    <InfoFila icono={null}                 label="Municipio"   valor={servicio.municipio} />
+                    <InfoFila icono={<Phone size={14} />}  label="Contacto"    valor={servicio.contacto} />
+                    <InfoFila icono={null}                 label="Precio"      valor={servicio.precio} />
+                    <InfoFila icono={<Clock size={14} />}  label="Horario"
+                      valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
+                    <InfoFila icono={null}  label="Duración"    valor={servicio.duracion} />
+                    <InfoFila icono={null}  label="Cómo llegar" valor={servicio.como_llegar} />
+                    <InfoFila icono={null}  label="Consejo"     valor={servicio.tip} />
+                    <InfoFila icono={null}  label="🐾 Mascotas"  valor={servicio.mascotas} />
+                    <div className="bg-jungle-50 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-jungle-500 mb-1">Descripción</p>
+                      <p className="text-sm text-jungle-800">{servicio.descripcion}</p>
+                    </div>
+                    {parseIdeal(servicio.ideal_para).length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-jungle-500 mb-1.5">Ideal para</p>
+                        <div className="flex flex-wrap gap-2">
+                          {parseIdeal(servicio.ideal_para).map(id => {
+                            const op = IDEAL_OPCIONES.find(o => o.id === id);
+                            return op ? (
+                              <span key={id} className="text-xs px-2.5 py-1 bg-jungle-100 text-jungle-700 rounded-full font-medium">{op.label}</span>
+                            ) : null;
+                          })}
+                        </div>
                       </div>
                     )}
-                  </div>
-                )}
-
-                {/* ── TAB: Preview ── */}
-                {tab === 'preview' && (
-                  <div>
-                    <p className="text-xs text-jungle-500 mb-3 text-center">Así verá el turista tu servicio en la app</p>
-                    <PreviewCard lugar={buildPreview()} />
+                    <div className="bg-jungle-50 rounded-xl p-3 flex items-center gap-3">
+                      <div>
+                        <p className="text-[10px] text-jungle-500 uppercase tracking-wide font-semibold">Código de seguimiento</p>
+                        <p className="font-display font-bold text-lg text-jungle-900 tracking-wider">{servicio.codigo_seguimiento}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setEditando(true)}
+                      className="w-full flex items-center justify-center gap-2 border border-jungle-200 hover:bg-jungle-50 text-jungle-700 py-3 rounded-xl text-sm font-semibold transition-colors">
+                      <Edit3 size={15} /> Editar información del servicio
+                    </button>
                   </div>
                 )}
               </div>
+            )}
+
+            {/* ── TAB: Fotos ── */}
+            {tab === 'fotos' && (
+              <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+                {servicio.estado === 'aprobado' ? (
+                  <GestorFotos codigoSeguimiento={servicio.codigo_seguimiento} fotosIniciales={fotos} onFotosActualizadas={setFotos} />
+                ) : (
+                  <div className="text-center py-8 text-jungle-400">
+                    <p className="text-sm font-medium mb-1">Fotos disponibles cuando el servicio sea aprobado.</p>
+                    <p className="text-xs">Estado actual: <strong>{labelEstado}</strong></p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── TAB: Preview ── */}
+            {tab === 'preview' && (
+              <div>
+                <p className="text-xs text-jungle-500 mb-3 text-center">Así verá el turista tu servicio en la app</p>
+                <PreviewCard lugar={buildPreview()} />
+              </div>
+            )}
+          </div>
             </>
           )}
 
@@ -1106,11 +1115,11 @@ function IconoEnlace({ tipo }: { tipo: TipoEnlace }) {
   const props = { size: 15, className: 'text-jungle-600 flex-shrink-0' };
   switch (tipo) {
     case 'instagram': return <Instagram {...props} />;
-    case 'facebook': return <Facebook {...props} />;
-    case 'whatsapp': return <MessageCircle {...props} />;
-    case 'tiktok': return <Globe {...props} />;
-    case 'sitio': return <Globe {...props} />;
-    default: return <Link2 {...props} />;
+    case 'facebook':  return <Facebook {...props} />;
+    case 'whatsapp':  return <MessageCircle {...props} />;
+    case 'tiktok':    return <Globe {...props} />;
+    case 'sitio':     return <Globe {...props} />;
+    default:          return <Link2 {...props} />;
   }
 }
 

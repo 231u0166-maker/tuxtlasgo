@@ -70,7 +70,7 @@ export default function ComunidadPage() {
 
   async function cargarCupoVideo() {
     try {
-      const res = await fetch('/api/comunidad/video-cupo');
+      const res = await fetch('/api/comunidad/publicaciones?accion=cupo');
       const data = await res.json();
       setCupoVideo({ disponible: !!data.disponible, mbSubidos: data.mbSubidos, limiteMb: data.limiteMb });
     } catch {
@@ -366,7 +366,7 @@ function TarjetaPublicacion({
     if (!getToken()) { alert('Inicia sesión para reportar publicaciones.'); return; }
     setReportando(true);
     try {
-      const res = await fetch('/api/comunidad/reportar', {
+      const res = await fetch('/api/comunidad/publicaciones?accion=reportar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ id: publicacion.id }),
@@ -395,7 +395,7 @@ function TarjetaPublicacion({
   function registrarVista() {
     if (yaRegistroVista.current) return;
     yaRegistroVista.current = true;
-    fetch('/api/comunidad/video-vista', {
+    fetch('/api/comunidad/publicaciones?accion=vista', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: publicacion.id }),

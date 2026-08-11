@@ -204,7 +204,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const fila = await pool.query(
-        `SELECT r.id, r.turista_id, r.estado, s.usuario_id AS prestador_usuario_id
+        `SELECT r.id, r.turista_id, r.estado, r.fecha, r.servicio_id, s.usuario_id AS prestador_usuario_id
          FROM reservaciones r JOIN servicios s ON s.id = r.servicio_id
          WHERE r.id = $1`,
         [id]
@@ -230,6 +230,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `UPDATE reservaciones SET estado = $1, actualizado_en = NOW() WHERE id = $2`,
         [nuevoEstado, id]
       );
+
+      // Confirmar una reservación cierra esa fecha en automático —
+      // así no se sigue mostrando "disponible" para alguien más. Si
+      // luego se cancela una que ya estaba confirmada, se vuelve a
+      // abrir (el hueco realmente quedó libre otra vez).
+      const fechaStr = new Date(r.fecha).toISOString().slice(0, 10);
+      if (accion === 'confirmar') {
+        await pool.query(
+          `UPDATE servicios SET fechas_bloqueadas =
+             CASE WHEN fechas_bloqueadas @> to_jsonb($1::text)
+                  THEN fechas_bloqueadas
+                  ELSE fechas_bloqueadas || to_jsonb($1::text)
+             END
+           WHERE id = $2`,
+          [fechaStr, r.servicio_id]
+        );
+      } else if (accion === 'cancelar' && r.estado === 'confirmada') {
+        await pool.query(
+          `UPDATE servicios SET fechas_bloqueadas = (
+             SELECT COALESCE(jsonb_agg(f), '[]'::jsonb)
+             FROM jsonb_array_elements_text(fechas_bloqueadas) AS f
+             WHERE f != $1
+           ) WHERE id = $2`,
+          [fechaStr, r.servicio_id]
+        );
+      }
 
       return res.status(200).json({ ok: true, estado: nuevoEstado });
     }

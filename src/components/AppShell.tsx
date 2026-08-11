@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import AuthModal from './AuthModal';
 import BottomNav, { type Tab } from './BottomNav';
+import NotificacionesBurbuja from './NotificacionesBurbuja';
 import ExploreScreen from './ExploreScreen';
 import InicioScreen from './InicioScreen';
 import {
@@ -913,6 +914,14 @@ export default function AppShell() {
         <div className="lg:hidden">
           <BottomNav activa={tab === 'mapa' ? tabAntesDeMapa : tab} onChange={cambiarTab} />
         </div>
+
+        {/* Burbuja de notificaciones — mensajes/solicitudes de
+            reservación, visible en cualquier pestaña. */}
+        {usuario && (
+          <NotificacionesBurbuja
+            onIrAReservas={() => cambiarTab(usuario.tipo === 'prestador' ? 'perfil' : 'favoritos')}
+          />
+        )}
       </div>
 
       {/* PlaceDetail overlay */}

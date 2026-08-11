@@ -102,15 +102,15 @@ interface FormUsuario {
 }
 
 const IDEAL_OPCIONES = [
-  { id: 'pareja',  label: '💕 Parejas' },
+  { id: 'pareja', label: '💕 Parejas' },
   { id: 'familia', label: '👨‍👩‍👧 Familias' },
-  { id: 'grupos',  label: '🎉 Grupos' },
-  { id: 'solo',    label: '🧭 Viajeros solos' },
+  { id: 'grupos', label: '🎉 Grupos' },
+  { id: 'solo', label: '🧭 Viajeros solos' },
 ];
 
 const COLORES_ESTADO: Record<string, string> = {
   pendiente: 'bg-amber-100 text-amber-800',
-  aprobado:  'bg-green-100 text-green-800',
+  aprobado: 'bg-green-100 text-green-800',
   rechazado: 'bg-red-100   text-red-700',
 };
 
@@ -195,16 +195,16 @@ function PerfilTurista({
   usuario: UsuarioSesion;
   onVolver: () => void;
 }) {
-  const [editando, setEditando]     = useState(false);
-  const [guardando, setGuardando]   = useState(false);
-  const [form, setForm]             = useState<FormUsuario>({ nombre: usuario.nombre, bio: '' });
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [form, setForm] = useState<FormUsuario>({ nombre: usuario.nombre, bio: '' });
   const [fotoSubiendo, setFotoSubiendo] = useState(false);
   const [fotoPerfil, setFotoPerfil] = useState(usuario.foto_url ?? '');
   // Álbum de fotos del turista
-  const [album, setAlbum]           = useState<string[]>([]);
+  const [album, setAlbum] = useState<string[]>([]);
   const [subiendoAlbum, setSubiendoAlbum] = useState(false);
-  const inputFotoRef    = useRef<HTMLInputElement>(null);
-  const inputAlbumRef   = useRef<HTMLInputElement>(null);
+  const inputFotoRef = useRef<HTMLInputElement>(null);
+  const inputAlbumRef = useRef<HTMLInputElement>(null);
 
   // Cargar bio y fotos desde el servidor
   useEffect(() => {
@@ -219,7 +219,7 @@ function PerfilTurista({
           if (d.usuario.foto_url) setFotoPerfil(d.usuario.foto_url);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Guarda nombre y bio
@@ -300,7 +300,7 @@ function PerfilTurista({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
       body: JSON.stringify({ fotos: JSON.stringify(nuevasfotos) }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
 
   const iniciales = usuario.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -462,8 +462,11 @@ function PerfilTurista({
 // igual que antes; Enlaces guarda de verdad; Ganancias y
 // Estadísticas muestran solo datos reales, nada de lógica de pagos
 // todavía — ver MEJORAS DISEÑO PANEL PRESTADOR).
-type CentroTab = 'servicio' | 'externa';
-type SubTabServicio = 'servicio' | 'fotos' | 'preview' | 'reservaciones';
+// Antes eran 2 niveles (Servicio/Información externa arriba, y Mi
+// Servicio/Fotos/Preview/Reservaciones debajo, solo bajo "Servicio")
+// — redundante y confuso ("Servicio" y "Mi Servicio" a la vez). Ahora
+// es una sola fila con las 5 secciones.
+type TabPrincipal = 'servicio' | 'fotos' | 'preview' | 'reservaciones' | 'externa';
 
 function PerfilPrestador({
   usuario,
@@ -472,23 +475,22 @@ function PerfilPrestador({
   usuario: UsuarioSesion;
   onVolver: () => void;
 }) {
-  const [centroTab, setCentroTab] = useState<CentroTab>('servicio');
-  const [tab, setTab]             = useState<SubTabServicio>('servicio');
-  const [servicio, setServicio]   = useState<ServicioAPI | null>(null);
-  const [fotos, setFotos]         = useState<string[]>([]);
-  const [cargando, setCargando]   = useState(true);
-  const [error, setError]         = useState('');
-  const [editando, setEditando]   = useState(false);
+  const [tab, setTab] = useState<TabPrincipal>('servicio');
+  const [servicio, setServicio] = useState<ServicioAPI | null>(null);
+  const [fotos, setFotos] = useState<string[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [editando, setEditando] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [exito, setExito]         = useState(false);
-  const [enlaces, setEnlaces]     = useState<EnlaceServicio[]>([]);
+  const [exito, setExito] = useState(false);
+  const [enlaces, setEnlaces] = useState<EnlaceServicio[]>([]);
   const [guardandoEnlaces, setGuardandoEnlaces] = useState(false);
   const [nuevoTipoEnlace, setNuevoTipoEnlace] = useState<TipoEnlace>('instagram');
   const [nuevaUrlEnlace, setNuevaUrlEnlace] = useState('');
   const [mostrarResumen, setMostrarResumen] = useState(false);
   const [mensajePremium, setMensajePremium] = useState<{ tipo: 'exito' | 'error' | 'pendiente'; texto: string } | null>(null);
   const [mostrarCuentaCobro, setMostrarCuentaCobro] = useState(false);
-  const [form, setForm]           = useState<FormServicio>({
+  const [form, setForm] = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
     duracion: '', como_llegar: '', tip: '', mascotas: '', ideal_para: [],
@@ -513,19 +515,19 @@ function PerfilPrestador({
         setFotos(parseFotos(srv.fotos));
         setEnlaces(parseEnlaces(srv.enlaces));
         setForm({
-          nombre:      srv.nombre      ?? '',
-          categoria:   srv.categoria   ?? '',
-          municipio:   srv.municipio   ?? '',
+          nombre: srv.nombre ?? '',
+          categoria: srv.categoria ?? '',
+          municipio: srv.municipio ?? '',
           descripcion: srv.descripcion ?? '',
-          precio:      srv.precio      ?? '',
-          contacto:    srv.contacto    ?? '',
-          horario:     srv.horario     ?? '',
+          precio: srv.precio ?? '',
+          contacto: srv.contacto ?? '',
+          horario: srv.horario ?? '',
           dias_abierto: srv.dias_abierto ?? '',
-          duracion:    srv.duracion    ?? '',
+          duracion: srv.duracion ?? '',
           como_llegar: srv.como_llegar ?? '',
-          tip:         srv.tip         ?? '',
-          mascotas:    srv.mascotas    ?? '',
-          ideal_para:  parseIdeal(srv.ideal_para),
+          tip: srv.tip ?? '',
+          mascotas: srv.mascotas ?? '',
+          ideal_para: parseIdeal(srv.ideal_para),
         });
       } else {
         setServicio(null);
@@ -593,7 +595,7 @@ function PerfilPrestador({
         setExito(true);
         setTimeout(() => setExito(false), 3000);
         // Actualiza el catálogo en tiempo real — el turista ve los cambios de inmediato
-        recargarCatalogo().catch(() => {});
+        recargarCatalogo().catch(() => { });
       } else {
         alert(data.error ?? 'Error al guardar');
       }
@@ -626,7 +628,7 @@ function PerfilPrestador({
       const data = await res.json();
       if (data.ok) {
         setServicio(s => (s ? { ...s, enlaces: data.servicio.enlaces } : s));
-        recargarCatalogo().catch(() => {});
+        recargarCatalogo().catch(() => { });
       } else {
         alert(data.error ?? 'Error al guardar');
       }
@@ -722,6 +724,7 @@ function PerfilPrestador({
       const data = await res.json();
       if (data.ok) {
         setServicio(s => (s ? { ...s, ...data.servicio } : s));
+        recargarCatalogo().catch(() => { }); // el turista debe ver el cambio sin recargar la app
       } else {
         alert(data.error ?? 'No se pudo guardar');
       }
@@ -756,6 +759,14 @@ function PerfilPrestador({
       const data = await res.json();
       if (data.ok) {
         setReservacionesEntrantes(prev => prev?.map(r => r.id === id ? { ...r, estado: data.estado } : r) ?? null);
+        if (accion === 'confirmar') {
+          // Al confirmar se bloqueó la fecha en automático del lado
+          // del servidor — recarga el servicio para reflejar
+          // fechas_bloqueadas actualizado, y el catálogo para que el
+          // turista no vea esa fecha como disponible.
+          cargar();
+          recargarCatalogo().catch(() => { });
+        }
       } else {
         alert(data.error ?? 'No se pudo procesar');
       }
@@ -777,33 +788,33 @@ function PerfilPrestador({
   function buildPreview(): Lugar {
     return servicioComoLugar({
       id: servicio?.id,
-      nombreNegocio: form.nombre  || servicio?.nombre  || 'Mi Negocio',
-      categoria:     form.categoria || 'Gastronomia',
-      municipio:     form.municipio || 'Catemaco',
-      descripcion:   form.descripcion || 'Descripción del servicio.',
-      precio:        form.precio   || '',
-      contacto:      form.contacto || '',
-      ubicacionLat:  servicio?.lat ?? 18.42,
-      ubicacionLng:  servicio?.lng ?? -95.11,
-      creadoEn:      Date.now(),
-      estado:        (servicio?.estado ?? 'pendiente') as any,
-      horario:       form.horario      || undefined,
-      diasAbierto:   form.dias_abierto || undefined,
-      duracion:      form.duracion     || undefined,
-      comoLlegar:    form.como_llegar  || undefined,
-      tip:           form.tip          || undefined,
-      mascotas:      form.mascotas     || undefined,
-      idealPara:     form.ideal_para.length ? form.ideal_para : undefined,
-      foto:          fotos[0]          || undefined,
+      nombreNegocio: form.nombre || servicio?.nombre || 'Mi Negocio',
+      categoria: form.categoria || 'Gastronomia',
+      municipio: form.municipio || 'Catemaco',
+      descripcion: form.descripcion || 'Descripción del servicio.',
+      precio: form.precio || '',
+      contacto: form.contacto || '',
+      ubicacionLat: servicio?.lat ?? 18.42,
+      ubicacionLng: servicio?.lng ?? -95.11,
+      creadoEn: Date.now(),
+      estado: (servicio?.estado ?? 'pendiente') as any,
+      horario: form.horario || undefined,
+      diasAbierto: form.dias_abierto || undefined,
+      duracion: form.duracion || undefined,
+      comoLlegar: form.como_llegar || undefined,
+      tip: form.tip || undefined,
+      mascotas: form.mascotas || undefined,
+      idealPara: form.ideal_para.length ? form.ideal_para : undefined,
+      foto: fotos[0] || undefined,
     });
   }
 
-  const fotoUrl    = usuario.foto_url;
-  const iniciales  = usuario.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const fotoUrl = usuario.foto_url;
+  const iniciales = usuario.nombre.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const colorEstado = servicio ? (COLORES_ESTADO[servicio.estado] ?? 'bg-gray-100 text-gray-600') : '';
   const labelEstado = servicio?.estado === 'pendiente' ? '⏳ En revisión'
-                    : servicio?.estado === 'aprobado'  ? '✅ Aprobado'
-                    : '❌ Rechazado';
+    : servicio?.estado === 'aprobado' ? '✅ Aprobado'
+      : '❌ Rechazado';
   const premiumActivo = !!servicio?.premium && (!servicio?.premium_hasta || new Date(servicio.premium_hasta) > new Date());
 
   return (
@@ -861,11 +872,10 @@ function PerfilPrestador({
       {servicio && (
         <div className="px-4 mb-5">
           {mensajePremium && (
-            <div className={`rounded-xl p-3 mb-3 text-sm flex items-start gap-2 ${
-              mensajePremium.tipo === 'exito' ? 'bg-green-50 text-green-800 border border-green-200'
-              : mensajePremium.tipo === 'pendiente' ? 'bg-amber-50 text-amber-800 border border-amber-200'
-              : 'bg-red-50 text-red-800 border border-red-200'
-            }`}>
+            <div className={`rounded-xl p-3 mb-3 text-sm flex items-start gap-2 ${mensajePremium.tipo === 'exito' ? 'bg-green-50 text-green-800 border border-green-200'
+                : mensajePremium.tipo === 'pendiente' ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              }`}>
               <span className="flex-1">{mensajePremium.texto}</span>
               <button onClick={() => setMensajePremium(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
             </div>
@@ -911,53 +921,32 @@ function PerfilPrestador({
 
       {!cargando && !error && servicio && (
         <>
-          {/* ── Centro de Prestador — navegación principal ──
-              Antes eran 4 pastillas (Servicio/Enlaces/Ganancias/
-              Estadísticas) — Ganancias y Estadísticas ahora viven en
-              el contador junto a la foto (ver arriba), así que solo
-              quedan las 2 secciones que sí son "páginas" distintas. */}
-          <div className="px-4 mb-3 flex gap-1.5 overflow-x-auto">
+          {/* ── Centro de Prestador — una sola fila, ya no dos
+              niveles (antes "Servicio" arriba y "Mi Servicio" abajo
+              eran confusos y redundantes). Ganancias y Estadísticas
+              viven en el contador junto a la foto (ver arriba). */}
+          <div className="px-4 mb-4 flex gap-2 overflow-x-auto">
             {([
-              { id: 'servicio' as CentroTab, label: 'Servicio',            icono: Store },
-              { id: 'externa'  as CentroTab, label: 'Información externa', icono: Link2 },
+              { id: 'servicio' as TabPrincipal, label: '📋 Mi Servicio' },
+              { id: 'fotos' as TabPrincipal, label: '📸 Fotos' },
+              { id: 'preview' as TabPrincipal, label: '👁️ Preview' },
+              { id: 'reservaciones' as TabPrincipal, label: '📅 Reservaciones' },
+              { id: 'externa' as TabPrincipal, label: '🔗 Información externa' },
             ]).map(t => (
               <button
                 key={t.id}
-                onClick={() => setCentroTab(t.id)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-colors ${
-                  centroTab === t.id ? 'bg-jungle-900 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
-                }`}
+                onClick={() => setTab(t.id)}
+                className={`flex-1 flex-shrink-0 py-2.5 px-2.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
+                  }`}
               >
-                <t.icono size={13} /> {t.label}
+                {t.label}
               </button>
             ))}
           </div>
 
-          {centroTab === 'servicio' && (
-            <>
-              {/* Sub-tabs (sin cambios de antes + Reservaciones nueva) */}
-              <div className="px-4 mb-4 flex gap-2 overflow-x-auto">
-                {([
-                  { id: 'servicio'       as SubTabServicio, label: '📋 Mi Servicio' },
-                  { id: 'fotos'          as SubTabServicio, label: '📸 Fotos' },
-                  { id: 'preview'        as SubTabServicio, label: '👁️ Preview' },
-                  { id: 'reservaciones'  as SubTabServicio, label: '📅 Reservaciones' },
-                ]).map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    className={`flex-1 flex-shrink-0 py-2.5 px-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
-                      tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="px-4">
-                {/* ── TAB: Mi Servicio ── */}
-                {tab === 'servicio' && (
+          <div className="px-4">
+            {/* ── TAB: Mi Servicio ── */}
+            {tab === 'servicio' && (
               <div className="bg-white rounded-2xl border border-jungle-100 p-4 space-y-4">
                 {exito && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2 text-sm text-green-800">
@@ -983,7 +972,7 @@ function PerfilPrestador({
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría</label>
                         <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
                           className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                          {['Gastronomia','Naturaleza','Aventura','Hospedaje','Comercio','Cooperativa','Otro'].map(c => (
+                          {['Gastronomia', 'Naturaleza', 'Aventura', 'Hospedaje', 'Comercio', 'Cooperativa', 'Otro'].map(c => (
                             <option key={c} value={c}>{c}</option>
                           ))}
                         </select>
@@ -992,7 +981,7 @@ function PerfilPrestador({
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
                         <select value={form.municipio} onChange={e => setForm({ ...form, municipio: e.target.value })}
                           className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                          {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
+                          {['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'].map(m => (
                             <option key={m} value={m}>{m}</option>
                           ))}
                         </select>
@@ -1061,9 +1050,8 @@ function PerfilPrestador({
                       <div className="flex flex-wrap gap-2">
                         {IDEAL_OPCIONES.map(op => (
                           <button key={op.id} type="button" onClick={() => toggleIdeal(op.id)}
-                            className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${
-                              form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
-                            }`}>
+                            className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
+                              }`}>
                             {op.label}
                           </button>
                         ))}
@@ -1083,16 +1071,16 @@ function PerfilPrestador({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <InfoFila icono={<Store size={14} />}  label="Categoría"   valor={servicio.categoria} />
-                    <InfoFila icono={null}                 label="Municipio"   valor={servicio.municipio} />
-                    <InfoFila icono={<Phone size={14} />}  label="Contacto"    valor={servicio.contacto} />
-                    <InfoFila icono={null}                 label="Precio"      valor={servicio.precio} />
-                    <InfoFila icono={<Clock size={14} />}  label="Horario"
+                    <InfoFila icono={<Store size={14} />} label="Categoría" valor={servicio.categoria} />
+                    <InfoFila icono={null} label="Municipio" valor={servicio.municipio} />
+                    <InfoFila icono={<Phone size={14} />} label="Contacto" valor={servicio.contacto} />
+                    <InfoFila icono={null} label="Precio" valor={servicio.precio} />
+                    <InfoFila icono={<Clock size={14} />} label="Horario"
                       valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
-                    <InfoFila icono={null}  label="Duración"    valor={servicio.duracion} />
-                    <InfoFila icono={null}  label="Cómo llegar" valor={servicio.como_llegar} />
-                    <InfoFila icono={null}  label="Consejo"     valor={servicio.tip} />
-                    <InfoFila icono={null}  label="🐾 Mascotas"  valor={servicio.mascotas} />
+                    <InfoFila icono={null} label="Duración" valor={servicio.duracion} />
+                    <InfoFila icono={null} label="Cómo llegar" valor={servicio.como_llegar} />
+                    <InfoFila icono={null} label="Consejo" valor={servicio.tip} />
+                    <InfoFila icono={null} label="🐾 Mascotas" valor={servicio.mascotas} />
                     <div className="bg-jungle-50 rounded-xl p-3">
                       <p className="text-xs font-semibold text-jungle-500 mb-1">Descripción</p>
                       <p className="text-sm text-jungle-800">{servicio.descripcion}</p>
@@ -1166,11 +1154,9 @@ function PerfilPrestador({
               />
             )}
           </div>
-            </>
-          )}
 
           {/* ── TAB: Información externa (antes "Enlaces") ── */}
-          {centroTab === 'externa' && (
+          {tab === 'externa' && (
             <div className="px-4 space-y-3">
               <div className="bg-white rounded-2xl border border-jungle-100 p-4">
                 <p className="text-sm font-semibold text-jungle-900 mb-1">Redes sociales y sitio</p>
@@ -1526,11 +1512,10 @@ function PanelReservacionesPrestador({
                       )}
                     </button>
                   )}
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    r.estado === 'confirmada' ? 'bg-green-100 text-green-800'
-                    : r.estado === 'rechazada' ? 'bg-red-100 text-red-800'
-                    : 'bg-jungle-100 text-jungle-500'
-                  }`}>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${r.estado === 'confirmada' ? 'bg-green-100 text-green-800'
+                      : r.estado === 'rechazada' ? 'bg-red-100 text-red-800'
+                        : 'bg-jungle-100 text-jungle-500'
+                    }`}>
                     {r.estado === 'confirmada' ? 'Confirmada' : r.estado === 'rechazada' ? 'Rechazada' : 'Cancelada'}
                   </span>
                 </div>
@@ -1690,9 +1675,8 @@ function ModalCuentaCobro({
     <div className="fixed inset-0 z-[85] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
       <div
         style={!esEscritorio ? { height: `${altura}vh` } : undefined}
-        className={`bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden flex flex-col ${
-          arrastrando ? '' : 'transition-[height] duration-150'
-        }`}
+        className={`bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden flex flex-col ${arrastrando ? '' : 'transition-[height] duration-150'
+          }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Manija de arrastre — solo celular */}
@@ -1745,11 +1729,11 @@ function IconoEnlace({ tipo }: { tipo: TipoEnlace }) {
   const props = { size: 15, className: 'text-jungle-600 flex-shrink-0' };
   switch (tipo) {
     case 'instagram': return <Instagram {...props} />;
-    case 'facebook':  return <Facebook {...props} />;
-    case 'whatsapp':  return <MessageCircle {...props} />;
-    case 'tiktok':    return <Globe {...props} />;
-    case 'sitio':     return <Globe {...props} />;
-    default:          return <Link2 {...props} />;
+    case 'facebook': return <Facebook {...props} />;
+    case 'whatsapp': return <MessageCircle {...props} />;
+    case 'tiktok': return <Globe {...props} />;
+    case 'sitio': return <Globe {...props} />;
+    default: return <Link2 {...props} />;
   }
 }
 

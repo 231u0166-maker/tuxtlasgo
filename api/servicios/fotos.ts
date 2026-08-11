@@ -16,7 +16,7 @@ function getPool() {
 }
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 }
 function getToken(req: VercelRequest) {
@@ -80,21 +80,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const nuevas = fotosActuales.filter((f: string) => f !== url);
       await pool.query(`UPDATE servicios SET fotos=$1, actualizado_en=NOW() WHERE id=$2`, [JSON.stringify(nuevas), servicio.id]);
       return res.status(200).json({ ok: true, fotos: nuevas });
-    }
-
-    // PATCH — reordenar fotos (arrastrar para elegir cuál es la
-    // portada). Recibe el arreglo completo en el nuevo orden; solo
-    // se acepta si trae exactamente las mismas URLs que ya existían,
-    // para no perder ni inventar fotos por un bug del cliente.
-    if (req.method === 'PATCH') {
-      const { orden } = req.body;
-      if (!Array.isArray(orden)) return res.status(400).json({ error: 'Se requiere el arreglo "orden"' });
-      const mismosElementos =
-        orden.length === fotosActuales.length &&
-        [...orden].sort().join('|') === [...fotosActuales].sort().join('|');
-      if (!mismosElementos) return res.status(400).json({ error: 'El nuevo orden no coincide con las fotos actuales' });
-      await pool.query(`UPDATE servicios SET fotos=$1, actualizado_en=NOW() WHERE id=$2`, [JSON.stringify(orden), servicio.id]);
-      return res.status(200).json({ ok: true, fotos: orden });
     }
 
     return res.status(405).json({ error: 'Método no permitido' });

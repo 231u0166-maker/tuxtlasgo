@@ -5,7 +5,6 @@
 // ============================================================
 
 import type { EnlaceServicio } from '../lib/enlaces';
-import type { BloqueContenido } from '../lib/bloquesGuia';
 
 export type Categoria =
   | 'Naturaleza'
@@ -55,9 +54,6 @@ export interface Lugar {
   mascotas?: string;
   // Redes sociales / sitio del prestador (Centro de Prestador — Enlaces).
   enlaces?: EnlaceServicio[];
-  // Información adicional del prestador (editor de bloques), solo
-  // presente cuando ya fue publicada. Ver src/lib/bloquesGuia.ts.
-  contenidoGuia?: BloqueContenido[];
 }
 
 export const LUGARES: Lugar[] = [

@@ -16,15 +16,12 @@ import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
   Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
-  MessageCircle, Globe, Calendar, Sparkles, Navigation, Lightbulb, PawPrint,
+  MessageCircle, Globe, Calendar,
 } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
 import GestorFotos from './GestorFotos';
-import EditorInfoAdicional from './EditorInfoAdicional';
-import RenderBloques from './RenderBloques';
-import { parseBloques, type BloqueContenido, type EstadoInfoAdicional } from '../lib/bloquesGuia';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { recargarCatalogo } from '../App';
@@ -53,8 +50,6 @@ interface ServicioAPI {
   mascotas?: string;
   ideal_para?: string[] | string;
   enlaces?: EnlaceServicio[] | string;
-  contenido_guia?: BloqueContenido[] | string;
-  estado_guia?: EstadoInfoAdicional;
   creado_en?: string;
 }
 
@@ -463,7 +458,6 @@ function PerfilPrestador({
   const [guardandoEnlaces, setGuardandoEnlaces] = useState(false);
   const [nuevoTipoEnlace, setNuevoTipoEnlace] = useState<TipoEnlace>('instagram');
   const [nuevaUrlEnlace, setNuevaUrlEnlace] = useState('');
-  const [mostrarEditorInfo, setMostrarEditorInfo] = useState(false);
   const [form, setForm]           = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
@@ -590,29 +584,6 @@ function PerfilPrestador({
     setEnlaces(e => e.filter(x => x.id !== id));
   }
 
-  async function guardarInfoAdicional(bloques: BloqueContenido[], estadoInfo: EstadoInfoAdicional): Promise<boolean> {
-    try {
-      const res = await fetch('/api/servicios/editar', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ contenido_guia: bloques, estado_guia: estadoInfo }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setServicio(s => (s ? { ...s, ...data.servicio, estado: s.estado } : s));
-        // Publicada, debe reflejarse de inmediato en Explorar.
-        recargarCatalogo().catch(() => {});
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  }
-
   function buildPreview(): Lugar {
     return servicioComoLugar({
       id: servicio?.id,
@@ -720,45 +691,40 @@ function PerfilPrestador({
 
       {!cargando && !error && servicio && (
         <>
-          {/* ── Centro de Prestador — navegación principal (subrayado,
-              como el Centro de Creadores que nos compartiste) ── */}
-          <div className="px-4 mb-1 flex gap-5 overflow-x-auto border-b border-jungle-100">
+          {/* ── Centro de Prestador — navegación principal ── */}
+          <div className="px-4 mb-3 flex gap-1.5 overflow-x-auto">
             {([
-              { id: 'servicio'      as CentroTab, label: 'Servicio' },
-              { id: 'enlaces'       as CentroTab, label: 'Enlaces' },
-              { id: 'ganancias'     as CentroTab, label: 'Ganancias' },
-              { id: 'estadisticas'  as CentroTab, label: 'Estadísticas' },
+              { id: 'servicio'      as CentroTab, label: 'Servicio',      icono: Store },
+              { id: 'enlaces'       as CentroTab, label: 'Enlaces',       icono: Link2 },
+              { id: 'ganancias'     as CentroTab, label: 'Ganancias',     icono: DollarSign },
+              { id: 'estadisticas'  as CentroTab, label: 'Estadísticas',  icono: BarChart3 },
             ]).map(t => (
               <button
                 key={t.id}
                 onClick={() => setCentroTab(t.id)}
-                className={`flex-shrink-0 pb-2.5 pt-1 text-sm font-display font-bold border-b-2 -mb-px transition-colors ${
-                  centroTab === t.id
-                    ? 'text-jungle-950 border-laguna-600'
-                    : 'text-jungle-400 border-transparent hover:text-jungle-600'
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-colors ${
+                  centroTab === t.id ? 'bg-jungle-900 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
                 }`}
               >
-                {t.label}
+                <t.icono size={13} /> {t.label}
               </button>
             ))}
           </div>
 
           {centroTab === 'servicio' && (
             <>
-              {/* Sub-tabs — un nivel más chico, acento distinto (sun)
-                  a propósito, para que se lea como sub-navegación y
-                  no como una segunda fila del mismo nivel. */}
-              <div className="px-4 mt-3 mb-4 flex gap-4">
+              {/* Sub-tabs (sin cambios de antes) */}
+              <div className="px-4 mb-4 flex gap-2">
                 {([
-                  { id: 'servicio' as SubTabServicio, label: 'Mi Servicio' },
-                  { id: 'fotos'    as SubTabServicio, label: 'Fotos' },
-                  { id: 'preview'  as SubTabServicio, label: 'Preview' },
+                  { id: 'servicio' as SubTabServicio, label: '📋 Mi Servicio' },
+                  { id: 'fotos'    as SubTabServicio, label: '📸 Fotos' },
+                  { id: 'preview'  as SubTabServicio, label: '👁️ Preview' },
                 ]).map(t => (
                   <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
-                    className={`text-xs font-semibold pb-1.5 border-b-2 transition-colors ${
-                      tab === t.id ? 'text-jungle-900 border-sun-500' : 'text-jungle-400 border-transparent hover:text-jungle-600'
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                      tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
                     }`}
                   >
                     {t.label}
@@ -893,40 +859,21 @@ function PerfilPrestador({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {/* Descripción como cita destacada — el mismo lenguaje
-                        visual que el bloque "Cita" del editor, para que
-                        el panel se sienta como un solo sistema. */}
-                    <div className="border-l-2 border-sun-400 pl-3.5 py-0.5">
-                      <p className="text-sm text-jungle-800 italic leading-relaxed">{servicio.descripcion}</p>
+                  <div className="space-y-3">
+                    <InfoFila icono={<Store size={14} />}  label="Categoría"   valor={servicio.categoria} />
+                    <InfoFila icono={null}                 label="Municipio"   valor={servicio.municipio} />
+                    <InfoFila icono={<Phone size={14} />}  label="Contacto"    valor={servicio.contacto} />
+                    <InfoFila icono={null}                 label="Precio"      valor={servicio.precio} />
+                    <InfoFila icono={<Clock size={14} />}  label="Horario"
+                      valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
+                    <InfoFila icono={null}  label="Duración"    valor={servicio.duracion} />
+                    <InfoFila icono={null}  label="Cómo llegar" valor={servicio.como_llegar} />
+                    <InfoFila icono={null}  label="Consejo"     valor={servicio.tip} />
+                    <InfoFila icono={null}  label="🐾 Mascotas"  valor={servicio.mascotas} />
+                    <div className="bg-jungle-50 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-jungle-500 mb-1">Descripción</p>
+                      <p className="text-sm text-jungle-800">{servicio.descripcion}</p>
                     </div>
-
-                    {/* Campos fijos en grid — no una lista vertical de
-                        11 filas idénticas. */}
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                      <InfoFila icono={<Store size={13} />}  label="Categoría" valor={servicio.categoria} />
-                      <InfoFila icono={null}                 label="Municipio" valor={servicio.municipio} />
-                      <InfoFila icono={<Phone size={13} />}  label="Contacto"  valor={servicio.contacto} />
-                      <InfoFila icono={null}                 label="Precio"    valor={servicio.precio} />
-                      <InfoFila icono={<Clock size={13} />}  label="Horario"
-                        valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
-                      <InfoFila icono={null}                 label="Duración"  valor={servicio.duracion} />
-                    </div>
-
-                    {(servicio.como_llegar || servicio.tip || servicio.mascotas) && (
-                      <div className="space-y-2">
-                        {servicio.como_llegar && (
-                          <NotaIcono icono={Navigation} texto={servicio.como_llegar} />
-                        )}
-                        {servicio.tip && (
-                          <NotaIcono icono={Lightbulb} texto={servicio.tip} acento="sun" />
-                        )}
-                        {servicio.mascotas && (
-                          <NotaIcono icono={PawPrint} texto={servicio.mascotas} />
-                        )}
-                      </div>
-                    )}
-
                     {parseIdeal(servicio.ideal_para).length > 0 && (
                       <div>
                         <p className="text-xs font-semibold text-jungle-500 mb-1.5">Ideal para</p>
@@ -940,53 +887,16 @@ function PerfilPrestador({
                         </div>
                       </div>
                     )}
-
                     <div className="bg-jungle-50 rounded-xl p-3 flex items-center gap-3">
                       <div>
                         <p className="text-[10px] text-jungle-500 uppercase tracking-wide font-semibold">Código de seguimiento</p>
                         <p className="font-display font-bold text-lg text-jungle-900 tracking-wider">{servicio.codigo_seguimiento}</p>
                       </div>
                     </div>
-
                     <button onClick={() => setEditando(true)}
                       className="w-full flex items-center justify-center gap-2 border border-jungle-200 hover:bg-jungle-50 text-jungle-700 py-3 rounded-xl text-sm font-semibold transition-colors">
                       <Edit3 size={15} /> Editar información del servicio
                     </button>
-
-                    {/* ── Información adicional (editor de bloques) ──
-                        Separada visualmente de arriba con el acento
-                        laguna — el mismo que usa el sendero del editor —
-                        para que se lea como "otra cosa", no como el
-                        mismo formulario de nuevo. */}
-                    <div className="border-t border-jungle-100 pt-4 mt-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-laguna-500" /> Información adicional
-                        </p>
-                        {servicio.contenido_guia && parseBloques(servicio.contenido_guia).length > 0 && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            servicio.estado_guia === 'publicado' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {servicio.estado_guia === 'publicado' ? 'Publicado' : 'Borrador'}
-                          </span>
-                        )}
-                      </div>
-                      {parseBloques(servicio.contenido_guia).length > 0 ? (
-                        <div className="bg-jungle-50 rounded-xl p-3 mb-3 max-h-40 overflow-hidden relative">
-                          <RenderBloques bloques={parseBloques(servicio.contenido_guia).slice(0, 3)} />
-                          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-jungle-50 to-transparent" />
-                        </div>
-                      ) : (
-                        <p className="text-xs text-jungle-500 mb-3">
-                          Fotos, citas, actividades cercanas — contenido extra, libre y opcional, para tu ficha.
-                        </p>
-                      )}
-                      <button onClick={() => setMostrarEditorInfo(true)}
-                        className="w-full flex items-center justify-center gap-2 bg-obsidiana-900 hover:bg-obsidiana-800 text-amate-50 py-3 rounded-xl text-sm font-semibold transition-colors">
-                        <Sparkles size={15} />
-                        {parseBloques(servicio.contenido_guia).length > 0 ? 'Editar información adicional' : 'Añadir información adicional'}
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -1080,11 +990,10 @@ function PerfilPrestador({
               inventan cifras ni flujos de pago que no funcionan. */}
           {centroTab === 'ganancias' && (
             <div className="px-4 space-y-3">
-              <div className="bg-gradient-to-br from-jungle-900 to-jungle-950 rounded-2xl p-5 text-white relative overflow-hidden">
-                <DollarSign size={72} className="absolute -right-3 -bottom-3 text-white/5" />
+              <div className="bg-gradient-to-br from-jungle-900 to-jungle-950 rounded-2xl p-5 text-white">
                 <p className="text-xs text-jungle-300 uppercase tracking-wide font-semibold mb-1">Ganancias totales</p>
                 <p className="font-display font-extrabold text-3xl">$0.00 MXN</p>
-                <p className="text-xs text-jungle-300 mt-2 relative">
+                <p className="text-xs text-jungle-300 mt-2">
                   Aquí verás tus ingresos cuando actives el módulo de reservas y pagos — todavía no está disponible.
                 </p>
               </div>
@@ -1113,41 +1022,18 @@ function PerfilPrestador({
                 <TarjetaStat icono={Link2} label="Enlaces agregados" valor={String(enlaces.length)} />
               </div>
               <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-                <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <BarChart3 size={12} /> Perfil completo
-                </p>
+                <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide mb-2">Perfil completo</p>
                 <BarraPerfilCompleto servicio={servicio} fotos={fotos} />
               </div>
             </div>
           )}
         </>
       )}
-
-      {mostrarEditorInfo && servicio && (
-        <EditorInfoAdicional
-          nombreServicio={servicio.nombre}
-          municipio={servicio.municipio}
-          codigoServicio={servicio.codigo_seguimiento}
-          bloquesIniciales={parseBloques(servicio.contenido_guia)}
-          estadoInicial={servicio.estado_guia ?? 'borrador'}
-          onCerrar={() => setMostrarEditorInfo(false)}
-          onGuardar={guardarInfoAdicional}
-        />
-      )}
     </div>
   );
 }
 
 // ─────────────── AUXILIARES ───────────────
-function NotaIcono({ icono: Icono, texto, acento = 'jungle' }: { icono: typeof Clock; texto: string; acento?: 'jungle' | 'sun' }) {
-  return (
-    <div className={`flex items-start gap-2.5 rounded-xl p-3 ${acento === 'sun' ? 'bg-sun-50' : 'bg-jungle-50'}`}>
-      <Icono size={14} className={`flex-shrink-0 mt-0.5 ${acento === 'sun' ? 'text-sun-600' : 'text-jungle-500'}`} />
-      <p className={`text-sm ${acento === 'sun' ? 'text-sun-900' : 'text-jungle-800'}`}>{texto}</p>
-    </div>
-  );
-}
-
 function formatearMes(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });

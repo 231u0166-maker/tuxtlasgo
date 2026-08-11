@@ -4,7 +4,7 @@ import {
   Home, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
   PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Menu
 } from 'lucide-react';
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import AuthModal from './AuthModal';
@@ -143,6 +143,51 @@ export default function AppShell() {
       return nuevo;
     });
   };
+
+  // Ancho del panel izquierdo (Explorar / Chat) en escritorio — antes
+  // era una clase fija (42%, entre 380 y 560px), sin forma de
+  // ajustarla. Ahora se arrastra desde el borde, como el panel de
+  // código/chat de referencia que nos compartieron. Un solo estado
+  // para ambas pestañas: si lo agrandas en Explorar, sigue así en
+  // Chat, y viceversa — es "el mismo panel", no dos independientes.
+  const ANCHO_PANEL_MIN = 320;
+  const ANCHO_PANEL_MAX = 760;
+  const [anchoPanel, setAnchoPanel] = useState(() => {
+    try {
+      const guardado = Number(localStorage.getItem('ancho-panel-izquierdo'));
+      if (guardado && guardado >= ANCHO_PANEL_MIN && guardado <= ANCHO_PANEL_MAX) return guardado;
+    } catch { /* no crítico */ }
+    return 440;
+  });
+  const [arrastrandoPanel, setArrastrandoPanel] = useState(false);
+  const refContenedorMain = useRef<HTMLElement>(null);
+
+  const iniciarArrastrePanel = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    setArrastrandoPanel(true);
+    const inicioX = e.clientX;
+    const anchoInicial = anchoPanel;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    const mover = (ev: PointerEvent) => {
+      const nuevo = Math.min(ANCHO_PANEL_MAX, Math.max(ANCHO_PANEL_MIN, anchoInicial + (ev.clientX - inicioX)));
+      setAnchoPanel(nuevo);
+    };
+    const soltar = () => {
+      setArrastrandoPanel(false);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      window.removeEventListener('pointermove', mover);
+      window.removeEventListener('pointerup', soltar);
+      setAnchoPanel((actual) => {
+        try { localStorage.setItem('ancho-panel-izquierdo', String(actual)); } catch { /* no crítico */ }
+        return actual;
+      });
+    };
+    window.addEventListener('pointermove', mover);
+    window.addEventListener('pointerup', soltar, { once: true });
+  }, [anchoPanel]);
 
   // Base-visual SECTION-04 / módulo de rutas: estado de la barra de
   // filtros, elevado aquí (no vive dentro de FiltrosViaje) para poder
@@ -620,7 +665,7 @@ export default function AppShell() {
             sugerencias — ver SugerenciasChat, corrección de la pasada
             anterior). En móvil, a pantalla completa con "Volver". Se
             mantiene siempre montada para no perder zoom/posición. */}
-        <main className="flex-1 overflow-hidden min-h-0 flex flex-col lg:flex-row">
+        <main ref={refContenedorMain} className="flex-1 overflow-hidden min-h-0 flex flex-col lg:flex-row">
           {/*para eacceder y poder entrar al perfil*/}
           {tab === 'perfil' && (
             <div className="flex-1 h-full overflow-y-auto">
@@ -645,8 +690,9 @@ export default function AppShell() {
           {tab === 'explorar' && (
             <div
               ref={refPanelExplorar}
-              className={`relative flex-1 lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full overflow-hidden lg:overflow-y-auto ${mapaExpandido ? 'lg:hidden' : ''
-                }`}
+              style={esEscritorio ? { width: anchoPanel } : undefined}
+              className={`relative flex-1 lg:flex-none lg:border-r lg:border-jungle-100 h-full overflow-hidden lg:overflow-y-auto ${mapaExpandido ? 'lg:hidden' : ''
+                } ${arrastrandoPanel ? '' : 'transition-[width] duration-100'}`}
             >
               {/* MÓVIL: el mapa es el fondo, a pantalla completa
                   dentro de este panel — ya no una cajita de 224px.
@@ -728,8 +774,9 @@ export default function AppShell() {
           )}
 
           <div
+            style={esEscritorio ? { width: anchoPanel } : undefined}
             className={`${tab === 'chat' ? 'flex' : 'hidden'} ${mapaExpandido ? 'lg:hidden' : ''
-              } flex-col lg:flex-none lg:w-[42%] lg:min-w-[380px] lg:max-w-[560px] lg:border-r lg:border-jungle-100 h-full min-h-0`}
+              } flex-col lg:flex-none lg:border-r lg:border-jungle-100 h-full min-h-0 ${arrastrandoPanel ? '' : 'transition-[width] duration-100'}`}
           >
             <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5 lg:pt-3 lg:pb-2 bg-jungle-800 lg:bg-jungle-50 border-b border-jungle-900/40 lg:border-jungle-100 overflow-x-auto">
               <button
@@ -767,6 +814,22 @@ export default function AppShell() {
               />
             </div>
           </div>
+
+          {/* Manija de arrastre — solo escritorio, solo cuando hay algo
+              al lado del panel (mapa o sugerencias). Un solo control
+              para Explorar y Chat, ya que comparten el mismo ancho
+              (anchoPanel), así no salta al cambiar de pestaña. */}
+          {esEscritorio && !mapaExpandido && (tab === 'explorar' || tab === 'chat') && (
+            <div
+              onPointerDown={iniciarArrastrePanel}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Ajustar ancho del panel"
+              className={`hidden lg:flex flex-shrink-0 w-2.5 -mx-[5px] z-20 relative cursor-col-resize group items-center justify-center touch-none ${arrastrandoPanel ? 'bg-laguna-100' : 'hover:bg-jungle-50'}`}
+            >
+              <div className={`w-1 h-10 rounded-full transition-colors ${arrastrandoPanel ? 'bg-laguna-500' : 'bg-jungle-200 group-hover:bg-jungle-400'}`} />
+            </div>
+          )}
 
           {tab === 'favoritos' && (
             <div className="flex-1 h-full overflow-y-auto">

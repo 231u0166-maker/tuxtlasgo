@@ -62,15 +62,13 @@ export default function NavbarLanding({
           >
             Para prestadores
           </button>
-          {/* Galería y Comunidad: sin sección propia todavía (no son
-              parte de este módulo) — se dejan visibles por paridad con
-              la referencia, pero inertes en vez de simular un link roto. */}
-          <span className="font-medium text-obsidiana-800/30 cursor-default select-none">
+          {/* Galería y Comunidad ya tienen su propia página. */}
+          <Link to="/galeria" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
             Galería
-          </span>
-          <span className="font-medium text-obsidiana-800/30 cursor-default select-none">
+          </Link>
+          <Link to="/comunidad" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
             Comunidad
-          </span>
+          </Link>
         </nav>
 
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -204,8 +202,8 @@ function MenuMovil({
             activo={!esTurista}
             onClick={() => { onCambiarModo('prestador'); onCerrar(); }}
           />
-          <ItemMenu label="Galería" inerte />
-          <ItemMenu label="Comunidad" inerte />
+          <ItemMenu label="Galería" to="/galeria" onClick={onCerrar} />
+          <ItemMenu label="Comunidad" to="/comunidad" onClick={onCerrar} />
 
           <div className="h-px bg-obsidiana-900/5 my-2" />
 

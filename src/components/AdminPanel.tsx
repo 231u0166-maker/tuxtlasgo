@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, ShieldCheck, CheckCircle2, XCircle,
   Store, MapPin, Phone, DollarSign, Loader2, BookPlus,
-  Search, ImagePlus, X, ExternalLink, Sparkles
+  Search, ImagePlus, X, ExternalLink, Sparkles, Flag, Trash2, RotateCcw
 } from 'lucide-react';
 import { agregarConocimientoDinamico } from '../lib/conocimiento';
 import { CATEGORIAS, type Categoria } from '../data/lugares';
@@ -16,7 +16,7 @@ type Filtro = 'pendiente' | 'aprobado' | 'rechazado' | 'baja' | 'todos';
 // baja lo que registra el público) es un flujo distinto de la Base de
 // Conocimiento (fichas de la IA + alta rápida de lugares por el
 // propio equipo). Antes vivían mezcladas en una sola pantalla.
-type Seccion = 'servicios' | 'conocimiento';
+type Seccion = 'servicios' | 'conocimiento' | 'comunidad';
 
 const MUNICIPIOS = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
 const OPCIONES_IDEAL = ['solo', 'pareja', 'familia', 'amigos'];
@@ -434,10 +434,22 @@ export default function AdminPanel() {
               <BookPlus size={15} /> Base de Conocimiento
             </span>
           </button>
+          <button
+            onClick={() => cambiarSeccion('comunidad')}
+            className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${seccion === 'comunidad'
+              ? 'border-jungle-700 text-jungle-900'
+              : 'border-transparent text-jungle-400 hover:text-jungle-700'
+              }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <Flag size={15} /> Comunidad reportada
+            </span>
+          </button>
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-6">
+        {seccion === 'comunidad' && <SeccionComunidad />}
         {seccion === 'servicios' && (
           <>
             {/* Título */}
@@ -908,6 +920,128 @@ export default function AdminPanel() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// SECCIÓN COMUNIDAD — moderación de publicaciones reportadas
+// ============================================================
+// Solo trae publicaciones con reportes>0 u ocultas (?admin=1 filtra
+// del lado del servidor) — no toda la comunidad, para no duplicar
+// lo que ya se ve en /comunidad. Restaurar limpia el contador de
+// reportes; eliminar borra la publicación por completo.
+interface PublicacionAdmin {
+  id: number;
+  texto: string | null;
+  imagen_url: string | null;
+  video_url: string | null;
+  creado_en: string;
+  reportes: number;
+  oculto: boolean;
+  autor_nombre: string;
+}
+
+function SeccionComunidad() {
+  const [publicaciones, setPublicaciones] = useState<PublicacionAdmin[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [procesando, setProcesando] = useState<number | null>(null);
+
+  async function cargar() {
+    setCargando(true);
+    try {
+      const res = await fetch('/api/comunidad/publicaciones?admin=1', {
+        headers: { 'X-Admin-Password': ADMIN_PWD },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const reportadas = (data.publicaciones as PublicacionAdmin[]).filter(
+          (p) => p.reportes > 0 || p.oculto
+        );
+        setPublicaciones(reportadas);
+      }
+    } catch { /* sin conexión */ }
+    setCargando(false);
+  }
+
+  useEffect(() => { cargar(); }, []);
+
+  async function restaurar(id: number) {
+    setProcesando(id);
+    try {
+      await fetch('/api/comunidad/publicaciones', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        body: JSON.stringify({ id }),
+      });
+      await cargar();
+    } catch { /* sin conexión */ }
+    setProcesando(null);
+  }
+
+  async function eliminar(id: number) {
+    if (!confirm('¿Eliminar esta publicación por completo? No se puede deshacer.')) return;
+    setProcesando(id);
+    try {
+      await fetch('/api/comunidad/publicaciones', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        body: JSON.stringify({ id }),
+      });
+      setPublicaciones((prev) => prev.filter((p) => p.id !== id));
+    } catch { /* sin conexión */ }
+    setProcesando(null);
+  }
+
+  if (cargando) {
+    return (
+      <div className="bg-white rounded-2xl border border-jungle-100 p-10 text-center text-jungle-400">
+        <Loader2 size={26} className="animate-spin mx-auto mb-2" />
+        <p className="text-sm">Cargando publicaciones reportadas…</p>
+      </div>
+    );
+  }
+
+  if (publicaciones.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-jungle-100 p-10 text-center text-jungle-400">
+        <Flag size={28} className="mx-auto mb-2 opacity-40" />
+        <p className="text-sm">No hay publicaciones reportadas por ahora.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {publicaciones.map((p) => (
+        <div key={p.id} className="bg-white rounded-2xl border border-jungle-100 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-jungle-900">{p.autor_nombre}</p>
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${p.oculto ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+              {p.reportes} reporte{p.reportes === 1 ? '' : 's'} {p.oculto && '· oculta'}
+            </span>
+          </div>
+          {p.texto && <p className="text-sm text-jungle-700 mb-2 whitespace-pre-wrap">{p.texto}</p>}
+          {p.imagen_url && <img src={p.imagen_url} alt="" className="max-h-56 rounded-xl object-cover mb-3" />}
+          {p.video_url && <video src={p.video_url} controls className="max-h-56 rounded-xl mb-3" />}
+          <div className="flex gap-2">
+            <button
+              onClick={() => restaurar(p.id)}
+              disabled={procesando === p.id}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-jungle-50 hover:bg-jungle-100 text-jungle-700 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
+            >
+              <RotateCcw size={13} /> Restaurar
+            </button>
+            <button
+              onClick={() => eliminar(p.id)}
+              disabled={procesando === p.id}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-700 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
+            >
+              <Trash2 size={13} /> Eliminar
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -4,6 +4,8 @@ import LandingPage from './components/LandingPage';
 import AppShell from './components/AppShell';
 import ProviderPanel from './components/ProviderPanel';
 import AdminPanel from './components/AdminPanel';
+import GaleriaPage from './components/GaleriaPage';
+import ComunidadPage from './components/ComunidadPage';
 import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
 import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
 import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
@@ -123,6 +125,8 @@ export default function App() {
         <Route path="/app" element={<AppShell />} />
         <Route path="/prestador" element={<ProviderPanel />} />
         <Route path="/admin" element={<AdminPanel />} />
+        <Route path="/galeria" element={<GaleriaPage />} />
+        <Route path="/comunidad" element={<ComunidadPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ActualizacionDisponible />

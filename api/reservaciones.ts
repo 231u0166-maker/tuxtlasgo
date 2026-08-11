@@ -2,12 +2,13 @@
 // GET    /api/reservaciones?disponibilidad=1&servicio_id=X&fecha=YYYY-MM-DD → pública, sin sesión
 // POST   /api/reservaciones                                    → crear solicitud (requiere sesión de turista)
 // PATCH  /api/reservaciones                                    → confirmar/rechazar (prestador) o cancelar (cualquiera de los dos)
+// GET    /api/reservaciones?recurso=mensajes&reservacion_id=X  → historial de la conversación de esa reservación
+// POST   /api/reservaciones?recurso=mensajes                   → enviar mensaje/foto en esa conversación
 //
-// A propósito sin nada de pagos aquí — eso es la siguiente pieza,
-// una vez que esto funcione bien. El prestador solo puede activar
-// acepta_reservaciones si su servicio ya es Premium (se revalida en
-// api/servicios/editar.ts, no aquí — aquí solo se respeta lo que
-// diga esa columna).
+// Los mensajes viven aquí (no en un archivo aparte) para no pasarnos
+// del límite de 12 funciones serverless del plan Hobby de Vercel.
+// Cada conversación está ligada a UNA reservación — no es un chat
+// abierto, solo entre quien reservó y el prestador de esa reserva.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
 
@@ -30,6 +31,23 @@ async function usuarioDeSesion(pool: Pool, token: string): Promise<{ id: number;
     [token]
   );
   return sess.rows.length > 0 ? sess.rows[0] : null;
+}
+// Confirma que el usuario sea el turista que reservó o el prestador
+// dueño del servicio de esa reservación — nadie más puede ver ni
+// escribir en la conversación.
+async function participanteDeReservacion(pool: Pool, reservacionId: number, usuario: { id: number; tipo: string }) {
+  const fila = await pool.query(
+    `SELECT r.turista_id, s.usuario_id AS prestador_usuario_id
+     FROM reservaciones r JOIN servicios s ON s.id = r.servicio_id
+     WHERE r.id = $1`,
+    [reservacionId]
+  );
+  if (fila.rows.length === 0) return null;
+  const { turista_id, prestador_usuario_id } = fila.rows[0];
+  const esTurista = usuario.tipo === 'turista' && usuario.id === turista_id;
+  const esPrestador = usuario.tipo === 'prestador' && usuario.id === prestador_usuario_id;
+  if (!esTurista && !esPrestador) return null;
+  return { esTurista, esPrestador };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -67,14 +85,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const usuario = await usuarioDeSesion(pool, token);
     if (!usuario) return res.status(401).json({ error: 'Sesión inválida' });
 
-    // ── GET — mis reservaciones ────────────────────────────────
+    // ── ?recurso=mensajes — la conversación de una reservación ────
+    if (req.query.recurso === 'mensajes') {
+      const reservacionId = Number(req.method === 'GET' ? req.query.reservacion_id : req.body?.reservacion_id);
+      if (!reservacionId) return res.status(400).json({ error: 'Falta reservacion_id' });
+
+      const participante = await participanteDeReservacion(pool, reservacionId, usuario);
+      if (!participante) return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
+
+      if (req.method === 'GET') {
+        const mensajes = await pool.query(
+          `SELECT m.id, m.remitente_id, m.texto, m.imagen_url, m.leido, m.creado_en,
+                  u.nombre AS remitente_nombre
+           FROM mensajes_reservacion m JOIN usuarios u ON u.id = m.remitente_id
+           WHERE m.reservacion_id = $1
+           ORDER BY m.creado_en ASC`,
+          [reservacionId]
+        );
+        // Marca como leídos los mensajes del OTRO participante — los
+        // propios nunca se marcan aquí, ya se sabe que se leyeron.
+        await pool.query(
+          `UPDATE mensajes_reservacion SET leido = TRUE
+           WHERE reservacion_id = $1 AND remitente_id != $2 AND leido = FALSE`,
+          [reservacionId, usuario.id]
+        );
+        return res.status(200).json({ ok: true, mensajes: mensajes.rows, propioId: usuario.id });
+      }
+
+      if (req.method === 'POST') {
+        const { texto, imagen_url } = req.body ?? {};
+        const textoLimpio = typeof texto === 'string' ? texto.trim().slice(0, 1000) : '';
+        if (!textoLimpio && !imagen_url) return res.status(400).json({ error: 'Escribe algo o adjunta una foto' });
+
+        const insertado = await pool.query(
+          `INSERT INTO mensajes_reservacion (reservacion_id, remitente_id, texto, imagen_url)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id, remitente_id, texto, imagen_url, leido, creado_en`,
+          [reservacionId, usuario.id, textoLimpio || null, imagen_url || null]
+        );
+        return res.status(200).json({ ok: true, mensaje: insertado.rows[0] });
+      }
+
+      return res.status(405).json({ error: 'Método no permitido' });
+    }
+
+    // ── GET — mis reservaciones (con contador de mensajes sin leer) ──
     if (req.method === 'GET') {
       if (usuario.tipo === 'prestador') {
         const filas = await pool.query(
           `SELECT r.id, r.fecha, r.nombre_viajero, r.numero_personas, r.presupuesto,
                   r.notas, r.estado, r.politica, r.creado_en,
                   u.nombre AS turista_nombre, u.correo AS turista_correo,
-                  s.nombre AS servicio_nombre
+                  s.nombre AS servicio_nombre,
+                  (SELECT COUNT(*) FROM mensajes_reservacion m
+                   WHERE m.reservacion_id = r.id AND m.remitente_id != $1 AND m.leido = FALSE) AS mensajes_no_leidos
            FROM reservaciones r
            JOIN servicios s ON s.id = r.servicio_id
            JOIN usuarios u ON u.id = r.turista_id
@@ -88,7 +152,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const filas = await pool.query(
         `SELECT r.id, r.fecha, r.nombre_viajero, r.numero_personas, r.presupuesto,
                 r.notas, r.estado, r.politica, r.creado_en,
-                s.id AS servicio_id, s.nombre AS servicio_nombre, s.municipio, s.categoria
+                s.id AS servicio_id, s.nombre AS servicio_nombre, s.municipio, s.categoria,
+                (SELECT COUNT(*) FROM mensajes_reservacion m
+                 WHERE m.reservacion_id = r.id AND m.remitente_id != $1 AND m.leido = FALSE) AS mensajes_no_leidos
          FROM reservaciones r
          JOIN servicios s ON s.id = r.servicio_id
          WHERE r.turista_id = $1

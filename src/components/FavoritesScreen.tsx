@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Heart, Route, Trash2, Calendar, MapPin, BookmarkCheck, Clock, X, Loader2 } from 'lucide-react';
+import { Heart, Route, Trash2, Calendar, MapPin, BookmarkCheck, Clock, X, Loader2, MessageCircle } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
 import { LUGARES, type Lugar } from '../data/lugares';
 import PlaceCard from './PlaceCard';
 import { getToken, getUsuarioLocal } from '../lib/auth';
+import ChatReservacion from './ChatReservacion';
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
@@ -24,6 +25,7 @@ interface ReservacionTurista {
   servicio_nombre: string;
   municipio: string;
   categoria: string;
+  mensajes_no_leidos?: number;
 }
 
 export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) {
@@ -59,6 +61,8 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
     if (tab === 'reservaciones') cargarReservaciones();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  const [chatAbierto, setChatAbierto] = useState<{ id: number; nombre: string } | null>(null);
 
   async function cancelarReservacion(id: number) {
     if (!confirm('¿Cancelar esta reservación?')) return;
@@ -264,12 +268,25 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                       <span>{r.numero_personas} persona{r.numero_personas > 1 ? 's' : ''}</span>
                     </div>
                     {(r.estado === 'pendiente' || r.estado === 'confirmada') && (
-                      <button
-                        onClick={() => cancelarReservacion(r.id)}
-                        className="mt-3 text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
-                      >
-                        <X size={12} /> Cancelar reservación
-                      </button>
+                      <div className="flex items-center gap-3 mt-3">
+                        <button
+                          onClick={() => setChatAbierto({ id: r.id, nombre: r.servicio_nombre })}
+                          className="relative text-xs font-semibold text-jungle-700 hover:text-jungle-900 flex items-center gap-1"
+                        >
+                          <MessageCircle size={13} /> Mensajes
+                          {!!r.mensajes_no_leidos && (
+                            <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                              {r.mensajes_no_leidos}
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => cancelarReservacion(r.id)}
+                          className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
+                        >
+                          <X size={12} /> Cancelar
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -278,6 +295,14 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
           </>
         )}
       </div>
+
+      {chatAbierto && (
+        <ChatReservacion
+          reservacionId={chatAbierto.id}
+          nombreOtro={chatAbierto.nombre}
+          onCerrar={() => { setChatAbierto(null); cargarReservaciones(); }}
+        />
+      )}
     </div>
   );
 }

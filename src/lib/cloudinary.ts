@@ -222,3 +222,55 @@ export function subirFotoComunidad(
 
   return () => xhr.abort();
 }
+
+/**
+ * Sube una foto dentro de la conversación de una reservación —
+ * carpeta reservaciones/<reservacionId> para mantenerlas separadas
+ * de las demás fotos.
+ */
+export function subirFotoMensaje(
+  file: File,
+  reservacionId: number | string,
+  onProgreso: (p: ProgresoSubida) => void
+): () => void {
+  const xhr = new XMLHttpRequest();
+  const formData = new FormData();
+
+  formData.append('file', file);
+  formData.append('upload_preset', UPLOAD_PRESET);
+  formData.append('folder', `reservaciones/${reservacionId}`);
+  formData.append('tags', `tuxtlasgo,reservacion,reservacion-${reservacionId}`);
+
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 100);
+      onProgreso({ porcentaje: pct });
+    }
+  };
+
+  xhr.onload = () => {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        onProgreso({ porcentaje: 100, url: data.secure_url, publicId: data.public_id });
+      } catch {
+        onProgreso({ porcentaje: 0, error: 'Respuesta inválida del servidor' });
+      }
+    } else {
+      try {
+        const err = JSON.parse(xhr.responseText);
+        onProgreso({ porcentaje: 0, error: err.error?.message ?? `Error ${xhr.status}` });
+      } catch {
+        onProgreso({ porcentaje: 0, error: `Error HTTP ${xhr.status}` });
+      }
+    }
+  };
+
+  xhr.onerror = () => onProgreso({ porcentaje: 0, error: 'Sin conexión a internet' });
+  xhr.onabort = () => onProgreso({ porcentaje: 0, error: 'Subida cancelada' });
+
+  xhr.open('POST', UPLOAD_URL);
+  xhr.send(formData);
+
+  return () => xhr.abort();
+}

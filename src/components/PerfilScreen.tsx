@@ -26,6 +26,7 @@ import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { recargarCatalogo } from '../App';
 import { TIPOS_ENLACE, nuevoEnlaceId, parseEnlaces, type EnlaceServicio, type TipoEnlace } from '../lib/enlaces';
+import { useHojaArrastrable } from '../lib/useHojaArrastrable';
 
 // ─────────────── TIPOS ───────────────
 interface ServicioAPI {
@@ -1251,6 +1252,14 @@ function ModalCuentaCobro({
   const [tipo, setTipo] = useState<'mercadopago' | 'paypal'>(actual?.tipo ?? 'mercadopago');
   const [correo, setCorreo] = useState(actual?.correo ?? '');
   const [guardando, setGuardando] = useState(false);
+  const [esEscritorio, setEsEscritorio] = useState(() => window.innerWidth >= 640);
+  const { altura, arrastrando, iniciarArrastre } = useHojaArrastrable({ inicial: 78, onCerrar });
+
+  useEffect(() => {
+    const onResize = () => setEsEscritorio(window.innerWidth >= 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim());
 
@@ -1262,64 +1271,85 @@ function ModalCuentaCobro({
     if (ok) onCerrar();
   }
 
+  const OpcionesPago = (
+    <div className="grid grid-cols-2 sm:grid-cols-1 gap-2.5 sm:gap-3">
+      <button
+        onClick={() => setTipo('mercadopago')}
+        className={`rounded-2xl border-2 p-4 sm:p-5 text-left transition-colors ${tipo === 'mercadopago' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100 hover:border-jungle-300'}`}
+      >
+        <span className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-sky-500 flex items-center justify-center text-white text-xs sm:text-sm font-black mb-2">MP</span>
+        <p className="text-sm sm:text-base font-display font-bold text-jungle-950">Mercado Pago</p>
+        <p className="text-xs sm:text-sm text-jungle-500 mt-0.5">Pago vía Mercado Pago</p>
+      </button>
+      <button
+        onClick={() => setTipo('paypal')}
+        className={`rounded-2xl border-2 p-4 sm:p-5 text-left transition-colors ${tipo === 'paypal' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100 hover:border-jungle-300'}`}
+      >
+        <span className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-blue-700 flex items-center justify-center text-white text-xs sm:text-sm font-black mb-2">PP</span>
+        <p className="text-sm sm:text-base font-display font-bold text-jungle-950">PayPal</p>
+        <p className="text-xs sm:text-sm text-jungle-500 mt-0.5">Pago seguro vía PayPal</p>
+      </button>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-[85] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
       <div
-        className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[85vh] overflow-y-auto"
+        style={!esEscritorio ? { height: `${altura}vh` } : undefined}
+        className={`bg-white w-full sm:max-w-3xl sm:rounded-3xl rounded-t-3xl overflow-hidden flex flex-col ${arrastrando ? '' : 'transition-[height] duration-150'
+          }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white/95 backdrop-blur px-5 pt-5 pb-1 flex items-center justify-between">
+        {/* Manija de arrastre — solo celular */}
+        <div
+          onPointerDown={iniciarArrastre}
+          className="sm:hidden flex justify-center py-2.5 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+        >
+          <div className="w-10 h-1.5 rounded-full bg-jungle-200" />
+        </div>
+
+        <div className="px-5 sm:px-8 pt-1 sm:pt-8 pb-1 flex items-center justify-between flex-shrink-0">
           <button onClick={onCerrar} className="text-jungle-400 hover:text-jungle-700 text-sm font-medium">Cerrar</button>
           <span className="text-xs text-jungle-400 font-semibold">Cuenta de cobro</span>
         </div>
 
-        <div className="px-5 pb-6 pt-3">
-          <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1.5">¿Cómo te gustaría que te pagaran?</h2>
-          <p className="text-sm text-jungle-500 mb-5">
-            Para recibir tu parte, vincula tu cuenta de Mercado Pago o PayPal. Este dato solo se guarda para cuando actives cobros por reservación.
-          </p>
+        <div className="px-5 sm:px-8 pb-6 sm:pb-8 pt-3 overflow-y-auto flex-1">
+          <div className="sm:grid sm:grid-cols-2 sm:gap-10">
+            <div>
+              <h2 className="font-display font-extrabold text-2xl sm:text-4xl text-jungle-950 mb-1.5 sm:mb-3">¿Cómo te gustaría que te pagaran?</h2>
+              <p className="text-sm sm:text-base text-jungle-500 mb-5 sm:mb-8 sm:max-w-sm">
+                Para recibir tu parte, vincula tu cuenta de Mercado Pago o PayPal. Este dato solo se guarda para cuando actives cobros por reservación.
+              </p>
+              <div className="sm:hidden">{OpcionesPago}</div>
+            </div>
 
-          <div className="grid grid-cols-2 gap-2.5 mb-5">
-            <button
-              onClick={() => setTipo('mercadopago')}
-              className={`rounded-2xl border-2 p-4 text-left transition-colors ${tipo === 'mercadopago' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100 hover:border-jungle-300'}`}
-            >
-              <span className="w-9 h-9 rounded-full bg-sky-500 flex items-center justify-center text-white text-xs font-black mb-2">MP</span>
-              <p className="text-sm font-display font-bold text-jungle-950">Mercado Pago</p>
-              <p className="text-xs text-jungle-500 mt-0.5">Pago vía Mercado Pago</p>
-            </button>
-            <button
-              onClick={() => setTipo('paypal')}
-              className={`rounded-2xl border-2 p-4 text-left transition-colors ${tipo === 'paypal' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100 hover:border-jungle-300'}`}
-            >
-              <span className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center text-white text-xs font-black mb-2">PP</span>
-              <p className="text-sm font-display font-bold text-jungle-950">PayPal</p>
-              <p className="text-xs text-jungle-500 mt-0.5">Pago seguro vía PayPal</p>
-            </button>
+            <div>
+              <div className="hidden sm:block mb-6">{OpcionesPago}</div>
+
+              <label className="block text-xs sm:text-sm font-semibold text-jungle-700 mb-1.5">
+                Correo de {tipo === 'mercadopago' ? 'Mercado Pago' : 'PayPal'}
+              </label>
+              <input
+                type="email"
+                value={correo}
+                onChange={(e) => setCorreo(e.target.value)}
+                placeholder="tu_correo@ejemplo.com"
+                className="w-full bg-jungle-50 rounded-xl px-3.5 py-3 sm:py-3.5 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-jungle-400 mb-1.5"
+              />
+              <p className="text-[11px] sm:text-xs text-jungle-400 mb-5 sm:mb-6">
+                Debe ser el mismo correo con el que abriste tu cuenta de {tipo === 'mercadopago' ? 'Mercado Pago' : 'PayPal'}.
+              </p>
+
+              <button
+                onClick={guardar}
+                disabled={!correoValido || guardando}
+                className="w-full flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white py-3.5 rounded-xl text-sm sm:text-base font-semibold"
+              >
+                {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                Guardar cuenta de cobro
+              </button>
+            </div>
           </div>
-
-          <label className="block text-xs font-semibold text-jungle-700 mb-1.5">
-            Correo de {tipo === 'mercadopago' ? 'Mercado Pago' : 'PayPal'}
-          </label>
-          <input
-            type="email"
-            value={correo}
-            onChange={(e) => setCorreo(e.target.value)}
-            placeholder="tu_correo@ejemplo.com"
-            className="w-full bg-jungle-50 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 mb-1.5"
-          />
-          <p className="text-[11px] text-jungle-400 mb-5">
-            Debe ser el mismo correo con el que abriste tu cuenta de {tipo === 'mercadopago' ? 'Mercado Pago' : 'PayPal'}.
-          </p>
-
-          <button
-            onClick={guardar}
-            disabled={!correoValido || guardando}
-            className="w-full flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white py-3.5 rounded-xl text-sm font-semibold"
-          >
-            {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Guardar cuenta de cobro
-          </button>
         </div>
       </div>
     </div>

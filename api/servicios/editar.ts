@@ -60,6 +60,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       mascotas,
       // Centro de Prestador — pestaña Enlaces (shell, sin pagos reales).
       enlaces,
+      // Cuenta de cobro — a dónde le llega su parte cuando exista el
+      // reparto 94%/6% de reservaciones (ver PDF de plan de negocio).
+      // Por ahora solo se guarda el dato, sin lógica de reparto real.
+      cuenta_cobro,
     } = req.body ?? {};
 
     const campos: string[] = [];
@@ -125,6 +129,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       campos.push(`enlaces = $${idx++}`);
       valores.push(JSON.stringify(enlaces));
     }
+    if (cuenta_cobro && typeof cuenta_cobro === 'object') {
+      campos.push(`cuenta_cobro = $${idx++}`);
+      valores.push(JSON.stringify(cuenta_cobro));
+    }
 
     if (campos.length === 0)
       return res.status(400).json({ error: 'Sin campos para actualizar' });
@@ -143,7 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               contacto, lat, lng, estado, codigo_seguimiento,
               motivo_rechazo, fotos,
               horario, dias_abierto, duracion, como_llegar, tip, ideal_para,
-              mascotas, enlaces, premium, premium_desde, premium_hasta,
+              mascotas, enlaces, premium, premium_desde, premium_hasta, cuenta_cobro,
               creado_en, actualizado_en
        FROM servicios WHERE id = $1`,
       [servicioId]

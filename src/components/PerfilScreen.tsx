@@ -54,6 +54,7 @@ interface ServicioAPI {
   premium?: boolean;
   premium_desde?: string;
   premium_hasta?: string;
+  cuenta_cobro?: { tipo: 'mercadopago' | 'paypal'; correo: string } | null;
 }
 
 interface FormServicio {
@@ -463,6 +464,7 @@ function PerfilPrestador({
   const [nuevaUrlEnlace, setNuevaUrlEnlace] = useState('');
   const [mostrarResumen, setMostrarResumen] = useState(false);
   const [mensajePremium, setMensajePremium] = useState<{ tipo: 'exito' | 'error' | 'pendiente'; texto: string } | null>(null);
+  const [mostrarCuentaCobro, setMostrarCuentaCobro] = useState(false);
   const [form, setForm]           = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
@@ -592,6 +594,29 @@ function PerfilPrestador({
       alert('Sin conexión. Verifica tu internet.');
     }
     setGuardandoEnlaces(false);
+  }
+
+  async function guardarCuentaCobro(cuenta: { tipo: 'mercadopago' | 'paypal'; correo: string }): Promise<boolean> {
+    try {
+      const res = await fetch('/api/servicios/editar', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ cuenta_cobro: cuenta }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setServicio(s => (s ? { ...s, cuenta_cobro: data.servicio.cuenta_cobro } : s));
+        return true;
+      }
+      alert(data.error ?? 'Error al guardar');
+      return false;
+    } catch {
+      alert('Sin conexión. Verifica tu internet.');
+      return false;
+    }
   }
 
   function agregarEnlace() {
@@ -1033,21 +1058,39 @@ function PerfilPrestador({
                 Guardar enlaces
               </button>
 
-              {/* Cuenta de cobro — solo la entrada visual por ahora,
-                  sin lógica real todavía (falta decidir pasarela y
-                  cumplimiento antes de conectar dinero de verdad). */}
+              {/* Cuenta de cobro — guarda a dónde le llega su parte al
+                  prestador cuando exista el reparto 94%/6% de
+                  reservaciones. Guarda el dato real ya; el reparto
+                  automático llega junto con el módulo de reservas. */}
               <div className="bg-white rounded-2xl border border-jungle-100 p-4">
                 <p className="text-sm font-semibold text-jungle-900 mb-1">Cuenta de cobro</p>
                 <p className="text-xs text-jungle-500 mb-3">
-                  Para cuando actives cobros dentro de la app.
+                  A dónde te llegará tu parte cuando actives cobros por reservación dentro de la app.
                 </p>
-                <button
-                  disabled
-                  title="Próximamente"
-                  className="w-full flex items-center justify-center gap-2 border border-dashed border-jungle-200 text-jungle-400 py-3 rounded-xl text-sm font-semibold cursor-not-allowed"
-                >
-                  <Plus size={15} /> Añadir cuenta Mercado Pago o PayPal
-                </button>
+                {servicio.cuenta_cobro ? (
+                  <button
+                    onClick={() => setMostrarCuentaCobro(true)}
+                    className="w-full flex items-center gap-2.5 bg-jungle-50 hover:bg-jungle-100 rounded-xl p-3 text-left transition-colors"
+                  >
+                    {servicio.cuenta_cobro.tipo === 'mercadopago'
+                      ? <span className="w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center text-white text-[10px] font-black flex-shrink-0">MP</span>
+                      : <span className="w-8 h-8 rounded-full bg-blue-700 flex items-center justify-center text-white text-[10px] font-black flex-shrink-0">PP</span>}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-jungle-800">
+                        {servicio.cuenta_cobro.tipo === 'mercadopago' ? 'Mercado Pago' : 'PayPal'}
+                      </p>
+                      <p className="text-xs text-jungle-500 truncate">{servicio.cuenta_cobro.correo}</p>
+                    </div>
+                    <span className="text-[11px] font-semibold text-jungle-500 flex-shrink-0">Cambiar</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setMostrarCuentaCobro(true)}
+                    className="w-full flex items-center justify-center gap-2 border border-dashed border-jungle-300 hover:border-jungle-500 text-jungle-600 py-3 rounded-xl text-sm font-semibold transition-colors"
+                  >
+                    <Plus size={15} /> Añadir cuenta Mercado Pago o PayPal
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1061,6 +1104,14 @@ function PerfilPrestador({
           enlaces={enlaces}
           labelEstado={labelEstado}
           onCerrar={() => setMostrarResumen(false)}
+        />
+      )}
+
+      {mostrarCuentaCobro && servicio && (
+        <ModalCuentaCobro
+          actual={servicio.cuenta_cobro}
+          onCerrar={() => setMostrarCuentaCobro(false)}
+          onGuardar={guardarCuentaCobro}
         />
       )}
     </div>
@@ -1185,6 +1236,94 @@ function PanelResumenPrestador({
             </p>
             <BarraPerfilCompleto servicio={servicio} fotos={fotos} />
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Modal — "¿Cómo te gustaría que te pagaran?" — solo guarda el dato
+// por ahora (a dónde le llega su parte al prestador). El reparto
+// automático real (94%/6%) llega junto con el módulo de reservas.
+function ModalCuentaCobro({
+  actual, onCerrar, onGuardar,
+}: {
+  actual?: { tipo: 'mercadopago' | 'paypal'; correo: string } | null;
+  onCerrar: () => void;
+  onGuardar: (cuenta: { tipo: 'mercadopago' | 'paypal'; correo: string }) => Promise<boolean>;
+}) {
+  const [tipo, setTipo] = useState<'mercadopago' | 'paypal'>(actual?.tipo ?? 'mercadopago');
+  const [correo, setCorreo] = useState(actual?.correo ?? '');
+  const [guardando, setGuardando] = useState(false);
+
+  const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim());
+
+  async function guardar() {
+    if (!correoValido) return;
+    setGuardando(true);
+    const ok = await onGuardar({ tipo, correo: correo.trim() });
+    setGuardando(false);
+    if (ok) onCerrar();
+  }
+
+  return (
+    <div className="fixed inset-0 z-[85] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
+      <div
+        className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[85vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 bg-white/95 backdrop-blur px-5 pt-5 pb-1 flex items-center justify-between">
+          <button onClick={onCerrar} className="text-jungle-400 hover:text-jungle-700 text-sm font-medium">Cerrar</button>
+          <span className="text-xs text-jungle-400 font-semibold">Cuenta de cobro</span>
+        </div>
+
+        <div className="px-5 pb-6 pt-3">
+          <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1.5">¿Cómo te gustaría que te pagaran?</h2>
+          <p className="text-sm text-jungle-500 mb-5">
+            Para recibir tu parte, vincula tu cuenta de Mercado Pago o PayPal. Este dato solo se guarda para cuando actives cobros por reservación.
+          </p>
+
+          <div className="grid grid-cols-2 gap-2.5 mb-5">
+            <button
+              onClick={() => setTipo('mercadopago')}
+              className={`rounded-2xl border-2 p-4 text-left transition-colors ${tipo === 'mercadopago' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100 hover:border-jungle-300'}`}
+            >
+              <span className="w-9 h-9 rounded-full bg-sky-500 flex items-center justify-center text-white text-xs font-black mb-2">MP</span>
+              <p className="text-sm font-display font-bold text-jungle-950">Mercado Pago</p>
+              <p className="text-xs text-jungle-500 mt-0.5">Pago vía Mercado Pago</p>
+            </button>
+            <button
+              onClick={() => setTipo('paypal')}
+              className={`rounded-2xl border-2 p-4 text-left transition-colors ${tipo === 'paypal' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100 hover:border-jungle-300'}`}
+            >
+              <span className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center text-white text-xs font-black mb-2">PP</span>
+              <p className="text-sm font-display font-bold text-jungle-950">PayPal</p>
+              <p className="text-xs text-jungle-500 mt-0.5">Pago seguro vía PayPal</p>
+            </button>
+          </div>
+
+          <label className="block text-xs font-semibold text-jungle-700 mb-1.5">
+            Correo de {tipo === 'mercadopago' ? 'Mercado Pago' : 'PayPal'}
+          </label>
+          <input
+            type="email"
+            value={correo}
+            onChange={(e) => setCorreo(e.target.value)}
+            placeholder="tu_correo@ejemplo.com"
+            className="w-full bg-jungle-50 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 mb-1.5"
+          />
+          <p className="text-[11px] text-jungle-400 mb-5">
+            Debe ser el mismo correo con el que abriste tu cuenta de {tipo === 'mercadopago' ? 'Mercado Pago' : 'PayPal'}.
+          </p>
+
+          <button
+            onClick={guardar}
+            disabled={!correoValido || guardando}
+            className="w-full flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white py-3.5 rounded-xl text-sm font-semibold"
+          >
+            {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            Guardar cuenta de cobro
+          </button>
         </div>
       </div>
     </div>

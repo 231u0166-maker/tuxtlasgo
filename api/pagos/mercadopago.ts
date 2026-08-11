@@ -98,17 +98,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // frontend, lo llama el navegador del prestador redirigido por MP.
   if (req.method === 'GET' && accion === 'oauth_callback') {
     const { code, state, error: errorMp } = req.query;
+    console.log('[mp-oauth] callback recibido', { host: req.headers.host, origen, code: typeof code, state, errorMp });
 
     if (errorMp || typeof code !== 'string' || typeof state !== 'string') {
+      console.log('[mp-oauth] faltan code/state o MP mandó error', { errorMp });
       return res.redirect(302, `${origen}/app?mp_conectado=error`);
     }
     const servicioId = verificarEstado(state);
+    console.log('[mp-oauth] state verificado', { servicioId, tieneClientId: !!clientId, tieneClientSecret: !!clientSecret });
     if (!servicioId || !clientId || !clientSecret) {
+      console.log('[mp-oauth] servicioId inválido o faltan credenciales de la app');
       return res.redirect(302, `${origen}/app?mp_conectado=error`);
     }
 
     const pool = getPool();
     try {
+      const redirectUriUsado = `${origen}/api/pagos/mercadopago?accion=oauth_callback`;
+      console.log('[mp-oauth] pidiendo token a MP', { redirectUriUsado });
       const tokenRes = await fetch('https://api.mercadopago.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,10 +123,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           client_secret: clientSecret,
           grant_type: 'authorization_code',
           code,
-          redirect_uri: `${origen}/api/pagos/mercadopago?accion=oauth_callback`,
+          redirect_uri: redirectUriUsado,
         }),
       });
       const tokenData = await tokenRes.json();
+      console.log('[mp-oauth] respuesta de MP', { status: tokenRes.status, ok: tokenRes.ok, error: tokenData.error, message: tokenData.message, tieneAccessToken: !!tokenData.access_token, userId: tokenData.user_id });
       if (!tokenRes.ok) {
         return res.redirect(302, `${origen}/app?mp_conectado=error`);
       }
@@ -132,9 +139,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          WHERE id = $4`,
         [String(tokenData.user_id), tokenData.access_token, tokenData.refresh_token ?? null, servicioId]
       );
+      console.log('[mp-oauth] guardado en BD, redirigiendo a éxito', { servicioId, redirectA: `${origen}/app?mp_conectado=exito` });
 
       return res.redirect(302, `${origen}/app?mp_conectado=exito`);
-    } catch {
+    } catch (err) {
+      console.error('[mp-oauth] excepción en el callback', err);
       return res.redirect(302, `${origen}/app?mp_conectado=error`);
     } finally {
       await pool.end();

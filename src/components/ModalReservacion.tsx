@@ -106,6 +106,12 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
             <div>
               <p className="text-xs font-semibold text-jungle-500 mb-1.5 flex items-center gap-1"><MapPin size={12} /> Dónde</p>
               <div className="bg-jungle-50 rounded-xl px-3.5 py-3 text-sm font-semibold text-jungle-900">{lugar.nombre}</div>
+              {!!lugar.montoMinimo && (
+                <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-2">
+                  Este servicio pide un anticipo de ${lugar.montoMinimo} MXN para confirmar
+                  {lugar.mostrarUsdReservacion && ` (≈ $${Math.round(lugar.montoMinimo / 17.1)} USD)`}.
+                </p>
+              )}
             </div>
 
             {/* Cuándo */}

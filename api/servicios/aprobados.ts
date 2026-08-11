@@ -49,7 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       SELECT s.id, s.nombre, s.categoria, s.municipio, s.descripcion,
              s.precio, s.contacto, s.lat, s.lng, s.codigo_seguimiento, s.fotos,
              s.horario, s.dias_abierto, s.duracion, s.como_llegar, s.tip, s.ideal_para,
-             s.mascotas, s.enlaces, s.acepta_reservaciones,
+             s.mascotas, s.enlaces, s.acepta_reservaciones, s.monto_minimo, s.mostrar_usd_reservacion,
              u.nombre AS propietario
       FROM servicios s
       JOIN usuarios u ON u.id = s.usuario_id
@@ -76,27 +76,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ],
         rating: 0,
         precio: 'medio',
-        precioMxn:       s.precio     || 'Consultar precio',
+        precioMxn: s.precio || 'Consultar precio',
         // ── Campos nuevos (Módulo 1) ──────────────────────────────
-        duracionSugerida: s.duracion   || 'Variable',
+        duracionSugerida: s.duracion || 'Variable',
         imagen: fotos.length > 0 ? fotos[0] : '/logo-tuxtlasgo.png',
         imagenesExtra: fotos.length > 1 ? fotos.slice(1) : [],
         tags: [s.categoria.toLowerCase(), s.municipio.toLowerCase()],
         ideal: ideal.length > 0 ? ideal : ['familia', 'pareja', 'amigos', 'solo'],
         abierto: {
-          dias:    s.dias_abierto || 'Consultar disponibilidad',
-          horario: s.horario      || 'Consultar horario',
+          dias: s.dias_abierto || 'Consultar disponibilidad',
+          horario: s.horario || 'Consultar horario',
         },
         comoLlegar: s.como_llegar || `En ${s.municipio}. Contacto: ${s.contacto}`,
-        tip:        s.tip         || undefined,
+        tip: s.tip || undefined,
         verificado: true,
-        contacto:   s.contacto   || '',
-        mascotas:   s.mascotas   || undefined,
+        contacto: s.contacto || '',
+        mascotas: s.mascotas || undefined,
         esPrestador: true,
         codigoSeguimiento: s.codigo_seguimiento,
         enlaces: parseEnlaces(s.enlaces).length > 0 ? parseEnlaces(s.enlaces) : undefined,
         aceptaReservaciones: !!s.acepta_reservaciones,
         servicioId: s.id,
+        montoMinimo: s.monto_minimo != null ? Number(s.monto_minimo) : null,
+        mostrarUsdReservacion: !!s.mostrar_usd_reservacion,
       };
     });
 

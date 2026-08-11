@@ -14,7 +14,7 @@ export type Categoria =
   | 'Comercio'
   | 'Cooperativa'
   | 'Otro'
-;
+  ;
 
 export type Presupuesto = 'bajo' | 'medio' | 'alto';
 
@@ -58,6 +58,8 @@ export interface Lugar {
   // real en Neon (distinto de `id`, que es "prestador-<n>").
   aceptaReservaciones?: boolean;
   servicioId?: number;
+  montoMinimo?: number | null;
+  mostrarUsdReservacion?: boolean;
 }
 
 export const LUGARES: Lugar[] = [
@@ -305,11 +307,11 @@ export const LOS_TUXTLAS_BOUNDS: [[number, number], [number, number]] = [
 
 // ─── Categorías con color y emoji ────────────────────────────
 export const CATEGORIAS: { id: Categoria; emoji: string; color: string }[] = [
-  { id: 'Naturaleza',  emoji: '🌿', color: 'bg-jungle-100 text-jungle-800' },
-  { id: 'Aventura',   emoji: '🥾', color: 'bg-amber-100 text-amber-800' },
-  { id: 'Gastronomia',emoji: '🍽️', color: 'bg-red-100 text-red-800' },
-  { id: 'Hospedaje',  emoji: '🛏️',  color: 'bg-blue-100 text-blue-800' },
-  { id: 'Comercio',   emoji: '🛍️',  color: 'bg-orange-100 text-orange-800' },
-  { id: 'Cooperativa',emoji: '🤝',  color: 'bg-teal-100 text-teal-800' },
-  { id: 'Otro',       emoji: '⭐',  color: 'bg-gray-100 text-gray-700' },
+  { id: 'Naturaleza', emoji: '🌿', color: 'bg-jungle-100 text-jungle-800' },
+  { id: 'Aventura', emoji: '🥾', color: 'bg-amber-100 text-amber-800' },
+  { id: 'Gastronomia', emoji: '🍽️', color: 'bg-red-100 text-red-800' },
+  { id: 'Hospedaje', emoji: '🛏️', color: 'bg-blue-100 text-blue-800' },
+  { id: 'Comercio', emoji: '🛍️', color: 'bg-orange-100 text-orange-800' },
+  { id: 'Cooperativa', emoji: '🤝', color: 'bg-teal-100 text-teal-800' },
+  { id: 'Otro', emoji: '⭐', color: 'bg-gray-100 text-gray-700' },
 ];

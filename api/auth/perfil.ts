@@ -48,6 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   motivo_rechazo, fotos,
                   horario, dias_abierto, duracion, como_llegar, tip, ideal_para,
                   mascotas, enlaces, premium, premium_desde, premium_hasta, cuenta_cobro, mp_conectado, mp_user_id,
+                  acepta_reservaciones, politica_cancelacion, fechas_bloqueadas, monto_minimo, mostrar_usd_reservacion,
                   creado_en, actualizado_en
            FROM servicios
            WHERE usuario_id = $1

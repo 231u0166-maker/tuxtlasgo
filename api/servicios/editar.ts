@@ -115,6 +115,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Reservaciones (Módulo 2 — pieza 2) — el prestador decide si
       // acepta, qué política de cancelación usa, y qué fechas bloquea.
       acepta_reservaciones, politica_cancelacion, fechas_bloqueadas,
+      monto_minimo, mostrar_usd_reservacion,
+      // Botón "Eliminar reservaciones" — apaga todo de un golpe y
+      // regresa la configuración a como estaba antes de publicarla.
+      eliminar_reservaciones,
     } = req.body ?? {};
 
     const campos: string[] = [];
@@ -212,6 +216,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       campos.push(`fechas_bloqueadas = $${idx++}`);
       valores.push(JSON.stringify(fechas_bloqueadas));
     }
+    if (monto_minimo !== undefined) {
+      const monto = Number(monto_minimo);
+      if (monto_minimo !== null && (!Number.isFinite(monto) || monto < 0)) {
+        return res.status(400).json({ error: 'Monto mínimo inválido' });
+      }
+      campos.push(`monto_minimo = $${idx++}`);
+      valores.push(monto_minimo === null ? null : monto);
+    }
+    if (typeof mostrar_usd_reservacion === 'boolean') {
+      campos.push(`mostrar_usd_reservacion = $${idx++}`);
+      valores.push(mostrar_usd_reservacion);
+    }
+    // "Eliminar reservaciones" — apaga y regresa todo a su valor por
+    // defecto de un solo golpe, en vez de que el prestador tenga que
+    // limpiar cada campo a mano.
+    if (eliminar_reservaciones === true) {
+      campos.push(`acepta_reservaciones = FALSE`);
+      campos.push(`politica_cancelacion = 'flexible'`);
+      campos.push(`monto_minimo = NULL`);
+      campos.push(`mostrar_usd_reservacion = FALSE`);
+    }
 
     if (campos.length === 0)
       return res.status(400).json({ error: 'Sin campos para actualizar' });
@@ -231,7 +256,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               motivo_rechazo, fotos,
               horario, dias_abierto, duracion, como_llegar, tip, ideal_para,
               mascotas, enlaces, premium, premium_desde, premium_hasta, cuenta_cobro, mp_conectado, mp_user_id,
-              acepta_reservaciones, politica_cancelacion, fechas_bloqueadas,
+              acepta_reservaciones, politica_cancelacion, fechas_bloqueadas, monto_minimo, mostrar_usd_reservacion,
               creado_en, actualizado_en
        FROM servicios WHERE id = $1`,
       [servicioId]

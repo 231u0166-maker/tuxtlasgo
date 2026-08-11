@@ -62,6 +62,8 @@ interface ServicioAPI {
   acepta_reservaciones?: boolean;
   politica_cancelacion?: 'flexible' | 'no_reembolsable';
   fechas_bloqueadas?: string[];
+  monto_minimo?: number | null;
+  mostrar_usd_reservacion?: boolean;
 }
 
 interface ReservacionPrestador {
@@ -713,8 +715,16 @@ function PerfilPrestador({
     setCargandoReservaciones(false);
   }
 
-  async function actualizarConfigReservaciones(cambios: { acepta_reservaciones?: boolean; politica_cancelacion?: string; fechas_bloqueadas?: string[] }) {
+  async function actualizarConfigReservaciones(cambios: {
+    acepta_reservaciones?: boolean;
+    politica_cancelacion?: string;
+    fechas_bloqueadas?: string[];
+    monto_minimo?: number | null;
+    mostrar_usd_reservacion?: boolean;
+    eliminar_reservaciones?: boolean;
+  }): Promise<boolean> {
     setGuardandoReservConfig(true);
+    let exito = false;
     try {
       const res = await fetch('/api/servicios/editar', {
         method: 'PATCH',
@@ -725,6 +735,7 @@ function PerfilPrestador({
       if (data.ok) {
         setServicio(s => (s ? { ...s, ...data.servicio } : s));
         recargarCatalogo().catch(() => { }); // el turista debe ver el cambio sin recargar la app
+        exito = true;
       } else {
         alert(data.error ?? 'No se pudo guardar');
       }
@@ -732,6 +743,7 @@ function PerfilPrestador({
       alert('Sin conexión. Verifica tu internet.');
     }
     setGuardandoReservConfig(false);
+    return exito;
   }
 
   function agregarFechaBloqueada() {
@@ -873,8 +885,8 @@ function PerfilPrestador({
         <div className="px-4 mb-5">
           {mensajePremium && (
             <div className={`rounded-xl p-3 mb-3 text-sm flex items-start gap-2 ${mensajePremium.tipo === 'exito' ? 'bg-green-50 text-green-800 border border-green-200'
-                : mensajePremium.tipo === 'pendiente' ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                  : 'bg-red-50 text-red-800 border border-red-200'
+              : mensajePremium.tipo === 'pendiente' ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                : 'bg-red-50 text-red-800 border border-red-200'
               }`}>
               <span className="flex-1">{mensajePremium.texto}</span>
               <button onClick={() => setMensajePremium(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
@@ -1145,8 +1157,13 @@ function PerfilPrestador({
                 guardandoConfig={guardandoReservConfig}
                 nuevaFechaBloqueada={nuevaFechaBloqueada}
                 setNuevaFechaBloqueada={setNuevaFechaBloqueada}
-                onCambiarAcepta={(v) => actualizarConfigReservaciones({ acepta_reservaciones: v })}
-                onCambiarPolitica={(v) => actualizarConfigReservaciones({ politica_cancelacion: v })}
+                onGuardarConfig={(cfg) => actualizarConfigReservaciones({
+                  acepta_reservaciones: cfg.activar,
+                  politica_cancelacion: cfg.politica_cancelacion,
+                  monto_minimo: cfg.monto_minimo,
+                  mostrar_usd_reservacion: cfg.mostrar_usd_reservacion,
+                })}
+                onEliminar={() => actualizarConfigReservaciones({ eliminar_reservaciones: true })}
                 onAgregarFechaBloqueada={agregarFechaBloqueada}
                 onQuitarFechaBloqueada={quitarFechaBloqueada}
                 onResponder={responderReservacion}
@@ -1321,7 +1338,7 @@ function formatearMes(iso: string): string {
 function PanelReservacionesPrestador({
   servicio, mpConectado, reservaciones, cargando, guardandoConfig,
   nuevaFechaBloqueada, setNuevaFechaBloqueada,
-  onCambiarAcepta, onCambiarPolitica, onAgregarFechaBloqueada, onQuitarFechaBloqueada, onResponder, onAbrirChat,
+  onGuardarConfig, onEliminar, onAgregarFechaBloqueada, onQuitarFechaBloqueada, onResponder, onAbrirChat,
 }: {
   servicio: ServicioAPI;
   mpConectado: boolean;
@@ -1330,55 +1347,129 @@ function PanelReservacionesPrestador({
   guardandoConfig: boolean;
   nuevaFechaBloqueada: string;
   setNuevaFechaBloqueada: (v: string) => void;
-  onCambiarAcepta: (v: boolean) => void;
-  onCambiarPolitica: (v: 'flexible' | 'no_reembolsable') => void;
+  onGuardarConfig: (cfg: { politica_cancelacion: 'flexible' | 'no_reembolsable'; monto_minimo: number | null; mostrar_usd_reservacion: boolean; activar: boolean }) => Promise<boolean>;
+  onEliminar: () => void;
   onAgregarFechaBloqueada: () => void;
   onQuitarFechaBloqueada: (fecha: string) => void;
   onResponder: (id: number, accion: 'confirmar' | 'rechazar') => void;
   onAbrirChat: (id: number, nombreViajero: string) => void;
 }) {
   const acepta = !!servicio.acepta_reservaciones;
-  const politica = servicio.politica_cancelacion ?? 'flexible';
   const bloqueadas = servicio.fechas_bloqueadas ?? [];
   const pendientes = reservaciones?.filter(r => r.estado === 'pendiente') ?? [];
   const resueltas = reservaciones?.filter(r => r.estado !== 'pendiente') ?? [];
   const hoy = new Date().toISOString().slice(0, 10);
 
-  function alternarAcepta() {
-    if (!mpConectado || guardandoConfig) return;
-    if (acepta) {
-      // Apagar no necesita confirmación, es solo dejar de recibir.
-      onCambiarAcepta(false);
-      return;
-    }
-    // Prender SÍ requiere el consentimiento explícito — esto es
-    // "lo único que tiene que aceptar" antes de activar: el reparto
+  // Borrador local — no se guarda campo por campo, se guarda todo
+  // junto con "Publicar" o "Guardar cambios" (como se pidió).
+  const [politicaDraft, setPoliticaDraft] = useState<'flexible' | 'no_reembolsable'>(servicio.politica_cancelacion ?? 'flexible');
+  const [montoDraft, setMontoDraft] = useState(servicio.monto_minimo != null ? String(servicio.monto_minimo) : '');
+  const [mostrarUsdDraft, setMostrarUsdDraft] = useState(!!servicio.mostrar_usd_reservacion);
+
+  // Misma tasa de referencia que usa el registro (ProviderPanel.tsx)
+  // — no se inventa una tasa nueva aparte.
+  const TASA_USD_REFERENCIA = 17.1;
+  const montoNum = parseFloat(montoDraft);
+  const montoUsd = Number.isFinite(montoNum) && montoNum > 0 ? Math.round(montoNum / TASA_USD_REFERENCIA) : null;
+
+  async function publicar() {
+    if (!mpConectado) return;
+    // "Lo único que tiene que aceptar" antes de activar: el reparto
     // 6% TuxtlasGO / 94% prestador en cada reservación pagada.
     const confirmado = confirm(
-      'Al activar reservaciones, aceptas que TuxtlasGO retenga automáticamente el 6% de comisión de cada reservación pagada dentro de la app. El 94% restante se deposita directo a tu cuenta de Mercado Pago conectada.\n\n¿Aceptas y quieres activar reservaciones?'
+      'Al publicar reservaciones, aceptas que TuxtlasGO retenga automáticamente el 6% de comisión de cada reservación pagada dentro de la app. El 94% restante se deposita directo a tu cuenta de Mercado Pago conectada.\n\n¿Aceptas y quieres publicar?'
     );
-    if (confirmado) onCambiarAcepta(true);
+    if (!confirmado) return;
+    await onGuardarConfig({
+      politica_cancelacion: politicaDraft,
+      monto_minimo: montoDraft.trim() ? montoNum : null,
+      mostrar_usd_reservacion: mostrarUsdDraft,
+      activar: true,
+    });
   }
+
+  async function guardarCambios() {
+    await onGuardarConfig({
+      politica_cancelacion: politicaDraft,
+      monto_minimo: montoDraft.trim() ? montoNum : null,
+      mostrar_usd_reservacion: mostrarUsdDraft,
+      activar: true,
+    });
+  }
+
+  function eliminar() {
+    if (!confirm('¿Eliminar reservaciones de este servicio? Ya no se mostrará "Reservar" a los turistas, y se borra la configuración (política, monto mínimo, fechas bloqueadas). Las reservaciones ya confirmadas no se cancelan solas.')) return;
+    onEliminar();
+  }
+
+  const FormularioConfig = (
+    <>
+      <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+        <p className="text-sm font-semibold text-jungle-900 mb-3">Política de cancelación</p>
+        <div className="space-y-2">
+          <button
+            onClick={() => setPoliticaDraft('flexible')}
+            className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${politicaDraft === 'flexible' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100'}`}
+          >
+            <p className="text-sm font-semibold text-jungle-900">Flexible</p>
+            <p className="text-xs text-jungle-500 mt-0.5">Cancelación gratuita hasta 24–48h antes.</p>
+          </button>
+          <button
+            onClick={() => setPoliticaDraft('no_reembolsable')}
+            className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${politicaDraft === 'no_reembolsable' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100'}`}
+          >
+            <p className="text-sm font-semibold text-jungle-900">No reembolsable</p>
+            <p className="text-xs text-jungle-500 mt-0.5">Más económica para el turista, sin cancelación.</p>
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+        <p className="text-sm font-semibold text-jungle-900 mb-1">Anticipo mínimo para confirmar</p>
+        <p className="text-xs text-jungle-500 mb-3">Lo que se retiene para cerrar la reservación (10–20% es lo usual) — opcional.</p>
+        <div className="relative">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400 text-sm">$</span>
+          <input
+            type="number"
+            min={0}
+            value={montoDraft}
+            onChange={(e) => setMontoDraft(e.target.value)}
+            placeholder="ej: 150"
+            className="w-full bg-jungle-50 rounded-xl pl-7 pr-16 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
+          />
+          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-jungle-400 text-xs font-semibold">MXN</span>
+        </div>
+        <label className="flex items-center gap-2 mt-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={mostrarUsdDraft}
+            onChange={(e) => setMostrarUsdDraft(e.target.checked)}
+            className="w-4 h-4 rounded accent-jungle-700"
+          />
+          <span className="text-xs text-jungle-600">Mostrar también en USD (para turistas extranjeros)</span>
+        </label>
+        {mostrarUsdDraft && montoUsd !== null && (
+          <p className="text-xs text-jungle-400 mt-1.5">≈ ${montoUsd} USD (tasa de referencia, no en vivo)</p>
+        )}
+      </div>
+    </>
+  );
 
   return (
     <div className="px-4 space-y-3">
-      {/* Activar reservaciones — es independiente de Premium; lo
-          único que hace falta es tener Mercado Pago conectado, para
-          saber a dónde depositarle su parte. */}
+      {/* Reservaciones es independiente de Premium; lo único que hace
+          falta es tener Mercado Pago conectado, para saber a dónde
+          depositarle su parte. */}
       <div className="bg-white rounded-2xl border border-jungle-100 p-4">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-semibold text-jungle-900">Acepto reservaciones</p>
-          <button
-            onClick={alternarAcepta}
-            disabled={!mpConectado || guardandoConfig}
-            className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 disabled:opacity-40 ${acepta ? 'bg-jungle-700' : 'bg-jungle-200'}`}
-          >
-            <span className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${acepta ? 'left-6' : 'left-1'}`} />
-          </button>
+          <p className="text-sm font-semibold text-jungle-900">Reservaciones</p>
+          {acepta && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">Publicado</span>
+          )}
         </div>
         {!mpConectado ? (
           <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-2">
-            Conecta tu cuenta de Mercado Pago (pestaña Información externa) antes de activar esto — es a donde te va a llegar tu parte.
+            Conecta tu cuenta de Mercado Pago (pestaña Información externa) antes de esto — es a donde te va a llegar tu parte.
           </p>
         ) : (
           <p className="text-xs text-jungle-500">
@@ -1387,29 +1478,43 @@ function PanelReservacionesPrestador({
         )}
       </div>
 
-      {acepta && mpConectado && (
+      {mpConectado && (
         <>
-          {/* Política de cancelación */}
-          <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-            <p className="text-sm font-semibold text-jungle-900 mb-3">Política de cancelación</p>
-            <div className="space-y-2">
+          {FormularioConfig}
+
+          {/* Publicar cuando está apagado; Guardar + Eliminar cuando
+              ya está activo — como se pidió. */}
+          {!acepta ? (
+            <button
+              onClick={publicar}
+              disabled={guardandoConfig}
+              className="w-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold"
+            >
+              {guardandoConfig ? 'Publicando…' : 'Publicar reservaciones'}
+            </button>
+          ) : (
+            <div className="flex gap-2">
               <button
-                onClick={() => onCambiarPolitica('flexible')}
-                className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${politica === 'flexible' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100'}`}
+                onClick={guardarCambios}
+                disabled={guardandoConfig}
+                className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold"
               >
-                <p className="text-sm font-semibold text-jungle-900">Flexible</p>
-                <p className="text-xs text-jungle-500 mt-0.5">Cancelación gratuita hasta 24–48h antes.</p>
+                {guardandoConfig ? 'Guardando…' : 'Guardar cambios'}
               </button>
               <button
-                onClick={() => onCambiarPolitica('no_reembolsable')}
-                className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${politica === 'no_reembolsable' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100'}`}
+                onClick={eliminar}
+                disabled={guardandoConfig}
+                className="flex-1 bg-white border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 py-3 rounded-xl text-sm font-semibold"
               >
-                <p className="text-sm font-semibold text-jungle-900">No reembolsable</p>
-                <p className="text-xs text-jungle-500 mt-0.5">Más económica para el turista, sin cancelación.</p>
+                Eliminar reservaciones
               </button>
             </div>
-          </div>
+          )}
+        </>
+      )}
 
+      {acepta && mpConectado && (
+        <>
           {/* Fechas bloqueadas */}
           <div className="bg-white rounded-2xl border border-jungle-100 p-4">
             <p className="text-sm font-semibold text-jungle-900 mb-1">Fechas no disponibles</p>
@@ -1513,8 +1618,8 @@ function PanelReservacionesPrestador({
                     </button>
                   )}
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${r.estado === 'confirmada' ? 'bg-green-100 text-green-800'
-                      : r.estado === 'rechazada' ? 'bg-red-100 text-red-800'
-                        : 'bg-jungle-100 text-jungle-500'
+                    : r.estado === 'rechazada' ? 'bg-red-100 text-red-800'
+                      : 'bg-jungle-100 text-jungle-500'
                     }`}>
                     {r.estado === 'confirmada' ? 'Confirmada' : r.estado === 'rechazada' ? 'Rechazada' : 'Cancelada'}
                   </span>

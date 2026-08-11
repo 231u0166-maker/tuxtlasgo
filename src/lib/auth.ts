@@ -127,7 +127,7 @@ export async function apiRecuperar(datos: {
   nuevaPassword: string;
 }): Promise<{ ok: boolean; error?: string; mensaje?: string }> {
   try {
-    const res = await fetch('/api/auth/recuperar', {
+    const res = await fetch('/api/auth/login?accion=recuperar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(datos),

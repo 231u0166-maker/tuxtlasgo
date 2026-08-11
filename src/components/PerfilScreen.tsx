@@ -51,6 +51,9 @@ interface ServicioAPI {
   ideal_para?: string[] | string;
   enlaces?: EnlaceServicio[] | string;
   creado_en?: string;
+  premium?: boolean;
+  premium_desde?: string;
+  premium_hasta?: string;
 }
 
 interface FormServicio {
@@ -459,6 +462,7 @@ function PerfilPrestador({
   const [nuevoTipoEnlace, setNuevoTipoEnlace] = useState<TipoEnlace>('instagram');
   const [nuevaUrlEnlace, setNuevaUrlEnlace] = useState('');
   const [mostrarResumen, setMostrarResumen] = useState(false);
+  const [mensajePremium, setMensajePremium] = useState<{ tipo: 'exito' | 'error' | 'pendiente'; texto: string } | null>(null);
   const [form, setForm]           = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
@@ -508,6 +512,21 @@ function PerfilPrestador({
   }
 
   useEffect(() => { cargar(); }, []);
+
+  // Regreso del checkout de Mercado Pago (?premium=exito|error|pendiente).
+  // El webhook es quien realmente activa Premium, no esto — esto solo
+  // muestra el mensaje correcto y refresca por si el webhook ya llegó.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const resultado = params.get('premium');
+    if (!resultado) return;
+    if (resultado === 'exito') setMensajePremium({ tipo: 'exito', texto: 'Pago recibido — activando tu Premium…' });
+    else if (resultado === 'pendiente') setMensajePremium({ tipo: 'pendiente', texto: 'Tu pago está pendiente de confirmación (normal con SPEI/OXXO). Se activará solo cuando se confirme.' });
+    else if (resultado === 'error') setMensajePremium({ tipo: 'error', texto: 'El pago no se completó. Puedes intentarlo de nuevo cuando quieras.' });
+    params.delete('premium');
+    window.history.replaceState({}, '', `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`);
+    if (resultado === 'exito') setTimeout(cargar, 2500); // le da tiempo al webhook de llegar
+  }, []);
 
   async function guardar() {
     setGuardando(true);
@@ -670,6 +689,16 @@ function PerfilPrestador({
           Tocarla abre el resumen completo con Estadísticas también. */}
       {servicio && (
         <div className="px-4 mb-5">
+          {mensajePremium && (
+            <div className={`rounded-xl p-3 mb-3 text-sm flex items-start gap-2 ${
+              mensajePremium.tipo === 'exito' ? 'bg-green-50 text-green-800 border border-green-200'
+              : mensajePremium.tipo === 'pendiente' ? 'bg-amber-50 text-amber-800 border border-amber-200'
+              : 'bg-red-50 text-red-800 border border-red-200'
+            }`}>
+              <span className="flex-1">{mensajePremium.texto}</span>
+              <button onClick={() => setMensajePremium(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
+            </div>
+          )}
           <button
             onClick={() => setMostrarResumen(true)}
             className="w-full text-left bg-gradient-to-br from-jungle-900 to-jungle-950 hover:from-jungle-800 hover:to-jungle-900 rounded-2xl p-5 text-white relative overflow-hidden transition-colors"
@@ -1059,6 +1088,32 @@ function PanelResumenPrestador({
   labelEstado: string;
   onCerrar: () => void;
 }) {
+  const [pagando, setPagando] = useState(false);
+  const [errorPago, setErrorPago] = useState('');
+
+  const premiumActivo = !!servicio.premium && (!servicio.premium_hasta || new Date(servicio.premium_hasta) > new Date());
+
+  async function pagarPremium() {
+    setPagando(true);
+    setErrorPago('');
+    try {
+      const res = await fetch('/api/pagos/mercadopago', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (data.ok && data.url) {
+        window.location.href = data.url; // redirige al checkout de Mercado Pago
+      } else {
+        setErrorPago(data.error ?? 'No se pudo iniciar el pago');
+        setPagando(false);
+      }
+    } catch {
+      setErrorPago('Sin conexión. Verifica tu internet.');
+      setPagando(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[80] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
       <div
@@ -1081,14 +1136,39 @@ function PanelResumenPrestador({
               Aquí verás tus ingresos cuando actives el módulo de reservas y pagos — todavía no está disponible.
             </p>
           </div>
+
           <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-            <p className="text-sm font-semibold text-jungle-900 mb-1">Plan Premium</p>
-            <p className="text-xs text-jungle-500 mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-semibold text-jungle-900">Plan Premium</p>
+              {premiumActivo && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">Activo</span>
+              )}
+            </div>
+            <p className="text-xs text-jungle-500 mb-3">
               Prioridad en las recomendaciones del asistente de IA — $89 MXN/mes.
             </p>
-            <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
-              Próximamente activable desde aquí
-            </span>
+
+            {premiumActivo ? (
+              <p className="text-xs text-jungle-600 bg-jungle-50 rounded-xl px-3 py-2.5">
+                Activo hasta el {servicio.premium_hasta ? new Date(servicio.premium_hasta).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}.
+              </p>
+            ) : (
+              <>
+                <button
+                  onClick={pagarPremium}
+                  disabled={pagando}
+                  className="w-full flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold"
+                >
+                  {pagando ? <Loader2 size={16} className="animate-spin" /> : <DollarSign size={16} />}
+                  Desbloquear Premium — $89 MXN
+                </button>
+                <p className="text-[11px] text-jungle-400 mt-2">
+                  Pagas con tarjeta, SPEI o efectivo en OXXO — se procesa con Mercado Pago.
+                  Si pagas con SPEI u OXXO, la activación puede tardar unas horas.
+                </p>
+                {errorPago && <p className="text-xs text-red-600 mt-2">{errorPago}</p>}
+              </>
+            )}
           </div>
 
           {/* Estadísticas — solo métricas reales y calculables con lo

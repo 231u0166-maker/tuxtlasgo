@@ -47,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   contacto, lat, lng, estado, codigo_seguimiento,
                   motivo_rechazo, fotos,
                   horario, dias_abierto, duracion, como_llegar, tip, ideal_para,
-                  mascotas, enlaces,
+                  mascotas, enlaces, premium, premium_desde, premium_hasta,
                   creado_en, actualizado_en
            FROM servicios
            WHERE usuario_id = $1

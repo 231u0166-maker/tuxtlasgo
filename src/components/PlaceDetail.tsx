@@ -17,6 +17,7 @@ import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
 import { manejarErrorImagen } from '../lib/imagenLugar';
+import RenderBloques from './RenderBloques';
 
 interface Props {
   lugar: Lugar;
@@ -184,6 +185,19 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
                 Mascotas
               </div>
               <p className="text-sm text-jungle-900">{lugar.mascotas}</p>
+            </div>
+          )}
+
+          {/* Guía del prestador (Módulo 2) — contenido enriquecido y
+              opcional que el prestador arma con el editor de bloques.
+              Solo llega hasta aquí si ya la publicó (ver
+              servicioComoLugar en db.ts y aprobados.ts). */}
+          {lugar.contenidoGuia && lugar.contenidoGuia.length > 0 && (
+            <div className="pt-1 border-t border-jungle-100">
+              <div className="text-xs font-semibold text-jungle-600 uppercase tracking-wide mb-3 mt-4">
+                Más sobre este servicio
+              </div>
+              <RenderBloques bloques={lugar.contenidoGuia} />
             </div>
           )}
 

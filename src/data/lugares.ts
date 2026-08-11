@@ -4,6 +4,8 @@
 // Imágenes reales proporcionadas por cada lugar.
 // ============================================================
 
+import type { BloqueContenido } from '../lib/bloquesGuia';
+
 export type Categoria =
   | 'Naturaleza'
   | 'Aventura'
@@ -50,6 +52,9 @@ export interface Lugar {
   // nube llegó a "sugerir" que una selva tropical probablemente no
   // permite perros — puro invento).
   mascotas?: string;
+  // Guía enriquecida del prestador (Módulo 2 — editor de bloques),
+  // solo presente cuando ya fue publicada. Ver src/lib/bloquesGuia.ts.
+  contenidoGuia?: BloqueContenido[];
 }
 
 export const LUGARES: Lugar[] = [

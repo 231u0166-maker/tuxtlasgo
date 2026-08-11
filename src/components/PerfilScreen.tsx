@@ -14,12 +14,15 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
-  Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
+  Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X, Sparkles,
 } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
 import GestorFotos from './GestorFotos';
+import EditorGuiaServicio from './EditorGuiaServicio';
+import RenderBloques from './RenderBloques';
+import { parseBloques, type BloqueContenido, type EstadoGuia } from '../lib/bloquesGuia';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { recargarCatalogo } from '../App';
@@ -46,6 +49,8 @@ interface ServicioAPI {
   tip?: string;
   mascotas?: string;
   ideal_para?: string[] | string;
+  contenido_guia?: BloqueContenido[] | string;
+  estado_guia?: EstadoGuia;
 }
 
 interface FormServicio {
@@ -443,6 +448,7 @@ function PerfilPrestador({
   const [editando, setEditando]   = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito]         = useState(false);
+  const [mostrarEditorGuia, setMostrarEditorGuia] = useState(false);
   const [form, setForm]           = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
@@ -523,6 +529,29 @@ function PerfilPrestador({
       alert('Sin conexión. Verifica tu internet.');
     }
     setGuardando(false);
+  }
+
+  async function guardarGuia(bloques: BloqueContenido[], estadoGuia: EstadoGuia): Promise<boolean> {
+    try {
+      const res = await fetch('/api/servicios/editar', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ contenido_guia: bloques, estado_guia: estadoGuia }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setServicio((s) => (s ? { ...s, ...data.servicio, estado: s.estado } : s));
+        // La guía publicada debe reflejarse de inmediato en Explorar.
+        recargarCatalogo().catch(() => {});
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   function toggleIdeal(id: string) {
@@ -820,6 +849,40 @@ function PerfilPrestador({
                       className="w-full flex items-center justify-center gap-2 border border-jungle-200 hover:bg-jungle-50 text-jungle-700 py-3 rounded-xl text-sm font-semibold transition-colors">
                       <Edit3 size={15} /> Editar información del servicio
                     </button>
+
+                    {/* ── Guía del servicio (Módulo 2) ──────────────
+                        Antes, "editar" era este mismo formulario largo
+                        de nuevo — se sentía como un formulario
+                        duplicado. Ahora la info fija (arriba) y el
+                        contenido enriquecido (aquí, editor de bloques)
+                        están separados y con propósitos claros. */}
+                    <div className="border-t border-jungle-100 pt-4 mt-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide">Guía de tu servicio</p>
+                        {servicio.contenido_guia && parseBloques(servicio.contenido_guia).length > 0 && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            servicio.estado_guia === 'publicado' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {servicio.estado_guia === 'publicado' ? 'Publicado' : 'Borrador'}
+                          </span>
+                        )}
+                      </div>
+                      {parseBloques(servicio.contenido_guia).length > 0 ? (
+                        <div className="bg-jungle-50 rounded-xl p-3 mb-3 max-h-40 overflow-hidden relative">
+                          <RenderBloques bloques={parseBloques(servicio.contenido_guia).slice(0, 3)} />
+                          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-jungle-50 to-transparent" />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-jungle-500 mb-3">
+                          Agrega fotos, redes sociales o texto extra para que tu ficha se vea completa. Es opcional.
+                        </p>
+                      )}
+                      <button onClick={() => setMostrarEditorGuia(true)}
+                        className="w-full flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl text-sm font-semibold transition-colors">
+                        <Sparkles size={15} />
+                        {parseBloques(servicio.contenido_guia).length > 0 ? 'Editar guía' : 'Crear guía de mi servicio'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -848,6 +911,18 @@ function PerfilPrestador({
             )}
           </div>
         </>
+      )}
+
+      {mostrarEditorGuia && servicio && (
+        <EditorGuiaServicio
+          nombreServicio={servicio.nombre}
+          municipio={servicio.municipio}
+          codigoServicio={servicio.codigo_seguimiento}
+          bloquesIniciales={parseBloques(servicio.contenido_guia)}
+          estadoInicial={servicio.estado_guia ?? 'borrador'}
+          onCerrar={() => setMostrarEditorGuia(false)}
+          onGuardar={guardarGuia}
+        />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import Dexie, { Table } from 'dexie';
 import type { Lugar } from '../data/lugares';
-import type { BloqueContenido, EstadoGuia } from './bloquesGuia';
+import type { EnlaceServicio } from './enlaces';
 
 // ============================================================
 // BASE DE DATOS LOCAL (IndexedDB vía Dexie)
@@ -57,13 +57,9 @@ export interface ServicioPrestador {
   premium?: boolean;
   premiumDesde?: number;
   premiumHasta?: number; // permite manejar vencimiento/renovación
-  // ── Guía del servicio (Módulo 2 — editor de bloques) ────────
-  // Contenido enriquecido y opcional, además de los campos fijos de
-  // arriba: bloques reordenables (títulos, texto, fotos, enlaces,
-  // citas, actividades, lugares). Solo se muestra al turista si
-  // estadoGuia === 'publicado' — un borrador nunca es público.
-  contenidoGuia?: BloqueContenido[];
-  estadoGuia?: EstadoGuia;
+  // ── Centro de Prestador — pestaña Enlaces (shell, Módulo 2) ──
+  // Redes sociales / sitio del prestador. Sin lógica de pagos.
+  enlaces?: EnlaceServicio[];
 }
 
 // Geometría de una ruta calculada por OSRM, cacheada para uso offline
@@ -306,10 +302,7 @@ export function servicioComoLugar(s: ServicioPrestador): Lugar {
     verificado: s.estado === 'aprobado',
     contacto: s.contacto,
     premium: !!s.premium && (!s.premiumHasta || s.premiumHasta > Date.now()),
-    // La guía solo se propaga al Lugar (y por tanto se vuelve visible
-    // al turista en PlaceDetail) si el prestador la publicó — un
-    // borrador nunca sale de su propio editor.
-    contenidoGuia: s.estadoGuia === 'publicado' ? s.contenidoGuia : undefined,
+    enlaces: s.enlaces && s.enlaces.length > 0 ? s.enlaces : undefined,
   };
 }
 

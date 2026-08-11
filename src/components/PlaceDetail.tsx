@@ -11,13 +11,17 @@ import {
   Lightbulb,
   BadgeCheck,
   PawPrint,
+  Instagram,
+  Facebook,
+  MessageCircle,
+  Globe,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
 import { manejarErrorImagen } from '../lib/imagenLugar';
-import RenderBloques from './RenderBloques';
+import type { TipoEnlace } from '../lib/enlaces';
 
 interface Props {
   lugar: Lugar;
@@ -188,19 +192,6 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
             </div>
           )}
 
-          {/* Guía del prestador (Módulo 2) — contenido enriquecido y
-              opcional que el prestador arma con el editor de bloques.
-              Solo llega hasta aquí si ya la publicó (ver
-              servicioComoLugar en db.ts y aprobados.ts). */}
-          {lugar.contenidoGuia && lugar.contenidoGuia.length > 0 && (
-            <div className="pt-1 border-t border-jungle-100">
-              <div className="text-xs font-semibold text-jungle-600 uppercase tracking-wide mb-3 mt-4">
-                Más sobre este servicio
-              </div>
-              <RenderBloques bloques={lugar.contenidoGuia} />
-            </div>
-          )}
-
           {/* Ideal para */}
           <div>
             <div className="text-xs font-semibold text-jungle-600 uppercase tracking-wide mb-2">
@@ -231,10 +222,47 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
             <Route size={18} />
             Ver en el mapa
           </button>
+
+          {/* Enlaces del prestador (Centro de Prestador — Enlaces) */}
+          {lugar.enlaces && lugar.enlaces.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {lugar.enlaces.map((en) => (
+                <a
+                  key={en.id}
+                  href={en.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 bg-jungle-50 hover:bg-jungle-100 text-jungle-800 text-xs font-semibold px-3 py-2 rounded-full"
+                >
+                  <IconoEnlaceLugar tipo={en.tipo} />
+                  {ETIQUETA_ENLACE[en.tipo]}
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+const ETIQUETA_ENLACE: Record<TipoEnlace, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  whatsapp: 'WhatsApp',
+  tiktok: 'TikTok',
+  sitio: 'Sitio web',
+  otro: 'Enlace',
+};
+
+function IconoEnlaceLugar({ tipo }: { tipo: TipoEnlace }) {
+  const props = { size: 13 };
+  switch (tipo) {
+    case 'instagram': return <Instagram {...props} />;
+    case 'facebook':  return <Facebook {...props} />;
+    case 'whatsapp':  return <MessageCircle {...props} />;
+    default:          return <Globe {...props} />;
+  }
 }
 
 function InfoChip({

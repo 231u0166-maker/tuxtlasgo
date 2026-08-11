@@ -14,18 +14,18 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
-  Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X, Sparkles,
+  Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
+  Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
+  MessageCircle, Globe, Calendar,
 } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
 import GestorFotos from './GestorFotos';
-import EditorGuiaServicio from './EditorGuiaServicio';
-import RenderBloques from './RenderBloques';
-import { parseBloques, type BloqueContenido, type EstadoGuia } from '../lib/bloquesGuia';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { recargarCatalogo } from '../App';
+import { TIPOS_ENLACE, nuevoEnlaceId, parseEnlaces, type EnlaceServicio, type TipoEnlace } from '../lib/enlaces';
 
 // ─────────────── TIPOS ───────────────
 interface ServicioAPI {
@@ -49,8 +49,8 @@ interface ServicioAPI {
   tip?: string;
   mascotas?: string;
   ideal_para?: string[] | string;
-  contenido_guia?: BloqueContenido[] | string;
-  estado_guia?: EstadoGuia;
+  enlaces?: EnlaceServicio[] | string;
+  creado_en?: string;
 }
 
 interface FormServicio {
@@ -431,7 +431,12 @@ function PerfilTurista({
 // ============================================================
 // PERFIL PRESTADOR
 // ============================================================
-type TabPrestador = 'servicio' | 'fotos' | 'preview';
+// Centro de Prestador: 4 secciones (shell — Servicio ya funciona
+// igual que antes; Enlaces guarda de verdad; Ganancias y
+// Estadísticas muestran solo datos reales, nada de lógica de pagos
+// todavía — ver MEJORAS DISEÑO PANEL PRESTADOR).
+type CentroTab = 'servicio' | 'enlaces' | 'ganancias' | 'estadisticas';
+type SubTabServicio = 'servicio' | 'fotos' | 'preview';
 
 function PerfilPrestador({
   usuario,
@@ -440,7 +445,8 @@ function PerfilPrestador({
   usuario: UsuarioSesion;
   onVolver: () => void;
 }) {
-  const [tab, setTab]             = useState<TabPrestador>('servicio');
+  const [centroTab, setCentroTab] = useState<CentroTab>('servicio');
+  const [tab, setTab]             = useState<SubTabServicio>('servicio');
   const [servicio, setServicio]   = useState<ServicioAPI | null>(null);
   const [fotos, setFotos]         = useState<string[]>([]);
   const [cargando, setCargando]   = useState(true);
@@ -448,7 +454,10 @@ function PerfilPrestador({
   const [editando, setEditando]   = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito]         = useState(false);
-  const [mostrarEditorGuia, setMostrarEditorGuia] = useState(false);
+  const [enlaces, setEnlaces]     = useState<EnlaceServicio[]>([]);
+  const [guardandoEnlaces, setGuardandoEnlaces] = useState(false);
+  const [nuevoTipoEnlace, setNuevoTipoEnlace] = useState<TipoEnlace>('instagram');
+  const [nuevaUrlEnlace, setNuevaUrlEnlace] = useState('');
   const [form, setForm]           = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
@@ -472,6 +481,7 @@ function PerfilPrestador({
         };
         setServicio(srv);
         setFotos(parseFotos(srv.fotos));
+        setEnlaces(parseEnlaces(srv.enlaces));
         setForm({
           nombre:      srv.nombre      ?? '',
           categoria:   srv.categoria   ?? '',
@@ -531,29 +541,6 @@ function PerfilPrestador({
     setGuardando(false);
   }
 
-  async function guardarGuia(bloques: BloqueContenido[], estadoGuia: EstadoGuia): Promise<boolean> {
-    try {
-      const res = await fetch('/api/servicios/editar', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ contenido_guia: bloques, estado_guia: estadoGuia }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setServicio((s) => (s ? { ...s, ...data.servicio, estado: s.estado } : s));
-        // La guía publicada debe reflejarse de inmediato en Explorar.
-        recargarCatalogo().catch(() => {});
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  }
-
   function toggleIdeal(id: string) {
     setForm(f => ({
       ...f,
@@ -561,6 +548,40 @@ function PerfilPrestador({
         ? f.ideal_para.filter(x => x !== id)
         : [...f.ideal_para, id],
     }));
+  }
+
+  async function guardarEnlaces() {
+    setGuardandoEnlaces(true);
+    try {
+      const res = await fetch('/api/servicios/editar', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ enlaces }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setServicio(s => (s ? { ...s, enlaces: data.servicio.enlaces } : s));
+        recargarCatalogo().catch(() => {});
+      } else {
+        alert(data.error ?? 'Error al guardar');
+      }
+    } catch {
+      alert('Sin conexión. Verifica tu internet.');
+    }
+    setGuardandoEnlaces(false);
+  }
+
+  function agregarEnlace() {
+    if (!nuevaUrlEnlace.trim()) return;
+    setEnlaces(e => [...e, { id: nuevoEnlaceId(), tipo: nuevoTipoEnlace, url: nuevaUrlEnlace.trim() }]);
+    setNuevaUrlEnlace('');
+  }
+
+  function eliminarEnlace(id: string) {
+    setEnlaces(e => e.filter(x => x.id !== id));
   }
 
   function buildPreview(): Lugar {
@@ -636,6 +657,11 @@ function PerfilPrestador({
             </span>
           )}
         </div>
+        {servicio?.creado_en && (
+          <p className="text-[11px] text-jungle-400 mt-1 flex items-center gap-1">
+            <Calendar size={11} /> Prestador desde {formatearMes(servicio.creado_en)}
+          </p>
+        )}
       </div>
 
       {cargando && (
@@ -665,28 +691,50 @@ function PerfilPrestador({
 
       {!cargando && !error && servicio && (
         <>
-          {/* Tabs */}
-          <div className="px-4 mb-4 flex gap-2">
+          {/* ── Centro de Prestador — navegación principal ── */}
+          <div className="px-4 mb-3 flex gap-1.5 overflow-x-auto">
             {([
-              { id: 'servicio' as TabPrestador, label: '📋 Mi Servicio' },
-              { id: 'fotos'    as TabPrestador, label: '📸 Fotos' },
-              { id: 'preview'  as TabPrestador, label: '👁️ Preview' },
+              { id: 'servicio'      as CentroTab, label: 'Servicio',      icono: Store },
+              { id: 'enlaces'       as CentroTab, label: 'Enlaces',       icono: Link2 },
+              { id: 'ganancias'     as CentroTab, label: 'Ganancias',     icono: DollarSign },
+              { id: 'estadisticas'  as CentroTab, label: 'Estadísticas',  icono: BarChart3 },
             ]).map(t => (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
-                  tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
+                onClick={() => setCentroTab(t.id)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-colors ${
+                  centroTab === t.id ? 'bg-jungle-900 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
                 }`}
               >
-                {t.label}
+                <t.icono size={13} /> {t.label}
               </button>
             ))}
           </div>
 
-          <div className="px-4">
-            {/* ── TAB: Mi Servicio ── */}
-            {tab === 'servicio' && (
+          {centroTab === 'servicio' && (
+            <>
+              {/* Sub-tabs (sin cambios de antes) */}
+              <div className="px-4 mb-4 flex gap-2">
+                {([
+                  { id: 'servicio' as SubTabServicio, label: '📋 Mi Servicio' },
+                  { id: 'fotos'    as SubTabServicio, label: '📸 Fotos' },
+                  { id: 'preview'  as SubTabServicio, label: '👁️ Preview' },
+                ]).map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                      tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="px-4">
+                {/* ── TAB: Mi Servicio ── */}
+                {tab === 'servicio' && (
               <div className="bg-white rounded-2xl border border-jungle-100 p-4 space-y-4">
                 {exito && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2 text-sm text-green-800">
@@ -849,40 +897,6 @@ function PerfilPrestador({
                       className="w-full flex items-center justify-center gap-2 border border-jungle-200 hover:bg-jungle-50 text-jungle-700 py-3 rounded-xl text-sm font-semibold transition-colors">
                       <Edit3 size={15} /> Editar información del servicio
                     </button>
-
-                    {/* ── Guía del servicio (Módulo 2) ──────────────
-                        Antes, "editar" era este mismo formulario largo
-                        de nuevo — se sentía como un formulario
-                        duplicado. Ahora la info fija (arriba) y el
-                        contenido enriquecido (aquí, editor de bloques)
-                        están separados y con propósitos claros. */}
-                    <div className="border-t border-jungle-100 pt-4 mt-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide">Guía de tu servicio</p>
-                        {servicio.contenido_guia && parseBloques(servicio.contenido_guia).length > 0 && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            servicio.estado_guia === 'publicado' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {servicio.estado_guia === 'publicado' ? 'Publicado' : 'Borrador'}
-                          </span>
-                        )}
-                      </div>
-                      {parseBloques(servicio.contenido_guia).length > 0 ? (
-                        <div className="bg-jungle-50 rounded-xl p-3 mb-3 max-h-40 overflow-hidden relative">
-                          <RenderBloques bloques={parseBloques(servicio.contenido_guia).slice(0, 3)} />
-                          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-jungle-50 to-transparent" />
-                        </div>
-                      ) : (
-                        <p className="text-xs text-jungle-500 mb-3">
-                          Agrega fotos, redes sociales o texto extra para que tu ficha se vea completa. Es opcional.
-                        </p>
-                      )}
-                      <button onClick={() => setMostrarEditorGuia(true)}
-                        className="w-full flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl text-sm font-semibold transition-colors">
-                        <Sparkles size={15} />
-                        {parseBloques(servicio.contenido_guia).length > 0 ? 'Editar guía' : 'Crear guía de mi servicio'}
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -910,25 +924,177 @@ function PerfilPrestador({
               </div>
             )}
           </div>
-        </>
-      )}
+            </>
+          )}
 
-      {mostrarEditorGuia && servicio && (
-        <EditorGuiaServicio
-          nombreServicio={servicio.nombre}
-          municipio={servicio.municipio}
-          codigoServicio={servicio.codigo_seguimiento}
-          bloquesIniciales={parseBloques(servicio.contenido_guia)}
-          estadoInicial={servicio.estado_guia ?? 'borrador'}
-          onCerrar={() => setMostrarEditorGuia(false)}
-          onGuardar={guardarGuia}
-        />
+          {/* ── TAB: Enlaces (Centro de Prestador) ── */}
+          {centroTab === 'enlaces' && (
+            <div className="px-4 space-y-3">
+              <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+                <p className="text-sm font-semibold text-jungle-900 mb-1">Redes sociales y sitio</p>
+                <p className="text-xs text-jungle-500 mb-4">
+                  El turista podrá tocarlos desde tu ficha para conocerte más.
+                </p>
+
+                {enlaces.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {enlaces.map(en => (
+                      <div key={en.id} className="flex items-center gap-2.5 bg-jungle-50 rounded-xl p-2.5">
+                        <IconoEnlace tipo={en.tipo} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-jungle-800">
+                            {TIPOS_ENLACE.find(t => t.tipo === en.tipo)?.etiqueta}
+                          </p>
+                          <p className="text-xs text-jungle-500 truncate">{en.url}</p>
+                        </div>
+                        <button onClick={() => eliminarEnlace(en.id)} className="text-red-300 hover:text-red-600 p-1 flex-shrink-0">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <select
+                    value={nuevoTipoEnlace}
+                    onChange={e => setNuevoTipoEnlace(e.target.value as TipoEnlace)}
+                    className="bg-jungle-50 rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-jungle-400"
+                  >
+                    {TIPOS_ENLACE.map(t => <option key={t.tipo} value={t.tipo}>{t.etiqueta}</option>)}
+                  </select>
+                  <input
+                    value={nuevaUrlEnlace}
+                    onChange={e => setNuevaUrlEnlace(e.target.value)}
+                    placeholder={TIPOS_ENLACE.find(t => t.tipo === nuevoTipoEnlace)?.placeholder}
+                    className="flex-1 min-w-0 bg-jungle-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
+                  />
+                  <button onClick={agregarEnlace} disabled={!nuevaUrlEnlace.trim()}
+                    className="bg-jungle-100 disabled:opacity-40 text-jungle-700 px-3 rounded-xl">
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <button onClick={guardarEnlaces} disabled={guardandoEnlaces}
+                className="w-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+                {guardandoEnlaces ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                Guardar enlaces
+              </button>
+            </div>
+          )}
+
+          {/* ── TAB: Ganancias (Centro de Prestador) ──
+              Shell honesto: sin cobros/reservas reales todavía, solo
+              muestra lo que sí existe hoy (Plan Premium). No se
+              inventan cifras ni flujos de pago que no funcionan. */}
+          {centroTab === 'ganancias' && (
+            <div className="px-4 space-y-3">
+              <div className="bg-gradient-to-br from-jungle-900 to-jungle-950 rounded-2xl p-5 text-white">
+                <p className="text-xs text-jungle-300 uppercase tracking-wide font-semibold mb-1">Ganancias totales</p>
+                <p className="font-display font-extrabold text-3xl">$0.00 MXN</p>
+                <p className="text-xs text-jungle-300 mt-2">
+                  Aquí verás tus ingresos cuando actives el módulo de reservas y pagos — todavía no está disponible.
+                </p>
+              </div>
+              <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+                <p className="text-sm font-semibold text-jungle-900 mb-1">Plan Premium</p>
+                <p className="text-xs text-jungle-500 mb-2">
+                  Prioridad en las recomendaciones del asistente de IA — $89 MXN/mes.
+                </p>
+                <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+                  Próximamente activable desde aquí
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB: Estadísticas (Centro de Prestador) ──
+              Solo métricas reales y calculables con lo que ya
+              tenemos — nada de "vistas" o "clics" inventados, TuxtlasGO
+              todavía no tiene esa analítica. */}
+          {centroTab === 'estadisticas' && (
+            <div className="px-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <TarjetaStat icono={Calendar} label="Prestador desde" valor={servicio.creado_en ? formatearMes(servicio.creado_en) : '—'} />
+                <TarjetaStat icono={CheckCircle2} label="Estado" valor={labelEstado} />
+                <TarjetaStat icono={ImagePlus} label="Fotos subidas" valor={String(fotos.length)} />
+                <TarjetaStat icono={Link2} label="Enlaces agregados" valor={String(enlaces.length)} />
+              </div>
+              <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+                <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide mb-2">Perfil completo</p>
+                <BarraPerfilCompleto servicio={servicio} fotos={fotos} />
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
 // ─────────────── AUXILIARES ───────────────
+function formatearMes(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  } catch {
+    return '—';
+  }
+}
+
+function IconoEnlace({ tipo }: { tipo: TipoEnlace }) {
+  const props = { size: 15, className: 'text-jungle-600 flex-shrink-0' };
+  switch (tipo) {
+    case 'instagram': return <Instagram {...props} />;
+    case 'facebook':  return <Facebook {...props} />;
+    case 'whatsapp':  return <MessageCircle {...props} />;
+    case 'tiktok':    return <Globe {...props} />;
+    case 'sitio':     return <Globe {...props} />;
+    default:          return <Link2 {...props} />;
+  }
+}
+
+function TarjetaStat({ icono: Icono, label, valor }: { icono: typeof Calendar; label: string; valor: string }) {
+  return (
+    <div className="bg-white rounded-2xl border border-jungle-100 p-3.5">
+      <div className="flex items-center gap-1.5 text-jungle-400 mb-1.5">
+        <Icono size={13} />
+        <span className="text-[10px] uppercase tracking-wide font-semibold">{label}</span>
+      </div>
+      <p className="font-display font-bold text-sm text-jungle-950">{valor}</p>
+    </div>
+  );
+}
+
+// Perfil completo — % calculado con datos reales (nada supuesto):
+// cuenta cuántos de los campos opcionales que sí existen en el
+// servicio ya están llenos. No es una métrica de "engagement", es
+// solo qué tan completa está la ficha.
+function BarraPerfilCompleto({ servicio, fotos }: { servicio: ServicioAPI; fotos: string[] }) {
+  const campos = [
+    !!servicio.horario, !!servicio.como_llegar, !!servicio.tip,
+    !!servicio.mascotas, fotos.length > 0, parseIdeal(servicio.ideal_para).length > 0,
+  ];
+  const llenos = campos.filter(Boolean).length;
+  const porcentaje = Math.round((llenos / campos.length) * 100);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-sm font-bold text-jungle-900">{porcentaje}%</span>
+        <span className="text-xs text-jungle-400">{llenos} de {campos.length} campos</span>
+      </div>
+      <div className="h-2 bg-jungle-100 rounded-full overflow-hidden">
+        <div className="h-full bg-jungle-600 rounded-full transition-all" style={{ width: `${porcentaje}%` }} />
+      </div>
+      {porcentaje < 100 && (
+        <p className="text-xs text-jungle-500 mt-2">
+          Completa horario, cómo llegar, consejo, mascotas, fotos e "ideal para" en Mi Servicio para llegar al 100%.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function InfoFila({ icono, label, valor }: { icono: React.ReactNode; label: string; valor?: string | null }) {
   if (!valor) return null;
   return (

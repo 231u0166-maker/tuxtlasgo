@@ -58,11 +58,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // perros" / "No se permiten mascotas". Sin dato = no se sabe,
       // el chat nunca debe inventarlo.
       mascotas,
-      // Guía del servicio (Módulo 2 — editor de bloques). `contenido_guia`
-      // es el array de bloques tal cual lo arma EditorGuiaServicio.tsx;
-      // `estado_guia` es 'borrador' | 'publicado'. Solo lo publicado
-      // llega al turista (ver aprobados.ts).
-      contenido_guia, estado_guia,
+      // Centro de Prestador — pestaña Enlaces (shell, sin pagos reales).
+      enlaces,
     } = req.body ?? {};
 
     const campos: string[] = [];
@@ -124,13 +121,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       campos.push(`ideal_para = $${idx++}`);
       valores.push(JSON.stringify(ideal_para));
     }
-    if (Array.isArray(contenido_guia)) {
-      campos.push(`contenido_guia = $${idx++}`);
-      valores.push(JSON.stringify(contenido_guia));
-    }
-    if (estado_guia === 'borrador' || estado_guia === 'publicado') {
-      campos.push(`estado_guia = $${idx++}`);
-      valores.push(estado_guia);
+    if (Array.isArray(enlaces)) {
+      campos.push(`enlaces = $${idx++}`);
+      valores.push(JSON.stringify(enlaces));
     }
 
     if (campos.length === 0)
@@ -150,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               contacto, lat, lng, estado, codigo_seguimiento,
               motivo_rechazo, fotos,
               horario, dias_abierto, duracion, como_llegar, tip, ideal_para,
-              mascotas, contenido_guia, estado_guia,
+              mascotas, enlaces,
               creado_en, actualizado_en
        FROM servicios WHERE id = $1`,
       [servicioId]

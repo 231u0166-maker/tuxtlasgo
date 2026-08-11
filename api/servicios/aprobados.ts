@@ -32,7 +32,7 @@ function parseIdeal(raw: any): string[] {
   try { return JSON.parse(raw); } catch { return []; }
 }
 
-function parseGuia(raw: any): any[] {
+function parseEnlaces(raw: any): any[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
   try { return JSON.parse(raw); } catch { return []; }
@@ -49,7 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       SELECT s.id, s.nombre, s.categoria, s.municipio, s.descripcion,
              s.precio, s.contacto, s.lat, s.lng, s.codigo_seguimiento, s.fotos,
              s.horario, s.dias_abierto, s.duracion, s.como_llegar, s.tip, s.ideal_para,
-             s.mascotas, s.contenido_guia, s.estado_guia,
+             s.mascotas, s.enlaces,
              u.nombre AS propietario
       FROM servicios s
       JOIN usuarios u ON u.id = s.usuario_id
@@ -94,8 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         mascotas:   s.mascotas   || undefined,
         esPrestador: true,
         codigoSeguimiento: s.codigo_seguimiento,
-        // Guía del prestador — solo llega al turista si ya la publicó.
-        contenidoGuia: s.estado_guia === 'publicado' ? parseGuia(s.contenido_guia) : undefined,
+        enlaces: parseEnlaces(s.enlaces).length > 0 ? parseEnlaces(s.enlaces) : undefined,
       };
     });
 

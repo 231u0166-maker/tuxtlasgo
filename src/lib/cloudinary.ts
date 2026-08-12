@@ -73,6 +73,59 @@ export function subirFoto(
 }
 
 /**
+ * Sube la foto de verificación de identidad al registrarse como
+ * prestador — carpeta separada de "servicios/", a propósito, porque
+ * esta foto NUNCA debe mezclarse con las fotos públicas del negocio.
+ * Solo la ve el admin al revisar la solicitud.
+ */
+export function subirFotoVerificacion(
+  file: File,
+  identificador: string,
+  onProgreso: (p: ProgresoSubida) => void
+): () => void {
+  const xhr = new XMLHttpRequest();
+  const formData = new FormData();
+
+  formData.append('file', file);
+  formData.append('upload_preset', UPLOAD_PRESET);
+  formData.append('folder', `verificacion/${identificador}`);
+  formData.append('tags', `tuxtlasgo,verificacion`);
+
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 100);
+      onProgreso({ porcentaje: pct });
+    }
+  };
+
+  xhr.onload = () => {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        onProgreso({ porcentaje: 100, url: data.secure_url, publicId: data.public_id });
+      } catch {
+        onProgreso({ porcentaje: 0, error: 'Respuesta inválida del servidor' });
+      }
+    } else {
+      try {
+        const err = JSON.parse(xhr.responseText);
+        onProgreso({ porcentaje: 0, error: err.error?.message ?? `Error ${xhr.status}` });
+      } catch {
+        onProgreso({ porcentaje: 0, error: `Error HTTP ${xhr.status}` });
+      }
+    }
+  };
+
+  xhr.onerror = () => onProgreso({ porcentaje: 0, error: 'Sin conexión a internet' });
+  xhr.onabort = () => onProgreso({ porcentaje: 0, error: 'Subida cancelada' });
+
+  xhr.open('POST', UPLOAD_URL);
+  xhr.send(formData);
+
+  return () => xhr.abort();
+}
+
+/**
  * Elimina una imagen de Cloudinary.
  * Requiere el public_id (no la URL completa).
  * Se hace desde el backend para no exponer el API Secret.

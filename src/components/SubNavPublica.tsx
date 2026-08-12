@@ -25,7 +25,7 @@ export default function SubNavPublica({ activa }: { activa: SeccionPublica }) {
   ];
 
   return (
-    <header className="bg-white/80 backdrop-blur-md border-b border-obsidiana-900/5 sticky top-0 z-40">
+    <header className="bg-white border-b border-obsidiana-900/5 sticky top-0 z-40">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         <Link to="/" className="flex-shrink-0" aria-label="Ir al inicio">
           <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-9 w-auto object-contain" />

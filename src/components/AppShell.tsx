@@ -1,8 +1,8 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft, Briefcase, LogOut, X,
+  ArrowLeft, Briefcase, LogOut, X, History,
   Home, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
-  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Menu
+  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal
 } from 'lucide-react';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -20,7 +20,7 @@ import {
   detectarMunicipio,
   type PreferenciasUsuario,
 } from '../lib/chatbot';
-import FiltrosViaje, { type FiltrosViajeValor } from './FiltrosViaje';
+import { type FiltrosViajeValor } from './FiltrosViaje';
 import MapScreen from './MapScreen';
 import ChatAssistant from './ChatAssistant';
 import { useLLM } from '../hooks/useLLM';
@@ -790,15 +790,12 @@ export default function AppShell() {
                 title="Historial de chats"
                 className="lg:hidden absolute top-4 right-4 w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-white/90 hover:bg-white/10 transition-colors"
               >
-                <Menu size={17} />
+                <History size={18} />
               </button>
               <h1 className="font-display font-extrabold text-2xl">Tu guía</h1>
               <p className="text-sm text-jungle-100 opacity-90">
                 Rutas personalizadas y respuestas al momento, aunque no tengas señal.
               </p>
-            </div>
-            <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5 bg-jungle-50 border-b border-jungle-100 overflow-x-auto">
-              <FiltrosViaje valor={filtros} onCambiar={setFiltros} />
             </div>
             <div className="flex-1 min-h-0">
               <ChatAssistant
@@ -877,8 +874,8 @@ export default function AppShell() {
           >
             {tab === 'mapa' && (
               <button
-                onClick={() => cambiarTab(tabAntesDeMapa)}
-                className="lg:hidden absolute top-3 left-3 z-30 bg-white hover:bg-jungle-50 text-jungle-800 shadow-lg rounded-full pl-3 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
+                onClick={() => { setRutaVisible(null); setMiUbicacion(null); cambiarTab(tabAntesDeMapa); }}
+                className="lg:hidden absolute top-3 left-3 z-30 bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
                 aria-label="Cerrar mapa"
               >
                 <X size={14} /> Cerrar mapa

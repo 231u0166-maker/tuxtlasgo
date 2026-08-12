@@ -10,7 +10,7 @@
 // Ruta: tab 'perfil' en AppShell  (+ /perfil como URL directa)
 // ============================================================
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
@@ -988,36 +988,26 @@ function PerfilPrestador({
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
-                        <input value={form.precio} onChange={e => setForm({ ...form, precio: e.target.value })}
-                          placeholder="$200 MXN"
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                        <SelectorPrecio valor={form.precio} onCambiar={(s) => setForm({ ...form, precio: s })} />
                       </div>
                       <div>
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp / correo</label>
-                        <input value={form.contacto} onChange={e => setForm({ ...form, contacto: e.target.value })}
-                          placeholder="9521234567"
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                        <SelectorContacto valor={form.contacto} onCambiar={(s) => setForm({ ...form, contacto: s })} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
-                        <input value={form.horario} onChange={e => setForm({ ...form, horario: e.target.value })}
-                          placeholder="9:00 am – 6:00 pm"
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                        <SelectorHorario valor={form.horario} onCambiar={(s) => setForm({ ...form, horario: s })} />
                       </div>
                       <div>
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block">Días abierto</label>
-                        <input value={form.dias_abierto} onChange={e => setForm({ ...form, dias_abierto: e.target.value })}
-                          placeholder="Todos los días"
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                        <SelectorDias valor={form.dias_abierto} onCambiar={(s) => setForm({ ...form, dias_abierto: s })} />
                       </div>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
-                      <input value={form.duracion} onChange={e => setForm({ ...form, duracion: e.target.value })}
-                        placeholder="ej: 2-3 horas, Día completo"
-                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+                      <SelectorDuracion valor={form.duracion} onCambiar={(s) => setForm({ ...form, duracion: s })} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-jungle-700 mb-1 block">Cómo llegar</label>
@@ -1759,6 +1749,199 @@ function IconoEnlace({ tipo }: { tipo: TipoEnlace }) {
     case 'sitio': return <Globe {...props} />;
     default: return <Link2 {...props} />;
   }
+}
+
+// ─────────────── Selectores estructurados de Mi Servicio ───────────
+// Antes eran texto libre — la IA necesita formatos consistentes para
+// poder leerlos bien, así que ahora son selectores/pickers que arman
+// el mismo tipo de texto que ya se usaba, no cambia nada del backend.
+
+const TASA_USD_REFERENCIA_EDICION = 17.1; // misma tasa que ProviderPanel.tsx
+const NIVELES_PRECIO_EDICION = ['$', '$$', '$$$', '$$$$'];
+
+function SelectorPrecio({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
+  const parseado = useMemo(() => {
+    const m = valor.match(/^(\${1,4})\s*\$([\d,]+)\s*[–-]\s*\$([\d,]+)\s*MXN/);
+    return m ? { nivel: m[1], min: m[2].replace(/,/g, ''), max: m[3].replace(/,/g, '') } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [nivel, setNivel] = useState(parseado?.nivel ?? '$$');
+  const [min, setMin] = useState(parseado?.min ?? '');
+  const [max, setMax] = useState(parseado?.max ?? '');
+
+  useEffect(() => {
+    const minNum = parseFloat(min), maxNum = parseFloat(max);
+    if (!min || !max || Number.isNaN(minNum) || Number.isNaN(maxNum)) return;
+    const usdMin = Math.round(minNum / TASA_USD_REFERENCIA_EDICION);
+    const usdMax = Math.round(maxNum / TASA_USD_REFERENCIA_EDICION);
+    onCambiar(`${nivel} $${minNum.toLocaleString('es-MX')} – $${maxNum.toLocaleString('es-MX')} MXN (aprox. $${usdMin} – $${usdMax} USD)`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nivel, min, max]);
+
+  return (
+    <div>
+      <div className="flex gap-1.5 mb-2">
+        {NIVELES_PRECIO_EDICION.map((n) => (
+          <button key={n} type="button" onClick={() => setNivel(n)}
+            className={`flex-1 py-1.5 rounded-lg text-sm font-bold border-2 transition-colors ${nivel === n ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-jungle-700'}`}>
+            {n}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="number" min={0} inputMode="numeric" value={min} onChange={(e) => setMin(e.target.value)} placeholder="Desde"
+          className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+        <span className="text-jungle-400 flex-shrink-0">–</span>
+        <input type="number" min={0} inputMode="numeric" value={max} onChange={(e) => setMax(e.target.value)} placeholder="Hasta"
+          className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+      </div>
+    </div>
+  );
+}
+
+function SelectorContacto({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
+  const [modo, setModo] = useState<'whatsapp' | 'correo'>(valor.includes('@') ? 'correo' : 'whatsapp');
+
+  return (
+    <div>
+      <div className="flex gap-1.5 mb-1.5">
+        <button type="button" onClick={() => setModo('whatsapp')}
+          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${modo === 'whatsapp' ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-600'}`}>
+          WhatsApp
+        </button>
+        <button type="button" onClick={() => setModo('correo')}
+          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${modo === 'correo' ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-600'}`}>
+          Correo
+        </button>
+      </div>
+      {modo === 'whatsapp' ? (
+        <input
+          value={valor}
+          inputMode="numeric"
+          type="tel"
+          onChange={(e) => onCambiar(e.target.value.replace(/[^\d+\s-]/g, ''))}
+          placeholder="9521234567"
+          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
+        />
+      ) : (
+        <input
+          value={valor}
+          type="email"
+          onChange={(e) => onCambiar(e.target.value)}
+          placeholder="negocio@correo.com"
+          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
+        />
+      )}
+    </div>
+  );
+}
+
+function parsearHora12a24(str: string): string {
+  const m = str.trim().match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
+  if (!m) return '';
+  let h = parseInt(m[1], 10);
+  const min = m[2];
+  const ampm = m[3].toLowerCase();
+  if (ampm === 'pm' && h !== 12) h += 12;
+  if (ampm === 'am' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${min}`;
+}
+function formatear12h(hhmm: string): string {
+  if (!hhmm) return '';
+  const [hStr, m] = hhmm.split(':');
+  let h = parseInt(hStr, 10);
+  const ampm = h >= 12 ? 'pm' : 'am';
+  h = h % 12; if (h === 0) h = 12;
+  return `${h}:${m} ${ampm}`;
+}
+
+function SelectorHorario({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
+  const partes = useMemo(() => valor.split(/[-–]/).map((s) => s.trim()), [valor]);
+  const [desde, setDesde] = useState(() => (partes[0] ? parsearHora12a24(partes[0]) : ''));
+  const [hasta, setHasta] = useState(() => (partes[1] ? parsearHora12a24(partes[1]) : ''));
+
+  useEffect(() => {
+    if (!desde || !hasta) return;
+    onCambiar(`${formatear12h(desde)} - ${formatear12h(hasta)}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desde, hasta]);
+
+  return (
+    <div className="flex items-center gap-2">
+      <input type="time" value={desde} onChange={(e) => setDesde(e.target.value)}
+        className="w-full bg-jungle-50 rounded-xl px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+      <span className="text-jungle-400 text-xs flex-shrink-0">a</span>
+      <input type="time" value={hasta} onChange={(e) => setHasta(e.target.value)}
+        className="w-full bg-jungle-50 rounded-xl px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+    </div>
+  );
+}
+
+const DIAS_SEMANA_EDICION = [
+  { id: 'lun', label: 'L', nombre: 'Lunes' }, { id: 'mar', label: 'M', nombre: 'Martes' },
+  { id: 'mie', label: 'M', nombre: 'Miércoles' }, { id: 'jue', label: 'J', nombre: 'Jueves' },
+  { id: 'vie', label: 'V', nombre: 'Viernes' }, { id: 'sab', label: 'S', nombre: 'Sábado' },
+  { id: 'dom', label: 'D', nombre: 'Domingo' },
+];
+
+function SelectorDias({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
+  const [seleccionados, setSeleccionados] = useState<string[]>(() => {
+    if (/todos/i.test(valor)) return DIAS_SEMANA_EDICION.map((d) => d.id);
+    return DIAS_SEMANA_EDICION.filter((d) => new RegExp(d.nombre, 'i').test(valor)).map((d) => d.id);
+  });
+
+  useEffect(() => {
+    if (seleccionados.length === 0) return;
+    if (seleccionados.length === 7) { onCambiar('Todos los días'); return; }
+    onCambiar(DIAS_SEMANA_EDICION.filter((d) => seleccionados.includes(d.id)).map((d) => d.nombre).join(', '));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seleccionados]);
+
+  function alternar(id: string) {
+    setSeleccionados((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  return (
+    <div>
+      <div className="flex gap-1">
+        {DIAS_SEMANA_EDICION.map((d) => (
+          <button key={d.id} type="button" onClick={() => alternar(d.id)} title={d.nombre}
+            className={`w-8 h-8 rounded-full text-xs font-bold flex-shrink-0 transition-colors ${seleccionados.includes(d.id) ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-500'}`}>
+            {d.label}
+          </button>
+        ))}
+      </div>
+      {seleccionados.length < 7 && (
+        <button type="button" onClick={() => setSeleccionados(DIAS_SEMANA_EDICION.map((d) => d.id))}
+          className="text-[11px] font-semibold text-jungle-500 hover:text-jungle-700 mt-1.5">
+          Marcar todos los días
+        </button>
+      )}
+    </div>
+  );
+}
+
+const OPCIONES_DURACION_EDICION = ['30 minutos', '1 hora', '1-2 horas', '2-3 horas', '3-4 horas', 'Medio día', 'Día completo', 'Variable'];
+
+function SelectorDuracion({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
+  const esPersonalizado = !!valor && !OPCIONES_DURACION_EDICION.includes(valor);
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5">
+        {OPCIONES_DURACION_EDICION.map((op) => (
+          <button key={op} type="button" onClick={() => onCambiar(op)}
+            className={`px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${valor === op ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-600'}`}>
+            {op}
+          </button>
+        ))}
+      </div>
+      {esPersonalizado && (
+        <input value={valor} onChange={(e) => onCambiar(e.target.value)}
+          className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+      )}
+    </div>
+  );
 }
 
 function TarjetaStat({ icono: Icono, label, valor }: { icono: typeof Calendar; label: string; valor: string }) {

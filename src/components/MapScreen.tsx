@@ -760,11 +760,13 @@ export default function MapScreen({
         </button>
       </div>
 
-      {/* Pill flotante: cerrar ruta resaltada */}
+      {/* Pill flotante: cerrar ruta resaltada — solo escritorio, en
+          móvil esta función ya la absorbe el botón "Cerrar mapa" de
+          arriba (antes se veían los dos juntos, redundante). */}
       {rutaResaltada && onLimpiarRuta && (
         <button
           onClick={onLimpiarRuta}
-          className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3.5 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
+          className="hidden lg:flex absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3.5 pr-4 py-1.5 items-center gap-1.5 text-xs font-semibold"
           aria-label="Cerrar ruta y volver al mapa normal"
         >
           <X size={14} />

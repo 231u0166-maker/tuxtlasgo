@@ -119,7 +119,9 @@ export default function NotificacionesBurbuja() {
   const conMensajes = resumen.filter((r) => (r.mensajes_no_leidos ?? 0) > 0);
   const total = pendientes.length + conMensajes.length;
 
-  if (total === 0 && !abierta) return null;
+  // Siempre visible mientras haya sesión — antes se escondía sin
+  // notificaciones pendientes, pero así no se podía usar como acceso
+  // rápido a Comunidad en cualquier momento.
 
   // El panel se abre hacia el lado con más espacio, para que no se
   // salga de la pantalla sin importar a dónde se arrastró la burbuja.

@@ -16,7 +16,7 @@ import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
   Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
-  MessageCircle, Globe, Calendar, ChevronRight,
+  MessageCircle, Globe, Calendar, ChevronRight, Search,
 } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
@@ -493,7 +493,6 @@ function PerfilPrestador({
   const [nuevaUrlEnlace, setNuevaUrlEnlace] = useState('');
   const [mostrarResumen, setMostrarResumen] = useState(false);
   const [mensajePremium, setMensajePremium] = useState<{ tipo: 'exito' | 'error' | 'pendiente'; texto: string } | null>(null);
-  const [mostrarCuentaCobro, setMostrarCuentaCobro] = useState(false);
   const [form, setForm] = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
@@ -545,7 +544,10 @@ function PerfilPrestador({
   useEffect(() => { cargar(); }, []);
 
   useEffect(() => {
-    if (tab === 'reservaciones') cargarReservacionesEntrantes();
+    if (tab !== 'reservaciones') return;
+    cargarReservacionesEntrantes();
+    const intervalo = setInterval(cargarReservacionesEntrantes, 8000); // antes solo cargaba al cambiar de tab
+    return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -640,29 +642,6 @@ function PerfilPrestador({
       alert('Sin conexión. Verifica tu internet.');
     }
     setGuardandoEnlaces(false);
-  }
-
-  async function guardarCuentaCobro(cuenta: { tipo: 'mercadopago' | 'paypal'; correo: string }): Promise<boolean> {
-    try {
-      const res = await fetch('/api/servicios/editar', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ cuenta_cobro: cuenta }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setServicio(s => (s ? { ...s, cuenta_cobro: data.servicio.cuenta_cobro } : s));
-        return true;
-      }
-      alert(data.error ?? 'Error al guardar');
-      return false;
-    } catch {
-      alert('Sin conexión. Verifica tu internet.');
-      return false;
-    }
   }
 
   const [conectandoMp, setConectandoMp] = useState(false);
@@ -1261,33 +1240,6 @@ function PerfilPrestador({
                   </button>
                 )}
               </div>
-
-              <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-                <p className="text-sm font-semibold text-jungle-900 mb-1">PayPal</p>
-                <p className="text-xs text-jungle-500 mb-3">
-                  Alternativa a Mercado Pago — por ahora solo guarda el correo, todavía sin conexión automática.
-                </p>
-                {servicio.cuenta_cobro?.tipo === 'paypal' ? (
-                  <button
-                    onClick={() => setMostrarCuentaCobro(true)}
-                    className="w-full flex items-center gap-2.5 bg-jungle-50 hover:bg-jungle-100 rounded-xl p-3 text-left transition-colors"
-                  >
-                    <span className="w-8 h-8 rounded-full bg-blue-700 flex items-center justify-center text-white text-[10px] font-black flex-shrink-0">PP</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-jungle-800">PayPal</p>
-                      <p className="text-xs text-jungle-500 truncate">{servicio.cuenta_cobro.correo}</p>
-                    </div>
-                    <span className="text-[11px] font-semibold text-jungle-500 flex-shrink-0">Cambiar</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setMostrarCuentaCobro(true)}
-                    className="w-full flex items-center justify-center gap-2 border border-dashed border-jungle-300 hover:border-jungle-500 text-jungle-600 py-3 rounded-xl text-sm font-semibold transition-colors"
-                  >
-                    <Plus size={15} /> Añadir correo de PayPal
-                  </button>
-                )}
-              </div>
             </div>
           )}
         </>
@@ -1300,14 +1252,6 @@ function PerfilPrestador({
           enlaces={enlaces}
           labelEstado={labelEstado}
           onCerrar={() => setMostrarResumen(false)}
-        />
-      )}
-
-      {mostrarCuentaCobro && servicio && (
-        <ModalCuentaCobro
-          actual={servicio.cuenta_cobro}
-          onCerrar={() => setMostrarCuentaCobro(false)}
-          onGuardar={guardarCuentaCobro}
         />
       )}
 
@@ -1361,6 +1305,23 @@ function PanelReservacionesPrestador({
   const pendientes = reservaciones?.filter(r => r.estado === 'pendiente') ?? [];
   const resueltas = reservaciones?.filter(r => r.estado !== 'pendiente') ?? [];
   const hoy = new Date().toISOString().slice(0, 10);
+
+  // Buscador + "Limpiar solicitudes" — esto último solo oculta de la
+  // vista (rechazadas/canceladas viejas), nunca borra nada de la
+  // base de datos.
+  const [mostrarBusquedaSolicitudes, setMostrarBusquedaSolicitudes] = useState(false);
+  const [busquedaSolicitudes, setBusquedaSolicitudes] = useState('');
+  const [ocultarResueltasAntiguas, setOcultarResueltasAntiguas] = useState(false);
+
+  const filtrarPorNombre = (lista: ReservacionPrestador[]) =>
+    busquedaSolicitudes.trim()
+      ? lista.filter(r => r.nombre_viajero.toLowerCase().includes(busquedaSolicitudes.trim().toLowerCase()))
+      : lista;
+
+  const pendientesFiltradas = filtrarPorNombre(pendientes);
+  const resueltasFiltradas = filtrarPorNombre(
+    ocultarResueltasAntiguas ? resueltas.filter(r => r.estado === 'confirmada') : resueltas
+  );
 
   // Borrador local — no se guarda campo por campo, se guarda todo
   // junto con "Publicar" o "Guardar cambios" (como se pidió).
@@ -1550,19 +1511,49 @@ function PanelReservacionesPrestador({
 
       {/* Solicitudes entrantes */}
       <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-        <p className="text-sm font-semibold text-jungle-900 mb-3">Solicitudes</p>
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <p className="text-sm font-semibold text-jungle-900 flex-shrink-0">Solicitudes</p>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setMostrarBusquedaSolicitudes(v => !v)}
+              className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${mostrarBusquedaSolicitudes ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-600 hover:bg-jungle-100'}`}
+              title="Buscar solicitudes"
+              aria-label="Buscar solicitudes"
+            >
+              <Search size={14} />
+            </button>
+            <button
+              onClick={() => setOcultarResueltasAntiguas(v => !v)}
+              className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-full flex-shrink-0 whitespace-nowrap ${ocultarResueltasAntiguas ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-600 hover:bg-jungle-100'}`}
+              title="Ocultar rechazadas y canceladas"
+            >
+              {ocultarResueltasAntiguas ? 'Mostrar todo' : 'Limpiar solicitudes'}
+            </button>
+          </div>
+        </div>
+        {mostrarBusquedaSolicitudes && (
+          <input
+            value={busquedaSolicitudes}
+            onChange={(e) => setBusquedaSolicitudes(e.target.value)}
+            placeholder="Buscar por nombre del viajero…"
+            autoFocus
+            className="w-full bg-jungle-50 rounded-xl px-3.5 py-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-jungle-400"
+          />
+        )}
         {cargando && (
           <div className="text-center py-6 text-jungle-400">
             <Loader2 size={22} className="animate-spin mx-auto mb-2" />
             <p className="text-xs">Cargando…</p>
           </div>
         )}
-        {!cargando && pendientes.length === 0 && resueltas.length === 0 && (
-          <p className="text-xs text-jungle-400 text-center py-4">Todavía no tienes solicitudes de reservación.</p>
+        {!cargando && pendientesFiltradas.length === 0 && resueltasFiltradas.length === 0 && (
+          <p className="text-xs text-jungle-400 text-center py-4">
+            {busquedaSolicitudes ? 'Nadie coincide con esa búsqueda.' : 'Todavía no tienes solicitudes de reservación.'}
+          </p>
         )}
-        {!cargando && pendientes.length > 0 && (
+        {!cargando && pendientesFiltradas.length > 0 && (
           <div className="space-y-2.5 mb-3">
-            {pendientes.map(r => (
+            {pendientesFiltradas.map(r => (
               <div key={r.id} className="border border-amber-200 bg-amber-50 rounded-xl p-3">
                 <div className="flex items-start justify-between mb-1">
                   <p className="text-sm font-semibold text-jungle-900">{r.nombre_viajero}</p>
@@ -1598,9 +1589,9 @@ function PanelReservacionesPrestador({
             ))}
           </div>
         )}
-        {!cargando && resueltas.length > 0 && (
+        {!cargando && resueltasFiltradas.length > 0 && (
           <div className="space-y-2">
-            {resueltas.map(r => (
+            {resueltasFiltradas.map(r => (
               <div key={r.id} className="flex items-center justify-between border-t border-jungle-100 pt-2.5">
                 <div>
                   <p className="text-xs font-semibold text-jungle-800">{r.nombre_viajero}</p>
@@ -1758,88 +1749,6 @@ function PanelResumenPrestador({
 // Modal — "¿Cómo te gustaría que te pagaran?" — solo guarda el dato
 // por ahora (a dónde le llega su parte al prestador). El reparto
 // automático real (94%/6%) llega junto con el módulo de reservas.
-function ModalCuentaCobro({
-  actual, onCerrar, onGuardar,
-}: {
-  actual?: { tipo: 'mercadopago' | 'paypal'; correo: string } | null;
-  onCerrar: () => void;
-  onGuardar: (cuenta: { tipo: 'mercadopago' | 'paypal'; correo: string }) => Promise<boolean>;
-}) {
-  const [correo, setCorreo] = useState(actual?.tipo === 'paypal' ? actual.correo : '');
-  const [guardando, setGuardando] = useState(false);
-  const [esEscritorio, setEsEscritorio] = useState(() => window.innerWidth >= 640);
-  const { altura, arrastrando, iniciarArrastre } = useHojaArrastrable({ inicial: 62, onCerrar });
-
-  useEffect(() => {
-    const onResize = () => setEsEscritorio(window.innerWidth >= 640);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim());
-
-  async function guardar() {
-    if (!correoValido) return;
-    setGuardando(true);
-    const ok = await onGuardar({ tipo: 'paypal', correo: correo.trim() });
-    setGuardando(false);
-    if (ok) onCerrar();
-  }
-
-  return (
-    <div className="fixed inset-0 z-[85] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
-      <div
-        style={!esEscritorio ? { height: `${altura}vh` } : undefined}
-        className={`bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden flex flex-col ${arrastrando ? '' : 'transition-[height] duration-150'
-          }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Manija de arrastre — solo celular */}
-        <div
-          onPointerDown={iniciarArrastre}
-          className="sm:hidden flex justify-center py-2.5 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
-        >
-          <div className="w-10 h-1.5 rounded-full bg-jungle-200" />
-        </div>
-
-        <div className="px-5 sm:px-8 pt-1 sm:pt-8 pb-1 flex items-center justify-between flex-shrink-0">
-          <button onClick={onCerrar} className="text-jungle-400 hover:text-jungle-700 text-sm font-medium">Cerrar</button>
-          <span className="text-xs text-jungle-400 font-semibold">Cuenta de cobro</span>
-        </div>
-
-        <div className="px-5 sm:px-8 pb-6 sm:pb-8 pt-3 overflow-y-auto flex-1">
-          <span className="w-11 h-11 rounded-full bg-blue-700 flex items-center justify-center text-white text-sm font-black mb-3">PP</span>
-          <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-jungle-950 mb-1.5">Tu correo de PayPal</h2>
-          <p className="text-sm sm:text-base text-jungle-500 mb-6 sm:max-w-sm">
-            Este dato solo se guarda para cuando actives cobros por reservación — todavía no mueve dinero real.
-          </p>
-
-          <label className="block text-xs sm:text-sm font-semibold text-jungle-700 mb-1.5">Correo de PayPal</label>
-          <input
-            type="email"
-            value={correo}
-            onChange={(e) => setCorreo(e.target.value)}
-            placeholder="tu_correo@ejemplo.com"
-            className="w-full bg-jungle-50 rounded-xl px-3.5 py-3 sm:py-3.5 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-jungle-400 mb-1.5"
-          />
-          <p className="text-[11px] sm:text-xs text-jungle-400 mb-6">
-            Debe ser el mismo correo con el que abriste tu cuenta de PayPal.
-          </p>
-
-          <button
-            onClick={guardar}
-            disabled={!correoValido || guardando}
-            className="w-full flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white py-3.5 rounded-xl text-sm sm:text-base font-semibold"
-          >
-            {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Guardar correo de PayPal
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function IconoEnlace({ tipo }: { tipo: TipoEnlace }) {
   const props = { size: 15, className: 'text-jungle-600 flex-shrink-0' };
   switch (tipo) {

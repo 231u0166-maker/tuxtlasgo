@@ -62,7 +62,10 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
   }
 
   useEffect(() => {
-    if (tab === 'reservaciones') cargarReservaciones();
+    if (tab !== 'reservaciones') return;
+    cargarReservaciones();
+    const intervalo = setInterval(cargarReservaciones, 8000); // antes solo cargaba al cambiar de tab, se sentía viejo
+    return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 

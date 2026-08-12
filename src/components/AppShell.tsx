@@ -1,6 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft, Briefcase, LogOut,
+  ArrowLeft, Briefcase, LogOut, X,
   Home, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
   PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Menu
 } from 'lucide-react';
@@ -779,15 +779,24 @@ export default function AppShell() {
             className={`${tab === 'chat' ? 'flex' : 'hidden'} ${mapaExpandido ? 'lg:hidden' : ''
               } flex-col lg:flex-none lg:border-r lg:border-jungle-100 h-full min-h-0 ${arrastrandoPanel ? '' : 'transition-[width] duration-100'}`}
           >
-            <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5 lg:pt-3 lg:pb-2 bg-jungle-800 lg:bg-jungle-50 border-b border-jungle-900/40 lg:border-jungle-100 overflow-x-auto">
+            {/* Header "Tu guía" — mismo lenguaje visual que el
+                encabezado de "Mis lugares", para que la app se sienta
+                consistente en todas las secciones. */}
+            <div className="flex-shrink-0 bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 pt-4 pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TreePine size={17} />
+                <h2 className="font-display font-bold text-base">Tu guía</h2>
+              </div>
               <button
                 onClick={() => setDispararHistorial((v) => v + 1)}
                 aria-label="Historial de chats"
                 title="Historial de chats"
-                className="lg:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-full text-white/90 hover:bg-white/10 transition-colors"
+                className="lg:hidden w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-white/90 hover:bg-white/10 transition-colors"
               >
-                <Menu size={18} />
+                <Menu size={16} />
               </button>
+            </div>
+            <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5 bg-jungle-50 border-b border-jungle-100 overflow-x-auto">
               <FiltrosViaje valor={filtros} onCambiar={setFiltros} />
             </div>
             <div className="flex-1 min-h-0">
@@ -866,14 +875,13 @@ export default function AppShell() {
             }
           >
             {tab === 'mapa' && (
-              <div className="lg:hidden flex-shrink-0 flex items-center gap-2 px-3 py-2.5 bg-white border-b border-jungle-100">
-                <button
-                  onClick={() => cambiarTab(tabAntesDeMapa)}
-                  className="flex items-center gap-1.5 text-sm font-semibold text-jungle-800"
-                >
-                  <ArrowLeft size={16} /> Volver
-                </button>
-              </div>
+              <button
+                onClick={() => cambiarTab(tabAntesDeMapa)}
+                className="lg:hidden absolute top-3 left-3 z-30 bg-white hover:bg-jungle-50 text-jungle-800 shadow-lg rounded-full pl-3 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
+                aria-label="Cerrar mapa"
+              >
+                <X size={14} /> Cerrar mapa
+              </button>
             )}
 
             {/* Colapsar/expandir — solo tiene sentido en escritorio,

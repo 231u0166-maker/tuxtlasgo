@@ -9,7 +9,7 @@
 // ============================================================
 
 import { useEffect, useState } from 'react';
-import { X, Calendar, Users, DollarSign, MapPin, Loader2, CheckCircle2 } from 'lucide-react';
+import { X, Calendar, Users, MapPin, Loader2, CheckCircle2 } from 'lucide-react';
 import { getToken, getUsuarioLocal } from '../lib/auth';
 import type { Lugar } from '../data/lugares';
 
@@ -18,7 +18,6 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
   const [fecha, setFecha] = useState('');
   const [nombreViajero, setNombreViajero] = useState(usuario?.nombre ?? '');
   const [numeroPersonas, setNumeroPersonas] = useState(2);
-  const [presupuesto, setPresupuesto] = useState('');
   const [notas, setNotas] = useState('');
   const [disponibilidad, setDisponibilidad] = useState<'sin_checar' | 'checando' | 'disponible' | 'no_disponible'>('sin_checar');
   const [enviando, setEnviando] = useState(false);
@@ -62,7 +61,6 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
           fecha,
           nombre_viajero: nombreViajero.trim(),
           numero_personas: numeroPersonas,
-          presupuesto: presupuesto || undefined,
           notas: notas || undefined,
         }),
       });
@@ -152,16 +150,9 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
               </div>
             </div>
 
-            {/* Presupuesto */}
-            <div>
-              <p className="text-xs font-semibold text-jungle-500 mb-1.5 flex items-center gap-1"><DollarSign size={12} /> Presupuesto (opcional)</p>
-              <input
-                value={presupuesto}
-                onChange={(e) => setPresupuesto(e.target.value)}
-                placeholder="ej: $500 - $800 MXN por persona"
-                className="w-full bg-jungle-50 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-              />
-            </div>
+            {/* Presupuesto se quitó — el turista paga aparte con
+                Mercado Pago (el anticipo ya lo define el prestador),
+                este campo ya no aportaba nada al flujo. */}
 
             <textarea
               value={notas}

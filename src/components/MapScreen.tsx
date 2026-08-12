@@ -312,6 +312,23 @@ export default function MapScreen({
   vistaCompacta,
 }: Props) {
   const mapRef = useRef<MapRef>(null);
+  const contenedorRef = useRef<HTMLDivElement>(null);
+
+  // En PWA instalada en móvil, MapLibre a veces no se entera solo de
+  // que su contenedor cambió de tamaño (por ejemplo al volver de
+  // otra pestaña donde el mapa estaba en display:none) — se queda
+  // con el canvas mal recortado o en blanco hasta que se le avisa a
+  // fuerza con .resize(). En PC/desktop esto casi nunca pasa porque
+  // el navegador maneja mejor esas transiciones.
+  useEffect(() => {
+    if (!contenedorRef.current) return;
+    const observador = new ResizeObserver(() => {
+      mapRef.current?.getMap()?.resize();
+    });
+    observador.observe(contenedorRef.current);
+    return () => observador.disconnect();
+  }, []);
+
   // Posición actual del muñeco caminando sobre la ruta ([lng, lat]) —
   // null cuando no hay animación en curso.
   const [posicionCaminante, setPosicionCaminante] = useState<[number, number] | null>(null);
@@ -543,7 +560,7 @@ export default function MapScreen({
   }, []);
 
   return (
-    <div className="relative h-full">
+    <div ref={contenedorRef} className="relative h-full">
       <Map
         ref={mapRef}
         initialViewState={{
@@ -599,12 +616,6 @@ export default function MapScreen({
         {miUbicacion && (
           <Marker longitude={miUbicacion[1]} latitude={miUbicacion[0]}>
             <PinMiUbicacion />
-          </Marker>
-        )}
-
-        {posicionCaminante && (
-          <Marker longitude={posicionCaminante[0]} latitude={posicionCaminante[1]}>
-            <PinCaminante />
           </Marker>
         )}
 
@@ -765,44 +776,44 @@ export default function MapScreen({
           previa chica de Explorar, ahí choca con el buscador que
           flota encima (ver nota en Props). */}
       {!vistaCompacta && (
-      <div className="absolute top-3 right-3 z-30">
-        {tilesListos ? (
-          <div className="bg-white shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-jungle-800">
-            <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
-            <span className="hidden sm:inline">Mapa disponible </span>offline ✓
-          </div>
-        ) : descargando ? (
-          <div className="bg-white shadow-lg rounded-xl px-3 py-2.5 flex flex-col gap-1 min-w-[160px]">
-            <div className="flex items-center gap-2 text-sm font-semibold text-jungle-800">
-              <Loader2 size={14} className="animate-spin flex-shrink-0" />
-              Guardando mapa… {progreso}%
+        <div className="absolute top-3 right-3 z-30">
+          {tilesListos ? (
+            <div className="bg-white shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-jungle-800">
+              <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
+              <span className="hidden sm:inline">Mapa disponible </span>offline ✓
             </div>
-            <div className="w-full bg-jungle-100 rounded-full h-1.5">
-              <div
-                className="bg-jungle-600 h-1.5 rounded-full transition-all duration-300"
-                style={{ width: `${progreso}%` }}
-              />
+          ) : descargando ? (
+            <div className="bg-white shadow-lg rounded-xl px-3 py-2.5 flex flex-col gap-1 min-w-[160px]">
+              <div className="flex items-center gap-2 text-sm font-semibold text-jungle-800">
+                <Loader2 size={14} className="animate-spin flex-shrink-0" />
+                Guardando mapa… {progreso}%
+              </div>
+              <div className="w-full bg-jungle-100 rounded-full h-1.5">
+                <div
+                  className="bg-jungle-600 h-1.5 rounded-full transition-all duration-300"
+                  style={{ width: `${progreso}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-jungle-500">
+                {progreso < 20
+                  ? 'Preparando…'
+                  : progreso < 70
+                    ? 'Descargando calles y edificios…'
+                    : progreso < 95
+                      ? 'Guardando estilo del mapa…'
+                      : 'Finalizando…'}
+              </p>
             </div>
-            <p className="text-[10px] text-jungle-500">
-              {progreso < 20
-                ? 'Preparando…'
-                : progreso < 70
-                  ? 'Descargando calles y edificios…'
-                  : progreso < 95
-                    ? 'Guardando estilo del mapa…'
-                    : 'Finalizando…'}
-            </p>
-          </div>
-        ) : (
-          <button
-            onClick={() => setMostrarAyuda(true)}
-            className="bg-white hover:bg-jungle-50 shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-jungle-900"
-          >
-            <Download size={14} className="flex-shrink-0" />
-            <span className="hidden xs:inline">Descargar </span>mapa
-          </button>
-        )}
-      </div>
+          ) : (
+            <button
+              onClick={() => setMostrarAyuda(true)}
+              className="bg-white hover:bg-jungle-50 shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-jungle-900"
+            >
+              <Download size={14} className="flex-shrink-0" />
+              <span className="hidden xs:inline">Descargar </span>mapa
+            </button>
+          )}
+        </div>
       )}
 
       {/* Modal de ayuda antes de descargar */}

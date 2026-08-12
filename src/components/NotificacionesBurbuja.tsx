@@ -9,7 +9,8 @@
 // ============================================================
 
 import { useEffect, useState } from 'react';
-import { MessageCircle, X, Clock, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { MessageCircle, X, Clock, ChevronRight, Users } from 'lucide-react';
 import { getToken, getUsuarioLocal } from '../lib/auth';
 
 interface ResumenReserva {
@@ -45,7 +46,7 @@ export default function NotificacionesBurbuja({ onIrAReservas, evitarChatInput }
   useEffect(() => {
     if (!usuario) return;
     cargar();
-    const intervalo = setInterval(cargar, 20000); // más lento que el chat abierto, esto es solo el avisador
+    const intervalo = setInterval(cargar, 8000); // antes 20s, se sentía lento — ahora 8s
     return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -102,6 +103,17 @@ export default function NotificacionesBurbuja({ onIrAReservas, evitarChatInput }
               </>
             )}
           </div>
+          {/* Mientras esperas confirmación/respuesta, algo que hacer
+              en lo que llega — así no se siente como estar
+              esperando sin más. */}
+          <Link
+            to="/comunidad"
+            onClick={() => setAbierta(false)}
+            className="flex items-center gap-2 px-4 py-3 bg-jungle-50 hover:bg-jungle-100 border-t border-jungle-100 text-xs font-semibold text-jungle-700 transition-colors"
+          >
+            <Users size={14} /> Mientras esperas, mira la Comunidad
+            <ChevronRight size={13} className="ml-auto text-jungle-400" />
+          </Link>
         </div>
       )}
 

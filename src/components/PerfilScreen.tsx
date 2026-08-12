@@ -995,7 +995,7 @@ function PerfilPrestador({
                         <SelectorContacto valor={form.contacto} onCambiar={(s) => setForm({ ...form, contacto: s })} />
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8">
                       <div>
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
                         <SelectorHorario valor={form.horario} onCambiar={(s) => setForm({ ...form, horario: s })} />
@@ -1904,7 +1904,7 @@ function SelectorDias({ valor, onCambiar }: { valor: string; onCambiar: (s: stri
 
   return (
     <div>
-      <div className="flex gap-1.5">
+      <div className="flex gap-2.5">
         {DIAS_SEMANA_EDICION.map((d) => (
           <button key={d.id} type="button" onClick={() => alternar(d.id)} title={d.nombre}
             className={`flex-1 h-9 min-w-[2rem] rounded-full text-xs font-bold transition-colors ${seleccionados.includes(d.id) ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-500'}`}>

@@ -131,10 +131,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ── GET — mis reservaciones (con contador de mensajes sin leer) ──
     if (req.method === 'GET') {
+      // Vence sola una reservación confirmada que nadie pagó en 48h
+      // — así el prestador no se queda con la fecha bloqueada por
+      // alguien que nunca va a pagar. Se revisa aquí (al leer, no con
+      // un cron aparte) porque es más simple y no necesita
+      // infraestructura extra.
+      const vencidas = await pool.query(
+        `SELECT r.id, r.fecha, r.servicio_id FROM reservaciones r
+         WHERE r.estado = 'confirmada' AND r.pago_estado != 'pagado'
+           AND r.pago_vencimiento IS NOT NULL AND r.pago_vencimiento < NOW()`
+      );
+      for (const v of vencidas.rows) {
+        const fechaStr = new Date(v.fecha).toISOString().slice(0, 10);
+        await pool.query(`UPDATE reservaciones SET estado = 'cancelada', actualizado_en = NOW() WHERE id = $1`, [v.id]);
+        await pool.query(
+          `UPDATE servicios SET fechas_bloqueadas = (
+             SELECT COALESCE(jsonb_agg(f), '[]'::jsonb)
+             FROM jsonb_array_elements_text(fechas_bloqueadas) AS f
+             WHERE f != $1
+           ) WHERE id = $2`,
+          [fechaStr, v.servicio_id]
+        );
+      }
+
       if (usuario.tipo === 'prestador') {
         const filas = await pool.query(
           `SELECT r.id, r.fecha, r.nombre_viajero, r.numero_personas, r.presupuesto,
-                  r.notas, r.estado, r.politica, r.pago_estado, r.creado_en,
+                  r.notas, r.estado, r.politica, r.pago_estado, r.pago_vencimiento, r.creado_en,
                   u.nombre AS turista_nombre, u.correo AS turista_correo,
                   s.nombre AS servicio_nombre,
                   (SELECT COUNT(*) FROM mensajes_reservacion m
@@ -151,7 +174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const filas = await pool.query(
         `SELECT r.id, r.fecha, r.nombre_viajero, r.numero_personas, r.presupuesto,
-                r.notas, r.estado, r.politica, r.pago_estado, r.creado_en,
+                r.notas, r.estado, r.politica, r.pago_estado, r.pago_vencimiento, r.creado_en,
                 s.id AS servicio_id, s.nombre AS servicio_nombre, s.municipio, s.categoria,
                 s.monto_minimo, s.mostrar_usd_reservacion,
                 (SELECT COUNT(*) FROM mensajes_reservacion m
@@ -228,7 +251,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const nuevoEstado = accion === 'confirmar' ? 'confirmada' : accion === 'rechazar' ? 'rechazada' : 'cancelada';
       await pool.query(
-        `UPDATE reservaciones SET estado = $1, actualizado_en = NOW() WHERE id = $2`,
+        accion === 'confirmar'
+          ? `UPDATE reservaciones SET estado = $1, actualizado_en = NOW(), pago_vencimiento = NOW() + INTERVAL '48 hours' WHERE id = $2`
+          : `UPDATE reservaciones SET estado = $1, actualizado_en = NOW() WHERE id = $2`,
         [nuevoEstado, id]
       );
 

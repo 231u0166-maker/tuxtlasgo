@@ -22,6 +22,7 @@ interface ReservacionTurista {
   estado: 'pendiente' | 'confirmada' | 'rechazada' | 'cancelada';
   politica: 'flexible' | 'no_reembolsable';
   pago_estado: 'sin_pagar' | 'pendiente' | 'pagado';
+  pago_vencimiento?: string | null;
   servicio_id: number;
   servicio_nombre: string;
   municipio: string;
@@ -140,26 +141,23 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
         <div className="flex bg-white/15 backdrop-blur rounded-xl p-1">
           <button
             onClick={() => setTab('favoritos')}
-            className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
-              tab === 'favoritos' ? 'bg-white text-jungle-900' : 'text-white'
-            }`}
+            className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${tab === 'favoritos' ? 'bg-white text-jungle-900' : 'text-white'
+              }`}
           >
             <Heart size={14} /> Favoritos ({favoritos?.length || 0})
           </button>
           <button
             onClick={() => setTab('rutas')}
-            className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
-              tab === 'rutas' ? 'bg-white text-jungle-900' : 'text-white'
-            }`}
+            className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${tab === 'rutas' ? 'bg-white text-jungle-900' : 'text-white'
+              }`}
           >
             <Route size={14} /> Rutas ({rutas?.length || 0})
           </button>
           {usuario?.tipo === 'turista' && (
             <button
               onClick={() => setTab('reservaciones')}
-              className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
-                tab === 'reservaciones' ? 'bg-white text-jungle-900' : 'text-white'
-              }`}
+              className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${tab === 'reservaciones' ? 'bg-white text-jungle-900' : 'text-white'
+                }`}
             >
               <BookmarkCheck size={14} /> Reservas
             </button>
@@ -278,11 +276,10 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
         {tab === 'reservaciones' && (
           <>
             {mensajePago && (
-              <div className={`rounded-xl p-3 mb-3 text-sm flex items-start gap-2 ${
-                mensajePago.tipo === 'exito' ? 'bg-green-50 text-green-800 border border-green-200'
-                : mensajePago.tipo === 'pendiente' ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
-              }`}>
+              <div className={`rounded-xl p-3 mb-3 text-sm flex items-start gap-2 ${mensajePago.tipo === 'exito' ? 'bg-green-50 text-green-800 border border-green-200'
+                  : mensajePago.tipo === 'pendiente' ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                    : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
                 <span className="flex-1">{mensajePago.texto}</span>
                 <button onClick={() => setMensajePago(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
               </div>
@@ -326,13 +323,20 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                       <span>{r.numero_personas} persona{r.numero_personas > 1 ? 's' : ''}</span>
                     </div>
                     {r.estado === 'confirmada' && r.pago_estado !== 'pagado' && !!r.monto_minimo && (
-                      <button
-                        onClick={() => pagarAnticipo(r.id)}
-                        disabled={pagando === r.id}
-                        className="w-full mt-3 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white text-xs font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5"
-                      >
-                        {pagando === r.id ? 'Abriendo Mercado Pago…' : `Pagar anticipo — $${r.monto_minimo} MXN${r.mostrar_usd_reservacion ? ` (≈$${Math.round(r.monto_minimo / 17.1)} USD)` : ''}`}
-                      </button>
+                      <>
+                        {r.pago_vencimiento && (
+                          <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5 mt-2 text-center">
+                            Paga antes del {new Date(r.pago_vencimiento).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} a las {new Date(r.pago_vencimiento).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })} o se libera tu lugar
+                          </p>
+                        )}
+                        <button
+                          onClick={() => pagarAnticipo(r.id)}
+                          disabled={pagando === r.id}
+                          className="w-full mt-2 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white text-xs font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5"
+                        >
+                          {pagando === r.id ? 'Abriendo Mercado Pago…' : `Pagar anticipo — $${r.monto_minimo} MXN${r.mostrar_usd_reservacion ? ` (≈$${Math.round(r.monto_minimo / 17.1)} USD)` : ''}`}
+                        </button>
+                      </>
                     )}
                     {(r.estado === 'pendiente' || r.estado === 'confirmada') && (
                       <div className="flex items-center gap-3 mt-3">

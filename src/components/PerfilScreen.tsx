@@ -76,6 +76,7 @@ interface ReservacionPrestador {
   estado: 'pendiente' | 'confirmada' | 'rechazada' | 'cancelada';
   politica: string;
   pago_estado?: 'sin_pagar' | 'pendiente' | 'pagado';
+  pago_vencimiento?: string | null;
   creado_en: string;
   turista_nombre: string;
   turista_correo: string;
@@ -1606,6 +1607,11 @@ function PanelReservacionesPrestador({
                   <p className="text-[11px] text-jungle-400">
                     {new Date(r.fecha + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
                   </p>
+                  {r.estado === 'confirmada' && r.pago_estado !== 'pagado' && r.pago_vencimiento && (
+                    <p className="text-[10px] text-amber-600 mt-0.5">
+                      Esperando pago hasta {new Date(r.pago_vencimiento).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} {new Date(r.pago_vencimiento).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {r.estado === 'confirmada' && (

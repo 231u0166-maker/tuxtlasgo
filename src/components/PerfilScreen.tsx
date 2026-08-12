@@ -75,6 +75,7 @@ interface ReservacionPrestador {
   notas?: string;
   estado: 'pendiente' | 'confirmada' | 'rechazada' | 'cancelada';
   politica: string;
+  pago_estado?: 'sin_pagar' | 'pendiente' | 'pagado';
   creado_en: string;
   turista_nombre: string;
   turista_correo: string;
@@ -885,8 +886,8 @@ function PerfilPrestador({
         <div className="px-4 mb-5">
           {mensajePremium && (
             <div className={`rounded-xl p-3 mb-3 text-sm flex items-start gap-2 ${mensajePremium.tipo === 'exito' ? 'bg-green-50 text-green-800 border border-green-200'
-              : mensajePremium.tipo === 'pendiente' ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
+                : mensajePremium.tipo === 'pendiente' ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                  : 'bg-red-50 text-red-800 border border-red-200'
               }`}>
               <span className="flex-1">{mensajePremium.texto}</span>
               <button onClick={() => setMensajePremium(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
@@ -1617,9 +1618,12 @@ function PanelReservacionesPrestador({
                       )}
                     </button>
                   )}
+                  {r.estado === 'confirmada' && r.pago_estado === 'pagado' && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800">$ Pagado</span>
+                  )}
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${r.estado === 'confirmada' ? 'bg-green-100 text-green-800'
-                    : r.estado === 'rechazada' ? 'bg-red-100 text-red-800'
-                      : 'bg-jungle-100 text-jungle-500'
+                      : r.estado === 'rechazada' ? 'bg-red-100 text-red-800'
+                        : 'bg-jungle-100 text-jungle-500'
                     }`}>
                     {r.estado === 'confirmada' ? 'Confirmada' : r.estado === 'rechazada' ? 'Rechazada' : 'Cancelada'}
                   </span>

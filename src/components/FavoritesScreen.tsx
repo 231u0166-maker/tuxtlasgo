@@ -21,10 +21,13 @@ interface ReservacionTurista {
   notas?: string;
   estado: 'pendiente' | 'confirmada' | 'rechazada' | 'cancelada';
   politica: 'flexible' | 'no_reembolsable';
+  pago_estado: 'sin_pagar' | 'pendiente' | 'pagado';
   servicio_id: number;
   servicio_nombre: string;
   municipio: string;
   categoria: string;
+  monto_minimo?: number | null;
+  mostrar_usd_reservacion?: boolean;
   mensajes_no_leidos?: number;
 }
 
@@ -63,6 +66,46 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
   }, [tab]);
 
   const [chatAbierto, setChatAbierto] = useState<{ id: number; nombre: string } | null>(null);
+  const [pagando, setPagando] = useState<number | null>(null);
+  const [mensajePago, setMensajePago] = useState<{ tipo: 'exito' | 'error' | 'pendiente'; texto: string } | null>(null);
+
+  async function pagarAnticipo(id: number) {
+    setPagando(id);
+    try {
+      const res = await fetch('/api/pagos/mercadopago?accion=pagar_reservacion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ reservacion_id: id }),
+      });
+      const data = await res.json();
+      if (data.ok && data.url) {
+        window.location.href = data.url; // al checkout de Mercado Pago del prestador
+      } else {
+        alert(data.error ?? 'No se pudo iniciar el pago');
+        setPagando(null);
+      }
+    } catch {
+      alert('Sin conexión. Verifica tu internet.');
+      setPagando(null);
+    }
+  }
+
+  // Regreso del checkout (?reserva_pago=exito|error|pendiente). El
+  // webhook es quien de verdad marca "pagado" — esto solo avisa y
+  // refresca por si ya llegó.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const resultado = params.get('reserva_pago');
+    if (!resultado) return;
+    if (resultado === 'exito') setMensajePago({ tipo: 'exito', texto: 'Pago recibido — confirmando con el prestador…' });
+    else if (resultado === 'pendiente') setMensajePago({ tipo: 'pendiente', texto: 'Tu pago está pendiente de confirmación (normal con SPEI/OXXO).' });
+    else if (resultado === 'error') setMensajePago({ tipo: 'error', texto: 'El pago no se completó. Puedes intentarlo de nuevo.' });
+    params.delete('reserva_pago');
+    window.history.replaceState({}, '', `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`);
+    if (resultado === 'exito') setTimeout(cargarReservaciones, 2500);
+    setTab('reservaciones');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function cancelarReservacion(id: number) {
     if (!confirm('¿Cancelar esta reservación?')) return;
@@ -234,6 +277,16 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
 
         {tab === 'reservaciones' && (
           <>
+            {mensajePago && (
+              <div className={`rounded-xl p-3 mb-3 text-sm flex items-start gap-2 ${
+                mensajePago.tipo === 'exito' ? 'bg-green-50 text-green-800 border border-green-200'
+                : mensajePago.tipo === 'pendiente' ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                : 'bg-red-50 text-red-800 border border-red-200'
+              }`}>
+                <span className="flex-1">{mensajePago.texto}</span>
+                <button onClick={() => setMensajePago(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
+              </div>
+            )}
             {cargandoReservas && (
               <div className="text-center py-10 text-jungle-400">
                 <Loader2 size={26} className="animate-spin mx-auto mb-2" />
@@ -251,14 +304,19 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
               <div className="space-y-3">
                 {reservaciones.map((r) => (
                   <div key={r.id} className="bg-white rounded-2xl p-4 border border-jungle-100 shadow-sm">
-                    <div className="flex items-start justify-between mb-1.5">
-                      <div>
-                        <p className="font-display font-bold text-jungle-950">{r.servicio_nombre}</p>
-                        <p className="text-xs text-jungle-500 flex items-center gap-1 mt-0.5">
-                          <MapPin size={11} /> {r.municipio}
-                        </p>
-                      </div>
+                    <div>
+                      <p className="font-display font-bold text-jungle-950">{r.servicio_nombre}</p>
+                      <p className="text-xs text-jungle-500 flex items-center gap-1 mt-0.5">
+                        <MapPin size={11} /> {r.municipio}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
                       <EtiquetaEstado estado={r.estado} />
+                      {r.estado === 'confirmada' && r.pago_estado === 'pagado' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 flex items-center gap-1">
+                          ✓ Pagado
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-jungle-600 mt-2">
                       <span className="flex items-center gap-1">
@@ -267,6 +325,15 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                       </span>
                       <span>{r.numero_personas} persona{r.numero_personas > 1 ? 's' : ''}</span>
                     </div>
+                    {r.estado === 'confirmada' && r.pago_estado !== 'pagado' && !!r.monto_minimo && (
+                      <button
+                        onClick={() => pagarAnticipo(r.id)}
+                        disabled={pagando === r.id}
+                        className="w-full mt-3 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white text-xs font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5"
+                      >
+                        {pagando === r.id ? 'Abriendo Mercado Pago…' : `Pagar anticipo — $${r.monto_minimo} MXN${r.mostrar_usd_reservacion ? ` (≈$${Math.round(r.monto_minimo / 17.1)} USD)` : ''}`}
+                      </button>
+                    )}
                     {(r.estado === 'pendiente' || r.estado === 'confirmada') && (
                       <div className="flex items-center gap-3 mt-3">
                         <button

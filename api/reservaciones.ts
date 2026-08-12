@@ -134,7 +134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (usuario.tipo === 'prestador') {
         const filas = await pool.query(
           `SELECT r.id, r.fecha, r.nombre_viajero, r.numero_personas, r.presupuesto,
-                  r.notas, r.estado, r.politica, r.creado_en,
+                  r.notas, r.estado, r.politica, r.pago_estado, r.creado_en,
                   u.nombre AS turista_nombre, u.correo AS turista_correo,
                   s.nombre AS servicio_nombre,
                   (SELECT COUNT(*) FROM mensajes_reservacion m
@@ -151,8 +151,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const filas = await pool.query(
         `SELECT r.id, r.fecha, r.nombre_viajero, r.numero_personas, r.presupuesto,
-                r.notas, r.estado, r.politica, r.creado_en,
+                r.notas, r.estado, r.politica, r.pago_estado, r.creado_en,
                 s.id AS servicio_id, s.nombre AS servicio_nombre, s.municipio, s.categoria,
+                s.monto_minimo, s.mostrar_usd_reservacion,
                 (SELECT COUNT(*) FROM mensajes_reservacion m
                  WHERE m.reservacion_id = r.id AND m.remitente_id != $1 AND m.leido = FALSE) AS mensajes_no_leidos
          FROM reservaciones r

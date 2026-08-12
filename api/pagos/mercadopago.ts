@@ -1,22 +1,24 @@
-// GET  /api/pagos/mercadopago?accion=conectar         → arma la URL de autorización de MP (requiere sesión)
-// GET  /api/pagos/mercadopago?accion=oauth_callback    → MP redirige aquí tras autorizar (público)
-// POST /api/pagos/mercadopago                          → crear preferencia de Premium (requiere sesión)
-// POST /api/pagos/mercadopago?accion=webhook           → MP avisa que un pago cambió (público)
+// GET  /api/pagos/mercadopago?accion=conectar          → arma la URL de autorización de MP (requiere sesión)
+// GET  /api/pagos/mercadopago?accion=oauth_callback     → MP redirige aquí tras autorizar (público)
+// POST /api/pagos/mercadopago?accion=desconectar        → el prestador desconecta su cuenta
+// POST /api/pagos/mercadopago?accion=pagar_reservacion  → el turista paga el anticipo de una reservación confirmada
+// POST /api/pagos/mercadopago?accion=webhook            → MP avisa que un pago cambió (Premium o reservación)
+// POST /api/pagos/mercadopago                           → crear preferencia de Premium (requiere sesión)
 //
-// El dinero del Plan Premium ($89) llega a la cuenta dueña de
-// MERCADOPAGO_ACCESS_TOKEN — eso no cambia. Lo que se agrega aquí es
-// distinto: cuando un PRESTADOR conecta su propia cuenta (OAuth),
-// queda autorizado para que, en cada reservación futura, el pago se
-// reparta solo — 94% a él, 6% a la plataforma — sin que nadie tenga
-// que hacer una transferencia manual. Ese reparto en sí (con
-// marketplace_fee) se activa cuando exista el sistema de
-// reservaciones — este archivo solo deja lista la autorización.
+// El Premium ($89) usa el Access Token de la plataforma —
+// MERCADOPAGO_ACCESS_TOKEN — porque ahí el dinero es para nosotros.
+// El pago de una reservación es distinto: se crea con el
+// access_token del PRESTADOR (obtenido vía OAuth en la conexión), y
+// se le agrega marketplace_fee (nuestro 6%) — Mercado Pago reparte
+// solo, el resto le llega directo al prestador. Nunca tocamos ese
+// dinero nosotros.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
 import { createHmac } from 'crypto';
 
 const PRECIO_PREMIUM_MXN = 89;
 const DIAS_VIGENCIA = 30;
+const COMISION_RESERVACION = 0.06; // 6% — mismo número que en toda la app
 
 function getPool() {
   return new Pool({ connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 1 });
@@ -29,6 +31,14 @@ function cors(res: VercelResponse) {
 function getToken(req: VercelRequest) {
   const a = req.headers['authorization'] ?? '';
   return typeof a === 'string' && a.startsWith('Bearer ') ? a.slice(7) : null;
+}
+async function usuarioDeSesion(pool: Pool, token: string): Promise<{ id: number; tipo: string } | null> {
+  const sess = await pool.query(
+    `SELECT u.id, u.tipo FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id
+     WHERE s.token = $1 AND s.expira_en > NOW()`,
+    [token]
+  );
+  return sess.rows.length > 0 ? sess.rows[0] : null;
 }
 
 // El "state" del OAuth va firmado con el Client Secret — así nadie
@@ -179,6 +189,93 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // ── POST: el turista paga el anticipo de una reservación ────────
+  // Usa el access_token del PRESTADOR (no el nuestro) + marketplace_fee
+  // — así el reparto lo hace Mercado Pago solo, nunca pasa por
+  // nuestra cuenta. Requiere: reservación confirmada, servicio con MP
+  // conectado, y un monto_minimo configurado (sin eso no hay qué cobrar).
+  if (req.method === 'POST' && accion === 'pagar_reservacion') {
+    const token = getToken(req);
+    if (!token) return res.status(401).json({ error: 'Inicia sesión para continuar' });
+
+    const pool = getPool();
+    try {
+      const usuario = await usuarioDeSesion(pool, token);
+      if (!usuario || usuario.tipo !== 'turista') return res.status(403).json({ error: 'Solo turistas pueden pagar reservaciones' });
+
+      const { reservacion_id } = req.body ?? {};
+      if (!reservacion_id) return res.status(400).json({ error: 'Falta reservacion_id' });
+
+      const fila = await pool.query(
+        `SELECT r.id, r.turista_id, r.estado, r.pago_estado, r.nombre_viajero,
+                s.id AS servicio_id, s.nombre AS servicio_nombre, s.monto_minimo,
+                s.mp_conectado, s.mp_access_token,
+                u.correo AS turista_correo
+         FROM reservaciones r
+         JOIN servicios s ON s.id = r.servicio_id
+         JOIN usuarios u ON u.id = r.turista_id
+         WHERE r.id = $1`,
+        [reservacion_id]
+      );
+      if (fila.rows.length === 0) return res.status(404).json({ error: 'Reservación no encontrada' });
+      const r = fila.rows[0];
+
+      if (r.turista_id !== usuario.id) return res.status(403).json({ error: 'No es tu reservación' });
+      if (r.estado !== 'confirmada') return res.status(400).json({ error: 'La reservación todavía no está confirmada por el prestador' });
+      if (r.pago_estado === 'pagado') return res.status(400).json({ error: 'Esta reservación ya está pagada' });
+      if (!r.mp_conectado || !r.mp_access_token) return res.status(400).json({ error: 'El prestador todavía no conecta su cuenta de Mercado Pago' });
+      if (!r.monto_minimo || Number(r.monto_minimo) <= 0) return res.status(400).json({ error: 'El prestador no configuró un anticipo para este servicio' });
+
+      const monto = Number(r.monto_minimo);
+      const comision = Math.round(monto * COMISION_RESERVACION * 100) / 100;
+
+      const preferencia = {
+        items: [{
+          title: `Anticipo de reservación — ${r.servicio_nombre}`,
+          quantity: 1,
+          currency_id: 'MXN',
+          unit_price: monto,
+        }],
+        payer: { email: r.turista_correo },
+        marketplace_fee: comision,
+        external_reference: `reservacion-${r.id}`,
+        notification_url: `${origen}/api/pagos/mercadopago?accion=webhook&tipo=reservacion&reservacion_id=${r.id}`,
+        back_urls: {
+          success: `${origen}/app?reserva_pago=exito`,
+          failure: `${origen}/app?reserva_pago=error`,
+          pending: `${origen}/app?reserva_pago=pendiente`,
+        },
+        auto_return: 'approved',
+      };
+
+      const mpRes = await fetch('https://api.mercadopago.com/checkout/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${r.mp_access_token}` },
+        body: JSON.stringify(preferencia),
+      });
+      const mpData = await mpRes.json();
+      if (!mpRes.ok) {
+        return res.status(502).json({ error: mpData.message ?? 'Mercado Pago rechazó la solicitud' });
+      }
+
+      await pool.query(
+        `INSERT INTO pagos_reservacion (reservacion_id, mp_preference_id, estado, monto, marketplace_fee)
+         VALUES ($1, $2, 'pendiente', $3, $4)`,
+        [r.id, mpData.id, monto, comision]
+      );
+      await pool.query(`UPDATE reservaciones SET pago_estado = 'pendiente' WHERE id = $1`, [r.id]);
+
+      const esPrueba = String(r.mp_access_token).startsWith('TEST-');
+      const url = esPrueba ? mpData.sandbox_init_point : mpData.init_point;
+
+      return res.status(200).json({ ok: true, url });
+    } catch (err) {
+      return res.status(500).json({ error: String(err) });
+    } finally {
+      await pool.end();
+    }
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
   if (!accessToken) {
     return res.status(503).json({ error: 'Los pagos todavía no están configurados. Falta MERCADOPAGO_ACCESS_TOKEN en Vercel.' });
@@ -196,6 +293,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (!paymentId) return res.status(200).json({ ok: true });
 
+      // ── Pago de una reservación — el reservacion_id va embebido
+      // en el propio notification_url que armamos, así no hay que
+      // adivinar de quién es el pago antes de saber con qué token
+      // consultarlo (el pago se creó con el token del PRESTADOR, no
+      // el nuestro, así que hay que usar ESE mismo para leerlo).
+      if (req.query.tipo === 'reservacion') {
+        const reservacionId = Number(req.query.reservacion_id);
+        if (!reservacionId) return res.status(200).json({ ok: true });
+
+        const filaR = await pool.query(
+          `SELECT s.mp_access_token FROM reservaciones r JOIN servicios s ON s.id = r.servicio_id WHERE r.id = $1`,
+          [reservacionId]
+        );
+        const tokenVendedor = filaR.rows[0]?.mp_access_token;
+        if (!tokenVendedor) return res.status(200).json({ ok: true });
+
+        const pagoRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+          headers: { Authorization: `Bearer ${tokenVendedor}` },
+        });
+        if (!pagoRes.ok) return res.status(200).json({ ok: true });
+        const pago = await pagoRes.json();
+
+        await pool.query(
+          `UPDATE pagos_reservacion SET estado = $1, mp_payment_id = $2, actualizado_en = NOW()
+           WHERE reservacion_id = $3 AND (mp_payment_id IS NULL OR mp_payment_id = $2)`,
+          [pago.status === 'approved' ? 'aprobado' : pago.status, String(pago.id), reservacionId]
+        );
+
+        if (pago.status === 'approved') {
+          await pool.query(`UPDATE reservaciones SET pago_estado = 'pagado' WHERE id = $1`, [reservacionId]);
+        }
+
+        return res.status(200).json({ ok: true });
+      }
+
+      // ── Pago del Plan Premium (como antes) ────────────────────
       const pagoRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });

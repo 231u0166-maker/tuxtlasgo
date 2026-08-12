@@ -27,19 +27,42 @@ import { RefreshCw, WifiOff } from 'lucide-react';
 // actualización hasta que cierra y vuelve a abrir la app.
 export default function ActualizacionDisponible() {
   const {
-    needRefresh: [needRefresh, setNeedRefresh],
+    needRefresh: [needRefresh],
     offlineReady: [offlineReady, setOfflineReady],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_url, registration) {
       if (registration) {
         console.log('[TuxtlasGO] Service Worker activo. App lista para offline.');
+        // Antes revisaba cada hora — durante desarrollo activo eso
+        // dejaba a quien probaba la app pegado a una versión vieja
+        // por mucho tiempo (justo lo que pasó con la conexión de
+        // Mercado Pago: el código ya estaba corregido en el
+        // servidor, pero el navegador seguía sirviendo el bundle
+        // viejo). Cada 5 minutos, más al volver a la pestaña.
         setInterval(() => {
           registration.update().catch(() => {});
-        }, 60 * 60 * 1000);
+        }, 5 * 60 * 1000);
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            registration.update().catch(() => {});
+          }
+        });
       }
     },
   });
+
+  // Antes esperaba a que la persona viera el aviso y le diera clic a
+  // "Actualizar" — eso es justo lo que causaba que alguien se
+  // quedara horas en una versión vieja sin darse cuenta. Ahora, en
+  // cuanto hay una versión nueva, se aplica sola — el aviso de abajo
+  // solo informa que está pasando, ya no requiere que nadie decida
+  // nada.
+  useEffect(() => {
+    if (!needRefresh) return;
+    updateServiceWorker(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needRefresh]);
 
   // Aviso de "listo para offline" — informativo, se autocierra solo;
   // a diferencia del de "hay versión nueva" (needRefresh), que se
@@ -57,21 +80,8 @@ export default function ActualizacionDisponible() {
     <div className="fixed bottom-20 left-3 right-3 z-[999] flex justify-center pointer-events-none">
       {needRefresh ? (
         <div className="pointer-events-auto flex items-center gap-3 rounded-xl bg-jungle-900 text-white shadow-lg px-4 py-3 max-w-md w-full">
-          <RefreshCw size={18} className="flex-shrink-0 text-jungle-200" />
-          <span className="text-sm flex-1">Hay una versión nueva de TuxtlasGO.</span>
-          <button
-            onClick={() => updateServiceWorker(true)}
-            className="text-sm font-semibold bg-white text-jungle-900 rounded-lg px-3 py-1.5 flex-shrink-0"
-          >
-            Actualizar
-          </button>
-          <button
-            onClick={() => setNeedRefresh(false)}
-            className="text-jungle-300 text-xs flex-shrink-0"
-            aria-label="Cerrar aviso"
-          >
-            ✕
-          </button>
+          <RefreshCw size={18} className="flex-shrink-0 text-jungle-200 animate-spin" />
+          <span className="text-sm flex-1">Actualizando a la versión más reciente…</span>
         </div>
       ) : (
         <div className="pointer-events-auto flex items-center gap-2 rounded-xl bg-jungle-800/95 text-white shadow-lg px-4 py-2.5 text-xs">

@@ -102,7 +102,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
   }
 
   function copiarCodigo() {
-    navigator.clipboard.writeText(codigoMostrado).catch(() => {});
+    navigator.clipboard.writeText(codigoMostrado).catch(() => { });
     setCodigoCopiado(true);
     setTimeout(() => setCodigoCopiado(false), 2000);
   }
@@ -110,7 +110,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
   // ─── CÓDIGO DE RECUPERACIÓN ───
   if (vista === 'codigo') {
     return (
-      <div style={{ position:'fixed',inset:0,zIndex:9999,backgroundColor:'rgba(2,44,22,0.85)',display:'flex',alignItems:'flex-end' }} className="auth-modal-overlay lg:!items-center lg:!justify-center lg:p-8">
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }} className="auth-modal-overlay lg:!items-center lg:!justify-center lg:p-8">
         <div className="bg-white w-full rounded-t-3xl lg:rounded-3xl p-6 pb-10 lg:max-w-md lg:shadow-2xl">
           <div className="text-center mb-6">
             <div className="w-16 h-16 bg-jungle-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -144,8 +144,8 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
   }
 
   return (
-    <div style={{ position:'fixed',inset:0,zIndex:9999,backgroundColor:'rgba(2,44,22,0.85)',display:'flex',alignItems:'flex-end' }} className="auth-modal-overlay lg:!items-center lg:!justify-center lg:p-8">
-      <div className="bg-white w-full rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto lg:max-w-md lg:max-h-[90vh] lg:shadow-2xl" style={{ WebkitOverflowScrolling:'touch' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }} className="auth-modal-overlay lg:!items-center lg:!justify-center lg:p-8">
+      <div className="bg-white w-full rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto lg:max-w-md lg:max-h-[90vh] lg:shadow-2xl" style={{ WebkitOverflowScrolling: 'touch' }}>
 
         {/* Header sticky */}
         <div className="sticky top-0 bg-white border-b border-jungle-100 px-6 py-4 flex items-center justify-between rounded-t-3xl z-10">
@@ -300,7 +300,12 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
                   <input type="checkbox" checked={terminos} onChange={e => setTerminos(e.target.checked)}
                     className="mt-0.5 w-4 h-4 rounded border-jungle-300 text-jungle-600" />
                   <span className="text-xs text-jungle-600">
-                    Acepto los <span className="text-jungle-800 underline font-semibold">términos y condiciones</span> del sistema
+                    Acepto los{' '}
+                    <a href="/terminos" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                      className="text-jungle-800 underline font-semibold hover:text-jungle-950">
+                      términos y condiciones
+                    </a>{' '}
+                    del sistema
                   </span>
                 </label>
 

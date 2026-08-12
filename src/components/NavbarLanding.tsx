@@ -35,77 +35,77 @@ export default function NavbarLanding({
     <>
       <header className="bg-white/80 backdrop-blur-md border-b border-obsidiana-900/5 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-        <button
-          onClick={() => onCambiarModo('turista')}
-          className="flex-shrink-0"
-          aria-label="Ir al inicio"
-        >
-          <img
-            src="/logo-tuxtlasgo.png"
-            alt="TuxtlasGO"
-            className="h-9 w-auto object-contain"
-          />
-        </button>
-
-        {/* Links centrales — el set cambia según modo (PDF págs. 1-2 turista, 22-26 prestador) */}
-        <nav className="hidden md:flex items-center gap-6 text-sm">
-          {esTurista && (
-            <span className="font-semibold text-obsidiana-900">Para turistas</span>
-          )}
           <button
-            onClick={() => onCambiarModo(esTurista ? 'prestador' : 'turista')}
-            className={
-              esTurista
-                ? 'font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors'
-                : 'font-semibold text-obsidiana-900'
-            }
+            onClick={() => onCambiarModo('turista')}
+            className="flex-shrink-0"
+            aria-label="Ir al inicio"
           >
-            Para prestadores
+            <img
+              src="/logo-tuxtlasgo.png"
+              alt="TuxtlasGO"
+              className="h-9 w-auto object-contain"
+            />
           </button>
-          {/* Galería y Comunidad ya tienen su propia página. */}
-          <Link to="/galeria" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
-            Galería
-          </Link>
-          <Link to="/comunidad" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
-            Comunidad
-          </Link>
-        </nav>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {usuario ? (
+          {/* Links centrales — el set cambia según modo (PDF págs. 1-2 turista, 22-26 prestador) */}
+          <nav className="hidden md:flex items-center gap-6 text-sm">
+            {esTurista && (
+              <span className="font-semibold text-obsidiana-900">Para turistas</span>
+            )}
             <button
-              onClick={onCerrarSesion}
-              className="hidden sm:block text-sm text-obsidiana-800/70 hover:text-obsidiana-900 font-medium px-4 py-2 rounded-full hover:bg-obsidiana-900/5 transition-colors"
+              onClick={() => onCambiarModo(esTurista ? 'prestador' : 'turista')}
+              className={
+                esTurista
+                  ? 'font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors'
+                  : 'font-semibold text-obsidiana-900'
+              }
             >
-              Cerrar sesión
+              Para prestadores
             </button>
-          ) : (
-            <button
-              onClick={onIniciarSesion}
-              className="hidden sm:block text-sm text-obsidiana-800/70 hover:text-obsidiana-900 font-medium px-4 py-2 rounded-full hover:bg-obsidiana-900/5 transition-colors"
-            >
-              Inicio sesión
-            </button>
-          )}
-          <Link
-            to={esTurista ? '/app' : '/prestador'}
-            className="bg-jungle-700 hover:bg-jungle-800 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors flex items-center gap-1"
-          >
-            Go
-            <ChevronRight size={16} />
-          </Link>
+            {/* Galería y Comunidad ya tienen su propia página. */}
+            <Link to="/galeria" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
+              Galería
+            </Link>
+            <Link to="/comunidad" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
+              Comunidad
+            </Link>
+          </nav>
 
-          {/* Hamburguesa — solo móvil */}
-          <button
-            onClick={() => setMenuMovil(true)}
-            className="md:hidden w-9 h-9 flex items-center justify-center text-obsidiana-800 rounded-full hover:bg-obsidiana-900/5 transition-colors flex-shrink-0"
-            aria-label="Menú"
-            aria-expanded={menuMovil}
-          >
-            <Menu size={20} />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {usuario ? (
+              <button
+                onClick={onCerrarSesion}
+                className="hidden sm:block text-sm text-obsidiana-800/70 hover:text-obsidiana-900 font-medium px-4 py-2 rounded-full hover:bg-obsidiana-900/5 transition-colors"
+              >
+                Cerrar sesión
+              </button>
+            ) : (
+              <button
+                onClick={onIniciarSesion}
+                className="hidden sm:block text-sm text-obsidiana-800/70 hover:text-obsidiana-900 font-medium px-4 py-2 rounded-full hover:bg-obsidiana-900/5 transition-colors"
+              >
+                Inicio sesión
+              </button>
+            )}
+            <Link
+              to={esTurista ? '/app' : '/prestador'}
+              className="bg-jungle-700 hover:bg-jungle-800 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors flex items-center gap-1"
+            >
+              Go
+              <ChevronRight size={16} />
+            </Link>
+
+            {/* Hamburguesa — solo móvil */}
+            <button
+              onClick={() => setMenuMovil(true)}
+              className="md:hidden w-9 h-9 flex items-center justify-center text-obsidiana-800 rounded-full hover:bg-obsidiana-900/5 transition-colors flex-shrink-0"
+              aria-label="Menú"
+              aria-expanded={menuMovil}
+            >
+              <Menu size={20} />
+            </button>
+          </div>
         </div>
-      </div>
       </header>
 
       {menuMovil && (
@@ -210,8 +210,8 @@ function MenuMovil({
           {/* Sin páginas propias de políticas todavía — se dejan
               inertes, mismo trato que Galería/Comunidad, en vez de
               apuntar a un link que no existe. */}
-          <ItemMenu label="Política de privacidad" inerte compacto />
-          <ItemMenu label="Condiciones de uso" inerte compacto />
+          <ItemMenu label="Política de privacidad" to="/privacidad" compacto />
+          <ItemMenu label="Condiciones de uso" to="/terminos" compacto />
         </div>
 
         <div className="p-4 border-t border-obsidiana-900/5 flex-shrink-0">

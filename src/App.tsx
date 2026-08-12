@@ -6,6 +6,8 @@ import ProviderPanel from './components/ProviderPanel';
 import AdminPanel from './components/AdminPanel';
 import GaleriaPage from './components/GaleriaPage';
 import ComunidadPage from './components/ComunidadPage';
+import TerminosPage from './components/TerminosPage';
+import PrivacidadPage from './components/PrivacidadPage';
 import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
 import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
 import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
@@ -127,6 +129,8 @@ export default function App() {
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="/galeria" element={<GaleriaPage />} />
         <Route path="/comunidad" element={<ComunidadPage />} />
+        <Route path="/terminos" element={<TerminosPage />} />
+        <Route path="/privacidad" element={<PrivacidadPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ActualizacionDisponible />

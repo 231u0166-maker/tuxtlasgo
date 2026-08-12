@@ -532,7 +532,14 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
 
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={terminos} onChange={(e) => setTerminos(e.target.checked)} className="mt-0.5 w-5 h-5 rounded border-jungle-300 text-jungle-600" />
-                <span className="text-sm text-jungle-600">Acepto los <span className="text-jungle-800 underline font-semibold">términos y condiciones</span> del sistema</span>
+                <span className="text-sm text-jungle-600">
+                  Acepto los{' '}
+                  <a href="/terminos" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                    className="text-jungle-800 underline font-semibold hover:text-jungle-950">
+                    términos y condiciones
+                  </a>{' '}
+                  del sistema
+                </span>
               </label>
             </div>
           )}
@@ -565,7 +572,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
               </p>
               <div className="inline-flex items-center justify-center gap-2 bg-amate-50 rounded-2xl px-5 py-4 mb-8">
                 <span className="font-mono font-bold text-xl tracking-wider text-jungle-800">{codigo}</span>
-                <button onClick={() => { navigator.clipboard.writeText(codigo).catch(() => {}); setCopiado(true); }} className="text-jungle-600 hover:text-jungle-800">
+                <button onClick={() => { navigator.clipboard.writeText(codigo).catch(() => { }); setCopiado(true); }} className="text-jungle-600 hover:text-jungle-800">
                   {copiado ? <CheckCircle2 size={20} /> : <Copy size={20} />}
                 </button>
               </div>

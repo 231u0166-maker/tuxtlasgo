@@ -810,7 +810,7 @@ export default function MapScreen({
               className="bg-white hover:bg-jungle-50 shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-jungle-900"
             >
               <Download size={14} className="flex-shrink-0" />
-              <span className="hidden xs:inline">Descargar </span>mapa
+              <span className="hidden xs:inline">Descargar mapa</span>
             </button>
           )}
         </div>

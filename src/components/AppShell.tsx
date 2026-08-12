@@ -780,21 +780,22 @@ export default function AppShell() {
               } flex-col lg:flex-none lg:border-r lg:border-jungle-100 h-full min-h-0 ${arrastrandoPanel ? '' : 'transition-[width] duration-100'}`}
           >
             {/* Header "Tu guía" — mismo lenguaje visual que el
-                encabezado de "Mis lugares", para que la app se sienta
-                consistente en todas las secciones. */}
-            <div className="flex-shrink-0 bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 pt-4 pb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TreePine size={17} />
-                <h2 className="font-display font-bold text-base">Tu guía</h2>
-              </div>
+                encabezado completo de "Mis lugares" (título grande +
+                subtítulo + esquinas redondeadas), no la barra
+                delgada que había antes. */}
+            <div className="flex-shrink-0 bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 pt-6 pb-5 rounded-b-3xl relative">
               <button
                 onClick={() => setDispararHistorial((v) => v + 1)}
                 aria-label="Historial de chats"
                 title="Historial de chats"
-                className="lg:hidden w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-white/90 hover:bg-white/10 transition-colors"
+                className="lg:hidden absolute top-4 right-4 w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-white/90 hover:bg-white/10 transition-colors"
               >
-                <Menu size={16} />
+                <Menu size={17} />
               </button>
+              <h1 className="font-display font-extrabold text-2xl">Tu guía</h1>
+              <p className="text-sm text-jungle-100 opacity-90">
+                Rutas personalizadas y respuestas al momento, aunque no tengas señal.
+              </p>
             </div>
             <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5 bg-jungle-50 border-b border-jungle-100 overflow-x-auto">
               <FiltrosViaje valor={filtros} onCambiar={setFiltros} />

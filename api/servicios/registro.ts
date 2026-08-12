@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // para todos, y "convertirse en prestador" pasa justo AQUÍ, al
       // enviar su primer servicio (doc MEJORAS DISEÑO PANEL PRESTADOR).
       if (usuario.tipo === 'admin') return res.status(403).json({ error: 'No aplica para administradores' });
-      const { nombre, categoria, municipio, descripcion, precio, contacto, lat, lng } = req.body;
+      const { nombre, categoria, municipio, descripcion, precio, contacto, lat, lng, foto_verificacion } = req.body;
       // Hallazgo real de campo: antes categoría y municipio se
       // guardaban tal cual llegaran, SIN comparar contra la lista
       // real — cualquiera que mandara la petición directo a esta API
@@ -61,10 +61,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (typeof lat !== 'number' || typeof lng !== 'number' || Number.isNaN(lat) || Number.isNaN(lng) || !DENTRO_DE_TUXTLAS(lat, lng)) {
         return res.status(400).json({ error: 'La ubicación marcada está fuera de Los Tuxtlas — verifica el mapa' });
       }
+      // Sin esto el admin no tiene forma de verificar que quien se
+      // registra es una persona real antes de aprobar el servicio.
+      if (typeof foto_verificacion !== 'string' || !foto_verificacion.startsWith('https://')) {
+        return res.status(400).json({ error: 'Sube una foto de verificación de identidad para continuar' });
+      }
       const ya = await pool.query("SELECT id FROM servicios WHERE usuario_id=$1 AND estado!='rechazado'", [usuario.id]);
       if (ya.rows.length > 0) return res.status(409).json({ error: 'Ya tienes un servicio activo' });
       const codigo = generarCodigo('TGO');
-      const r = await pool.query('INSERT INTO servicios (usuario_id,nombre,categoria,municipio,descripcion,precio,contacto,lat,lng,codigo_seguimiento) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,nombre,categoria,municipio,estado,codigo_seguimiento,creado_en', [usuario.id,nombre.trim(),categoria,municipio,descripcion.trim(),precio??null,contacto??null,lat??null,lng??null,codigo]);
+      const r = await pool.query('INSERT INTO servicios (usuario_id,nombre,categoria,municipio,descripcion,precio,contacto,lat,lng,codigo_seguimiento,foto_verificacion) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,nombre,categoria,municipio,estado,codigo_seguimiento,creado_en', [usuario.id,nombre.trim(),categoria,municipio,descripcion.trim(),precio??null,contacto??null,lat??null,lng??null,codigo,foto_verificacion]);
       // Esta solicitud es la que convierte al usuario en prestador —
       // si todavía era 'turista', se actualiza aquí para que el resto
       // de la app (Mi Perfil, /prestador) lo reconozca correctamente.

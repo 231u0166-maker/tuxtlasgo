@@ -35,6 +35,7 @@ interface Servicio {
   usuario_nombre?: string;
   usuario_correo?: string;
   creado_en: string;
+  foto_verificacion?: string;
 }
 
 interface ResultadoNominatim {
@@ -512,6 +513,18 @@ export default function AdminPanel() {
                     </div>
                     {s.descripcion && (
                       <p className="text-sm text-jungle-700 bg-jungle-50 rounded-xl px-3 py-2 mb-3">{s.descripcion}</p>
+                    )}
+                    {s.foto_verificacion ? (
+                      <a href={s.foto_verificacion} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 mb-3 group">
+                        <img src={s.foto_verificacion} alt="Verificación de identidad"
+                          className="h-20 w-20 rounded-xl object-cover border border-jungle-200 group-hover:opacity-80 transition-opacity" />
+                        <span className="text-xs font-semibold text-jungle-600 underline">Ver foto de verificación completa</span>
+                      </a>
+                    ) : (
+                      <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mb-3">
+                        ⚠️ Sin foto de verificación de identidad — solicitud enviada antes de este requisito.
+                      </p>
                     )}
                     {s.usuario_nombre && (
                       <p className="text-xs text-jungle-400 mb-3">

@@ -5,9 +5,11 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Search, Sparkles, Building2, MapPin, Navigation, CheckCircle2, Loader2, Copy,
+  ShieldCheck, ImagePlus, X,
 } from 'lucide-react';
 import { buscarPorCodigo } from '../lib/db';
 import { getUsuarioLocal, getToken, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
+import { subirFotoVerificacion, type ProgresoSubida } from '../lib/cloudinary';
 import OfflineIndicator from './OfflineIndicator';
 import AuthModal from './AuthModal';
 import GestorFotos from './GestorFotos';
@@ -232,6 +234,9 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   const [ubicacion, setUbicacion] = useState<[number, number] | null>(null);
   const [ubicacionGuardada, setUbicacionGuardada] = useState(false);
   const [terminos, setTerminos] = useState(false);
+  const [fotoVerificacion, setFotoVerificacion] = useState('');
+  const [subiendoVerificacion, setSubiendoVerificacion] = useState(false);
+  const [progresoVerificacion, setProgresoVerificacion] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [codigo, setCodigo] = useState('');
@@ -282,6 +287,17 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     }
   }
 
+  function subirVerificacion(file: File) {
+    const usuario = getUsuarioLocal();
+    setSubiendoVerificacion(true);
+    setProgresoVerificacion(0);
+    subirFotoVerificacion(file, `usuario-${usuario?.id ?? Date.now()}`, (p: ProgresoSubida) => {
+      if (p.porcentaje) setProgresoVerificacion(p.porcentaje);
+      if (p.url) { setFotoVerificacion(p.url); setSubiendoVerificacion(false); }
+      if (p.error) { setError(p.error); setSubiendoVerificacion(false); }
+    });
+  }
+
   async function enviarYContinuar() {
     setError('');
     if (!ubicacionGuardada) return setError('Marca tu ubicación en el mapa antes de continuar.');
@@ -289,6 +305,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
       return setError('El contacto debe ser un número de teléfono (10 dígitos).');
     }
     if (!terminos) return setError('Debes aceptar los términos y condiciones.');
+    if (!fotoVerificacion) return setError('Sube una foto de verificación de identidad antes de continuar.');
     const token = getToken();
     if (!token) return setError('Tu sesión expiró — vuelve a iniciar sesión.');
 
@@ -306,6 +323,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
           contacto: contacto.trim(),
           lat: ubicacion![0],
           lng: ubicacion![1],
+          foto_verificacion: fotoVerificacion,
         }),
       });
       const data = await r.json();
@@ -530,6 +548,49 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                 )}
               </div>
 
+              {/* Foto de verificación — sin esto el admin no tiene
+                  forma de confirmar que quien se registra es una
+                  persona real antes de aprobar. Nunca se muestra
+                  públicamente, solo la ve el admin al revisar. */}
+              <div className="bg-white border border-jungle-100 rounded-2xl p-4">
+                <div className="flex items-start gap-2.5 mb-3">
+                  <ShieldCheck size={18} className="text-jungle-700 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-jungle-900">Verificación de identidad</p>
+                    <p className="text-xs text-jungle-500 mt-0.5">
+                      Sube una foto de tu identificación oficial (INE, licencia, etc.) o una selfie sosteniéndola.
+                      Es privada — solo la revisa el equipo de TuxtlasGO para aprobar tu solicitud, nunca se muestra en tu perfil público.
+                    </p>
+                  </div>
+                </div>
+
+                {fotoVerificacion ? (
+                  <div className="relative inline-block">
+                    <img src={fotoVerificacion} alt="Verificación" className="h-32 rounded-xl object-cover border border-jungle-100" />
+                    <button type="button" onClick={() => setFotoVerificacion('')}
+                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-obsidiana-900 text-white flex items-center justify-center">
+                      <X size={13} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-2 border border-dashed border-jungle-300 hover:border-jungle-500 rounded-xl py-4 cursor-pointer text-jungle-600 text-sm font-semibold transition-colors">
+                    {subiendoVerificacion ? (
+                      <><Loader2 size={16} className="animate-spin" /> Subiendo… {progresoVerificacion}%</>
+                    ) : (
+                      <><ImagePlus size={16} /> Subir foto de identificación</>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      capture="environment"
+                      disabled={subiendoVerificacion}
+                      className="hidden"
+                      onChange={(e) => { if (e.target.files?.[0]) subirVerificacion(e.target.files[0]); e.target.value = ''; }}
+                    />
+                  </label>
+                )}
+              </div>
+
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={terminos} onChange={(e) => setTerminos(e.target.checked)} className="mt-0.5 w-5 h-5 rounded border-jungle-300 text-jungle-600" />
                 <span className="text-sm text-jungle-600">
@@ -572,7 +633,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
               </p>
               <div className="inline-flex items-center justify-center gap-2 bg-amate-50 rounded-2xl px-5 py-4 mb-8">
                 <span className="font-mono font-bold text-xl tracking-wider text-jungle-800">{codigo}</span>
-                <button onClick={() => { navigator.clipboard.writeText(codigo).catch(() => { }); setCopiado(true); }} className="text-jungle-600 hover:text-jungle-800">
+                <button onClick={() => { navigator.clipboard.writeText(codigo).catch(() => {}); setCopiado(true); }} className="text-jungle-600 hover:text-jungle-800">
                   {copiado ? <CheckCircle2 size={20} /> : <Copy size={20} />}
                 </button>
               </div>

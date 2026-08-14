@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
+import { getPool } from '../_lib/db.js';
 import { createHash } from 'node:crypto';
 
 // ============================================================
@@ -78,14 +79,6 @@ const MODELO_GEMINI_DEFECTO = 'gemini-2.5-flash-lite';
 
 const LIMITE_DIARIO_DEFECTO = 150;
 const CACHE_TTL_SEGUNDOS_DEFECTO = 60 * 60 * 6; // 6 horas
-
-function getPool() {
-  return new Pool({
-    connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-    max: 1,
-  });
-}
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');

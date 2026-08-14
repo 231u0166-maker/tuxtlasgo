@@ -1,10 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Pool } from 'pg';
+import { getPool } from '../_lib/db.js';
 
-function getPool() { return new Pool({ connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 1 }); }
-function generarCodigo(p='TGO'){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<8;i++)s+=c[Math.floor(Math.random()*c.length)];return `${p}-${s}`;}
-function cors(res: VercelResponse){res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type,Authorization');}
-function getToken(req: VercelRequest){const a=req.headers['authorization']??'';return typeof a==='string'&&a.startsWith('Bearer ')?a.slice(7):null;}
+function generarCodigo(p = 'TGO') { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 8; i++)s += c[Math.floor(Math.random() * c.length)]; return `${p}-${s}`; }
+function cors(res: VercelResponse) { res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization'); }
+function getToken(req: VercelRequest) { const a = req.headers['authorization'] ?? ''; return typeof a === 'string' && a.startsWith('Bearer ') ? a.slice(7) : null; }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -69,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const ya = await pool.query("SELECT id FROM servicios WHERE usuario_id=$1 AND estado!='rechazado'", [usuario.id]);
       if (ya.rows.length > 0) return res.status(409).json({ error: 'Ya tienes un servicio activo' });
       const codigo = generarCodigo('TGO');
-      const r = await pool.query('INSERT INTO servicios (usuario_id,nombre,categoria,municipio,descripcion,precio,contacto,lat,lng,codigo_seguimiento,foto_verificacion) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,nombre,categoria,municipio,estado,codigo_seguimiento,creado_en', [usuario.id,nombre.trim(),categoria,municipio,descripcion.trim(),precio??null,contacto??null,lat??null,lng??null,codigo,foto_verificacion]);
+      const r = await pool.query('INSERT INTO servicios (usuario_id,nombre,categoria,municipio,descripcion,precio,contacto,lat,lng,codigo_seguimiento,foto_verificacion) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,nombre,categoria,municipio,estado,codigo_seguimiento,creado_en', [usuario.id, nombre.trim(), categoria, municipio, descripcion.trim(), precio ?? null, contacto ?? null, lat ?? null, lng ?? null, codigo, foto_verificacion]);
       // Esta solicitud es la que convierte al usuario en prestador —
       // si todavía era 'turista', se actualiza aquí para que el resto
       // de la app (Mi Perfil, /prestador) lo reconozca correctamente.

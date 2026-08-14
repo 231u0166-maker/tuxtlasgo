@@ -10,11 +10,9 @@
 // Cada conversación está ligada a UNA reservación — no es un chat
 // abierto, solo entre quien reservó y el prestador de esa reserva.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
+import { getPool } from './_lib/db.js';
 
-function getPool() {
-  return new Pool({ connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 1 });
-}
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');

@@ -13,16 +13,14 @@
 // solo, el resto le llega directo al prestador. Nunca tocamos ese
 // dinero nosotros.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
+import { getPool } from '../_lib/db.js';
 import { createHmac } from 'crypto';
 
 const PRECIO_PREMIUM_MXN = 89;
 const DIAS_VIGENCIA = 30;
 const COMISION_RESERVACION = 0.06; // 6% — mismo número que en toda la app
 
-function getPool() {
-  return new Pool({ connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 1 });
-}
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');

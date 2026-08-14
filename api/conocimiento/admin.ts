@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
+import { getPool } from '../_lib/db.js';
 
 // ============================================================
 // BASE DE CONOCIMIENTO DINÁMICA — administrable sin tocar código
@@ -21,14 +22,6 @@ import { Pool } from 'pg';
 //   ADMIN_PASSWORD                    (ya existente, mismo patrón que
 //                                      api/servicios/admin.ts)
 // ============================================================
-
-function getPool() {
-  return new Pool({
-    connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-    max: 1,
-  });
-}
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');

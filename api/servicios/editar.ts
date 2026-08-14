@@ -2,7 +2,7 @@
 // GET/POST/DELETE /api/servicios/editar?recurso=fotos → gestión de fotos (fusionado
 // aquí para no pasarnos del límite de 12 funciones serverless del plan Hobby de Vercel)
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Pool } from 'pg';
+import { getPool } from '../_lib/db.js';
 import { v2 as cloudinary } from 'cloudinary';
 
 cloudinary.config({
@@ -11,13 +11,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-function getPool() {
-  return new Pool({
-    connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-    max: 1,
-  });
-}
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');

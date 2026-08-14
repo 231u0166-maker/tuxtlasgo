@@ -4,15 +4,7 @@
 // Endpoint público — solo muestra info validada
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Pool } from 'pg';
-
-function getPool() {
-  return new Pool({
-    connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-    max: 1,
-  });
-}
+import { getPool } from '../_lib/db';
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');

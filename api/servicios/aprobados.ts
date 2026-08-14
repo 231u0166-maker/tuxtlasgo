@@ -4,7 +4,7 @@
 // Endpoint público — solo muestra info validada
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPool } from '../_lib/db';
+import { getPool } from '../_lib/db.js';
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');

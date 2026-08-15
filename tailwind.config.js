@@ -4,7 +4,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        // Fraunces tiene eje óptico (9..144): a tamaños grandes se pone
+        // más contrastada y "tallada" — se usa en headlines. Nunca en
+        // párrafos largos, ahí sigue Inter.
+        display: ['"Fraunces"', 'ui-serif', 'Georgia', 'serif'],
         body: ['"Inter"', 'system-ui', 'sans-serif'],
       },
       colors: {

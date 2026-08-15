@@ -88,27 +88,15 @@ function SeccionesTurista() {
   return (
     <>
       {/* HERO — collage tipo mood-board, gradiente suave detrás */}
-      <section className="relative overflow-hidden bg-amate-50">
-        {/* Línea punteada + paradas — no es decoración genérica, es
-            literalmente lo que hace el asistente: trazar una ruta con
-            paradas. Reemplaza los blobs de gradiente difuminado. */}
-        <svg
-          className="pointer-events-none absolute inset-0 w-full h-full opacity-[0.16]"
-          viewBox="0 0 800 500"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M -20 380 C 120 420, 180 220, 340 260 S 560 60, 820 120"
-            fill="none"
-            stroke="#15803d"
-            strokeWidth="3"
-            strokeDasharray="2 14"
-            strokeLinecap="round"
-          />
-          <circle cx="340" cy="260" r="5" fill="#d97706" />
-          <circle cx="820" cy="120" r="5" fill="#d97706" />
-        </svg>
+      <section className="relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute -top-40 right-0 w-[36rem] h-[36rem] rounded-full opacity-70 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #fcd34d 0%, transparent 70%)' }}
+        />
+        <div
+          className="pointer-events-none absolute top-40 -right-32 w-96 h-96 rounded-full opacity-60 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #67e8f9 0%, transparent 70%)' }}
+        />
 
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-14 pb-20 sm:pt-20 sm:pb-28">
           <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -127,7 +115,7 @@ function SeccionesTurista() {
               <div className="flex flex-wrap gap-3 pt-1">
                 <Link
                   to="/app"
-                  className="bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3.5 carve font-semibold flex items-center gap-2 shadow-carve transition-all hover:-translate-y-0.5"
+                  className="bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 shadow-lg shadow-jungle-700/25 transition-colors"
                 >
                   Empezar a explorar
                   <ChevronRight size={18} />
@@ -138,7 +126,7 @@ function SeccionesTurista() {
                       'Para instalar en tu celular: ábrela en Chrome o Safari y elige "Agregar a pantalla de inicio".'
                     );
                   }}
-                  className="bg-white border border-jungle-200 text-jungle-800 px-6 py-3.5 carve font-semibold flex items-center gap-2 hover:border-jungle-400 transition-all hover:-translate-y-0.5"
+                  className="bg-white border border-jungle-200 text-jungle-800 px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 hover:border-jungle-400 transition-colors"
                 >
                   <Download size={18} />
                   Instalar en mi celular
@@ -203,12 +191,12 @@ function SeccionesTurista() {
             ].map((f) => (
               <div
                 key={f.title}
-                className="group carve p-6 border border-obsidiana-900/8 hover:border-jungle-300 hover:shadow-carve transition-all bg-white"
+                className="group rounded-2xl p-6 border border-obsidiana-900/8 hover:border-jungle-300 hover:shadow-[0_12px_32px_-16px_rgba(20,25,20,0.15)] transition-all bg-white"
               >
-                <div className="w-11 h-11 carve-sm bg-jungle-50 group-hover:bg-jungle-700 flex items-center justify-center mb-4 transition-colors">
-                  <f.icon className="w-5 h-5 text-jungle-700 group-hover:text-white transition-colors" strokeWidth={1.75} />
+                <div className="w-11 h-11 rounded-xl bg-jungle-50 group-hover:bg-jungle-700 flex items-center justify-center mb-4 transition-colors">
+                  <f.icon className="w-5 h-5 text-jungle-700 group-hover:text-white transition-colors" />
                 </div>
-                <h3 className="font-display font-semibold text-lg text-obsidiana-900 mb-1.5">
+                <h3 className="font-display font-bold text-base text-obsidiana-900 mb-1.5">
                   {f.title}
                 </h3>
                 <p className="text-sm text-obsidiana-800/60 leading-relaxed">{f.desc}</p>
@@ -221,7 +209,7 @@ function SeccionesTurista() {
       {/* CTA FINAL */}
       <section className="py-16 sm:py-24 bg-jungle-50">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
-          <div className="w-12 h-12 mx-auto mb-5 carve-sm bg-jungle-700 flex items-center justify-center">
+          <div className="w-12 h-12 mx-auto mb-5 rounded-2xl bg-jungle-700 flex items-center justify-center">
             <ShieldCheck className="text-white" size={22} />
           </div>
           <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
@@ -232,7 +220,7 @@ function SeccionesTurista() {
           </p>
           <Link
             to="/app"
-            className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 carve font-semibold text-lg shadow-carve-lg transition-all hover:-translate-y-0.5"
+            className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl shadow-jungle-700/25 transition-colors"
           >
             Empezar ahora
             <ChevronRight size={20} />
@@ -345,12 +333,12 @@ function SeccionesPrestador() {
             ].map((f) => (
               <div
                 key={f.title}
-                className="group carve p-6 border border-obsidiana-900/8 hover:border-jungle-300 hover:shadow-carve transition-all bg-white"
+                className="group rounded-2xl p-6 border border-obsidiana-900/8 hover:border-jungle-300 hover:shadow-[0_12px_32px_-16px_rgba(20,25,20,0.15)] transition-all bg-white"
               >
-                <div className="w-11 h-11 carve-sm bg-jungle-50 group-hover:bg-jungle-700 flex items-center justify-center mb-4 transition-colors">
-                  <f.icon className="w-5 h-5 text-jungle-700 group-hover:text-white transition-colors" strokeWidth={1.75} />
+                <div className="w-11 h-11 rounded-xl bg-jungle-50 group-hover:bg-jungle-700 flex items-center justify-center mb-4 transition-colors">
+                  <f.icon className="w-5 h-5 text-jungle-700 group-hover:text-white transition-colors" />
                 </div>
-                <h3 className="font-display font-semibold text-lg text-obsidiana-900 mb-1.5">
+                <h3 className="font-display font-bold text-base text-obsidiana-900 mb-1.5">
                   {f.title}
                 </h3>
                 <p className="text-sm text-obsidiana-800/60 leading-relaxed">{f.desc}</p>
@@ -362,7 +350,7 @@ function SeccionesPrestador() {
 
       <section className="py-16 sm:py-24 bg-jungle-50">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
-          <div className="w-12 h-12 mx-auto mb-5 carve-sm bg-jungle-700 flex items-center justify-center">
+          <div className="w-12 h-12 mx-auto mb-5 rounded-2xl bg-jungle-700 flex items-center justify-center">
             <Percent className="text-white" size={22} />
           </div>
           <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
@@ -373,7 +361,7 @@ function SeccionesPrestador() {
           </p>
           <Link
             to="/prestador"
-            className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 carve font-semibold text-lg shadow-carve-lg transition-all hover:-translate-y-0.5"
+            className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl shadow-jungle-700/25 transition-colors"
           >
             Únete ahora
             <ChevronRight size={20} />
@@ -402,8 +390,8 @@ function TarjetaCollage({
   animacion: 'animate-float' | 'animate-float-delayed' | 'animate-float-slow';
 }) {
   return (
-    <div className={`absolute carve-lg shadow-carve-lg border-4 border-amate-50 ${className}`}>
-      <div className={`relative w-full h-full carve-lg overflow-hidden ${animacion}`}>
+    <div className={`absolute rounded-3xl shadow-xl shadow-obsidiana-900/15 ${className}`}>
+      <div className={`relative w-full h-full rounded-3xl overflow-hidden ${animacion}`}>
         <img
           src={fotoA}
           alt="Los Tuxtlas"

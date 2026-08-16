@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageCircle, X, Clock, ChevronRight, Users } from 'lucide-react';
+import { MessageCircle, X, Clock, ChevronRight, Users, Bell } from 'lucide-react';
 import { getToken, getUsuarioLocal } from '../lib/auth';
 
 const CLAVE_POSICION = 'tuxtlasgo-burbuja-pos';
@@ -25,11 +25,21 @@ interface ResumenReserva {
   titulo: string;
 }
 
+interface Notificacion {
+  id: number;
+  titulo: string;
+  mensaje: string;
+  leida: boolean;
+  creado_en: string;
+}
+
 export default function NotificacionesBurbuja() {
   const usuario = getUsuarioLocal();
   const navigate = useNavigate();
   const [abierta, setAbierta] = useState(false);
   const [resumen, setResumen] = useState<ResumenReserva[]>([]);
+  const [avisos, setAvisos] = useState<Notificacion[]>([]);
+  const [avisosSinLeerAlAbrir, setAvisosSinLeerAlAbrir] = useState(0);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [arrastrando, setArrastrando] = useState(false);
   const movioRef = useRef(false);
@@ -58,6 +68,20 @@ export default function NotificacionesBurbuja() {
       }));
       setResumen(filas);
     } catch { /* sin conexión — se reintenta en el próximo ciclo */ }
+
+    // ?marcar=0 — solo se asoma al contador, no apaga el punto rojo.
+    // Se marcan como leídos de verdad solo cuando se abre el panel
+    // (ver alSoltarBoton), así el usuario alcanza a verlos.
+    try {
+      const res = await fetch('/api/reservaciones?recurso=notificaciones&marcar=0', {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setAvisos(data.notificaciones);
+        setAvisosSinLeerAlAbrir(data.notificaciones.filter((n: Notificacion) => !n.leida).length);
+      }
+    } catch { /* sin conexión */ }
   }
 
   useEffect(() => {
@@ -67,6 +91,16 @@ export default function NotificacionesBurbuja() {
     return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Al abrir el panel, ahora sí se marcan como leídos en el servidor
+  // — el punto rojo se apaga porque el usuario realmente los vio.
+  async function marcarAvisosLeidos() {
+    if (avisosSinLeerAlAbrir === 0) return;
+    setAvisosSinLeerAlAbrir(0);
+    try {
+      await fetch('/api/reservaciones?recurso=notificaciones', { headers: { Authorization: `Bearer ${getToken()}` } });
+    } catch { /* se reintenta en el próximo ciclo */ }
+  }
 
   function irAReservas() {
     if (!usuario) return;
@@ -110,14 +144,18 @@ export default function NotificacionesBurbuja() {
 
   function alSoltarBoton() {
     if (movioRef.current) return; // fue arrastre, no clic
-    setAbierta((v) => !v);
+    setAbierta((v) => {
+      const abriendo = !v;
+      if (abriendo) marcarAvisosLeidos();
+      return abriendo;
+    });
   }
 
   if (!usuario) return null;
 
   const pendientes = usuario.tipo === 'prestador' ? resumen.filter((r) => r.estado === 'pendiente') : [];
   const conMensajes = resumen.filter((r) => (r.mensajes_no_leidos ?? 0) > 0);
-  const total = pendientes.length + conMensajes.length;
+  const total = pendientes.length + conMensajes.length + avisosSinLeerAlAbrir;
 
   // Siempre visible mientras haya sesión — antes se escondía sin
   // notificaciones pendientes, pero así no se podía usar como acceso
@@ -148,10 +186,23 @@ export default function NotificacionesBurbuja() {
             <button onClick={() => setAbierta(false)} className="text-jungle-200 hover:text-white"><X size={16} /></button>
           </div>
           <div className="max-h-80 overflow-y-auto">
-            {total === 0 ? (
+            {total === 0 && avisos.length === 0 ? (
               <p className="text-xs text-jungle-400 text-center py-8">Todo al día 🎉</p>
             ) : (
               <>
+                {avisos.map((n) => (
+                  <button
+                    key={`n-${n.id}`}
+                    onClick={() => { setAbierta(false); irAReservas(); }}
+                    className="w-full text-left px-4 py-3 border-b border-jungle-50 hover:bg-jungle-50 flex items-start gap-2.5"
+                  >
+                    <Bell size={15} className="text-jungle-500 flex-shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-jungle-900">{n.titulo}</p>
+                      <p className="text-[11px] text-jungle-500 mt-0.5">{n.mensaje}</p>
+                    </div>
+                  </button>
+                ))}
                 {pendientes.map((r) => (
                   <button
                     key={`p-${r.id}`}

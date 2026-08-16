@@ -35,3 +35,26 @@ export function getPool() {
     max: 1,
   });
 }
+
+// ── eventos_servicio — tracking ligero para "Ganancias y
+// estadísticas" del prestador (Bug: el módulo mostraba $0.00 fijo y
+// no había ninguna gráfica real). Un evento por cada vez que:
+//   - se abre la ficha completa de un servicio     → tipo 'vista'
+//   - alguien lo agrega a favoritos                → tipo 'like'
+//   - el asistente de IA lo recomienda en el chat   → tipo 'ia_recomendacion'
+// Se auto-provisiona igual que las demás tablas del proyecto (ver
+// api/ia/chat.ts) — nada de migración manual aparte.
+export async function asegurarTablaEventosServicio(pool: Pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS eventos_servicio (
+      id SERIAL PRIMARY KEY,
+      servicio_id INT NOT NULL,
+      tipo TEXT NOT NULL,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS eventos_servicio_lookup
+      ON eventos_servicio (servicio_id, tipo, creado_en)
+  `);
+}

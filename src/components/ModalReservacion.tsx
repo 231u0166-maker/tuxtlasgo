@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { X, Calendar, Users, MapPin, Loader2, CheckCircle2 } from 'lucide-react';
 import { getToken, getUsuarioLocal } from '../lib/auth';
 import type { Lugar } from '../data/lugares';
+import CalendarioSeleccionFecha from './CalendarioSeleccionFecha';
 
 export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; onCerrar: () => void }) {
   const usuario = getUsuarioLocal();
@@ -112,15 +113,16 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
               )}
             </div>
 
-            {/* Cuándo */}
+            {/* Cuándo — calendario grande en vez del selector nativo
+                minúsculo del navegador; los días ya ocupados salen
+                tachados y no se pueden tocar. */}
             <div>
               <p className="text-xs font-semibold text-jungle-500 mb-1.5 flex items-center gap-1"><Calendar size={12} /> Cuándo</p>
-              <input
-                type="date"
-                min={manana}
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                className="w-full bg-jungle-50 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
+              <CalendarioSeleccionFecha
+                valor={fecha}
+                onSeleccionar={setFecha}
+                fechaMinima={manana}
+                fechasBloqueadas={lugar.fechasBloqueadas}
               />
               {disponibilidad === 'checando' && (
                 <p className="text-xs text-jungle-400 mt-1.5 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Revisando disponibilidad…</p>

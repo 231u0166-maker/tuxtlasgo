@@ -60,6 +60,10 @@ export interface Lugar {
   servicioId?: number;
   montoMinimo?: number | null;
   mostrarUsdReservacion?: boolean;
+  // Fechas ya ocupadas de este servicio — alimenta el calendario
+  // grande del modal de Reservar, para pintarlas bloqueadas sin
+  // tener que consultar fecha por fecha.
+  fechasBloqueadas?: string[];
 }
 
 export const LUGARES: Lugar[] = [

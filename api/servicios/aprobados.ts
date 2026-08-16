@@ -4,11 +4,11 @@
 // Endpoint público — solo muestra info validada
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPool } from '../_lib/db.js';
+import { getPool, asegurarTablaEventosServicio } from '../_lib/db.js';
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
@@ -30,18 +30,50 @@ function parseEnlaces(raw: any): any[] {
   try { return JSON.parse(raw); } catch { return []; }
 }
 
+function parseArrayGenerico(raw: any): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Método no permitido' });
 
   const pool = getPool();
+
+  // ── POST ?recurso=evento — tracking público (sin sesión) de vistas,
+  // likes y recomendaciones de IA. Público a propósito: la mayoría de
+  // quienes ven un servicio son turistas navegando sin cuenta. No
+  // devuelve nunca un error visible al usuario — es fire-and-forget
+  // desde el frontend, perder un evento ocasional no es grave.
+  if (req.method === 'POST' && req.query.recurso === 'evento') {
+    try {
+      const { servicio_id, tipo } = req.body ?? {};
+      const tiposValidos = ['vista', 'like', 'ia_recomendacion'];
+      const servicioId = Number(servicio_id);
+      if (!servicioId || !tiposValidos.includes(tipo)) {
+        return res.status(400).json({ ok: false, error: 'Datos inválidos' });
+      }
+      await asegurarTablaEventosServicio(pool);
+      await pool.query('INSERT INTO eventos_servicio (servicio_id, tipo) VALUES ($1, $2)', [servicioId, tipo]);
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ ok: false, error: String(err) });
+    } finally {
+      await pool.end();
+    }
+  }
+
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Método no permitido' });
+
   try {
     const rows = await pool.query(`
       SELECT s.id, s.nombre, s.categoria, s.municipio, s.descripcion,
              s.precio, s.contacto, s.lat, s.lng, s.codigo_seguimiento, s.fotos,
              s.horario, s.dias_abierto, s.duracion, s.como_llegar, s.tip, s.ideal_para,
              s.mascotas, s.enlaces, s.acepta_reservaciones, s.monto_minimo, s.mostrar_usd_reservacion,
+             s.fechas_bloqueadas,
              u.nombre AS propietario
       FROM servicios s
       JOIN usuarios u ON u.id = s.usuario_id
@@ -91,6 +123,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         servicioId: s.id,
         montoMinimo: s.monto_minimo != null ? Number(s.monto_minimo) : null,
         mostrarUsdReservacion: !!s.mostrar_usd_reservacion,
+        // Público a propósito — son solo fechas ya ocupadas, el
+        // calendario grande del turista las necesita para pintarlas
+        // bloqueadas sin tener que consultarlas una por una.
+        fechasBloqueadas: parseArrayGenerico(s.fechas_bloqueadas ?? '[]'),
       };
     });
 

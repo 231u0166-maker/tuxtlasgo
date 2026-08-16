@@ -23,6 +23,7 @@ import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
 import { manejarErrorImagen } from '../lib/imagenLugar';
 import type { TipoEnlace } from '../lib/enlaces';
+import { registrarEventoServicio } from '../lib/eventos';
 import ModalReservacion from './ModalReservacion';
 
 interface Props {
@@ -39,6 +40,10 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
   useEffect(() => {
     esFavorito(lugar.id).then(setFav);
     document.body.style.overflow = 'hidden';
+    // Cuenta como "vista" para las estadísticas del prestador — solo
+    // servicios reales (con servicioId), no los lugares curados
+    // estáticos que no tienen panel de prestador que las muestre.
+    registrarEventoServicio(lugar.servicioId, 'vista');
     return () => {
       document.body.style.overflow = '';
     };

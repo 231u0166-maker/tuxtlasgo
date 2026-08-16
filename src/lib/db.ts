@@ -1,6 +1,7 @@
 import Dexie, { Table } from 'dexie';
 import type { Lugar } from '../data/lugares';
 import type { EnlaceServicio } from './enlaces';
+import { registrarEventoServicio } from './eventos';
 
 // ============================================================
 // BASE DE DATOS LOCAL (IndexedDB vía Dexie)
@@ -213,6 +214,13 @@ export async function toggleFavorito(lugarId: string): Promise<boolean> {
     return false;
   }
   await db.favoritos.put({ id: lugarId, agregadoEn: Date.now() });
+  // Cuenta como "like" para las estadísticas del prestador — solo al
+  // agregar (no al quitar), y solo para servicios reales, cuyo id
+  // sigue el patrón 'prestador-<n>' (ver servicioComoLugar / aprobados.ts).
+  if (lugarId.startsWith('prestador-')) {
+    const servicioId = Number(lugarId.slice('prestador-'.length));
+    if (Number.isFinite(servicioId)) registrarEventoServicio(servicioId, 'like');
+  }
   return true;
 }
 

@@ -50,21 +50,26 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
   const [reservaciones, setReservaciones] = useState<ReservacionTurista[] | null>(null);
   const [cargandoReservas, setCargandoReservas] = useState(false);
 
-  async function cargarReservaciones() {
+  // `background = true` en los refrescos automáticos: no vuelve a
+  // mostrar el spinner de carga ni desmonta la lista — antes cada
+  // poll de 8s ponía cargando=true un instante y toda la lista
+  // parpadeaba (se sentía como un bug aunque solo era el loader
+  // apareciendo y desapareciendo constantemente).
+  async function cargarReservaciones(background = false) {
     if (!usuario || usuario.tipo !== 'turista') return;
-    setCargandoReservas(true);
+    if (!background) setCargandoReservas(true);
     try {
       const res = await fetch('/api/reservaciones', { headers: { Authorization: `Bearer ${getToken()}` } });
       const data = await res.json();
       if (data.ok) setReservaciones(data.reservaciones);
     } catch { /* sin conexión */ }
-    setCargandoReservas(false);
+    if (!background) setCargandoReservas(false);
   }
 
   useEffect(() => {
     if (tab !== 'reservaciones') return;
     cargarReservaciones();
-    const intervalo = setInterval(cargarReservaciones, 8000); // antes solo cargaba al cambiar de tab, se sentía viejo
+    const intervalo = setInterval(() => cargarReservaciones(true), 8000);
     return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
@@ -111,8 +116,19 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Antes de cancelar, avisamos qué pasa con el anticipo según la
+  // política del servicio — esto no existía y era justo lo que se
+  // pidió resolver ("dependiendo de la política se le notifica").
+  function textoConsecuenciaCancelacion(r: ReservacionTurista): string {
+    if (r.pago_estado !== 'pagado') return '¿Cancelar esta reservación? Como no has pagado el anticipo, no se te cobrará nada.';
+    if (r.politica === 'flexible') return '¿Cancelar esta reservación? Este servicio tiene política flexible: tu anticipo se reembolsa por completo.';
+    return '¿Cancelar esta reservación? Este servicio tiene política NO reembolsable — tu anticipo podría no devolverse. ¿Deseas continuar?';
+  }
+
   async function cancelarReservacion(id: number) {
-    if (!confirm('¿Cancelar esta reservación?')) return;
+    const r = reservaciones?.find((x) => x.id === id);
+    if (r && !confirm(textoConsecuenciaCancelacion(r))) return;
+    if (!r && !confirm('¿Cancelar esta reservación?')) return;
     try {
       const res = await fetch('/api/reservaciones', {
         method: 'PATCH',
@@ -120,11 +136,33 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
         body: JSON.stringify({ id, accion: 'cancelar' }),
       });
       const data = await res.json();
-      if (data.ok) setReservaciones((prev) => prev?.map((r) => (r.id === id ? { ...r, estado: 'cancelada' } : r)) ?? null);
+      if (data.ok) setReservaciones((prev) => prev?.map((x) => (x.id === id ? { ...x, estado: 'cancelada' } : x)) ?? null);
       else alert(data.error ?? 'No se pudo cancelar');
     } catch {
       alert('Sin conexión. Verifica tu internet.');
     }
+  }
+
+  // "Quitar" es distinto de "Cancelar" — esto borra la fila de la
+  // bd y del panel, solo tiene sentido cuando ya no hay nada que
+  // hacer con ella (rechazada o ya cancelada).
+  const [quitando, setQuitando] = useState<number | null>(null);
+  async function quitarReservacion(id: number) {
+    if (!confirm('¿Quitar esta reservación de tu lista? Esto la borra por completo, no se puede deshacer.')) return;
+    setQuitando(id);
+    try {
+      const res = await fetch('/api/reservaciones', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (data.ok) setReservaciones((prev) => prev?.filter((x) => x.id !== id) ?? null);
+      else alert(data.error ?? 'No se pudo quitar');
+    } catch {
+      alert('Sin conexión. Verifica tu internet.');
+    }
+    setQuitando(null);
   }
 
   const eliminarRuta = async (id: number) => {
@@ -358,7 +396,19 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                           onClick={() => cancelarReservacion(r.id)}
                           className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
                         >
-                          <X size={12} /> Cancelar
+                          <X size={12} /> Cancelar reservación
+                        </button>
+                      </div>
+                    )}
+                    {(r.estado === 'rechazada' || r.estado === 'cancelada') && (
+                      <div className="flex items-center gap-3 mt-3">
+                        <button
+                          onClick={() => quitarReservacion(r.id)}
+                          disabled={quitando === r.id}
+                          className="text-xs font-semibold text-jungle-500 hover:text-red-600 disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {quitando === r.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                          Quitar reservación
                         </button>
                       </div>
                     )}

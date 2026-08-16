@@ -16,12 +16,14 @@ import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
   Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
-  MessageCircle, Globe, Calendar, ChevronRight, Search,
+  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users,
 } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
 import GestorFotos from './GestorFotos';
+import GraficaMini from './GraficaMini';
+import CalendarioReservacionesPrestador from './CalendarioReservacionesPrestador';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { recargarCatalogo } from '../App';
@@ -64,6 +66,26 @@ interface ServicioAPI {
   fechas_bloqueadas?: string[];
   monto_minimo?: number | null;
   mostrar_usd_reservacion?: boolean;
+}
+
+// Respuesta de GET /api/servicios/editar?recurso=estadisticas —
+// Bug: "Ganancias y estadísticas" mostraba un $0.00 fijo y ninguna
+// gráfica. Ahora viene de eventos_servicio + pagos_reservacion reales.
+interface EstadisticasServicio {
+  ganancias: number;
+  reservasPagadas: number;
+  vistas: number;
+  likes: number;
+  iaRecomendaciones: number;
+  porcentajeLike: number;
+  serie: { dia: string; vistas: number; likes: number; ia_recomendaciones: number }[];
+}
+
+// Formato de moneda completo (con centavos) para Ganancias —
+// separado de formatearMXN() de chatbot.ts, que redondea para el
+// chat; aquí sí importa el detalle exacto de a cuánto asciende.
+function formatearMXNCompleto(monto: number): string {
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(monto) + ' MXN';
 }
 
 interface ReservacionPrestador {
@@ -209,6 +231,13 @@ function PerfilTurista({
   const [subiendoAlbum, setSubiendoAlbum] = useState(false);
   const inputFotoRef    = useRef<HTMLInputElement>(null);
   const inputAlbumRef   = useRef<HTMLInputElement>(null);
+  // Enlace con Comunidad — antes lo que subías aquí se quedaba solo
+  // en tu perfil, sin ninguna forma de que apareciera también en el
+  // feed de Comunidad. Ahora das la opción al subir, o desde cada
+  // foto ya subida.
+  const [compartirEnComunidad, setCompartirEnComunidad] = useState(true);
+  const [fotosCompartidas, setFotosCompartidas] = useState<Set<string>>(new Set());
+  const [compartiendoUrl, setCompartiendoUrl] = useState<string | null>(null);
 
   // Cargar bio y fotos desde el servidor
   useEffect(() => {
@@ -271,6 +300,23 @@ function PerfilTurista({
     e.target.value = '';
   }
 
+  // Publica una foto del álbum en el feed de Comunidad (POST directo
+  // a comunidad_posts) — es el enlace que faltaba entre "Mis fotos"
+  // del perfil y el feed público de Comunidad.
+  async function compartirFotoEnComunidad(url: string) {
+    setCompartiendoUrl(url);
+    try {
+      const res = await fetch('/api/comunidad/publicaciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ imagen_url: url }),
+      });
+      const data = await res.json();
+      if (data.ok) setFotosCompartidas((s) => new Set(s).add(url));
+    } catch { /* sin conexión — se puede reintentar desde el botón */ }
+    setCompartiendoUrl(null);
+  }
+
   // Sube foto al álbum
   async function agregarAlAlbum(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -291,6 +337,9 @@ function PerfilTurista({
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ fotos: JSON.stringify(nuevasfotos) }),
       });
+      // Con la casilla activada, la misma foto queda enlazada también
+      // en Comunidad — sin subirla dos veces.
+      if (compartirEnComunidad) await compartirFotoEnComunidad(url);
     } catch { /* error subida */ }
     setSubiendoAlbum(false);
     e.target.value = '';
@@ -433,6 +482,19 @@ function PerfilTurista({
             <input ref={inputAlbumRef} type="file" accept="image/*" className="hidden" onChange={agregarAlAlbum} />
           </div>
 
+          {/* Enlace con Comunidad — se puede desactivar si alguna foto
+              quieres que quede solo en tu perfil. */}
+          <label className="flex items-center gap-2 mb-3 text-xs text-jungle-600 select-none cursor-pointer">
+            <input
+              type="checkbox"
+              checked={compartirEnComunidad}
+              onChange={(e) => setCompartirEnComunidad(e.target.checked)}
+              className="rounded border-jungle-300 text-jungle-700 focus:ring-jungle-400"
+            />
+            <Users size={13} className="text-jungle-400" />
+            Compartir también en la Comunidad al subir
+          </label>
+
           {album.length === 0 ? (
             <div className="text-center py-8 text-jungle-300">
               <ImagePlus size={32} className="mx-auto mb-2" />
@@ -440,17 +502,39 @@ function PerfilTurista({
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
-              {album.map((url, i) => (
-                <div key={i} className="relative aspect-square">
-                  <img src={url} alt="" className="w-full h-full object-cover rounded-xl" />
-                  <button
-                    onClick={() => eliminarFotoAlbum(url)}
-                    className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center"
-                  >
-                    <X size={12} className="text-white" />
-                  </button>
-                </div>
-              ))}
+              {album.map((url, i) => {
+                const compartida = fotosCompartidas.has(url);
+                return (
+                  <div key={i} className="relative aspect-square group">
+                    <img src={url} alt="" className="w-full h-full object-cover rounded-xl" />
+                    <button
+                      onClick={() => eliminarFotoAlbum(url)}
+                      className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center"
+                      aria-label="Eliminar foto"
+                    >
+                      <X size={12} className="text-white" />
+                    </button>
+                    {/* Publicar (o confirmar que ya está) en Comunidad
+                        directo desde una foto que ya subiste antes. */}
+                    <button
+                      onClick={() => !compartida && compartirFotoEnComunidad(url)}
+                      disabled={compartida || compartiendoUrl === url}
+                      className={`absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${
+                        compartida ? 'bg-jungle-700 text-white' : 'bg-black/50 text-white hover:bg-black/70'
+                      }`}
+                      title={compartida ? 'Ya está en la Comunidad' : 'Compartir en la Comunidad'}
+                    >
+                      {compartiendoUrl === url
+                        ? <Loader2 size={11} className="animate-spin" />
+                        : compartida
+                          ? <CheckCircle2 size={11} />
+                          : <Share2 size={11} />
+                      }
+                      {compartida ? 'En Comunidad' : 'Compartir'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -493,6 +577,10 @@ function PerfilPrestador({
   const [nuevaUrlEnlace, setNuevaUrlEnlace] = useState('');
   const [mostrarResumen, setMostrarResumen] = useState(false);
   const [mensajePremium, setMensajePremium] = useState<{ tipo: 'exito' | 'error' | 'pendiente'; texto: string } | null>(null);
+  // Ganancias totales — solo el monto, para la tarjeta resumen de
+  // arriba (antes era un $0.00 fijo). El detalle completo con
+  // gráficas vive en PanelResumenPrestador cuando se abre el modal.
+  const [gananciasTotales, setGananciasTotales] = useState<number | null>(null);
   const [form, setForm]           = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
     precio: '', contacto: '', horario: '', dias_abierto: '',
@@ -543,10 +631,23 @@ function PerfilPrestador({
 
   useEffect(() => { cargar(); }, []);
 
+  // Carga ligera solo del monto de ganancias, para la tarjeta
+  // resumen — se pide una vez que ya sabemos que hay un servicio
+  // (antes de eso no tiene sentido pedir estadísticas de nada).
+  useEffect(() => {
+    if (!servicio) return;
+    let cancelado = false;
+    fetch('/api/servicios/editar?recurso=estadisticas', { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(r => r.json())
+      .then(d => { if (!cancelado && d.ok) setGananciasTotales(d.ganancias); })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [servicio?.id]);
+
   useEffect(() => {
     if (tab !== 'reservaciones') return;
     cargarReservacionesEntrantes();
-    const intervalo = setInterval(cargarReservacionesEntrantes, 8000); // antes solo cargaba al cambiar de tab
+    const intervalo = setInterval(() => cargarReservacionesEntrantes(true), 8000);
     return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
@@ -686,14 +787,20 @@ function PerfilPrestador({
   const [nuevaFechaBloqueada, setNuevaFechaBloqueada] = useState('');
   const [chatAbierto, setChatAbierto] = useState<{ id: number; nombre: string } | null>(null);
 
-  async function cargarReservacionesEntrantes() {
-    setCargandoReservaciones(true);
+  // `background = true` en los refrescos automáticos del polling: no
+  // vuelve a mostrar el loader ni desmonta la lista de Solicitudes —
+  // antes cada refresco de 8s ponía cargando=true, la lista entera
+  // desaparecía y volvía a aparecer, y eso era el "cambio cambio"
+  // molesto que se reportó (no un problema de datos, solo del loader
+  // parpadeando en cada poll).
+  async function cargarReservacionesEntrantes(background = false) {
+    if (!background) setCargandoReservaciones(true);
     try {
       const res = await fetch('/api/reservaciones', { headers: { Authorization: `Bearer ${getToken()}` } });
       const data = await res.json();
       if (data.ok) setReservacionesEntrantes(data.reservaciones);
     } catch { /* sin conexión */ }
-    setCargandoReservaciones(false);
+    if (!background) setCargandoReservaciones(false);
   }
 
   async function actualizarConfigReservaciones(cambios: {
@@ -727,13 +834,16 @@ function PerfilPrestador({
     return exito;
   }
 
-  function agregarFechaBloqueada() {
-    if (!nuevaFechaBloqueada || !servicio) return;
+  // Acepta una fecha directa (click en el calendario) o usa el input
+  // de texto si no se pasa ninguna — así sirve para ambos flujos.
+  function agregarFechaBloqueada(fechaDirecta?: string) {
+    const objetivo = fechaDirecta ?? nuevaFechaBloqueada;
+    if (!objetivo || !servicio) return;
     const actuales = servicio.fechas_bloqueadas ?? [];
-    if (actuales.includes(nuevaFechaBloqueada)) { setNuevaFechaBloqueada(''); return; }
-    const nuevas = [...actuales, nuevaFechaBloqueada].sort();
+    if (actuales.includes(objetivo)) { if (!fechaDirecta) setNuevaFechaBloqueada(''); return; }
+    const nuevas = [...actuales, objetivo].sort();
     actualizarConfigReservaciones({ fechas_bloqueadas: nuevas });
-    setNuevaFechaBloqueada('');
+    if (!fechaDirecta) setNuevaFechaBloqueada('');
   }
 
   function quitarFechaBloqueada(fecha: string) {
@@ -799,6 +909,10 @@ function PerfilPrestador({
       mascotas:      form.mascotas     || undefined,
       idealPara:     form.ideal_para.length ? form.ideal_para : undefined,
       foto:          fotos[0]          || undefined,
+      // Antes faltaba aquí — por eso "Guardar enlaces" sí guardaba en
+      // la bd (sin error) pero el Preview / PlaceCard nunca los
+      // mostraba, sin importar cuántas veces se reintentara.
+      enlaces:       enlaces.length    ? enlaces : undefined,
     });
   }
 
@@ -880,7 +994,9 @@ function PerfilPrestador({
           >
             <DollarSign size={80} className="absolute -right-3 -bottom-4 text-white/5" />
             <p className="text-xs text-jungle-300 uppercase tracking-wide font-semibold mb-1">Ganancias totales</p>
-            <p className="font-display font-extrabold text-3xl">$0.00 MXN</p>
+            <p className="font-display font-extrabold text-3xl">
+              {gananciasTotales === null ? '···' : formatearMXNCompleto(gananciasTotales)}
+            </p>
             <p className="text-xs text-jungle-300 mt-2 relative flex items-center gap-1">
               Ver estadísticas y Plan Premium <ChevronRight size={13} />
             </p>
@@ -1288,7 +1404,7 @@ function PanelReservacionesPrestador({
   setNuevaFechaBloqueada: (v: string) => void;
   onGuardarConfig: (cfg: { politica_cancelacion: 'flexible' | 'no_reembolsable'; monto_minimo: number | null; mostrar_usd_reservacion: boolean; activar: boolean }) => Promise<boolean>;
   onEliminar: () => void;
-  onAgregarFechaBloqueada: () => void;
+  onAgregarFechaBloqueada: (fecha?: string) => void;
   onQuitarFechaBloqueada: (fecha: string) => void;
   onResponder: (id: number, accion: 'confirmar' | 'rechazar') => void;
   onAbrirChat: (id: number, nombreViajero: string) => void;
@@ -1471,6 +1587,22 @@ function PanelReservacionesPrestador({
 
       {acepta && mpConectado && (
         <>
+          {/* Calendario — antes solo había una lista de chips de texto
+              para bloquear fechas, sin ninguna vista de calendario
+              real. Verde = confirmada, ámbar = pendiente, gris =
+              bloqueada a mano; toca un día vacío para bloquearlo. */}
+          <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+            <p className="text-sm font-semibold text-jungle-900 mb-1">Tu calendario</p>
+            <p className="text-xs text-jungle-500 mb-3">Reservaciones y fechas bloqueadas, de un vistazo.</p>
+            <CalendarioReservacionesPrestador
+              reservaciones={reservaciones ?? []}
+              fechasBloqueadas={bloqueadas}
+              onBloquear={onAgregarFechaBloqueada}
+              onDesbloquear={onQuitarFechaBloqueada}
+              onAbrirChat={onAbrirChat}
+            />
+          </div>
+
           {/* Fechas bloqueadas */}
           <div className="bg-white rounded-2xl border border-jungle-100 p-4">
             <p className="text-sm font-semibold text-jungle-900 mb-1">Fechas no disponibles</p>
@@ -1493,7 +1625,7 @@ function PanelReservacionesPrestador({
                 onChange={(e) => setNuevaFechaBloqueada(e.target.value)}
                 className="flex-1 bg-jungle-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
               />
-              <button onClick={onAgregarFechaBloqueada} disabled={!nuevaFechaBloqueada}
+              <button onClick={() => onAgregarFechaBloqueada()} disabled={!nuevaFechaBloqueada}
                 className="bg-jungle-100 disabled:opacity-40 text-jungle-700 px-3 rounded-xl">
                 <Plus size={16} />
               </button>
@@ -1642,6 +1774,25 @@ function PanelResumenPrestador({
 
   const premiumActivo = !!servicio.premium && (!servicio.premium_hasta || new Date(servicio.premium_hasta) > new Date());
 
+  // Estadísticas reales — antes esto era un $0.00 fijo y ninguna
+  // gráfica. Se piden solo al abrir el panel (no en cada render).
+  const [stats, setStats] = useState<EstadisticasServicio | null>(null);
+  const [cargandoStats, setCargandoStats] = useState(true);
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/servicios/editar?recurso=estadisticas', {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        const data = await res.json();
+        if (!cancelado && data.ok) setStats(data);
+      } catch { /* sin conexión — se queda el shell de abajo */ }
+      if (!cancelado) setCargandoStats(false);
+    })();
+    return () => { cancelado = true; };
+  }, []);
+
   async function pagarPremium() {
     setPagando(true);
     setErrorPago('');
@@ -1663,6 +1814,8 @@ function PanelResumenPrestador({
     }
   }
 
+  const ganancias = stats ? formatearMXNCompleto(stats.ganancias) : null;
+
   return (
     <div className="fixed inset-0 z-[80] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
       <div
@@ -1675,14 +1828,20 @@ function PanelResumenPrestador({
         </div>
 
         <div className="px-4 pb-6 space-y-3">
-          {/* Ganancias — shell honesto: sin cobros/reservas reales
-              todavía, solo lo que sí existe hoy (Plan Premium). */}
+          {/* Ganancias reales — suma de anticipos ya pagados de tus
+              reservaciones (94% que te toca, sin el 6% de comisión). */}
           <div className="bg-gradient-to-br from-jungle-900 to-jungle-950 rounded-2xl p-5 text-white relative overflow-hidden">
             <DollarSign size={72} className="absolute -right-3 -bottom-3 text-white/5" />
             <p className="text-xs text-jungle-300 uppercase tracking-wide font-semibold mb-1">Ganancias totales</p>
-            <p className="font-display font-extrabold text-3xl">$0.00 MXN</p>
+            <p className="font-display font-extrabold text-3xl">
+              {cargandoStats ? '···' : (ganancias ?? '$0.00 MXN')}
+            </p>
             <p className="text-xs text-jungle-300 mt-2 relative">
-              Aquí verás tus ingresos cuando actives el módulo de reservas y pagos — todavía no está disponible.
+              {stats && stats.reservasPagadas > 0
+                ? `De ${stats.reservasPagadas} reservación${stats.reservasPagadas > 1 ? 'es' : ''} pagada${stats.reservasPagadas > 1 ? 's' : ''}, ya con el 6% de comisión descontado.`
+                : servicio.acepta_reservaciones
+                  ? 'Todavía no tienes anticipos pagados — aparecerán aquí en cuanto un turista pague.'
+                  : 'Activa reservaciones (pestaña Reservaciones) para empezar a cobrar anticipos.'}
             </p>
           </div>
 
@@ -1719,6 +1878,41 @@ function PanelResumenPrestador({
               </>
             )}
           </div>
+
+          {/* Interés real — quién lo vio, cuántos le dieron like, y
+              cuántas veces lo recomendó la IA. Esto reemplaza el
+              módulo que antes no mostraba ninguna gráfica. */}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <TarjetaStat icono={Search} label="Vistas de tu ficha" valor={cargandoStats ? '···' : String(stats?.vistas ?? 0)} />
+            <TarjetaStat icono={CheckCircle2} label="Le gustó a la gente" valor={cargandoStats ? '···' : String(stats?.likes ?? 0)} />
+            <TarjetaStat icono={BarChart3} label="Recomendado por IA" valor={cargandoStats ? '···' : String(stats?.iaRecomendaciones ?? 0)} />
+            <TarjetaStat icono={DollarSign} label="% que vio y le gustó" valor={cargandoStats ? '···' : `${stats?.porcentajeLike ?? 0}%`} />
+          </div>
+
+          {!cargandoStats && stats && stats.serie.some(d => d.vistas + d.likes + d.ia_recomendaciones > 0) && (
+            <div className="bg-white rounded-2xl border border-jungle-100 p-4 space-y-3">
+              <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide flex items-center gap-1.5">
+                <BarChart3 size={12} /> Últimos 14 días
+              </p>
+              <div>
+                <p className="text-[11px] font-semibold text-jungle-600 mb-1">Vistas</p>
+                <GraficaMini datos={stats.serie.map(d => ({ dia: d.dia, valor: d.vistas }))} color="#15803d" />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-jungle-600 mb-1">Le gustó</p>
+                <GraficaMini datos={stats.serie.map(d => ({ dia: d.dia, valor: d.likes }))} color="#dc2626" />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-jungle-600 mb-1">Recomendado por IA</p>
+                <GraficaMini datos={stats.serie.map(d => ({ dia: d.dia, valor: d.ia_recomendaciones }))} color="#2563eb" />
+              </div>
+            </div>
+          )}
+          {!cargandoStats && stats && stats.vistas === 0 && (
+            <p className="text-[11px] text-jungle-400 text-center px-2">
+              Todavía no hay actividad registrada — en cuanto alguien vea tu ficha, la des favorito o la IA la recomiende en el chat, aparecerá aquí.
+            </p>
+          )}
 
           {/* Estadísticas — solo métricas reales y calculables con lo
               que ya tenemos, nada inventado. */}

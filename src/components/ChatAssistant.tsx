@@ -32,6 +32,7 @@ import {
 } from '../lib/chatbot';
 
 import { guardarRuta, mapaDescargado, guardarChat, type ChatGuardado } from '../lib/db';
+import { registrarEventoServicio } from '../lib/eventos';
 import HistorialChats from './HistorialChats';
 import { buscarRespuestaVerificada } from '../lib/embeddings';
 import {
@@ -143,6 +144,26 @@ export default function ChatAssistant({
     } catch { /* ok */ }
     return 'preguntando_dias';
   });
+
+  // Estadísticas del prestador — "en qué % lo recomendó la IA". Se
+  // cuenta solo cuando un mensaje NUEVO trae lugares (no al restaurar
+  // la conversación guardada al abrir la app), comparando contra el
+  // largo ya contado con un ref — así cada recomendación mostrada en
+  // pantalla se cuenta una sola vez, sin importar desde cuál de los
+  // varios puntos del chat se haya agregado el mensaje.
+  const lugaresContadosRef = useRef(mensajes.length);
+  useEffect(() => {
+    for (let i = lugaresContadosRef.current; i < mensajes.length; i++) {
+      const msg = mensajes[i];
+      if (msg.lugares) {
+        for (const l of msg.lugares) registrarEventoServicio(l.servicioId, 'ia_recomendacion');
+      }
+      if (msg.rutaDia?.lugares) {
+        for (const l of msg.rutaDia.lugares) registrarEventoServicio(l.servicioId, 'ia_recomendacion');
+      }
+    }
+    lugaresContadosRef.current = mensajes.length;
+  }, [mensajes]);
 
   // Identificador de ESTA conversación — mismo id mientras dure la
   // sesión (sessionStorage), para que el guardado automático de abajo

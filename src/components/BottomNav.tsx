@@ -12,7 +12,7 @@ interface Props {
 // pantalla completa en móvil, ver AppShell.tsx), pero se llega a él
 // desde el botón flotante "Ver mapa", no desde esta barra.
 const tabs: { id: Tab; label: string; icon: typeof Compass }[] = [
-  { id: 'inicio', label: 'Inicio', icon: Home },
+  { id: 'inicio', label: 'Destacados', icon: Home },
   { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'chat', label: 'Asistente', icon: MessageCircle },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },

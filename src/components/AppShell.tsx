@@ -46,7 +46,7 @@ interface RutaVisible {
 }
 
 const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
-  { id: 'inicio', label: 'Inicio', icon: Home },
+  { id: 'inicio', label: 'Destacados', icon: Home },
   { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'chat', label: 'Asistente IA', icon: MessageCircle },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },

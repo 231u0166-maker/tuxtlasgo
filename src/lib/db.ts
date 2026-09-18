@@ -131,6 +131,7 @@ class TuxtlasDB extends Dexie {
   conocimientoCache!: Table<ConocimientoCacheado, number>;
   vectoresConocimiento!: Table<VectorConocimiento, string>;
   chats!: Table<ChatGuardado, string>;
+  catalogoCache!: Table<Lugar, string>;
 
   constructor() {
     super('tuxtlasgo-db');
@@ -200,6 +201,28 @@ class TuxtlasDB extends Dexie {
       conocimientoCache: 'id',
       vectoresConocimiento: 'clave, actualizadoEn',
       chats: 'id, actualizadoEn',
+    });
+    // v8: caché offline del catálogo de prestadores APROBADOS que
+    // devuelve Neon (/api/servicios/aprobados) — mismo patrón que ya
+    // usa conocimientoCache (clear + bulkPut tras cada fetch exitoso,
+    // ver recargarCatalogo() en App.tsx). Hallazgo real de campo: sin
+    // esta tabla, la lista de prestadores fetcheada de Neon solo vivía
+    // en memoria (catalogoActivo, chatbot.ts) — un turista que abría
+    // la app sin internet desde el arranque (el caso real que importa
+    // para gente capacitándose con datos limitados) solo veía el
+    // catálogo estático + lo registrado en ese mismo dispositivo,
+    // nunca los prestadores reales de la plataforma, aunque el
+    // dispositivo sí se hubiera conectado antes en una sesión previa.
+    this.version(8).stores({
+      favoritos: 'id, agregadoEn',
+      rutas: '++id, creadaEn',
+      prestadores: '++id, municipio, creadoEn, estado, codigoSeguimiento, premium',
+      rutasCache: 'clave, calculadaEn',
+      vectores: 'id, actualizadoEn',
+      conocimientoCache: 'id',
+      vectoresConocimiento: 'clave, actualizadoEn',
+      chats: 'id, actualizadoEn',
+      catalogoCache: 'id',
     });
   }
 }
@@ -326,6 +349,21 @@ export async function listarServiciosAprobadosComoLugares(): Promise<Lugar[]> {
     .equals('aprobado')
     .toArray();
   return aprobados.map(servicioComoLugar);
+}
+
+// ─────────────── CATÁLOGO DE PRESTADORES (caché offline) ───────────────
+// Snapshot de los prestadores aprobados que devuelve Neon
+// (/api/servicios/aprobados) — se guarda aquí después de CADA fetch
+// exitoso para que el catálogo completo de la plataforma (no solo lo
+// registrado en este dispositivo) siga disponible la próxima vez que
+// se abra la app sin internet. Ver recargarCatalogo() en App.tsx.
+export async function cachearCatalogoAprobado(lugares: Lugar[]): Promise<void> {
+  await db.catalogoCache.clear();
+  if (lugares.length > 0) await db.catalogoCache.bulkPut(lugares);
+}
+
+export async function listarCatalogoCacheado(): Promise<Lugar[]> {
+  return db.catalogoCache.toArray();
 }
 
 // Seed inicial: si la BD está vacía, agrega prestadores demo

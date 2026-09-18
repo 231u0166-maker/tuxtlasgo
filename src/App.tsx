@@ -8,7 +8,7 @@ import GaleriaPage from './components/GaleriaPage';
 import ComunidadPage from './components/ComunidadPage';
 import TerminosPage from './components/TerminosPage';
 import PrivacidadPage from './components/PrivacidadPage';
-import { seedDemoSiVacio, listarServiciosAprobadosComoLugares } from './lib/db';
+import { seedDemoSiVacio, listarServiciosAprobadosComoLugares, cachearCatalogoAprobado, listarCatalogoCacheado } from './lib/db';
 import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
 import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
@@ -52,9 +52,25 @@ async function precachearImagenes(lugares: any[]) {
   );
 }
 
+// Hallazgo real de campo: antes, si `fetch` fallaba por completo (sin
+// internet desde el arranque — el caso real de alguien capacitándose
+// con datos limitados, no solo un servidor caído), TODO el cuerpo
+// estaba dentro de un único try/catch y el catch solo hacía
+// `return []` — ni siquiera se llamaba `setCatalogoExtendido` con lo
+// que sí había disponible offline (prestadores registrados en este
+// dispositivo). Y aunque el fetch sí funcionara, la respuesta de Neon
+// nunca se guardaba en IndexedDB — solo quedaba en memoria
+// (catalogoActivo, chatbot.ts) — así que la siguiente vez que se
+// abriera la app sin conexión, el catálogo completo de prestadores de
+// la plataforma se perdía, aunque el dispositivo sí se hubiera
+// conectado antes. Ahora: (1) el fetch fallido siempre cae al
+// catálogo cacheado en IndexedDB (mismo patrón que ya usa
+// cargarConocimientoDinamico en conocimiento.ts), y (2) cada fetch
+// exitoso se guarda de vuelta en esa caché para la próxima vez.
 export async function recargarCatalogo() {
+  const aprobadosLocal = await listarServiciosAprobadosComoLugares().catch(() => []);
+
   try {
-    const aprobadosLocal = await listarServiciosAprobadosComoLugares();
     const res = await fetch('/api/servicios/aprobados');
     if (res.ok) {
       const data = await res.json();
@@ -66,6 +82,7 @@ export async function recargarCatalogo() {
         const soloLocales = aprobadosLocal.filter((l: any) => !idsNeon.has(l.id));
         const todos = [...data.lugares, ...soloLocales];
         setCatalogoExtendido(todos);
+        cachearCatalogoAprobado(data.lugares).catch(() => {});
         precachearImagenes(todos).catch(() => {});
         // Si la IA ya está activa en esta sesión, re-indexa en segundo
         // plano para que un prestador recién aprobado aparezca de
@@ -74,12 +91,21 @@ export async function recargarCatalogo() {
         return todos;
       }
     }
-    setCatalogoExtendido(aprobadosLocal);
-    if (embeddingsListo()) indexarCatalogo(aprobadosLocal).catch(() => {});
-    return aprobadosLocal;
   } catch {
-    return [];
+    // sin internet o falló el fetch — cae al catálogo cacheado de abajo
   }
+
+  // Sin internet (o Neon no devolvió datos válidos): usa el último
+  // snapshot cacheado en IndexedDB + lo registrado en este mismo
+  // dispositivo, con el mismo criterio "Neon gana" de arriba, para que
+  // el comportamiento sea consistente con o sin conexión.
+  const cacheado = await listarCatalogoCacheado().catch(() => []);
+  const idsCacheados = new Set(cacheado.map((l) => l.id));
+  const soloLocales = aprobadosLocal.filter((l) => !idsCacheados.has(l.id));
+  const todosOffline = [...cacheado, ...soloLocales];
+  setCatalogoExtendido(todosOffline);
+  if (embeddingsListo()) indexarCatalogo(todosOffline).catch(() => {});
+  return todosOffline;
 }
 
 export default function App() {

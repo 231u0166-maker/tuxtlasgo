@@ -13,6 +13,8 @@ import {
   Percent,
   TrendingUp,
   Camera,
+  Facebook,
+  Instagram,
 } from 'lucide-react';
 import OfflineIndicator from './OfflineIndicator';
 import NavbarLanding, { type ModoLanding } from './NavbarLanding';
@@ -61,8 +63,25 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
       <footer className="bg-jungle-950 text-jungle-100 py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm space-y-2">
           <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-8 w-auto object-contain brightness-0 invert" />
-          <div className="opacity-70">
-            Proyecto InnovaTecNM 2026 · ITSSAT · Folio 68894-17
+          <div className="flex items-center justify-center gap-4 pt-1">
+            <a
+              href="https://www.facebook.com/share/1RRL1HJ5jS/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Facebook de TuxtlasGO"
+              className="text-jungle-100/70 hover:text-white transition-colors"
+            >
+              <Facebook size={20} />
+            </a>
+            <a
+              href="https://www.instagram.com/tuxtlasgo?stkn=NnN6cTNicDI4bHFv"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram de TuxtlasGO"
+              className="text-jungle-100/70 hover:text-white transition-colors"
+            >
+              <Instagram size={20} />
+            </a>
           </div>
           <div className="opacity-50 text-xs">
             Bienes de Consumo Final · Soluciones y Productos Digitales

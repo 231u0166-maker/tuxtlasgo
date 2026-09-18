@@ -704,24 +704,32 @@ function mejoresPorValor<T>(
 const NUMERO_EN_PALABRAS: Record<string, number> = {
   un: 1, uno: 1, una: 1,
   dos: 2,
-  tres: 3, cuatro: 3, cinco: 3, seis: 3, siete: 3, ocho: 3, nueve: 3, diez: 3,
+  tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10,
 };
 
-function extraerDiasLiteral(texto: string): Dias | null {
+// Número de días TAL CUAL lo pidió el turista, sin el tope de 3 que
+// exige el generador de rutas (Dias = 1|2|3) — separado de
+// extraerDiasLiteral para poder avisar cuando lo que se usó no es lo
+// que pidió (hallazgo real de campo QA: "catemaco 5 dias con mis
+// perros" clampeaba a 3 en silencio; el aviso de "supuestos" de
+// ChatAssistant.tsx solo se disparaba cuando NO se detectaban días,
+// nunca cuando sí se detectaban pero se recortaban). null si no
+// mencionó ningún número de días.
+export function extraerDiasCrudo(texto: string): number | null {
   const tokens = tokenizar(texto);
   const idxDia = tokens.findIndex((t) => t === 'dia' || t === 'dias');
   if (idxDia <= 0) return null;
   const anterior = tokens[idxDia - 1];
 
-  if (/^\d+$/.test(anterior)) {
-    const n = parseInt(anterior, 10);
-    return (n <= 1 ? 1 : n === 2 ? 2 : 3) as Dias;
-  }
-  if (anterior in NUMERO_EN_PALABRAS) {
-    const n = NUMERO_EN_PALABRAS[anterior];
-    return (n >= 3 ? 3 : n) as Dias;
-  }
+  if (/^\d+$/.test(anterior)) return parseInt(anterior, 10);
+  if (anterior in NUMERO_EN_PALABRAS) return NUMERO_EN_PALABRAS[anterior];
   return null;
+}
+
+function extraerDiasLiteral(texto: string): Dias | null {
+  const crudo = extraerDiasCrudo(texto);
+  if (crudo === null) return null;
+  return (crudo <= 1 ? 1 : crudo === 2 ? 2 : 3) as Dias;
 }
 
 // Detecta CON QUIÉN viaja el turista, de forma literal, con
@@ -981,9 +989,17 @@ const PALABRAS_CONTENIDO_SEXUAL_EXPLICITO = [
   'porno', 'pornos', 'pornografia', 'pornografico', 'pornografica',
 ];
 
+// Hallazgo real de campo: 'cristal' (jerga para metanfetamina) se
+// quitó de esta lista — "me encuentro en el hotel playa cristal, no
+// se donde hay un hospital cerca" bloqueaba una emergencia médica real
+// por mencionar el nombre de un hotel real. 'cristal' también es
+// palabra común del español cotidiano (agua cristalina, vidrio), así
+// que el riesgo de falso positivo es demasiado alto para una sola
+// palabra ambigua — 'metanfetamina' ya cubre el caso real sin ese
+// riesgo.
 const PALABRAS_DROGAS_ILEGALES = [
   'droga', 'drogas', 'narcotico', 'narcoticos',
-  'cocaina', 'metanfetamina', 'cristal', 'fentanilo',
+  'cocaina', 'metanfetamina', 'fentanilo',
   'heroina', 'marihuana', 'mota', 'perico',
 ];
 
@@ -1345,7 +1361,18 @@ function armarRazonamiento(
   // si no lo dio explícitamente.
   if (presupuestoInfo) {
     const { costoConocido, huboSinPrecio, restanteDespues } = presupuestoInfo;
-    if (costoConocido === 0 && !huboSinPrecio) {
+    if (costoConocido === 0 && huboSinPrecio) {
+      // Hallazgo real de campo (QA): cuando NINGÚN lugar del día tiene
+      // un precio único sumable (ej. Nanciyaga: entrada + lancha +
+      // temazcal + hospedaje, todo por separado), costoConocido queda
+      // en 0 por pura ausencia de dato — pero se mostraba como "Este
+      // día ronda $0", que se lee como "es gratis" cuando en realidad
+      // el costo real es DESCONOCIDO, no cero. Con presupuesto
+      // ajustado eso puede dar una falsa sensación de cuánto queda.
+      partes.push(
+        'No pude calcular el costo de este día con certeza — alguno de estos lugares tiene varios conceptos de precio (entrada, actividades, hospedaje por separado) en vez de un precio único. Confirma directo antes de ir si tu presupuesto está muy ajustado.'
+      );
+    } else if (costoConocido === 0) {
       partes.push(
         `Este día es gratis o de acceso libre — sigues teniendo ${formatearMXN(restanteDespues)} disponibles para el resto de la ruta.`
       );
@@ -1442,8 +1469,19 @@ export function responderTextoLibre(
 
   // Si hay conocimiento general Y NO hay una categoría de lugar clara,
   // responde con el conocimiento. Si hay categoría, los lugares ganan
-  // (pero igual añadimos el dato de conocimiento si aplica).
-  if (conocimiento && !cat && intent !== 'monos') {
+  // (pero igual añadimos el dato de conocimiento si aplica) — EXCEPTO
+  // cuando el conocimiento es de seguridad (prioridad alta, ver
+  // EntradaConocimiento.prioridad): hallazgo real de campo QA —
+  // "estoy en el hotel playa cristal, no se donde hay un hospital
+  // cerca" matea 'hospital' (conocimiento de emergencia) Y 'hotel'
+  // (intent hospedaje) al mismo tiempo, y como cat quedaba truthy la
+  // respuesta de 911 terminaba con una tarjeta de hospedaje pegada
+  // encima — ruido irrelevante justo en un mensaje que puede ser una
+  // emergencia real. La seguridad nunca debe compartir la respuesta
+  // con una recomendación de lugares, sin importar qué otra categoría
+  // se haya detectado también.
+  const esConocimientoDeSeguridad = (conocimiento?.prioridad ?? 0) >= 10;
+  if (conocimiento && (!cat || esConocimientoDeSeguridad) && intent !== 'monos') {
     const lugaresLigados = lugaresDeConocimiento(conocimiento);
     return {
       id: crypto.randomUUID(),

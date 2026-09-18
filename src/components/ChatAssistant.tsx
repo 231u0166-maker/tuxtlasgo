@@ -17,6 +17,7 @@ import {
   generarRuta,
   responderTextoLibre,
   extraerPreferenciasLibres,
+  extraerDiasCrudo,
   pareceSolicitudDeRuta,
   pareceSolicitudDeDistancia,
   esSolicitudInapropiada,
@@ -695,7 +696,16 @@ export default function ChatAssistant({
   }
 
   // ─────────── Genera la ruta y la muestra día por día ───────────
-  function generarYMostrarRuta(prefs: PreferenciasUsuario) {
+  // `mencionaMascotasEnTexto`: hallazgo real de campo (QA) — "catemaco
+  // 5 dias con mis perros y mis niños" nunca mostraba nota de mascotas
+  // porque la única señal que revisaba esta función era el prop
+  // `viajaConMascota` (viene del checkbox de la barra de filtros, no
+  // del texto libre del chat). Si el turista escribe "perros" en el
+  // mensaje pero nunca tocó ese checkbox, la mención se perdía por
+  // completo. Se pasa aparte en vez de meterlo en PreferenciasUsuario
+  // porque no es una preferencia de la ruta (no cambia qué lugares se
+  // eligen) — es solo la señal de si hay que mostrar la nota al final.
+  function generarYMostrarRuta(prefs: PreferenciasUsuario, mencionaMascotasEnTexto?: boolean) {
     const dias = generarRuta(prefs);
 
     if (dias.length === 0) {
@@ -757,10 +767,10 @@ export default function ChatAssistant({
 
     // Nota de mascotas — SOLO relay del dato real que declaró cada
     // prestador (`lugar.mascotas`), nunca una suposición. Si viajas
-    // con mascota y algún lugar de la ruta no tiene el dato
-    // registrado, se dice honestamente en vez de omitirlo o inventar
-    // una respuesta.
-    if (viajaConMascota) {
+    // con mascota (por checkbox O porque lo mencionaste en el chat) y
+    // algún lugar de la ruta no tiene el dato registrado, se dice
+    // honestamente en vez de omitirlo o inventar una respuesta.
+    if (viajaConMascota || mencionaMascotasEnTexto) {
       const lugaresRuta = dias.flatMap((d) => d.lugares);
       const conDato = lugaresRuta.filter((l) => l.mascotas !== undefined);
       const sinDato = lugaresRuta.filter((l) => l.mascotas === undefined);
@@ -780,8 +790,8 @@ export default function ChatAssistant({
             role: 'bot',
             texto:
               lineas.length > 0
-                ? `🐾 Como marcaste que viajas con mascota, esto es lo que tengo registrado en esta ruta:\n\n${lineas.join('\n')}${notaSinDato}`
-                : `🐾 Marcaste que viajas con mascota, pero todavía no tengo la política registrada de ningún lugar de esta ruta — te recomiendo confirmar directo con cada uno antes de ir.`,
+                ? `🐾 Como mencionaste que viajas con mascota, esto es lo que tengo registrado en esta ruta:\n\n${lineas.join('\n')}${notaSinDato}`
+                : `🐾 Mencionaste que viajas con mascota, pero todavía no tengo la política registrada de ningún lugar de esta ruta — te recomiendo confirmar directo con cada uno antes de ir.`,
             timestamp: Date.now(),
           },
         ]);
@@ -993,6 +1003,16 @@ export default function ChatAssistant({
         const supuestos: string[] = [];
         if (extraidas.dias === undefined && prefsParcial.dias === undefined) {
           supuestos.push(`${diasFinal} día${diasFinal > 1 ? 's' : ''}`);
+        } else {
+          // Hallazgo real de campo (QA): "catemaco 5 dias..." SÍ
+          // detecta días (extraidas.dias queda definido, en 3 — el tope
+          // del generador de rutas), así que el aviso de arriba nunca
+          // se disparaba y el turista no se enteraba de que "5" se
+          // convirtió en "3" en silencio.
+          const diasPedidos = extraerDiasCrudo(texto);
+          if (diasPedidos !== null && diasPedidos > 3) {
+            supuestos.push(`${diasFinal} días (el generador de rutas arma hasta 3 días por vez, no ${diasPedidos})`);
+          }
         }
         if (extraidas.intereses === undefined && prefsParcial.intereses === undefined) {
           supuestos.push(`interés en ${interesesFinal.join(', ').toLowerCase()}`);
@@ -1019,7 +1039,7 @@ export default function ChatAssistant({
           );
         }
 
-        generarYMostrarRuta(prefsCompletas);
+        generarYMostrarRuta(prefsCompletas, esPreguntaSobreMascotas(texto));
         return;
       }
 

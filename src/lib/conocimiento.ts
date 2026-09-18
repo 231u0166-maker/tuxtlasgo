@@ -256,36 +256,65 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
   },
 
   // ─── SEGURIDAD Y EMERGENCIAS ──────────────────────────────
-  // ⚠️ PENDIENTE ANTES DE PUBLICAR: el 911 es el número nacional de
-  // emergencias de México (dato oficial, verificado). Los nombres,
-  // direcciones y teléfonos de hospitales/clínicas y comisarías POR
-  // MUNICIPIO todavía no están aquí a propósito — inventar un nombre
-  // de hospital "que suene bien" sería peligroso si alguien lo usa en
-  // una emergencia real y no existe o está mal ubicado. Antes de la
-  // presentación regional, hay que llenar esto con datos confirmados
-  // (Cruz Roja, IMSS, Centro de Salud de Catemaco/San Andrés/Santiago
-  // Tuxtla) — idealmente verificados en campo, no solo buscados en línea.
+  // El 911 es el número nacional de emergencias de México (dato
+  // oficial, verificado) y SIEMPRE va primero en ambas respuestas de
+  // abajo — eso no cambia nunca.
+  //
+  // Los nombres, direcciones y teléfonos de hospitales/clínicas/Cruz
+  // Roja y comandancias POR MUNICIPIO de abajo se llenaron (sept.
+  // 2026) a partir de búsqueda en línea — NO verificación en campo.
+  // Se decidió así explícitamente con el dueño del proyecto: mejor
+  // esto (marcado como "pendiente de confirmar en campo" en el propio
+  // texto que lee el turista) que el vacío de antes, pero sin fingir
+  // una certeza que no tenemos. Cada dato viene de agregadores/
+  // directorios (clinicasimss.com, farmaciascerca.com, Cruz Roja
+  // Veracruz, directorios de presidencias municipales), no del sitio
+  // oficial de cada dependencia verificado uno por uno — pueden estar
+  // desactualizados. Antes de la presentación regional, sigue
+  // pendiente una verificación en campo real (llamar o visitar).
+  //
+  // DECISIÓN DE DISEÑO — por qué esto NO se separó en una ficha por
+  // municipio (aunque se consideró): separar requeriría meter el
+  // nombre del municipio ('catemaco', 'san andres', 'santiago') en
+  // `claves` para que el motor sepa a cuál responder — pero eso
+  // reproduce EXACTAMENTE el bug ya documentado arriba en este mismo
+  // archivo (ver el comentario de `prioridad` en la interfaz): con
+  // prioridad 10, CUALQUIER mensaje que solo mencione "Catemaco" sin
+  // hablar de emergencias («cómo llego a Catemaco», «qué hay en
+  // Catemaco») le ganaría por prioridad a la ficha correcta (p. ej.
+  // "Cómo llegar"), silenciando información que no tiene nada que ver
+  // con seguridad. El nombre de un municipio es demasiado común en
+  // preguntas turísticas normales para ponerlo en una ficha de
+  // prioridad máxima. En vez de eso, ambas respuestas listan los tres
+  // municipios organizados con viñetas — el turista encuentra el suyo
+  // leyendo, sin arriesgar que el motor enrute mal.
+  //
+  // HUECOS CONOCIDOS (no se inventó nada para llenarlos, ver reporte):
+  // Catemaco no tiene comandancia de policía ni delegación de Cruz
+  // Roja con dirección publicada que se haya podido confirmar.
   {
     claves: [
       'hospital', 'hospitales', 'emergencia', 'emergencias', 'accidente',
       'me lastime', 'me lastimé', 'clinica', 'clínica', 'centro de salud',
       'ambulancia', 'me corte', 'me corté', 'me cai', 'me caí', 'urgencias',
       'primeros auxilios', 'me pico', 'me picó', 'mordida', 'veneno',
+      'farmacia', 'farmacias', 'medicamento', 'medicamentos',
     ],
-    titulo: 'Emergencias médicas en Los Tuxtlas',
+    titulo: 'Emergencias médicas y farmacias en Los Tuxtlas',
     prioridad: 10,
     respuesta:
-      'Si es una emergencia médica, marca 911 — es el número nacional de emergencias de México, funciona desde cualquier compañía telefónica incluso sin saldo ni plan. Da tu ubicación lo más precisa posible: municipio (Catemaco, San Andrés Tuxtla o Santiago Tuxtla) y el punto de referencia más cercano (un lugar turístico, un cruce, un negocio). El directorio verificado de hospitales y clínicas por municipio está en proceso de confirmación con el equipo de TuxtlasGO — en cuanto esté listo, esta respuesta se actualizará con nombres y ubicaciones exactas.',
+      'Si es una emergencia médica, marca 911 primero — es el número nacional de emergencias de México, funciona desde cualquier compañía telefónica incluso sin saldo ni plan. Da tu ubicación lo más precisa posible: municipio (Catemaco, San Andrés Tuxtla o Santiago Tuxtla) y el punto de referencia más cercano. Mientras llega ayuda, esto es lo que encontramos en búsqueda en línea sobre clínicas y hospitales por municipio (pendiente de confirmar en campo por el equipo de TuxtlasGO — verifica nombre y ubicación exacta al llegar, los datos de agregadores en línea pueden estar desactualizados): • Catemaco: IMSS UMF 34, Calle Venustiano Carranza s/n, Col. El Rodeo. • San Andrés Tuxtla: Hospital General de Zona 33 IMSS, Carretera Federal del Golfo s/n, Col. 3 de Mayo; y la delegación de Cruz Roja Mexicana en Francisco González Bocanegra #242, Col. Centro (tel. 294 942 4995), con servicio de ambulancias. • Santiago Tuxtla: Hospital General de Santiago Tuxtla, Carretera Santiago Tuxtla-Isla km 1.5; y el Centro de Salud en calle Maestro Eneas Rivas Castellanos. No encontramos una delegación de Cruz Roja propia en Catemaco ni en Santiago Tuxtla — la más cercana confirmada es la de San Andrés Tuxtla, así que en una urgencia real sigue siendo más rápido y seguro marcar 911 en vez de buscar transporte propio. Para medicamentos hay farmacias en el centro de los tres municipios (en San Andrés Tuxtla, Farmacias del Ahorro tiene sucursal con servicio 24 horas); pregunta en tu hospedaje cuál está más cerca y abierta a esa hora.',
   },
   {
     claves: [
       'policia', 'policía', 'comisaria', 'comisaría', 'robo', 'inseguridad',
       'denunciar', 'me robaron', 'perdi mis cosas', 'perdí mis cosas',
+      'asalto', 'asaltaron', 'guardia nacional',
     ],
-    titulo: 'Seguridad y comisarías',
+    titulo: 'Seguridad, policía y comisarías en Los Tuxtlas',
     prioridad: 10,
     respuesta:
-      'Para reportar un robo o cualquier incidente de seguridad, marca 911. El directorio de comisarías por municipio está en proceso de verificación con el equipo de TuxtlasGO para publicarlo con datos confirmados.',
+      'Para reportar un robo o cualquier incidente de seguridad, marca 911 primero — es gratuito desde cualquier operador y conecta directo con la policía y/o la Guardia Nacional de turno en la región. Como punto de referencia en tierra (según búsqueda en línea, pendiente de confirmar en campo por el equipo de TuxtlasGO — las comandancias de policía municipal no siempre publican su dirección exacta): • San Andrés Tuxtla: Presidencia Municipal en Francisco I. Madero #1, Col. Centro, C.P. 95700. • Santiago Tuxtla: Presidencia Municipal en Circuito Ángel Carvajal s/n, C.P. 95830, tel. 294 947 0283. • Catemaco: no encontramos una dirección exacta publicada de la comandancia — el punto de referencia es el centro del pueblo, cerca del malecón; ante un robo real, marca 911 o pregunta directamente ahí en vez de guiarte por una dirección que no pudimos confirmar. La Guardia Nacional también tiene presencia sobre la carretera federal 180, que cruza los tres municipios.',
   },
 ];
 

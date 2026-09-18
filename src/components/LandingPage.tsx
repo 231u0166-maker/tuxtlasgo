@@ -83,9 +83,6 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
               <Instagram size={20} />
             </a>
           </div>
-          <div className="opacity-50 text-xs">
-            Bienes de Consumo Final · Soluciones y Productos Digitales
-          </div>
         </div>
       </footer>
 

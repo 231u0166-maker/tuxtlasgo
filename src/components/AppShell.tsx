@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut, X, History,
-  Home, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
+  Sparkles, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
   PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal
 } from 'lucide-react';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
@@ -46,7 +46,7 @@ interface RutaVisible {
 }
 
 const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
-  { id: 'inicio', label: 'Destacados', icon: Home },
+  { id: 'inicio', label: 'Destacados', icon: Sparkles },
   { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'chat', label: 'Asistente IA', icon: MessageCircle },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },

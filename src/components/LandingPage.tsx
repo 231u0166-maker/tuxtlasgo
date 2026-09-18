@@ -60,28 +60,90 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
         <SeccionesPrestador />
       )}
 
-      <footer className="bg-jungle-950 text-jungle-100 py-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm space-y-2">
-          <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-8 w-auto object-contain brightness-0 invert" />
-          <div className="flex items-center justify-center gap-4 pt-1">
-            <a
-              href="https://www.facebook.com/share/1RRL1HJ5jS/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Facebook de TuxtlasGO"
-              className="text-jungle-100/70 hover:text-white transition-colors"
-            >
-              <Facebook size={20} />
-            </a>
-            <a
-              href="https://www.instagram.com/tuxtlasgo?stkn=NnN6cTNicDI4bHFv"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Instagram de TuxtlasGO"
-              className="text-jungle-100/70 hover:text-white transition-colors"
-            >
-              <Instagram size={20} />
-            </a>
+      <footer className="bg-jungle-950 text-jungle-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="lg:col-span-2 space-y-4">
+              <img
+                src="/logo-tuxtlasgo.png"
+                alt="TuxtlasGO"
+                className="h-8 w-auto object-contain brightness-0 invert"
+              />
+              <p className="text-sm text-jungle-100/60 leading-relaxed max-w-xs">
+                Plataforma turística inteligente de Los Tuxtlas, Veracruz. Rutas
+                con IA, mapa offline y prestadores locales verificados.
+              </p>
+              <div className="flex items-center gap-4 pt-1">
+                <a
+                  href="https://www.facebook.com/share/1RRL1HJ5jS/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Facebook de TuxtlasGO"
+                  className="text-jungle-100/60 hover:text-white transition-colors"
+                >
+                  <Facebook size={20} />
+                </a>
+                <a
+                  href="https://www.instagram.com/tuxtlasgo?stkn=NnN6cTNicDI4bHFv"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Instagram de TuxtlasGO"
+                  className="text-jungle-100/60 hover:text-white transition-colors"
+                >
+                  <Instagram size={20} />
+                </a>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-display font-semibold text-xs text-white uppercase tracking-wider mb-4">
+                Explora
+              </h3>
+              <ul className="space-y-2.5 text-sm text-jungle-100/60">
+                <li>
+                  <Link to="/app" className="hover:text-white transition-colors">
+                    Empezar a explorar
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/prestador" className="hover:text-white transition-colors">
+                    Para prestadores
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/comunidad" className="hover:text-white transition-colors">
+                    Comunidad
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/galeria" className="hover:text-white transition-colors">
+                    Galería
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-display font-semibold text-xs text-white uppercase tracking-wider mb-4">
+                Legal
+              </h3>
+              <ul className="space-y-2.5 text-sm text-jungle-100/60">
+                <li>
+                  <Link to="/terminos" className="hover:text-white transition-colors">
+                    Términos y condiciones
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/privacidad" className="hover:text-white transition-colors">
+                    Aviso de privacidad
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-12 pt-6 border-t border-white/10 text-xs text-jungle-100/40 text-center sm:text-left">
+            © {new Date().getFullYear()} TuxtlasGO · Los Tuxtlas, Veracruz
           </div>
         </div>
       </footer>

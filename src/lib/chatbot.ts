@@ -978,6 +978,7 @@ const PALABRAS_CONTENIDO_SEXUAL_EXPLICITO = [
   'prostituas', 'prostitucion',
   'escort', 'escorts',
   'sexoservicio', 'sexoservidora', 'sexoservidoras',
+  'porno', 'pornos', 'pornografia', 'pornografico', 'pornografica',
 ];
 
 const PALABRAS_DROGAS_ILEGALES = [
@@ -990,12 +991,42 @@ const PALABRAS_VIOLENCIA_CONTRATADA = [
   'sicario', 'sicarios', 'asesino', 'asesinos',
 ];
 
+// Hallazgo real de campo (QA): el filtro de arriba solo cubría
+// explotación sexual/drogas/violencia contratada, pero NINGUNA
+// grosería o insulto general dirigido al propio asistente estaba
+// cubierta. Eso dejaba caer esos mensajes al flujo normal de
+// recomendación: "vete a la verga" terminaba en el relleno genérico
+// de "cuéntame más", y "si cara verga" resolvía por error al negocio
+// real "Casa H" (fuzzy-match de "cara" contra "casa", ver
+// palabraCoincide en pln.ts) — un insulto mostrando la ficha de un
+// prestador de servicios real. Igual de grave: "pornografia" no
+// estaba en ninguna lista, así que pedir porno directamente pasaba de
+// largo hasta el generador de rutas o la búsqueda de lugares, y en un
+// caso real devolvió un listado de hospedajes reales como respuesta.
+// Se ataja aquí, en el mismo filtro de seguridad que corre PRIMERO en
+// ChatAssistant.tsx, para que ninguna grosería ni solicitud de
+// pornografía llegue a producir una recomendación real.
+const PALABRAS_GROSERIAS_GENERALES = [
+  'verga', 'vergas',
+  'pendejo', 'pendeja', 'pendejos', 'pendejas',
+  'cabron', 'cabrona', 'cabrones', 'cabronas',
+  'chinga', 'chingas', 'chingada', 'chingado', 'chingados', 'chingadas',
+  'mierda',
+  'idiota', 'idiotas',
+  'estupido', 'estupida', 'estupidos', 'estupidas',
+  'imbecil', 'imbeciles',
+  'maricon', 'maricones', 'marica', 'maricas', 'joto', 'jotos',
+  'culero', 'culera', 'culeros', 'culeras',
+  'pinche', 'pinches',
+];
+
 export function esSolicitudInapropiada(texto: string): boolean {
   const tokens = tokenizar(texto);
   return [
     ...PALABRAS_CONTENIDO_SEXUAL_EXPLICITO,
     ...PALABRAS_DROGAS_ILEGALES,
     ...PALABRAS_VIOLENCIA_CONTRATADA,
+    ...PALABRAS_GROSERIAS_GENERALES,
   ].some((p) => tokens.includes(p));
 }
 

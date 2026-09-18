@@ -190,8 +190,14 @@ export default function ChatAssistant({
     if (mensajes.length <= 1) return;
     const primerMensajeUsuario = mensajes.find((m) => m.role === 'user');
     if (!primerMensajeUsuario) return;
-    const titulo =
-      primerMensajeUsuario.texto.length > 48
+    // Hallazgo real de campo (QA): el título del historial usaba el
+    // mensaje tal cual, sin pasar por esSolicitudInapropiada — así que
+    // una grosería o solicitud inapropiada que el bot ya rechazó en el
+    // chat reaparecía de todos modos como título visible en la lista
+    // de conversaciones guardadas. Se usa un título genérico en ese caso.
+    const titulo = esSolicitudInapropiada(primerMensajeUsuario.texto)
+      ? 'Conversación'
+      : primerMensajeUsuario.texto.length > 48
         ? `${primerMensajeUsuario.texto.slice(0, 48)}…`
         : primerMensajeUsuario.texto;
     guardarChat({

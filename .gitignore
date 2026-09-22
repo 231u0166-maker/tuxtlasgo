@@ -35,3 +35,6 @@ dev-dist/
 public/sw.js
 public/workbox-*.js
 public/registerSW.js
+
+# Playwright MCP scratch output (screenshots/snapshots from browser testing)
+.playwright-mcp/

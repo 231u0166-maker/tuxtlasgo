@@ -16,8 +16,9 @@ import {
   MessageCircle,
   Globe,
   CalendarCheck,
+  Images,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
@@ -36,6 +37,11 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
   const [fav, setFav] = useState(false);
   const [mostrarReservacion, setMostrarReservacion] = useState(false);
   const cat = CATEGORIAS.find((c) => c.id === lugar.categoria);
+  // Mismo patrón que GaleriaPage.tsx: la foto principal + lo que el
+  // prestador haya subido de más en su perfil (tab "Fotos"). Antes
+  // solo se mostraba lugar.imagen aquí — el resto de las fotos ya
+  // llegaba en el objeto Lugar pero nunca se usaba en esta hoja.
+  const fotos = [lugar.imagen, ...(lugar.imagenesExtra ?? [])];
 
   useEffect(() => {
     esFavorito(lugar.id).then(setFav);
@@ -223,6 +229,16 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
             </div>
           </div>
 
+          {/* Más fotos — antes la hoja solo mostraba lugar.imagen (la
+              portada), aunque el prestador pudiera haber subido varias
+              desde su perfil (tab "Fotos"). Va antes de los botones a
+              propósito: la idea es que estas fotos terminen de
+              convencer justo antes del "Ver en el mapa"/"Reservar",
+              no después de que el turista ya decidió. Con una sola
+              foto disponible no hay nada que deslizar, así que la
+              sección completa se oculta en ese caso. */}
+          {fotos.length > 1 && <CarruselFotos fotos={fotos} nombre={lugar.nombre} categoria={lugar.categoria} />}
+
           <div className="flex gap-2">
             <button
               onClick={onVerEnMapa}
@@ -286,6 +302,81 @@ function IconoEnlaceLugar({ tipo }: { tipo: TipoEnlace }) {
     case 'whatsapp':  return <MessageCircle {...props} />;
     default:          return <Globe {...props} />;
   }
+}
+
+// Carrusel deslizable con scroll-snap — mismo patrón CSS que ya usan
+// los chips de categoría en ExploreScreen.tsx (snap-x + overflow-x-
+// auto), sin agregar ninguna librería nueva al proyecto. Una foto a
+// la vez ocupa todo el ancho (en vez de una tira de miniaturas) para
+// que cada imagen se vea grande y llamativa, igual que la portada de
+// arriba.
+function CarruselFotos({
+  fotos,
+  nombre,
+  categoria,
+}: {
+  fotos: string[];
+  nombre: string;
+  categoria: Lugar['categoria'];
+}) {
+  const [indice, setIndice] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  function irA(i: number) {
+    const cont = scrollRef.current;
+    if (!cont) return;
+    cont.scrollTo({ left: i * cont.clientWidth, behavior: 'smooth' });
+  }
+
+  // Recalcula el punto activo a partir de dónde quedó el scroll —
+  // así los puntos siguen en sincronía tanto si navegas con el dedo
+  // (swipe) como si tocas un punto directamente.
+  function onScroll() {
+    const cont = scrollRef.current;
+    if (!cont || cont.clientWidth === 0) return;
+    setIndice(Math.round(cont.scrollLeft / cont.clientWidth));
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-2 uppercase tracking-wide font-semibold">
+        <Images size={12} />
+        Más fotos
+      </div>
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        role="region"
+        aria-label={`Fotos de ${nombre}`}
+        className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth rounded-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {fotos.map((url, i) => (
+          <div key={`${url}-${i}`} className="w-full flex-shrink-0 snap-center aspect-[4/3] bg-jungle-100">
+            <img
+              src={url}
+              alt={`${nombre} — foto ${i + 1} de ${fotos.length}`}
+              loading="lazy"
+              onError={manejarErrorImagen(categoria, nombre)}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-center gap-1.5 mt-2.5">
+        {fotos.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => irA(i)}
+            aria-label={`Ir a la foto ${i + 1} de ${fotos.length}`}
+            aria-current={i === indice}
+            className={`h-1.5 rounded-full transition-all ${
+              i === indice ? 'w-5 bg-jungle-700' : 'w-1.5 bg-jungle-200'
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function InfoChip({

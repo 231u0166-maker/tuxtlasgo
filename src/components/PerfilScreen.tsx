@@ -676,6 +676,14 @@ function PerfilPrestador({
     else setMensajePremium({ tipo: 'error', texto: 'No se pudo conectar tu cuenta de Mercado Pago. Intenta de nuevo.' });
     params.delete('mp_conectado');
     window.history.replaceState({}, '', `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`);
+    // Regresa a la pestaña desde la que se inició la conexión (ver
+    // conectarMercadoPago) en vez de dejar al prestador siempre en
+    // "Mi Servicio" sin importar de dónde vino.
+    const tabRetorno = sessionStorage.getItem('tuxtlasgo_prestador_tab_retorno');
+    if (tabRetorno) {
+      sessionStorage.removeItem('tuxtlasgo_prestador_tab_retorno');
+      setTab(tabRetorno as TabPrincipal);
+    }
     cargar();
   }, []);
 
@@ -754,6 +762,12 @@ function PerfilPrestador({
       });
       const data = await res.json();
       if (data.ok && data.url) {
+        // Recuerda desde qué pestaña salió — Mercado Pago ahora
+        // también se puede conectar desde Reservaciones (ver abajo),
+        // no solo desde Enlaces y pagos, y sin esto el regreso del
+        // OAuth siempre aterrizaba en "Mi Servicio" (la pestaña por
+        // default), perdiendo el hilo de lo que se estaba haciendo.
+        sessionStorage.setItem('tuxtlasgo_prestador_tab_retorno', tab);
         window.location.href = data.url; // a la pantalla de autorización de Mercado Pago
       } else {
         alert(data.error ?? 'No se pudo iniciar la conexión con Mercado Pago');
@@ -1035,18 +1049,29 @@ function PerfilPrestador({
               niveles (antes "Servicio" arriba y "Mi Servicio" abajo
               eran confusos y redundantes). Ganancias y Estadísticas
               viven en el contador junto a la foto (ver arriba). */}
+          {/* flex-1 + flex-shrink-0 juntas eran contradictorias (una
+              pide crecer, la otra pide no encogerse) y con 5 etiquetas
+              largas + emoji el resultado eran pestañas de ancho
+              desigual, apretadas, difíciles de leer en un teléfono
+              angosto. Ahora cada pestaña mide lo que necesita su
+              texto y la fila entera se desplaza (overflow-x-auto) —
+              más legible y ya no se "pelean" por espacio.
+              "Información externa" además renombrada a "Enlaces y
+              pagos": ahí vive también Mercado Pago, no solo redes
+              sociales, y el nombre viejo lo escondía. */}
           <div className="px-4 mb-4 flex gap-2 overflow-x-auto">
             {([
               { id: 'servicio'       as TabPrincipal, label: '📋 Mi Servicio' },
               { id: 'fotos'          as TabPrincipal, label: '📸 Fotos' },
               { id: 'preview'        as TabPrincipal, label: '👁️ Preview' },
               { id: 'reservaciones'  as TabPrincipal, label: '📅 Reservaciones' },
-              { id: 'externa'        as TabPrincipal, label: '🔗 Información externa' },
+              { id: 'externa'        as TabPrincipal, label: '🔗 Enlaces y pagos' },
             ]).map(t => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`flex-1 flex-shrink-0 py-2.5 px-2.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
+                aria-current={tab === t.id ? 'true' : undefined}
+                className={`flex-shrink-0 py-2.5 px-3.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
                   tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
                 }`}
               >
@@ -1071,8 +1096,26 @@ function PerfilPrestador({
                   </div>
                 )}
 
+                {/* Antes el "% de perfil completo" solo vivía dentro
+                    del modal de Ganancias — si el prestador nunca lo
+                    abría, nunca se enteraba de qué le faltaba para
+                    tener la ficha lista. Ahora se ve justo aquí,
+                    donde de verdad está editando los campos. */}
+                <div className="bg-jungle-50 rounded-xl p-3.5">
+                  <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <BarChart3 size={12} /> Perfil completo
+                  </p>
+                  <BarraPerfilCompleto servicio={servicio} fotos={fotos} />
+                </div>
+
                 {editando ? (
                   <div className="space-y-4">
+                    {/* Formulario largo sin agrupar era una sola pared
+                        de campos — separarlo en "lo esencial" vs.
+                        "detalles" ayuda a ubicarse y a saber cuánto
+                        falta, sin tocar el guardado (sigue siendo un
+                        solo PATCH con todo el form). */}
+                    <p className="text-[11px] font-bold text-jungle-400 uppercase tracking-wide">Información básica</p>
                     <div>
                       <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre del negocio <span className="text-red-500">*</span></label>
                       <input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
@@ -1113,6 +1156,7 @@ function PerfilPrestador({
                         <SelectorContacto valor={form.contacto} onCambiar={(s) => setForm({ ...form, contacto: s })} />
                       </div>
                     </div>
+                    <p className="text-[11px] font-bold text-jungle-400 uppercase tracking-wide pt-2 border-t border-jungle-100">Detalles para el turista</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8">
                       <div>
                         <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
@@ -1242,6 +1286,8 @@ function PerfilPrestador({
               <PanelReservacionesPrestador
                 servicio={servicio}
                 mpConectado={!!servicio.mp_conectado}
+                conectandoMp={conectandoMp}
+                onConectarMp={conectarMercadoPago}
                 reservaciones={reservacionesEntrantes}
                 cargando={cargandoReservaciones}
                 guardandoConfig={guardandoReservConfig}
@@ -1391,12 +1437,14 @@ function formatearMes(iso: string): string {
 // El prestador decide si acepta, qué política usa, y qué fechas
 // bloquea; y responde a las solicitudes que le lleguen.
 function PanelReservacionesPrestador({
-  servicio, mpConectado, reservaciones, cargando, guardandoConfig,
+  servicio, mpConectado, conectandoMp, onConectarMp, reservaciones, cargando, guardandoConfig,
   nuevaFechaBloqueada, setNuevaFechaBloqueada,
   onGuardarConfig, onEliminar, onAgregarFechaBloqueada, onQuitarFechaBloqueada, onResponder, onAbrirChat,
 }: {
   servicio: ServicioAPI;
   mpConectado: boolean;
+  conectandoMp: boolean;
+  onConectarMp: () => void;
   reservaciones: ReservacionPrestador[] | null;
   cargando: boolean;
   guardandoConfig: boolean;
@@ -1540,9 +1588,24 @@ function PanelReservacionesPrestador({
           )}
         </div>
         {!mpConectado ? (
-          <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-2">
-            Conecta tu cuenta de Mercado Pago (pestaña Información externa) antes de esto — es a donde te va a llegar tu parte.
-          </p>
+          // Antes esto era solo un texto mandando al prestador a la
+          // pestaña "Información externa" a mitad de este flujo — dos
+          // saltos de pestaña para una sola tarea. Ahora se conecta
+          // sin salir de Reservaciones (la cuenta conectada se sigue
+          // pudiendo ver/desconectar desde Enlaces y pagos).
+          <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl p-3">
+            <p className="text-xs text-amber-700 mb-2">
+              Conecta tu cuenta de Mercado Pago — es a donde te va a llegar tu parte de cada reservación.
+            </p>
+            <button
+              onClick={onConectarMp}
+              disabled={conectandoMp}
+              className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white py-2.5 rounded-xl text-xs font-semibold transition-colors"
+            >
+              {conectandoMp ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              Conectar con Mercado Pago
+            </button>
+          </div>
         ) : (
           <p className="text-xs text-jungle-500">
             El turista podrá reservar tu servicio directo desde la app. TuxtlasGO retiene 6% por reservación pagada, tú recibes el 94% directo a tu cuenta.

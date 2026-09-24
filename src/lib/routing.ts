@@ -180,7 +180,7 @@ export interface RutaPorTramos {
 // respaldo para UN tramo puntual cuando OSRM no responde para ese
 // tramo en particular (sin internet y sin caché para ese segmento),
 // sin tumbar los demás tramos que sí se pudieron calcular.
-function distanciaHaversine(a: Coord, b: Coord): number {
+export function distanciaHaversine(a: Coord, b: Coord): number {
   const R = 6371000;
   const dLat = ((b[0] - a[0]) * Math.PI) / 180;
   const dLng = ((b[1] - a[1]) * Math.PI) / 180;

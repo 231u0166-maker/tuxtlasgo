@@ -21,6 +21,13 @@ export function getCatalogoActivo(): Lugar[] {
 import { buscarConocimiento } from './conocimiento';
 import { tokenizar, contieneClave, palabraCoincide } from './pln';
 import { vectorizar, similitudCoseno, embeddingsListo } from './embeddings';
+import { distanciaHaversine } from './routing';
+import {
+  SERVICIOS_BASICOS,
+  CENTRO_MUNICIPIO,
+  type ServicioBasico,
+  type TipoServicioBasico,
+} from '../data/serviciosBasicos';
 // ============================================================
 // MOTOR DE ASISTENTE CONVERSACIONAL — 100% OFFLINE
 // ============================================================
@@ -67,6 +74,15 @@ export interface PreferenciasUsuario {
   // ruta simplemente no menciona presupuesto restante (no se inventa
   // un número que el turista no dio).
   montoTotalPesos?: number;
+  // Opcional: el turista mencionó una condición médica ("soy
+  // diabético") o pidió explícitamente que la ruta considere un
+  // hospital cercano ("por si me pasa algo"). Persiste igual que
+  // `municipio`/`montoTotalPesos` — una vez detectado en el mismo
+  // plan de viaje, se mantiene aunque el turista pida otra ruta o
+  // cambie intereses, hasta que empiece un plan nuevo. A propósito
+  // NUNCA se activa por sí solo en cada ruta — sería ruido para
+  // quien nunca lo pidió (ver detectaNecesidadHospitalEnRuta).
+  requiereHospitalCercano?: boolean;
 }
 
 export interface MensajeChat {
@@ -216,6 +232,72 @@ export function detectarMunicipio(texto: string): string | null {
   if (contieneClave(tokens, 'san andres')) return 'San Andrés Tuxtla';
   if (contieneClave(tokens, 'santiago')) return 'Santiago Tuxtla';
   return null;
+}
+
+// ─────────── SERVICIOS BÁSICOS (hospitales, farmacias, comisarías) ───────────
+// Ver src/data/serviciosBasicos.ts — a propósito NO son parte de
+// `catalogoActivo`/LUGARES (nunca deben aparecer en Explorar ni en el
+// Mapa por defecto). Solo se consultan cuando el turista pregunta
+// explícitamente por uno de estos servicios.
+const SERVICIO_BASICO_KEYWORDS: { tipo: TipoServicioBasico; words: string[] }[] = [
+  {
+    tipo: 'salud',
+    words: [
+      'hospital', 'hospitales', 'clinica', 'clinicas', 'sanatorio', 'sanatorios',
+      'consultorio', 'consultorios', 'medico', 'doctor', 'urgencias', 'cruz roja',
+    ],
+  },
+  {
+    tipo: 'farmacia',
+    words: ['farmacia', 'farmacias', 'botica', 'medicamento', 'medicamentos'],
+  },
+  {
+    tipo: 'seguridad',
+    words: [
+      'comisaria', 'comisarias', 'policia', 'patrulla', 'denuncia',
+      'ministerio publico',
+    ],
+  },
+];
+
+// Detecta si el turista está preguntando por un servicio básico
+// (hospital/farmacia/comisaría) — independiente del sistema de
+// categorías turísticas (Categoria), que nunca debe incluir esto.
+export function detectarTipoServicioBasico(texto: string): TipoServicioBasico | null {
+  const tokens = tokenizar(texto);
+  for (const { tipo, words } of SERVICIO_BASICO_KEYWORDS) {
+    if (words.some((w) => contieneClave(tokens, w))) return tipo;
+  }
+  return null;
+}
+
+// Encuentra el servicio básico del tipo pedido más cercano a un
+// punto de referencia (línea recta — sin internet no hay ruteo real,
+// y para "¿hay algo cerca?" la distancia recta ya es suficiente).
+// Devuelve null solo si no hay NINGÚN registro de ese tipo todavía.
+export function buscarServicioBasicoCercano(
+  tipo: TipoServicioBasico,
+  coordsReferencia: [number, number]
+): { servicio: ServicioBasico; distanciaMetros: number } | null {
+  const candidatos = SERVICIOS_BASICOS.filter((s) => s.tipo === tipo);
+  if (candidatos.length === 0) return null;
+
+  let mejor = candidatos[0];
+  let mejorDistancia = distanciaHaversine(coordsReferencia, mejor.coords);
+  for (const s of candidatos.slice(1)) {
+    const d = distanciaHaversine(coordsReferencia, s.coords);
+    if (d < mejorDistancia) {
+      mejor = s;
+      mejorDistancia = d;
+    }
+  }
+  return { servicio: mejor, distanciaMetros: mejorDistancia };
+}
+
+// Coordenadas de referencia para "hay una farmacia en Santiago
+// Tuxtla" (sin lugar específico, solo municipio mencionado).
+export function centroDeMunicipio(municipio: string): [number, number] | null {
+  return CENTRO_MUNICIPIO[municipio] ?? null;
 }
 
 // Palabras que aparecen en muchos nombres de lugares pero no
@@ -763,6 +845,62 @@ export function esPreguntaSobreMascotas(texto: string): boolean {
   );
 }
 
+// Condiciones médicas que razonablemente justifican querer un hospital
+// cerca en la ruta ("soy diabético", "tengo hipertensión"...). Junto
+// con mencionar directamente un servicio de salud (detectarTipoServicioBasico),
+// esto decide si `requiereHospitalCercano` se activa — a propósito NO
+// se activa por defecto en toda ruta, solo cuando el turista da una
+// señal real (ver comentario en PreferenciasUsuario.requiereHospitalCercano).
+const PALABRAS_CONDICION_MEDICA = [
+  'diabetico', 'diabetica', 'diabetes', 'cardiaco', 'cardiaca', 'corazon',
+  'epilepsia', 'epileptico', 'epileptica', 'asma', 'asmatico', 'asmatica',
+  'hipertension', 'hipertenso', 'hipertensa', 'presion alta', 'embarazada',
+  'embarazo', 'alergia grave', 'condicion medica', 'enfermedad cronica',
+  'discapacidad',
+];
+
+export function detectaNecesidadHospitalEnRuta(texto: string): boolean {
+  const tokens = tokenizar(texto);
+  const mencionaCondicion = PALABRAS_CONDICION_MEDICA.some((p) => contieneClave(tokens, p));
+  const mencionaServicioSalud = detectarTipoServicioBasico(texto) === 'salud';
+  return mencionaCondicion || mencionaServicioSalud;
+}
+
+// Palabras que indican que el turista pregunta sobre la ruta YA
+// armada en esta conversación ("qué hospital consideras PARA ESTA
+// RUTA"), a diferencia de preguntar por un lugar suelto o un
+// municipio — ver Subflujo 3 del hallazgo de campo: primero arma/
+// personaliza su ruta, y DESPUÉS pregunta por hospitales/sanatorios
+// de esa ruta específica, sin querer que se regenere nada.
+// A propósito NO incluye la frase genérica "la ruta" sola — colisiona
+// con pedir una ruta NUEVA ("quiero que la ruta que me crees tenga...").
+// Solo frases que solo tienen sentido si la ruta YA existe.
+export function pareceReferenciaARutaActual(texto: string): boolean {
+  const tokens = tokenizar(texto);
+  return [
+    'esta ruta', 'mi ruta', 'este itinerario', 'la ruta que armamos',
+    'la ruta que creamos', 'lo que armamos', 'la ruta de arriba',
+  ].some((f) => contieneClave(tokens, f));
+}
+
+// Para cada día de una ruta ya generada, el servicio básico (tipo
+// pedido) más cercano al PRIMER lugar del día — se usa como "ancla"
+// del día en vez de calcular por cada parada individual, porque
+// `generarRuta` ya agrupa cada día en una sola zona/municipio y así
+// se evita repetir la misma farmacia/hospital una vez por parada.
+export function serviciosBasicosPorDia(
+  dias: { dia: number; lugares: Lugar[] }[],
+  tipo: TipoServicioBasico
+): { dia: number; anclaje: Lugar; resultado: { servicio: ServicioBasico; distanciaMetros: number } | null }[] {
+  return dias
+    .filter((d) => d.lugares.length > 0)
+    .map((d) => ({
+      dia: d.dia,
+      anclaje: d.lugares[0],
+      resultado: buscarServicioBasicoCercano(tipo, d.lugares[0].coords),
+    }));
+}
+
 export function extraerGrupoLiteral(texto: string): GrupoViaje | null {
   const tokens = tokenizar(texto);
   const tieneAlguna = (palabras: string[]) =>
@@ -898,6 +1036,13 @@ export async function extraerPreferenciasLibres(
 
   const grupoLiteral = extraerGrupoLiteral(texto);
   if (grupoLiteral !== null) resultado.grupo = grupoLiteral;
+
+  // Detección literal, igual de prioritaria que días/presupuesto/grupo
+  // arriba — "soy diabético" o "que la ruta tenga un hospital cerca"
+  // no necesitan embeddings para detectarse con confianza.
+  if (detectaNecesidadHospitalEnRuta(texto)) {
+    resultado.requiereHospitalCercano = true;
+  }
 
   if (!embeddingsListo()) return resultado;
 

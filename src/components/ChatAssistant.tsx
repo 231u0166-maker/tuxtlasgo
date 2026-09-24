@@ -30,6 +30,11 @@ import {
   extraerGrupoLiteral,
   grupoTextoLegible,
   esPreguntaSobreMascotas,
+  detectarTipoServicioBasico,
+  buscarServicioBasicoCercano,
+  centroDeMunicipio,
+  serviciosBasicosPorDia,
+  pareceReferenciaARutaActual,
 } from '../lib/chatbot';
 
 import { guardarRuta, mapaDescargado, guardarChat, type ChatGuardado } from '../lib/db';
@@ -390,6 +395,43 @@ export default function ChatAssistant({
   // preguntó originalmente era "cuánto tiempo/distancia desde mi
   // ubicación" o simplemente "cuéntame de este lugar".
   async function responderSobreLugar(lugar: Lugar, textoOriginal: string) {
+    // Servicio básico cercano a este lugar (hospital/farmacia/comisaría)
+    // — 100% offline: es solo geometría (línea recta) desde las coords
+    // ya conocidas del lugar, no requiere GPS ni internet.
+    const tipoServicioCercaDeLugar = detectarTipoServicioBasico(textoOriginal);
+    if (tipoServicioCercaDeLugar) {
+      const resultado = buscarServicioBasicoCercano(tipoServicioCercaDeLugar, lugar.coords);
+      if (!resultado) {
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: `Todavía no tengo registrado ningún servicio de ese tipo cerca de ${lugar.nombre}.`,
+            timestamp: Date.now(),
+          },
+          300
+        );
+        return;
+      }
+      const { servicio, distanciaMetros } = resultado;
+      const justoEnLaZona = distanciaMetros < 1500;
+      const texto = justoEnLaZona
+        ? `Cerca de ${lugar.nombre} tengo registrado: ${servicio.nombre}, a unos ${formatearDistancia(distanciaMetros)}.`
+        : `No tengo nada justo en la zona de ${lugar.nombre} — lo más cercano que conozco es ${servicio.nombre}, a unos ${formatearDistancia(distanciaMetros)}.`;
+      responderBot(
+        {
+          id: crypto.randomUUID(),
+          role: 'bot',
+          texto,
+          lugares: [servicio],
+          ubicacionUsuario: lugar.coords,
+          timestamp: Date.now(),
+        },
+        300
+      );
+      return;
+    }
+
     if (pareceSolicitudDeDistancia(textoOriginal)) {
       if (offline) {
         responderBot(
@@ -765,6 +807,11 @@ export default function ChatAssistant({
       }, 1200 + i * 900);
     });
 
+    // Notas extra después de los días (mascotas, hospital cercano) —
+    // se apilan una tras otra en vez de superponerse, cada una 900ms
+    // después de la anterior.
+    let notasMostradas = 0;
+
     // Nota de mascotas — SOLO relay del dato real que declaró cada
     // prestador (`lugar.mascotas`), nunca una suposición. Si viajas
     // con mascota (por checkbox O porque lo mencionaste en el chat) y
@@ -795,7 +842,36 @@ export default function ChatAssistant({
             timestamp: Date.now(),
           },
         ]);
-      }, 1200 + dias.length * 900);
+      }, 1200 + dias.length * 900 + notasMostradas * 900);
+      notasMostradas++;
+    }
+
+    // Hospital más cercano por día — SOLO si el turista mencionó una
+    // condición médica o lo pidió explícitamente en este plan de viaje
+    // (prefs.requiereHospitalCercano, ver chatbot.ts). A propósito NO
+    // cambia qué lugares se eligieron para la ruta — solo informa,
+    // igual que la nota de mascotas de arriba. Un hospital por día (el
+    // más cercano a la primera parada de ese día) en vez de uno por
+    // parada, porque cada día ya vive en una sola zona/municipio.
+    if (prefs.requiereHospitalCercano) {
+      const porDia = serviciosBasicosPorDia(dias, 'salud');
+      const lineas = porDia.map(({ dia, anclaje, resultado }) =>
+        resultado
+          ? `Día ${dia} (cerca de ${anclaje.nombre}): ${resultado.servicio.nombre}, a unos ${formatearDistancia(resultado.distanciaMetros)}.`
+          : `Día ${dia} (cerca de ${anclaje.nombre}): todavía no tengo un hospital registrado en esa zona.`
+      );
+      setTimeout(() => {
+        setMensajes((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: `🏥 Como me comentaste tu condición médica, aquí el hospital más cercano para cada día de tu ruta:\n\n${lineas.join('\n')}`,
+            timestamp: Date.now(),
+          },
+        ]);
+      }, 1200 + dias.length * 900 + notasMostradas * 900);
+      notasMostradas++;
     }
 
     // Mensaje final con opción de reiniciar
@@ -812,7 +888,7 @@ export default function ChatAssistant({
         },
       ]);
       setEstado('libre');
-    }, 1200 + dias.length * 900 + 400);
+    }, 1200 + dias.length * 900 + notasMostradas * 900 + 400);
   }
 
   // ─────────── Envío de texto libre ───────────
@@ -936,6 +1012,50 @@ export default function ChatAssistant({
         return;
       }
 
+      // Servicio básico sobre la RUTA ya armada en esta conversación
+      // ("qué hospital consideras para esta ruta") — Subflujo 3: el
+      // turista primero arma/personaliza su ruta y DESPUÉS pregunta,
+      // sin querer que se regenere nada. Se responde con los mismos
+      // días que ya se le mostraron (mensajes con `rutaDia`), no con
+      // una ruta nueva ni con su ubicación/municipio.
+      const tipoServicioParaRuta = detectarTipoServicioBasico(texto);
+      // Solo los días de la ÚLTIMA ruta generada — si el turista pidió
+      // otra ruta antes ("no me gustó, dame otra"), `mensajes` ya trae
+      // los rutaDia de AMBAS, uno tras otro (Día 1, Día 2, Día 1, Día
+      // 2...). Caminar hacia atrás y cortar en cuanto el número de día
+      // deja de ir decreciendo aísla solo el grupo más reciente, sin
+      // depender de contar mensajes ni de un marcador aparte.
+      const rutaDiaMensajes = mensajes.filter((m) => m.rutaDia);
+      const ultimaRuta: typeof rutaDiaMensajes = [];
+      for (let i = rutaDiaMensajes.length - 1; i >= 0; i--) {
+        const dia = rutaDiaMensajes[i].rutaDia!;
+        if (ultimaRuta.length > 0 && dia.dia >= ultimaRuta[0].rutaDia!.dia) break;
+        ultimaRuta.unshift(rutaDiaMensajes[i]);
+      }
+      const diasDeLaRutaActual = ultimaRuta.map((m) => m.rutaDia!);
+      // Solo intercepta si YA existe una ruta en esta conversación —
+      // si no, cae de largo hacia la creación de ruta nueva más abajo
+      // (así "quiero que la ruta que me crees tenga un hospital cerca"
+      // arma la ruta en vez de responder "no hemos armado ninguna").
+      if (tipoServicioParaRuta && diasDeLaRutaActual.length > 0 && pareceReferenciaARutaActual(texto)) {
+        const porDia = serviciosBasicosPorDia(diasDeLaRutaActual, tipoServicioParaRuta);
+        const lineas = porDia.map(({ dia, anclaje, resultado }) =>
+          resultado
+            ? `Día ${dia} (cerca de ${anclaje.nombre}): ${resultado.servicio.nombre}, a unos ${formatearDistancia(resultado.distanciaMetros)}.`
+            : `Día ${dia} (cerca de ${anclaje.nombre}): todavía no tengo nada registrado de ese tipo en esa zona.`
+        );
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: `Para tu ruta, esto es lo que tengo por día:\n\n${lineas.join('\n')}`,
+            timestamp: Date.now(),
+          },
+          300
+        );
+        return;
+      }
+
       // 2) ¿Suena a pedir una ruta? Dos señales, cualquiera activa:
       // (a) palabras clave explícitas ("arma una ruta"), o
       // (b) se detectaron DÍAS (la señal ancla de "esto es un viaje de
@@ -990,6 +1110,12 @@ export default function ChatAssistant({
           // aunque sí recordaba los días. Ahora es consistente con los
           // demás: si no se menciona de nuevo, se usa el de antes.
           montoTotalPesos: extraidas.montoTotalPesos ?? prefsParcial.montoTotalPesos,
+          // Igual que montoTotalPesos: una vez que el turista menciona
+          // una condición médica ("soy diabético") o pide un hospital
+          // cerca, se mantiene aunque pida otra ruta después — hasta
+          // que empiece un plan nuevo. Nunca se prende solo porque sí.
+          requiereHospitalCercano:
+            extraidas.requiereHospitalCercano ?? prefsParcial.requiereHospitalCercano,
         };
 
         // Transparencia: hallazgo real de campo — "quisiera solo una
@@ -1040,6 +1166,76 @@ export default function ChatAssistant({
         }
 
         generarYMostrarRuta(prefsCompletas, esPreguntaSobreMascotas(texto));
+        return;
+      }
+
+      // Servicio básico sin un lugar específico nombrado ("hay una
+      // farmacia en Santiago Tuxtla", "dónde hay una comisaría") — usa
+      // el municipio si lo mencionó, o su ubicación GPS como respaldo.
+      // Sigue siendo offline: la geolocalización del navegador no
+      // depende de internet, y la distancia es en línea recta. Se
+      // revisa DESPUÉS de "¿suena a pedir una ruta?" a propósito: un
+      // mensaje como "que la ruta tenga un hospital cerca" menciona
+      // "hospital" pero es un pedido de ruta, no una pregunta suelta.
+      const tipoServicioSinLugar = detectarTipoServicioBasico(texto);
+      if (tipoServicioSinLugar) {
+        const municipioMencionado = detectarMunicipio(texto);
+        let coordsReferencia: [number, number] | null = municipioMencionado
+          ? centroDeMunicipio(municipioMencionado)
+          : null;
+        let referenciaTexto = municipioMencionado ?? '';
+
+        if (!coordsReferencia) {
+          const miUbicacion = await obtenerUbicacionGPS().catch(() => null);
+          if (miUbicacion) {
+            coordsReferencia = miUbicacion.coord;
+            referenciaTexto = 'tu ubicación';
+          }
+        }
+
+        if (!coordsReferencia) {
+          responderBot(
+            {
+              id: crypto.randomUUID(),
+              role: 'bot',
+              texto: 'Dime cerca de qué lugar o municipio (Catemaco, San Andrés Tuxtla o Santiago Tuxtla) te sirve, o activa tu ubicación.',
+              timestamp: Date.now(),
+            },
+            300
+          );
+          return;
+        }
+
+        const resultado = buscarServicioBasicoCercano(tipoServicioSinLugar, coordsReferencia);
+        if (!resultado) {
+          responderBot(
+            {
+              id: crypto.randomUUID(),
+              role: 'bot',
+              texto: `Todavía no tengo registrado ningún servicio de ese tipo cerca de ${referenciaTexto}.`,
+              timestamp: Date.now(),
+            },
+            300
+          );
+          return;
+        }
+
+        const { servicio, distanciaMetros } = resultado;
+        const justoEnLaZona = distanciaMetros < 3000;
+        const respuesta = justoEnLaZona
+          ? `Cerca de ${referenciaTexto} tengo registrado: ${servicio.nombre}, a unos ${formatearDistancia(distanciaMetros)}.`
+          : `No tengo nada justo en la zona de ${referenciaTexto} — lo más cercano que conozco es ${servicio.nombre}, a unos ${formatearDistancia(distanciaMetros)}.`;
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: respuesta,
+            lugares: [servicio],
+            ubicacionUsuario: coordsReferencia,
+            timestamp: Date.now(),
+          },
+          300
+        );
         return;
       }
 

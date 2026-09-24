@@ -94,7 +94,17 @@ function crearServicio(datos: {
 // unos cientos de metros a ~2 km desplazado de la dirección real) —
 // las 3 comisarías se aproximaron al Palacio Municipal de cada pueblo
 // por no encontrarse una dirección separada y confirmada para la
-// comandancia de policía. Corregir aquí si algún dato cambia.
+// comandancia de policía, y las farmacias de Catemaco y Santiago
+// Tuxtla también cayeron cerca del centro por la misma limitación.
+//
+// Corregido (QA de campo): el hospital de Santiago Tuxtla SÍ tenía
+// coords idénticas al centro del municipio a pesar de que su
+// dirección real ("Carretera Santiago Tuxtla–Isla Km 1.5") NO es el
+// zócalo — eso le habría dicho a un turista en una emergencia real
+// que el hospital está "a 0 metros" cuando está a ~1.2-1.5 km por
+// carretera. Ya se geocodificó por separado (amenity=hospital real en
+// OSM sobre la carretera de salida del pueblo). Corregir aquí si
+// algún dato cambia.
 export const SERVICIOS_BASICOS: ServicioBasico[] = [
   // ── Catemaco ──
   crearServicio({
@@ -155,7 +165,7 @@ export const SERVICIOS_BASICOS: ServicioBasico[] = [
     nombre: 'Hospital General de Santiago Tuxtla (IMSS-Bienestar)',
     tipo: 'salud',
     municipio: 'Santiago Tuxtla',
-    coords: [18.4655533, -95.2996679],
+    coords: [18.4583447, -95.3080988],
     direccion: 'Carretera Santiago Tuxtla–Isla Km 1.5, Santiago Tuxtla, Ver.',
     telefono: '294 947 1352',
   }),

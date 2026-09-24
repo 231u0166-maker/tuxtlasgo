@@ -73,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              s.precio, s.contacto, s.lat, s.lng, s.codigo_seguimiento, s.fotos,
              s.horario, s.dias_abierto, s.duracion, s.como_llegar, s.tip, s.ideal_para,
              s.mascotas, s.enlaces, s.acepta_reservaciones, s.monto_minimo, s.mostrar_usd_reservacion,
-             s.fechas_bloqueadas,
+             s.fechas_bloqueadas, s.premium, s.premium_hasta,
              u.nombre AS propietario
       FROM servicios s
       JOIN usuarios u ON u.id = s.usuario_id
@@ -116,6 +116,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         verificado: true,
         contacto: s.contacto || '',
         mascotas: s.mascotas || undefined,
+        // Bug real de producción (encontrado en QA): esta consulta no
+        // traía `premium`/`premium_hasta` de la base — un prestador
+        // podía pagar el Plan Premium ($89 MXN/mes), la tabla
+        // `servicios` se actualizaba bien (ver api/pagos/mercadopago.ts),
+        // pero el catálogo que consume la IA nunca se enteraba, así que
+        // el bono de posicionamiento (chatbot.ts, filtrarLugaresConRazones)
+        // no aplicaba nunca en producción. Mismo criterio de vigencia
+        // que ya usa el catálogo local offline (db.ts: listarServiciosAprobadosComoLugares).
+        premium: !!s.premium && (!s.premium_hasta || new Date(s.premium_hasta) > new Date()),
         esPrestador: true,
         codigoSeguimiento: s.codigo_seguimiento,
         enlaces: parseEnlaces(s.enlaces).length > 0 ? parseEnlaces(s.enlaces) : undefined,

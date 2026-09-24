@@ -35,6 +35,7 @@ import {
   centroDeMunicipio,
   serviciosBasicosPorDia,
   pareceReferenciaARutaActual,
+  detectaNecesidadHospitalEnRuta,
 } from '../lib/chatbot';
 
 import { guardarRuta, mapaDescargado, guardarChat, type ChatGuardado } from '../lib/db';
@@ -1005,6 +1006,38 @@ export default function ChatAssistant({
               label: `${l.nombre} (${l.municipio})`,
               valor: `desambiguar_lugar:${l.id}`,
             })),
+            timestamp: Date.now(),
+          },
+          300
+        );
+        return;
+      }
+
+      // Declaración de una condición médica SOLA, sin pedir ruta al
+      // mismo tiempo ("soy diabético") — la mayoría de la gente
+      // menciona su condición cuando se le ocurre, no necesariamente
+      // en el mismo mensaje que pide la ruta. Se guarda en
+      // `prefsParcial` (persiste igual que municipio/presupuesto) para
+      // que la PRÓXIMA ruta que se pida — en este plan de viaje,
+      // venga en el mensaje que sea — ya la incluya, sin que el
+      // turista tenga que repetirla. Si el mensaje TAMBIÉN pide una
+      // ruta ("soy diabético, arma una ruta de 2 días"), se deja pasar
+      // de largo a propósito: el bloque de generación de ruta más
+      // abajo ya hace su propia detección y entrega la ruta completa
+      // de una vez — no hace falta este aviso corto aparte.
+      if (
+        detectaNecesidadHospitalEnRuta(texto) &&
+        !pareceSolicitudDeRuta(texto) &&
+        extraerDiasCrudo(texto) === null
+      ) {
+        if (!prefsParcial.requiereHospitalCercano) {
+          setPrefsParcial((prev) => ({ ...prev, requiereHospitalCercano: true }));
+        }
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: 'Anotado — cuando armemos tu ruta, voy a incluirte el hospital más cercano para cada día, por si lo necesitas. ¿Seguimos con la ruta, o tienes otra pregunta?',
             timestamp: Date.now(),
           },
           300

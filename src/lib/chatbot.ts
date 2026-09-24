@@ -214,10 +214,25 @@ export function detectarIntent(texto: string): string {
     tokens.includes(n)
   );
 
-  for (const { intent, words } of INTENT_KEYWORDS) {
-    if ((intent === 'saludo' || intent === 'agradecimiento') && (!esCorto || tieneNegacion)) {
-      continue;
+  // Saludo/agradecimiento se revisan PRIMERO cuando el mensaje aplica
+  // (corto, sin negación) — hallazgo real de campo (QA): "onda" (como
+  // en "qué onda", saludo carne-y-hueso muy común en México) hace
+  // match por tolerancia a errores de dedo con "fonda" (palabra clave
+  // de 'comida'), y como 'comida' itera ANTES que 'saludo' en la
+  // lista, "qué onda" se clasificaba como intención de comida en vez
+  // de saludo. Revisando saludo/agradecimiento primero, un saludo
+  // corto siempre gana sobre una coincidencia accidental de otra
+  // intención — sin cambiar el comportamiento para mensajes largos o
+  // con negación (ahí ninguno de los dos participa, igual que antes).
+  if (esCorto && !tieneNegacion) {
+    for (const { intent, words } of INTENT_KEYWORDS) {
+      if (intent !== 'saludo' && intent !== 'agradecimiento') continue;
+      if (words.some((w) => contieneClave(tokens, w))) return intent;
     }
+  }
+
+  for (const { intent, words } of INTENT_KEYWORDS) {
+    if (intent === 'saludo' || intent === 'agradecimiento') continue;
     if (words.some((w) => contieneClave(tokens, w))) return intent;
   }
   return 'desconocido';
@@ -265,8 +280,17 @@ const SERVICIO_BASICO_KEYWORDS: { tipo: TipoServicioBasico; words: string[] }[] 
 // categorías turísticas (Categoria), que nunca debe incluir esto.
 export function detectarTipoServicioBasico(texto: string): TipoServicioBasico | null {
   const tokens = tokenizar(texto);
+  // Coincidencia EXACTA a propósito (no contieneClave/tolerante a
+  // errores) — hallazgo real de campo (QA): "medico" con tolerancia
+  // normal (distancia de edición 1) hacía match con "medio", y
+  // "presupuesto medio" es una de las 3 palabras de nivel de precio
+  // que usa TODA la app — cualquier ruta o pregunta que mencionara
+  // presupuesto medio se desviaba a "aquí está el hospital más
+  // cercano" en vez de responder lo que en realidad se pidió. Ver
+  // también contieneFraseExacta/detectaNecesidadHospitalEnRuta más
+  // abajo para el mismo tipo de arreglo con "asma"/"arma".
   for (const { tipo, words } of SERVICIO_BASICO_KEYWORDS) {
-    if (words.some((w) => contieneClave(tokens, w))) return tipo;
+    if (words.some((w) => contieneFraseExacta(tokens, w))) return tipo;
   }
   return null;
 }
@@ -859,9 +883,34 @@ const PALABRAS_CONDICION_MEDICA = [
   'discapacidad',
 ];
 
+// Coincidencia EXACTA de una frase (una o varias palabras) contra los
+// tokens — sin tolerancia a errores de dedo, a diferencia de
+// contieneClave. A propósito: ver el comentario en
+// detectaNecesidadHospitalEnRuta sobre por qué palabras cortas como
+// "asma" son más seguras así.
+function contieneFraseExacta(tokens: string[], frase: string): boolean {
+  const palabras = frase.split(' ');
+  if (palabras.length === 1) return tokens.includes(palabras[0]);
+  for (let i = 0; i <= tokens.length - palabras.length; i++) {
+    if (palabras.every((p, j) => tokens[i + j] === p)) return true;
+  }
+  return false;
+}
+
 export function detectaNecesidadHospitalEnRuta(texto: string): boolean {
   const tokens = tokenizar(texto);
-  const mencionaCondicion = PALABRAS_CONDICION_MEDICA.some((p) => contieneClave(tokens, p));
+  // Coincidencia EXACTA a propósito (no contieneClave/tolerante a
+  // errores) — hallazgo real de campo (QA): "asma" con tolerancia
+  // normal (distancia de edición 1) hacía match con "arma", y "ARMA
+  // una ruta..." es la forma más común de pedir una ruta en español.
+  // Eso activaba la nota de hospital y la dejaba pegada para el resto
+  // de la conversación (requiereHospitalCercano persiste) en CUALQUIER
+  // ruta pedida así, sin que el turista hubiera dicho nada médico —
+  // justo lo que el Subflujo 4 dice que nunca debe pasar. Palabras
+  // médicas cortas son más seguras con coincidencia exacta que con
+  // tolerancia a errores: perder una que sí venga con typo real es
+  // mejor que activar esto de más.
+  const mencionaCondicion = PALABRAS_CONDICION_MEDICA.some((p) => contieneFraseExacta(tokens, p));
   const mencionaServicioSalud = detectarTipoServicioBasico(texto) === 'salud';
   return mencionaCondicion || mencionaServicioSalud;
 }
@@ -878,7 +927,7 @@ export function detectaNecesidadHospitalEnRuta(texto: string): boolean {
 export function pareceReferenciaARutaActual(texto: string): boolean {
   const tokens = tokenizar(texto);
   return [
-    'esta ruta', 'mi ruta', 'este itinerario', 'la ruta que armamos',
+    'esta ruta', 'mi ruta', 'este itinerario', 'mi itinerario', 'la ruta que armamos',
     'la ruta que creamos', 'lo que armamos', 'la ruta de arriba',
   ].some((f) => contieneClave(tokens, f));
 }

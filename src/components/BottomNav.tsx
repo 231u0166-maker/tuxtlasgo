@@ -1,6 +1,6 @@
-import { Home, Compass, MessageCircle, Heart, User } from 'lucide-react';
+import { Home, Compass, MessageCircle, Heart, User, Crown } from 'lucide-react';
 
-export type Tab = 'inicio' | 'explorar' | 'mapa' | 'chat' | 'favoritos' | 'perfil';
+export type Tab = 'inicio' | 'explorar' | 'mapa' | 'chat' | 'favoritos' | 'perfil' | 'patrocinados';
 
 interface Props {
   activa: Tab;
@@ -15,6 +15,7 @@ const tabs: { id: Tab; label: string; icon: typeof Compass }[] = [
   { id: 'inicio', label: 'Destacados', icon: Home },
   { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'chat', label: 'Asistente', icon: MessageCircle },
+  { id: 'patrocinados', label: 'Patrocinados', icon: Crown },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },
   { id: 'perfil', label: "Mi Perfil", icon: User } // nuevo para el perfil
 ];

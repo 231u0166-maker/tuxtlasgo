@@ -29,7 +29,18 @@ interface Props {
 
 export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Props) {
   const [texto, setTexto] = useState('');
-  const destacados = getCatalogoActivo().filter((l) => l.destacado).slice(0, 6);
+  // "Para ti" mezcla dos cosas a propósito, siempre en este orden:
+  // primero la curaduría nuestra (destacado: rating/calidad, sin
+  // dinero de por medio), y DESPUÉS los prestadores Premium ($89
+  // MXN/mes) que todavía no estén ya destacados — para que pagar
+  // Premium siempre les dé un lugar aquí, no solo en su pestaña
+  // "Patrocinados" aparte. Nunca se ocultan entre sí: si un lugar es
+  // ambas cosas, PlaceCard ya muestra las dos insignias sin chocar
+  // ("Destacado" ámbar + "Patrocinado" morado). El badge de cada uno
+  // es lo que deja claro cuál es curaduría y cuál es pauta pagada.
+  const destacados = getCatalogoActivo().filter((l) => l.destacado);
+  const patrocinadosSinDestacar = getCatalogoActivo().filter((l) => l.premium && !l.destacado);
+  const paraTi = [...destacados, ...patrocinadosSinDestacar];
 
   // Mismo comportamiento que el textarea de la pestaña Asistente —
   // crece con el texto hasta un tope, y no pierde de vista el cursor
@@ -69,9 +80,9 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
           <h2 className="font-display font-bold text-lg text-obsidiana-900 mb-3">
             Para ti en {ubicacion?.trim() || 'Los Tuxtlas'}
           </h2>
-          {destacados.length > 0 ? (
+          {paraTi.length > 0 ? (
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-              {destacados.map((l) => (
+              {paraTi.map((l) => (
                 <PlaceCard key={l.id} lugar={l} onClick={() => onVerLugar(l)} />
               ))}
             </div>

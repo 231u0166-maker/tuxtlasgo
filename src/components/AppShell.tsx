@@ -2,7 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut, X, History,
   Sparkles, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
-  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal
+  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal, Crown
 } from 'lucide-react';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -12,6 +12,7 @@ import BottomNav, { type Tab } from './BottomNav';
 import NotificacionesBurbuja from './NotificacionesBurbuja';
 import ExploreScreen from './ExploreScreen';
 import InicioScreen from './InicioScreen';
+import PatrocinadosScreen from './PatrocinadosScreen';
 import {
   getCatalogoActivo,
   grupoDesdeQuien,
@@ -49,6 +50,7 @@ const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
   { id: 'inicio', label: 'Destacados', icon: Sparkles },
   { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'chat', label: 'Asistente IA', icon: MessageCircle },
+  { id: 'patrocinados', label: 'Patrocinados', icon: Crown },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },
   { id: 'perfil', label: "Mi Perfil", icon: User }
 ];
@@ -685,6 +687,12 @@ export default function AppShell() {
                 onPreguntar={preguntarDesdeInicio}
                 ubicacion={filtros?.donde}
               />
+            </div>
+          )}
+
+          {tab === 'patrocinados' && (
+            <div className="flex-1 h-full">
+              <PatrocinadosScreen onVerLugar={verLugar} />
             </div>
           )}
 

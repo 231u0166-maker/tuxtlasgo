@@ -96,6 +96,16 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
             Destacado
           </div>
         )}
+        {/* Distinto del badge "Destacado" (esa es curaduría nuestra,
+            sin dinero de por medio) — "Patrocinado" es honesto sobre
+            que este lugar pagó el Plan Premium. Mismo criterio que la
+            sección de Inicio: nunca mezclar contenido pagado con
+            contenido editorial sin decirlo. */}
+        {lugar.premium && (
+          <div className="absolute bottom-3 right-3 bg-violet-600 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">
+            Patrocinado
+          </div>
+        )}
       </div>
       <div className="p-4 flex-1 flex flex-col">
         <h3 className="font-display font-bold text-jungle-950 leading-tight line-clamp-1">

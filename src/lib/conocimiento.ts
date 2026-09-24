@@ -162,8 +162,17 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
     claves: ['donde dormir', 'hotel', 'hospedaje', 'cabaña', 'cabana', 'pernoctar', 'donde quedarme'],
     titulo: 'Hospedaje en Los Tuxtlas',
     respuesta:
-      'Para hospedarte tienes dos opciones naturales: Nanciyaga ($1,600-$2,200/noche), reserva ecológica con cabañas en plena selva, kayak y ritales con chamanes. O Sirena Olmeca ($800-$1,200/noche), complejo rústico donde el mar se junta con la laguna, ideal para desconectarse. La Jungla Balneario también tiene camping desde $100/noche.',
-    lugares: ['nanciyaga', 'sirena-olmeca', 'jungla-balneario'],
+      'Para hospedarte, la opción registrada como hospedaje es Sirena Olmeca ($800-$1,200/noche), complejo rústico donde el mar se junta con la laguna, ideal para desconectarse. Si buscas algo más económico o distinto, Nanciyaga tiene cabañas en plena selva ($1,600-$2,200/noche) y La Jungla Balneario tiene camping desde $100/noche — aunque esos dos son reservas naturales, no hoteles.',
+    // A propósito SOLO el lugar que de verdad es categoria 'Hospedaje'
+    // (Sirena Olmeca) — Nanciyaga y La Jungla Balneario son
+    // 'Naturaleza' y solo se mencionan como alternativa EN EL TEXTO.
+    // Antes los tres estaban aquí y esto alimenta la tarjeta que se le
+    // muestra al turista (ver lugaresDeConocimiento en chatbot.ts):
+    // una pregunta directa como "busco un hotel barato" terminaba
+    // recomendando dos reservas ecológicas como si fueran hoteles,
+    // sin ninguna indicación de que eran de otra categoría — hallazgo
+    // real de campo (QA).
+    lugares: ['sirena-olmeca'],
   },
   {
     claves: ['camping', 'acampar', 'tienda', 'carpa'],
@@ -174,12 +183,28 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
   },
 
   // ─── NATURALEZA Y AVENTURA ───────────────────────────────
+  // Antes era UNA sola ficha para ambas categorías, con los 3 lugares
+  // de Naturaleza listados ANTES que el único de Aventura — como el
+  // chat solo muestra los primeros 3 lugares vinculados, una pregunta
+  // de "aventura" recomendaba puros lugares de Naturaleza y el único
+  // que sí era Aventura (Cerro del Venado) quedaba fuera por completo
+  // (hallazgo real de campo, igual que el caso de Hospedaje: "aventura"
+  // y "naturaleza" activaban la misma ficha, así que la categoría que
+  // el turista pidió nunca ganaba sobre la otra). Separadas, cada
+  // categoría tiene su propia respuesta y sus propios lugares reales.
   {
-    claves: ['naturaleza', 'selva', 'aventura', 'ecoturismo', 'senderismo', 'sendero'],
-    titulo: 'Naturaleza y aventura en Los Tuxtlas',
+    claves: ['naturaleza', 'selva', 'ecoturismo'],
+    titulo: 'Naturaleza en Los Tuxtlas',
     respuesta:
-      'Para naturaleza y aventura tienes: La Cascada de Eyipantla (50 metros de caída, $50 entrada), Nanciyaga (4 hectáreas de selva, kayak, monos, $80 entrada), La Jungla Balneario (albercas de manantial, tobogán en selva, $60 entrada) y el Cerro del Venado (vistas panorámicas, acceso libre). Todos están en los alrededores de Catemaco y San Andrés Tuxtla.',
-    lugares: ['eyipantla', 'nanciyaga', 'jungla-balneario', 'cerro-venado'],
+      'Para naturaleza tienes: La Cascada de Eyipantla (50 metros de caída, $50 entrada), Nanciyaga (4 hectáreas de selva, kayak, monos, $80 entrada) y La Jungla Balneario (albercas de manantial, tobogán en selva, $60 entrada). Todos están en los alrededores de Catemaco y San Andrés Tuxtla.',
+    lugares: ['eyipantla', 'nanciyaga', 'jungla-balneario'],
+  },
+  {
+    claves: ['aventura', 'extremo', 'adrenalina', 'senderismo', 'sendero'],
+    titulo: 'Aventura en Los Tuxtlas',
+    respuesta:
+      'Para aventura, el Cerro del Venado tiene caminatas y vistas panorámicas de San Andrés Tuxtla, con acceso libre — el ascenso toma aproximadamente 1 hora. La Cascada de Eyipantla y Nanciyaga también tienen senderos dentro de la selva si buscas más opciones de caminata.',
+    lugares: ['cerro-venado'],
   },
   {
     claves: ['monos', 'macacos', 'kayak', 'lancha', 'laguna'],

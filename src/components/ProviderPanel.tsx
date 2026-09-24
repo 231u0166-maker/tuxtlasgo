@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Map, Marker } from '@vis.gl/react-maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -10,6 +10,7 @@ import {
 import { buscarPorCodigo } from '../lib/db';
 import { getUsuarioLocal, getToken, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFotoVerificacion, type ProgresoSubida } from '../lib/cloudinary';
+import { obtenerUbicacionGPS } from '../lib/routing';
 import OfflineIndicator from './OfflineIndicator';
 import AuthModal from './AuthModal';
 import GestorFotos from './GestorFotos';
@@ -206,49 +207,241 @@ function PantallaInicio({
 // real al que asociarla vía el token) — por eso "Fotos" es el paso
 // que sigue justo después de enviar los datos, antes de la
 // confirmación final, no antes.
-type PasoRegistro = 'info' | 'descripcion' | 'precio' | 'contacto' | 'fotos' | 'listo';
-const ORDEN_PASOS: PasoRegistro[] = ['info', 'descripcion', 'precio', 'contacto', 'fotos', 'listo'];
+// El paso "Contacto y ubicación" original metía 4 tareas distintas
+// (teléfono, mapa, foto de identidad, términos) — el único que
+// rompía el patrón de "una pregunta por pantalla" que sí respetan
+// los demás, y el sospechoso número 1 de abandono a mitad del
+// registro. Se parte en dos: 'contacto' se queda con teléfono + mapa
+// (ligado entre sí porque ambos ubican al negocio), y 'verificacion'
+// (nuevo) se lleva identidad + términos — lo último que se confirma
+// justo antes de enviar.
+type PasoRegistro = 'info' | 'descripcion' | 'precio' | 'contacto' | 'verificacion' | 'fotos' | 'listo';
+const ORDEN_PASOS: PasoRegistro[] = ['info', 'descripcion', 'precio', 'contacto', 'verificacion', 'fotos', 'listo'];
 const TITULO_PASO: Record<PasoRegistro, string> = {
   info: 'Información básica',
   descripcion: 'Descripción',
   precio: 'Precio',
   contacto: 'Contacto y ubicación',
-  fotos: 'Fotos de tu negocio',
+  // Mismo título para 'verificacion' y 'fotos' a propósito — ver
+  // INDICE_VISUAL abajo: para quien llena el formulario ambas se
+  // sienten como "sube una foto", así que se presentan como un solo
+  // paso numerado aunque sigan siendo 2 pantallas y 2 estados
+  // separados por dentro (GestorFotos necesita el "codigo" que recién
+  // se genera al enviar 'verificacion' — no se pueden fusionar en una
+  // sola pantalla real, el negocio todavía no existe en Neon hasta
+  // ese envío).
+  verificacion: 'Fotos y verificación',
+  fotos: 'Fotos y verificación',
   listo: '¡Listo!',
 };
+
+// Índice de paso VISIBLE (el que ve la persona en "Paso X de Y" y en
+// la barra de progreso) — distinto del índice real en ORDEN_PASOS
+// (el que usan siguiente()/irA() para navegar). 'verificacion' y
+// 'fotos' comparten el mismo número: 6 segmentos visibles en vez de
+// 7, aunque internamente sigan siendo 2 pasos con un submit real
+// entre ambos.
+const INDICE_VISUAL: Record<PasoRegistro, number> = {
+  info: 0,
+  descripcion: 1,
+  precio: 2,
+  contacto: 3,
+  verificacion: 4,
+  fotos: 4,
+  listo: 5,
+};
+const TOTAL_PASOS_VISIBLES = 6;
+
+// ─────────────── Borrador local ───────────────
+// Antes nada de este formulario se guardaba — todo vivía en useState.
+// Si alguien llegaba al paso 4-5 y perdía señal o cerraba la pestaña
+// sin querer, perdía nombre, categoría, descripción, precio, todo.
+// La clave incluye el id del usuario logueado para no mezclar
+// borradores de distintas cuentas en el mismo teléfono/compu.
+interface BorradorRegistro {
+  paso: PasoRegistro;
+  nombreNegocio: string;
+  categoria: string;
+  municipio: string;
+  descripcion: string;
+  nivelPrecio: NivelPrecio;
+  precioMin: string;
+  precioMax: string;
+  contacto: string;
+  ubicacion: [number, number] | null;
+  ubicacionGuardada: boolean;
+  terminos: boolean;
+  fotoVerificacion: string;
+  // Código de seguimiento y fotos ya subidas: el negocio puede quedar
+  // YA CREADO en Neon (estado "pendiente", con su código de
+  // seguimiento) antes de que la persona termine de verlo/copiarlo o
+  // de subir fotos — si cierra la pestaña justo ahí, sin seguir
+  // guardando esto perdería la única forma de consultar el estado de
+  // una solicitud que sí quedó registrada. Por eso el borrador se
+  // sigue guardando durante 'fotos' y 'listo', y solo se borra cuando
+  // la persona toca "Entendido" (ver completarRegistro).
+  codigo: string;
+  fotosSubidas: string[];
+}
+
+function claveBorrador(usuarioId: number): string {
+  return `tuxtlasgo-registro-borrador-${usuarioId}`;
+}
+
+function cargarBorrador(usuarioId: number): BorradorRegistro | null {
+  try {
+    const json = localStorage.getItem(claveBorrador(usuarioId));
+    return json ? JSON.parse(json) : null;
+  } catch { return null; }
+}
+
+function guardarBorrador(usuarioId: number, borrador: BorradorRegistro): void {
+  try { localStorage.setItem(claveBorrador(usuarioId), JSON.stringify(borrador)); } catch { /* no crítico */ }
+}
+
+function borrarBorrador(usuarioId: number): void {
+  try { localStorage.removeItem(claveBorrador(usuarioId)); } catch { /* no crítico */ }
+}
 
 // ─────────────── REGISTRAR NEGOCIO (asistente por pasos, con mapa
 // MapLibre consistente con el resto de la app, y animado) ──────────
 function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito: () => void }) {
-  const [paso, setPaso] = useState<PasoRegistro>('info');
+  // Se calculan una sola vez al montar (lazy init de useState) — el
+  // id de usuario no cambia durante el registro, y así solo se lee
+  // localStorage una vez en vez de en cada render.
+  const [usuarioId] = useState(() => getUsuarioLocal()?.id ?? null);
+  const [borradorInicial] = useState<BorradorRegistro | null>(() => (usuarioId ? cargarBorrador(usuarioId) : null));
+  // Aviso de "retomamos tu borrador" — solo si de verdad había algo
+  // que retomar (no cuando el borrador está vacío/default), y con
+  // salida explícita por si el borrador no es de quien está mirando
+  // ahora la pantalla (cuenta compartida en el mismo dispositivo).
+  const [mostrarAvisoBorrador, setMostrarAvisoBorrador] = useState(
+    () => !!borradorInicial && (borradorInicial.paso !== 'info' || !!borradorInicial.nombreNegocio.trim())
+  );
+
+  const [paso, setPaso] = useState<PasoRegistro>(() => borradorInicial?.paso ?? 'info');
   const [direccion, setDireccion] = useState<1 | -1>(1);
-  const [nombreNegocio, setNombreNegocio] = useState('');
-  const [categoria, setCategoria] = useState('Gastronomia');
-  const [municipio, setMunicipio] = useState('Catemaco');
-  const [descripcion, setDescripcion] = useState('');
+  const [nombreNegocio, setNombreNegocio] = useState(() => borradorInicial?.nombreNegocio ?? '');
+  const [categoria, setCategoria] = useState(() => borradorInicial?.categoria ?? 'Gastronomia');
+  const [municipio, setMunicipio] = useState(() => borradorInicial?.municipio ?? 'Catemaco');
+  const [descripcion, setDescripcion] = useState(() => borradorInicial?.descripcion ?? '');
   const [generandoDescripcion, setGenerandoDescripcion] = useState(false);
-  const [nivelPrecio, setNivelPrecio] = useState<NivelPrecio>('razonable');
-  const [precioMin, setPrecioMin] = useState('');
-  const [precioMax, setPrecioMax] = useState('');
-  const [contacto, setContacto] = useState('');
-  const [ubicacion, setUbicacion] = useState<[number, number] | null>(null);
-  const [ubicacionGuardada, setUbicacionGuardada] = useState(false);
-  const [terminos, setTerminos] = useState(false);
-  const [fotoVerificacion, setFotoVerificacion] = useState('');
+  const [nivelPrecio, setNivelPrecio] = useState<NivelPrecio>(() => borradorInicial?.nivelPrecio ?? 'razonable');
+  const [precioMin, setPrecioMin] = useState(() => borradorInicial?.precioMin ?? '');
+  const [precioMax, setPrecioMax] = useState(() => borradorInicial?.precioMax ?? '');
+  const [contacto, setContacto] = useState(() => borradorInicial?.contacto ?? '');
+  const [ubicacion, setUbicacion] = useState<[number, number] | null>(() => borradorInicial?.ubicacion ?? null);
+  const [ubicacionGuardada, setUbicacionGuardada] = useState(() => borradorInicial?.ubicacionGuardada ?? false);
+  const [terminos, setTerminos] = useState(() => borradorInicial?.terminos ?? false);
+  const [fotoVerificacion, setFotoVerificacion] = useState(() => borradorInicial?.fotoVerificacion ?? '');
   const [subiendoVerificacion, setSubiendoVerificacion] = useState(false);
   const [progresoVerificacion, setProgresoVerificacion] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
-  const [codigo, setCodigo] = useState('');
+  const [codigo, setCodigo] = useState(() => borradorInicial?.codigo ?? '');
   const [copiado, setCopiado] = useState(false);
-  const [fotosSubidas, setFotosSubidas] = useState<string[]>([]);
+  const [fotosSubidas, setFotosSubidas] = useState<string[]>(() => borradorInicial?.fotosSubidas ?? []);
+
+  // Ubicación automática por GPS (ver obtenerUbicacionGPS en
+  // lib/routing.ts) — precisionUbicacion solo se llena cuando el pin
+  // vino del GPS (se limpia si la persona lo mueve a mano, ver el
+  // onClick del mapa más abajo), para no mostrar una "precisión" que
+  // ya no aplica a un punto ajustado manualmente.
+  const [buscandoUbicacion, setBuscandoUbicacion] = useState(false);
+  const [ubicacionAutoFallo, setUbicacionAutoFallo] = useState(false);
+  const [precisionUbicacion, setPrecisionUbicacion] = useState<number | null>(null);
+  const [mostrarExplicacionUbicacion, setMostrarExplicacionUbicacion] = useState(false);
+  const intentoAutoUbicacionHecho = useRef(false);
 
   const indicePaso = ORDEN_PASOS.indexOf(paso);
+  // El que se muestra en pantalla (barra + "Paso X de Y") — ver
+  // INDICE_VISUAL. La navegación real (siguiente()/irA()) sigue
+  // usando indicePaso/ORDEN_PASOS tal cual, sin tocar.
+  const indiceVisual = INDICE_VISUAL[paso];
 
   function irA(p: PasoRegistro, dir: 1 | -1) {
     setDireccion(dir);
     setPaso(p);
   }
+
+  // Borra el borrador y reinicia todo a sus valores por default — la
+  // salida explícita del aviso "retomamos tu borrador" (por ejemplo,
+  // si no es tuyo: mismo dispositivo, cuenta distinta a la que dejó
+  // el borrador a medias).
+  function empezarDeNuevo() {
+    if (usuarioId) borrarBorrador(usuarioId);
+    setMostrarAvisoBorrador(false);
+    setPaso('info'); setDireccion(1);
+    setNombreNegocio(''); setCategoria('Gastronomia'); setMunicipio('Catemaco');
+    setDescripcion(''); setNivelPrecio('razonable'); setPrecioMin(''); setPrecioMax('');
+    setContacto(''); setUbicacion(null); setUbicacionGuardada(false); setTerminos(false);
+    setFotoVerificacion(''); setCodigo(''); setFotosSubidas([]); setError('');
+    setPrecisionUbicacion(null); setUbicacionAutoFallo(false);
+  }
+
+  // Se llama cuando la persona toca "Entendido" en el paso final —
+  // recién ahí se borra el borrador. Hasta ese momento el negocio
+  // puede ya existir en Neon (con código de seguimiento) sin que la
+  // persona haya terminado de verlo, así que seguir guardando el
+  // borrador es lo que evita perder ese código si cierra antes.
+  function completarRegistro() {
+    if (usuarioId) borrarBorrador(usuarioId);
+    onExito();
+  }
+
+  // Intenta ubicar al prestador por GPS — nunca auto-confirma
+  // ubicacionGuardada: solo coloca el pin para que la persona lo
+  // revise (o lo arrastre/ajuste tocando el mapa) y confirme ella
+  // misma con "Guardar ubicación", igual que si lo hubiera marcado a
+  // mano desde el inicio.
+  async function intentarUbicarme() {
+    setBuscandoUbicacion(true);
+    setUbicacionAutoFallo(false);
+    const gps = await obtenerUbicacionGPS();
+    setBuscandoUbicacion(false);
+    if (gps) {
+      setUbicacion(gps.coord);
+      setUbicacionGuardada(false);
+      setPrecisionUbicacion(gps.precisionMetros);
+    } else {
+      setUbicacionAutoFallo(true);
+    }
+  }
+
+  // Al entrar al paso de teléfono+mapa, intenta ubicar automáticamente
+  // — con la misma explicación amigable que ya usa AppShell.tsx antes
+  // de disparar el permiso nativo del navegador (mismo localStorage
+  // "ubicacion-explicada": si ya se explicó una vez en el mapa de la
+  // app, aquí no se repite). Como mucho un intento automático por
+  // visita al asistente — si falla o la persona lo descarta, el botón
+  // "Usar mi ubicación actual" junto al mapa sigue disponible para
+  // reintentar cuando quiera.
+  useEffect(() => {
+    if (paso !== 'contacto') return;
+    if (ubicacion || intentoAutoUbicacionHecho.current) return;
+    intentoAutoUbicacionHecho.current = true;
+    let explicada = false;
+    try { explicada = localStorage.getItem('ubicacion-explicada') === 'true'; } catch { /* no crítico */ }
+    if (explicada) intentarUbicarme();
+    else setMostrarExplicacionUbicacion(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paso]);
+
+  // Guarda el progreso en cada cambio relevante — incluye 'fotos' y
+  // 'listo' a propósito (ver BorradorRegistro arriba). Solo se borra
+  // en completarRegistro() o empezarDeNuevo().
+  useEffect(() => {
+    if (!usuarioId) return;
+    guardarBorrador(usuarioId, {
+      paso, nombreNegocio, categoria, municipio, descripcion, nivelPrecio,
+      precioMin, precioMax, contacto, ubicacion, ubicacionGuardada, terminos,
+      fotoVerificacion, codigo, fotosSubidas,
+    });
+  }, [
+    usuarioId, paso, nombreNegocio, categoria, municipio, descripcion, nivelPrecio,
+    precioMin, precioMax, contacto, ubicacion, ubicacionGuardada, terminos,
+    fotoVerificacion, codigo, fotosSubidas,
+  ]);
 
   function precioFinal(): string {
     const nivel = NIVELES_PRECIO.find((n) => n.id === nivelPrecio)!;
@@ -298,12 +491,11 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     });
   }
 
+  // Se dispara desde el paso 'verificacion' (el último con datos
+  // antes de 'fotos') — teléfono y ubicación ya se validaron al
+  // avanzar desde 'contacto', en siguiente().
   async function enviarYContinuar() {
     setError('');
-    if (!ubicacionGuardada) return setError('Marca tu ubicación en el mapa antes de continuar.');
-    if (contacto.trim() && !TELEFONO_VALIDO.test(contacto.trim())) {
-      return setError('El contacto debe ser un número de teléfono (10 dígitos).');
-    }
     if (!terminos) return setError('Debes aceptar los términos y condiciones.');
     if (!fotoVerificacion) return setError('Sube una foto de verificación de identidad antes de continuar.');
     const token = getToken();
@@ -347,6 +539,12 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
       return setError('Escribe el nombre real de tu negocio (no solo números o símbolos).');
     }
     if (paso === 'descripcion' && (!descripcion.trim() || descripcion.trim().length < 20)) return setError('La descripción debe tener al menos 20 caracteres.');
+    if (paso === 'contacto') {
+      if (contacto.trim() && !TELEFONO_VALIDO.test(contacto.trim())) {
+        return setError('El contacto debe ser un número de teléfono (10 dígitos).');
+      }
+      if (!ubicacionGuardada) return setError('Marca tu ubicación en el mapa antes de continuar.');
+    }
     setError('');
     irA(ORDEN_PASOS[indicePaso + 1], 1);
   }
@@ -380,20 +578,34 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
           <ArrowLeft size={16} /> Volver
         </button>
 
+        {/* Antes cerrar la pestaña a medias perdía todo el progreso
+            sin aviso — ahora se restaura solo, pero se avisa (en vez
+            de que la información simplemente "reaparezca" sin
+            explicación) y se deja una salida explícita por si el
+            borrador no es de quien está mirando ahora. */}
+        {mostrarAvisoBorrador && (
+          <div className="flex items-center justify-between gap-3 bg-sun-50 border border-sun-200 text-sun-800 text-xs sm:text-sm px-4 py-2.5 rounded-xl mb-3">
+            <span>Retomamos tu solicitud donde te quedaste.</span>
+            <button onClick={empezarDeNuevo} className="font-bold underline underline-offset-2 flex-shrink-0">
+              Empezar de nuevo
+            </button>
+          </div>
+        )}
+
         <div className="flex gap-1.5 mb-2 mt-4">
-          {ORDEN_PASOS.map((p, i) => (
-            <div key={p} className="h-1 flex-1 rounded-full bg-jungle-100 overflow-hidden">
+          {Array.from({ length: TOTAL_PASOS_VISIBLES }, (_, i) => (
+            <div key={i} className="h-1 flex-1 rounded-full bg-jungle-100 overflow-hidden">
               <motion.div
                 className="h-full bg-jungle-600"
                 initial={false}
-                animate={{ width: i <= indicePaso ? '100%' : '0%' }}
+                animate={{ width: i <= indiceVisual ? '100%' : '0%' }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
               />
             </div>
           ))}
         </div>
         <p className="text-xs font-semibold text-jungle-600 uppercase tracking-wide">
-          Paso {indicePaso + 1} de {ORDEN_PASOS.length}
+          Paso {indiceVisual + 1} de {TOTAL_PASOS_VISIBLES} · {TITULO_PASO[paso]}
         </p>
 
         {error && (
@@ -502,6 +714,12 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
             </div>
           )}
 
+          {/* Antes este paso mezclaba teléfono + mapa + verificación
+              de identidad + términos — 4 tareas distintas en una sola
+              pantalla, el único que rompía el patrón de "una
+              pregunta a la vez" del resto del asistente. Se queda
+              solo con lo que ubica al negocio (teléfono + mapa); la
+              verificación pasa a su propio paso, ver abajo. */}
           {paso === 'contacto' && (
             <div className="max-w-2xl space-y-10">
               <div>
@@ -513,18 +731,34 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
               </div>
 
               <div>
-                <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-2">
-                  ¿Dónde está?
-                </h2>
-                <p className="text-sm text-jungle-500 mb-4">Toca el mapa donde está tu negocio para colocar el marcador.</p>
-                <div className="rounded-3xl overflow-hidden border-2 border-jungle-200" style={{ height: '340px' }}>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900">
+                    ¿Dónde está?
+                  </h2>
+                  {/* Reintento manual — además del intento automático
+                      al entrar al paso (ver el useEffect de arriba),
+                      por si falló, la persona lo descartó, o se movió
+                      de lugar mientras llenaba el formulario. */}
+                  <motion.button whileTap={{ scale: 0.95 }} type="button" onClick={intentarUbicarme} disabled={buscandoUbicacion}
+                    className="flex-shrink-0 inline-flex items-center gap-1.5 bg-jungle-50 hover:bg-jungle-100 text-jungle-700 px-3 py-2 rounded-full text-xs font-bold disabled:opacity-60 transition-colors">
+                    {buscandoUbicacion ? <Loader2 size={13} className="animate-spin" /> : <Navigation size={13} />}
+                    {buscandoUbicacion ? 'Ubicándote…' : 'Usar mi ubicación actual'}
+                  </motion.button>
+                </div>
+                <p className="text-sm text-jungle-500 mb-1">Toca el mapa donde está tu negocio para colocar el marcador.</p>
+                {ubicacionAutoFallo && !ubicacion && (
+                  <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3 mt-2">
+                    No pudimos ubicarte automáticamente — márcalo tocando el mapa, o inténtalo de nuevo con el botón de arriba.
+                  </p>
+                )}
+                <div className="rounded-3xl overflow-hidden border-2 border-jungle-200 mt-3" style={{ height: '340px' }}>
                   <Map
                     initialViewState={{ longitude: TUXTLAS_CENTER[1], latitude: TUXTLAS_CENTER[0], zoom: 11 }}
                     minZoom={8}
                     maxZoom={17}
                     mapStyle={ESTILO_MAPA}
                     style={{ width: '100%', height: '100%' }}
-                    onClick={(e) => { setUbicacion([e.lngLat.lat, e.lngLat.lng]); setUbicacionGuardada(false); }}
+                    onClick={(e) => { setUbicacion([e.lngLat.lat, e.lngLat.lng]); setUbicacionGuardada(false); setPrecisionUbicacion(null); }}
                   >
                     {ubicacion && (
                       <Marker longitude={ubicacion[1]} latitude={ubicacion[0]} anchor="bottom">
@@ -542,11 +776,22 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                 {ubicacionGuardada && (
                   <div className="mt-3 flex items-center gap-2 bg-jungle-50 border border-jungle-200 rounded-2xl px-4 py-3">
                     <CheckCircle2 size={16} className="text-jungle-600 flex-shrink-0" />
-                    <p className="text-sm text-jungle-700 font-medium">Ubicación guardada ({ubicacion![0].toFixed(4)}, {ubicacion![1].toFixed(4)})</p>
-                    <button type="button" onClick={() => { setUbicacionGuardada(false); setUbicacion(null); }} className="ml-auto text-xs text-jungle-500 underline">cambiar</button>
+                    <p className="text-sm text-jungle-700 font-medium">
+                      Ubicación guardada ({ubicacion![0].toFixed(4)}, {ubicacion![1].toFixed(4)})
+                      {precisionUbicacion != null && ` · precisión aprox. ±${Math.round(precisionUbicacion)} m`}
+                    </p>
+                    <button type="button" onClick={() => { setUbicacionGuardada(false); setUbicacion(null); setPrecisionUbicacion(null); }} className="ml-auto text-xs text-jungle-500 underline">cambiar</button>
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {paso === 'verificacion' && (
+            <div className="max-w-2xl space-y-8">
+              <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900">
+                Confirma que eres tú
+              </h2>
 
               {/* Foto de verificación — sin esto el admin no tiene
                   forma de confirmar que quien se registra es una
@@ -613,7 +858,12 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
               <p className="text-sm text-obsidiana-800/60 mb-6">
                 Al menos <strong>una foto</strong> real — es lo primero que va a ver la gente.
               </p>
-              <GestorFotos codigoSeguimiento={codigo} onFotosActualizadas={setFotosSubidas} />
+              {/* fotosIniciales viene del borrador restaurado — sin
+                  esto, si la persona recargaba a mitad de este paso,
+                  GestorFotos arrancaba vacío en pantalla aunque las
+                  fotos ya estuvieran guardadas en el servicio (que ya
+                  existe en Neon desde 'contacto'/'verificacion'). */}
+              <GestorFotos codigoSeguimiento={codigo} fotosIniciales={fotosSubidas} onFotosActualizadas={setFotosSubidas} />
             </div>
           )}
 
@@ -638,7 +888,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                 </button>
               </div>
               <div>
-                <button onClick={onExito} className="text-sm font-semibold text-jungle-700 underline">Entendido</button>
+                <button onClick={completarRegistro} className="text-sm font-semibold text-jungle-700 underline">Entendido</button>
               </div>
             </div>
           )}
@@ -655,7 +905,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                 <ArrowLeft size={20} />
               </motion.button>
             )}
-            {paso === 'contacto' ? (
+            {paso === 'verificacion' ? (
               <motion.button whileTap={{ scale: 0.98 }} onClick={enviarYContinuar} disabled={cargando}
                 className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
                 {cargando && <Loader2 size={18} className="animate-spin" />}
@@ -680,6 +930,54 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
           </motion.button>
         )}
       </div>
+
+      {/* Explicación propia antes del permiso nativo de ubicación —
+          mismo patrón y mismo localStorage "ubicacion-explicada" que
+          ya usa AppShell.tsx para el mapa: si la persona ya lo vio
+          ahí, no se le repite aquí (y viceversa). Se dispara al
+          entrar al paso 'contacto' si todavía no hay un pin — ver el
+          useEffect de arriba. */}
+      {mostrarExplicacionUbicacion && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-5 max-w-sm animate-fade-in">
+            <div className="w-12 h-12 rounded-full bg-jungle-100 flex items-center justify-center mb-3">
+              <Navigation size={22} className="text-jungle-700" />
+            </div>
+            <h3 className="font-display font-bold text-lg text-jungle-950 mb-1">
+              TuxtlasGO quiere ubicarte
+            </h3>
+            <p className="text-sm text-jungle-700 mb-4">
+              Así marcamos el pin automáticamente si estás parado en tu
+              negocio ahora mismo — no se comparte con nadie más. Tu
+              navegador te va a preguntar a continuación; elige{' '}
+              <strong>"Permitir"</strong>. Si no cae exacto, puedes
+              tocar el mapa para ajustarlo tú mismo.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setMostrarExplicacionUbicacion(false);
+                  try { localStorage.setItem('ubicacion-explicada', 'true'); } catch { /* no crítico */ }
+                  setUbicacionAutoFallo(true);
+                }}
+                className="flex-1 border-2 border-jungle-200 text-jungle-800 py-2.5 rounded-xl font-semibold text-sm"
+              >
+                Marcar a mano
+              </button>
+              <button
+                onClick={() => {
+                  setMostrarExplicacionUbicacion(false);
+                  try { localStorage.setItem('ubicacion-explicada', 'true'); } catch { /* no crítico */ }
+                  intentarUbicarme();
+                }}
+                className="flex-1 bg-jungle-700 text-white py-2.5 rounded-xl font-semibold text-sm"
+              >
+                Permitir ubicación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

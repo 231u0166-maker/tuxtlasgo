@@ -73,24 +73,24 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
                 Plataforma turística inteligente de Los Tuxtlas, Veracruz. Rutas
                 con IA, mapa offline y prestadores locales verificados.
               </p>
-              <div className="flex items-center gap-4 pt-1">
+              <div className="flex items-center gap-3 pt-1">
                 <a
                   href="https://www.facebook.com/share/1RRL1HJ5jS/"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Facebook de TuxtlasGO"
-                  className="text-jungle-100/60 hover:text-white transition-colors"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1877F2] text-white transition-transform hover:scale-110"
                 >
-                  <Facebook size={20} />
+                  <Facebook size={18} />
                 </a>
                 <a
                   href="https://www.instagram.com/tuxtlasgo?stkn=NnN6cTNicDI4bHFv"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Instagram de TuxtlasGO"
-                  className="text-jungle-100/60 hover:text-white transition-colors"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-[#FEDA75] via-[#D62976] to-[#4F5BD5] text-white transition-transform hover:scale-110"
                 >
-                  <Instagram size={20} />
+                  <Instagram size={18} />
                 </a>
               </div>
             </div>
@@ -138,12 +138,18 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
                     Aviso de privacidad
                   </Link>
                 </li>
+                <li>
+                  <Link to="/copyright" className="hover:text-white transition-colors">
+                    © Copyright
+                  </Link>
+                </li>
               </ul>
             </div>
           </div>
 
           <div className="mt-12 pt-6 border-t border-white/10 text-xs text-jungle-100/40 text-center sm:text-left">
-            © {new Date().getFullYear()} TuxtlasGO · Los Tuxtlas, Veracruz
+            © {new Date().getFullYear()} TuxtlasGO · Los Tuxtlas, Veracruz. Todos los derechos reservados. Prohibida su
+            reproducción total o parcial sin autorización.
           </div>
         </div>
       </footer>

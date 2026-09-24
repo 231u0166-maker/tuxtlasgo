@@ -8,6 +8,7 @@ import GaleriaPage from './components/GaleriaPage';
 import ComunidadPage from './components/ComunidadPage';
 import TerminosPage from './components/TerminosPage';
 import PrivacidadPage from './components/PrivacidadPage';
+import CopyrightPage from './components/CopyrightPage';
 import { seedDemoSiVacio, listarServiciosAprobadosComoLugares, cachearCatalogoAprobado, listarCatalogoCacheado } from './lib/db';
 import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
 import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
@@ -157,6 +158,7 @@ export default function App() {
         <Route path="/comunidad" element={<ComunidadPage />} />
         <Route path="/terminos" element={<TerminosPage />} />
         <Route path="/privacidad" element={<PrivacidadPage />} />
+        <Route path="/copyright" element={<CopyrightPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ActualizacionDisponible />

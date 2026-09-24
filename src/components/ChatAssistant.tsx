@@ -1118,36 +1118,22 @@ export default function ChatAssistant({
             extraidas.requiereHospitalCercano ?? prefsParcial.requiereHospitalCercano,
         };
 
-        // Transparencia: hallazgo real de campo — "quisiera solo una
-        // ruta en catemaco, para comer en un restaurante solo" dio una
-        // ruta "en pareja" sin avisar nada, porque esos campos no se
-        // extrajeron con confianza y se completaron con un valor por
-        // default EN SILENCIO. Un supuesto equivocado sin avisar se
-        // siente como que el sistema "no entendió nada" — avisando
-        // qué se asumió, el turista lo ve de inmediato y lo corrige
-        // en el siguiente mensaje, en vez de quedarse con la duda.
+        // Transparencia SOLO cuando se corrige algo que el turista sí
+        // pidió (ej. pidió 5 días y el generador arma hasta 3 por
+        // vez) — no cuando simplemente no mencionó un dato. Antes se
+        // avisaba también en ese segundo caso ("asumí: 2 días,
+        // presupuesto medio, que viajas pareja" para un mensaje como
+        // "ruta de pura gastronomía en Catemaco") y se sentía como una
+        // disculpa innecesaria por algo que el turista nunca pidió
+        // aclarar — feedback directo de usuario: no mencionar un dato
+        // no es un malentendido, y rellenarlo con un default
+        // razonable no necesita anunciarse cada vez. Corregir algo que
+        // SÍ se pidió (el tope de días) es distinto: eso sí se avisa,
+        // porque ahí el resultado no es lo que el turista pidió.
         const supuestos: string[] = [];
-        if (extraidas.dias === undefined && prefsParcial.dias === undefined) {
-          supuestos.push(`${diasFinal} día${diasFinal > 1 ? 's' : ''}`);
-        } else {
-          // Hallazgo real de campo (QA): "catemaco 5 dias..." SÍ
-          // detecta días (extraidas.dias queda definido, en 3 — el tope
-          // del generador de rutas), así que el aviso de arriba nunca
-          // se disparaba y el turista no se enteraba de que "5" se
-          // convirtió en "3" en silencio.
-          const diasPedidos = extraerDiasCrudo(texto);
-          if (diasPedidos !== null && diasPedidos > 3) {
-            supuestos.push(`${diasFinal} días (el generador de rutas arma hasta 3 días por vez, no ${diasPedidos})`);
-          }
-        }
-        if (extraidas.intereses === undefined && prefsParcial.intereses === undefined) {
-          supuestos.push(`interés en ${interesesFinal.join(', ').toLowerCase()}`);
-        }
-        if (extraidas.presupuesto === undefined && prefsParcial.presupuesto === undefined) {
-          supuestos.push(`presupuesto ${presupuestoFinal}`);
-        }
-        if (extraidas.grupo === undefined && prefsParcial.grupo === undefined) {
-          supuestos.push(`que viajas ${grupoFinal}`);
+        const diasPedidos = extraerDiasCrudo(texto);
+        if (diasPedidos !== null && diasPedidos > 3) {
+          supuestos.push(`${diasFinal} días (el generador de rutas arma hasta 3 días por vez, no ${diasPedidos})`);
         }
 
         setPrefsParcial(prefsCompletas);

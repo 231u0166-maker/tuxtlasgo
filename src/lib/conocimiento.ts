@@ -344,7 +344,15 @@ function filaACacheAEntrada(fila: {
 // catálogo de lugares y los embeddings).
 export async function cargarConocimientoDinamico(): Promise<void> {
   try {
-    const r = await fetch('/api/conocimiento/admin');
+    // Timeout corto: navigator.onLine puede decir "true" con señal a
+    // medias (celular débil, wifi con portal cautivo) y sin esto el
+    // fetch se queda colgado sin fallar, dejando la app entera en
+    // pantalla en blanco (App.tsx espera este await antes de arrancar).
+    const control = new AbortController();
+    const avisoTiempo = setTimeout(() => control.abort(), 6_000);
+    const r = await fetch('/api/conocimiento/admin', { signal: control.signal }).finally(() =>
+      clearTimeout(avisoTiempo)
+    );
     if (r.ok) {
       const data = await r.json();
       const filas: { id: number; claves: string; titulo: string; respuesta: string; prioridad: number }[] =

@@ -72,7 +72,15 @@ export async function recargarCatalogo() {
   const aprobadosLocal = await listarServiciosAprobadosComoLugares().catch(() => []);
 
   try {
-    const res = await fetch('/api/servicios/aprobados');
+    // Timeout corto: navigator.onLine puede decir "true" con señal a
+    // medias (celular débil, wifi con portal cautivo) y sin esto el
+    // fetch se queda colgado sin fallar, dejando la app entera en
+    // pantalla en blanco (ver `if (!listo) return null` más abajo).
+    const control = new AbortController();
+    const avisoTiempo = setTimeout(() => control.abort(), 6_000);
+    const res = await fetch('/api/servicios/aprobados', { signal: control.signal }).finally(() =>
+      clearTimeout(avisoTiempo)
+    );
     if (res.ok) {
       const data = await res.json();
       if (data.ok && data.lugares?.length > 0) {

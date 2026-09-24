@@ -1087,7 +1087,17 @@ export default function ChatAssistant({
 
       if (pareceSolicitudDeRuta(texto) || sueneAViajeCompleto) {
         const diasFinal = extraidas.dias ?? prefsParcial.dias ?? prefsDesdeFiltros?.dias ?? 2;
-        const interesesFinal = extraidas.intereses ?? prefsParcial.intereses ?? ['Naturaleza'];
+        // Sin categoría detectada, `[]` (no `['Naturaleza']` como antes)
+        // — hallazgo real de campo: "visitar el pueblo" no coincide con
+        // ninguna palabra clave de categoría, así que forzar Naturaleza
+        // mandaba a Nanciyaga/La Jungla (reservas retiradas del pueblo)
+        // cuando el turista quería ver el centro. Con `[]`,
+        // filtrarLugaresConRazones (chatbot.ts) ya no exige coincidencia
+        // de categoría y arma una mezcla real por calificación/destacado
+        // — normalmente sale variado (naturaleza + gastronomía), más
+        // parecido a "lo mejor de la zona" que a un tour forzado a un
+        // solo tipo de lugar que nadie pidió.
+        const interesesFinal = extraidas.intereses ?? prefsParcial.intereses ?? [];
         const presupuestoFinal = extraidas.presupuesto ?? prefsParcial.presupuesto ?? prefsDesdeFiltros?.presupuesto ?? 'medio';
         const grupoFinal = extraidas.grupo ?? prefsParcial.grupo ?? prefsDesdeFiltros?.grupo ?? 'pareja';
         // Municipio: detección por palabra clave ya existente (no

@@ -330,7 +330,7 @@ export function servicioComoLugar(s: ServicioPrestador): Lugar {
       dias:    s.diasAbierto || 'Consultar disponibilidad',
       horario: s.horario     || 'Consultar horario',
     },
-    comoLlegar: s.comoLlegar || `En ${s.municipio}. Contacto: ${s.contacto}`,
+    comoLlegar: s.comoLlegar || undefined,
     tip: s.tip,
     mascotas: s.mascotas,
     verificado: s.estado === 'aprobado',

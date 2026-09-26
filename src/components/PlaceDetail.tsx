@@ -14,6 +14,7 @@ import {
   Instagram,
   Facebook,
   MessageCircle,
+  Phone,
   Globe,
   CalendarCheck,
   Images,
@@ -173,14 +174,30 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
             />
           </div>
 
-          {/* Cómo llegar */}
-          <div className="bg-jungle-50 rounded-xl p-4">
-            <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
-              <Navigation size={12} />
-              Cómo llegar
+          {/* Cómo llegar — solo si el prestador lo describió; antes
+              se rellenaba con el contacto cuando faltaba (ver
+              servicioComoLugar en db.ts), mezclando dos cosas
+              distintas bajo el mismo título. */}
+          {lugar.comoLlegar && (
+            <div className="bg-jungle-50 rounded-xl p-4">
+              <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
+                <Navigation size={12} />
+                Cómo llegar
+              </div>
+              <p className="text-sm text-jungle-900">{lugar.comoLlegar}</p>
             </div>
-            <p className="text-sm text-jungle-900">{lugar.comoLlegar}</p>
-          </div>
+          )}
+
+          {/* Contacto */}
+          {lugar.contacto && (
+            <div className="bg-jungle-50 rounded-xl p-4">
+              <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
+                <Phone size={12} />
+                Contacto
+              </div>
+              <p className="text-sm text-jungle-900">{lugar.contacto}</p>
+            </div>
+          )}
 
           {/* Tip del lugar */}
           {lugar.tip && (

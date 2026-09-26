@@ -17,6 +17,12 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 **Arreglo:** se borró `PatrocinadosScreen.tsx`, la entrada `patrocinados` de `BottomNav.tsx` (móvil, incluyendo el tipo `Tab` y el import de `Crown` ahí) y el import/render de esa pantalla en `AppShell.tsx` (el ícono `Crown` ya no se usaba ahí tampoco). Se limpió un comentario en `InicioScreen.tsx` que hacía referencia a la pestaña ya inexistente. Verificado en vivo (escritorio y ancho móvil) que la pestaña ya no aparece en ningún menú.
 - Archivos: `src/components/BottomNav.tsx`, `src/components/AppShell.tsx`, `src/components/InicioScreen.tsx`, `src/components/PatrocinadosScreen.tsx` (eliminado)
 
+## Bug real: "Cómo llegar" mostraba el contacto en vez de direcciones
+**Causa:** cuando un prestador no llenaba el campo "Cómo llegar" al registrar su servicio, tanto el endpoint real de producción (`api/servicios/aprobados.ts`) como el catálogo offline (`src/lib/db.ts`) rellenaban ese campo con el texto `"En [municipio]. Contacto: [contacto]"` — la ficha terminaba mostrando el teléfono del prestador bajo el título "Cómo llegar", sin ninguna sección de "Contacto" real. Confirmado en la base real: p. ej. "Lanchas 'Catemaco'" (id 7) no tiene `como_llegar` capturado.
+**Arreglo:** se quitó ese relleno inventado — ahora "Cómo llegar" solo aparece si el prestador de verdad lo escribió (`PlaceDetail.tsx`, igual que ya hacían "Consejo"/"Mascotas"). Se agregó una sección propia "Contacto" (ícono de teléfono) en la ficha del turista (`PlaceDetail.tsx`) y en la vista previa del prestador (`PerfilScreen.tsx`), mostrando el dato real de contacto por separado.
+**Probado en vivo:** inyecté un servicio con `como_llegar` vacío y contacto real en IndexedDB — la ficha ya no inventa nada y muestra "Contacto: 294 121 1780" en su propia sección; un lugar con "Cómo llegar" real (Cerro del Venado) lo sigue mostrando normal.
+- Archivos: `api/servicios/aprobados.ts`, `src/lib/db.ts`, `src/components/PlaceDetail.tsx`, `src/components/PerfilScreen.tsx`
+
 ---
 
 # Sesión 2026-09-23/24 — Copyright, chat offline/online, Premium

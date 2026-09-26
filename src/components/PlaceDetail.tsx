@@ -14,6 +14,7 @@ import {
   Instagram,
   Facebook,
   MessageCircle,
+  Phone,
   Globe,
   CalendarCheck,
   Images,
@@ -172,6 +173,19 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
               value={lugar.abierto.horario}
             />
           </div>
+
+          {/* Contacto — arriba de "Cómo llegar" a propósito: es el
+              primer dato que busca el turista para comunicarse con el
+              prestador. */}
+          {lugar.contacto && (
+            <div className="bg-jungle-50 rounded-xl p-4">
+              <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
+                <Phone size={12} />
+                Contacto
+              </div>
+              <p className="text-sm text-jungle-900">{lugar.contacto}</p>
+            </div>
+          )}
 
           {/* Cómo llegar */}
           <div className="bg-jungle-50 rounded-xl p-4">

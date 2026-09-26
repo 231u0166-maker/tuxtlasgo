@@ -2302,6 +2302,12 @@ function PreviewCard({ lugar }: { lugar: Lugar }) {
             <p className="text-sm font-semibold text-jungle-900 mt-0.5">{lugar.abierto.horario}</p>
           </div>
         </div>
+        {lugar.contacto && (
+          <div className="bg-jungle-50 rounded-xl p-2.5">
+            <p className="text-[10px] text-jungle-500 uppercase font-semibold mb-0.5">Contacto</p>
+            <p className="text-xs text-jungle-700">{lugar.contacto}</p>
+          </div>
+        )}
         {lugar.comoLlegar && (
           <div className="bg-jungle-50 rounded-xl p-2.5">
             <p className="text-[10px] text-jungle-500 uppercase font-semibold mb-0.5">Cómo llegar</p>

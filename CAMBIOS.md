@@ -17,6 +17,12 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 **Arreglo:** se borró `PatrocinadosScreen.tsx`, la entrada `patrocinados` de `BottomNav.tsx` (móvil, incluyendo el tipo `Tab` y el import de `Crown` ahí) y el import/render de esa pantalla en `AppShell.tsx` (el ícono `Crown` ya no se usaba ahí tampoco). Se limpió un comentario en `InicioScreen.tsx` que hacía referencia a la pestaña ya inexistente. Verificado en vivo (escritorio y ancho móvil) que la pestaña ya no aparece en ningún menú.
 - Archivos: `src/components/BottomNav.tsx`, `src/components/AppShell.tsx`, `src/components/InicioScreen.tsx`, `src/components/PatrocinadosScreen.tsx` (eliminado)
 
+## Sección "Contacto" agregada arriba de "Cómo llegar"
+**Pedido:** el contacto (teléfono) de cada prestador es lo primero que busca el turista — agregar una sección visible propia para eso, arriba de "Cómo llegar", sin quitar nada de lo que ya funciona ahí.
+**Arreglo:** nueva sección "Contacto" (ícono de teléfono) en la ficha del turista (`PlaceDetail.tsx`) y en la vista previa del prestador (`PerfilScreen.tsx`), mostrando `lugar.contacto`, colocada justo antes de "Cómo llegar". "Cómo llegar" se dejó intacto tal cual estaba.
+**Probado en vivo:** servicio de prueba con contacto y cómo llegar reales — la ficha muestra "Contacto: 294 125 0703" primero y "Cómo llegar" justo debajo, en ese orden.
+- Archivos: `src/components/PlaceDetail.tsx`, `src/components/PerfilScreen.tsx`
+
 ---
 
 # Sesión 2026-09-23/24 — Copyright, chat offline/online, Premium

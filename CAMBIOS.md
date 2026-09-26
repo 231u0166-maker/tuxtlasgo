@@ -12,6 +12,14 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 **Probado en vivo:** con sesión de prestador simulada (mock de `/api/auth/perfil` y `/api/servicios/editar`) — abrí y guardé cambios en los 3 modales, y confirmé que cancelar sin guardar descarta el cambio (reabrí el modal y seguía el valor original).
 - Archivos: `src/components/PerfilScreen.tsx`
 
+## "Detalles para el turista": horario tipo rueda de alarma + días con más espacio
+**Pedido:** dentro de ese modal, "Días abierto" se veía muy apretado (compartía la mitad del ancho con "Horario"), y el campo Horario usaba el selector nativo del navegador (`<input type="time">`), que se ve técnico/feo y distinto en cada sistema — pidió algo como la rueda de hora de un celular al poner una alarma.
+**Arreglo:**
+- "Horario" y "Días abierto" ahora ocupan cada uno el ancho completo del modal (antes iban en 2 columnas apretadas) — los 7 botones de día ya tienen espacio de sobra.
+- Selector de hora hecho a la medida con 3 ruedas deslizables (hora 12h, minutos, a.m./p.m.) usando scroll-snap nativo del navegador — sin agregar ninguna librería nueva. Reemplaza el `<input type="time">` para "Desde" y "Hasta".
+**Probado en vivo:** abrí el modal, deslicé la rueda de hora de "Desde" de 9 a 6, guardé, y confirmó "6:00 am - 11:32 pm" en el resumen.
+- Archivos: `src/components/PerfilScreen.tsx`
+
 # Sesión 2026-09-25 — Limpieza de datos demo
 
 ## Prestadores demo eliminados

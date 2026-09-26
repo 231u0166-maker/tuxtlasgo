@@ -1392,15 +1392,13 @@ function PerfilPrestador({
 
       {modalEditar === 'detalles' && (
         <ModalEditarSeccion titulo="Detalles para el turista" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
-              <SelectorHorario valor={form.horario} onCambiar={(s) => setForm({ ...form, horario: s })} />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Días abierto</label>
-              <SelectorDias valor={form.dias_abierto} onCambiar={(s) => setForm({ ...form, dias_abierto: s })} />
-            </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
+            <SelectorHorario valor={form.horario} onCambiar={(s) => setForm({ ...form, horario: s })} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-2 block">Días abierto</label>
+            <SelectorDias valor={form.dias_abierto} onCambiar={(s) => setForm({ ...form, dias_abierto: s })} />
           </div>
           <div>
             <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
@@ -2140,24 +2138,113 @@ function formatear12h(hhmm: string): string {
   return `${h}:${m} ${ampm}`;
 }
 
+// ─────────────── Selector de hora tipo "alarma de celular" ───────────
+// Antes usaba <input type="time"> — cada navegador/SO dibuja su propio
+// selector nativo (en Windows/Chrome sale una tabla de horas/minutos
+// que se siente ajena al resto de la app). Esto es un selector de
+// ruedas hecho a la medida (scroll-snap, sin librería nueva) para que
+// se sienta como poner una alarma en el teléfono.
+const ALTO_ITEM_RUEDA = 36;
+
+function ColumnaRueda({ opciones, indice, onCambiar }: { opciones: (string | number)[]; indice: number; onCambiar: (i: number) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Solo se auto-posiciona al montar — después el scroll del usuario
+  // manda, así no le "arrebatamos" el dedo a media gesticulación.
+  useEffect(() => {
+    ref.current?.scrollTo({ top: indice * ALTO_ITEM_RUEDA });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function alTerminarScroll() {
+    const cont = ref.current;
+    if (!cont) return;
+    const idx = Math.max(0, Math.min(opciones.length - 1, Math.round(cont.scrollTop / ALTO_ITEM_RUEDA)));
+    cont.scrollTo({ top: idx * ALTO_ITEM_RUEDA, behavior: 'smooth' });
+    if (idx !== indice) onCambiar(idx);
+  }
+
+  function alScrollear() {
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(alTerminarScroll, 130);
+  }
+
+  function elegir(i: number) {
+    ref.current?.scrollTo({ top: i * ALTO_ITEM_RUEDA, behavior: 'smooth' });
+    onCambiar(i);
+  }
+
+  return (
+    <div ref={ref} onScroll={alScrollear}
+      className="relative h-[108px] w-14 overflow-y-scroll snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div style={{ height: ALTO_ITEM_RUEDA }} />
+      {opciones.map((op, i) => (
+        <div key={i} onClick={() => elegir(i)}
+          className={`h-9 flex items-center justify-center snap-center cursor-pointer select-none tabular-nums transition-colors ${
+            i === indice ? 'text-jungle-900 font-bold text-base' : 'text-jungle-300 text-sm'
+          }`}>
+          {op}
+        </div>
+      ))}
+      <div style={{ height: ALTO_ITEM_RUEDA }} />
+    </div>
+  );
+}
+
+const HORAS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
+const MINUTOS_60 = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+const AMPM_OPCIONES = ['a. m.', 'p. m.'];
+
+// Una sola hora (formato interno "HH:MM" 24h, igual que antes) elegida
+// con 3 ruedas: hora 12h, minutos y am/pm.
+function RuedaHora({ valor, onCambiar }: { valor: string; onCambiar: (hhmm: string) => void }) {
+  const { h, m, ampm } = useMemo(() => {
+    const [hStr, mStr] = (valor || '09:00').split(':');
+    const h24 = parseInt(hStr, 10) || 0;
+    const ampmIdx = h24 >= 12 ? 1 : 0;
+    let h12 = h24 % 12; if (h12 === 0) h12 = 12;
+    return { h: h12, m: parseInt(mStr, 10) || 0, ampm: ampmIdx };
+  }, [valor]);
+
+  function cambiar(hNuevo: number, mNuevo: number, ampmNuevo: number) {
+    let h24 = hNuevo % 12;
+    if (ampmNuevo === 1) h24 += 12;
+    onCambiar(`${String(h24).padStart(2, '0')}:${String(mNuevo).padStart(2, '0')}`);
+  }
+
+  return (
+    <div className="relative flex items-center justify-center gap-1 bg-jungle-50 rounded-2xl py-1">
+      {/* Banda que marca la fila seleccionada, igual que un picker de alarma */}
+      <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 h-9 bg-white rounded-xl border border-jungle-200 pointer-events-none" />
+      <ColumnaRueda opciones={HORAS_12} indice={h - 1} onCambiar={(i) => cambiar(i + 1, m, ampm)} />
+      <span className="text-jungle-400 font-bold relative">:</span>
+      <ColumnaRueda opciones={MINUTOS_60} indice={m} onCambiar={(i) => cambiar(h, i, ampm)} />
+      <ColumnaRueda opciones={AMPM_OPCIONES} indice={ampm} onCambiar={(i) => cambiar(h, m, i)} />
+    </div>
+  );
+}
+
 function SelectorHorario({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
   const partes = useMemo(() => valor.split(/[-–]/).map((s) => s.trim()), [valor]);
-  const [desde, setDesde] = useState(() => (partes[0] ? parsearHora12a24(partes[0]) : ''));
-  const [hasta, setHasta] = useState(() => (partes[1] ? parsearHora12a24(partes[1]) : ''));
+  const [desde, setDesde] = useState(() => (partes[0] ? parsearHora12a24(partes[0]) || '09:00' : '09:00'));
+  const [hasta, setHasta] = useState(() => (partes[1] ? parsearHora12a24(partes[1]) || '18:00' : '18:00'));
 
   useEffect(() => {
-    if (!desde || !hasta) return;
     onCambiar(`${formatear12h(desde)} - ${formatear12h(hasta)}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desde, hasta]);
 
   return (
-    <div className="flex items-center gap-2">
-      <input type="time" value={desde} onChange={(e) => setDesde(e.target.value)}
-        className="w-full bg-jungle-50 rounded-xl px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-      <span className="text-jungle-400 text-xs flex-shrink-0">a</span>
-      <input type="time" value={hasta} onChange={(e) => setHasta(e.target.value)}
-        className="w-full bg-jungle-50 rounded-xl px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+    <div className="flex items-start gap-3">
+      <div className="flex-1">
+        <p className="text-[11px] font-semibold text-jungle-500 mb-1.5 text-center">Desde</p>
+        <RuedaHora valor={desde} onCambiar={setDesde} />
+      </div>
+      <div className="flex-1">
+        <p className="text-[11px] font-semibold text-jungle-500 mb-1.5 text-center">Hasta</p>
+        <RuedaHora valor={hasta} onCambiar={setHasta} />
+      </div>
     </div>
   );
 }

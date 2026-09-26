@@ -25,6 +25,7 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 **Decisión importante (confirmada con el usuario):** "Días abierto" sigue siendo un patrón semanal que se repite siempre (abierto todos los lunes) — NO se convirtió en una cuadrícula de fechas reales del mes, porque eso obligaría al prestador a venir cada mes a marcar el mes siguiente, para siempre. Se le explicó la diferencia y prefirió mantener el patrón semanal, solo con apariencia de calendario.
 **Arreglo:** "Días abierto" ahora es un botón resumen (ej. "L, M, M, J, V") que abre una ventana propia, apilada sobre el modal de "Detalles para el turista". Ahí, columnas L-D con celdas apiladas simulan un calendario — tocar la columna completa de un día lo marca/desmarca para todas las semanas. Incluye "Marcar todos los días" y "Listo". El dato guardado (`dias_abierto`) no cambió de formato, solo la forma de capturarlo.
 **Probado en vivo:** abrí la ventana, activé "Sábado" tocando su columna, cerré con "Listo", y confirmé que el resumen y el guardado final reflejan "Lunes, Martes, Miércoles, Jueves, Viernes, Sábado".
+**Ajuste pedido después:** se quitaron las barras decorativas debajo de cada círculo (el usuario las vio de sobra) — quedan solo los 7 círculos L-D.
 - Archivos: `src/components/PerfilScreen.tsx`
 
 # Sesión 2026-09-25 — Limpieza de datos demo

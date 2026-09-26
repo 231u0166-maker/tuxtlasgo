@@ -2310,17 +2310,12 @@ function SelectorDias({ valor, onCambiar }: { valor: string; onCambiar: (s: stri
                   const activo = seleccionados.includes(d.id);
                   return (
                     <button key={d.id} type="button" onClick={() => alternar(d.id)} title={d.nombre}
-                      className="flex flex-col items-center gap-1 group">
+                      className="flex items-center justify-center group">
                       <span className={`w-full aspect-square rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                         activo ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-500 group-hover:bg-jungle-100'
                       }`}>
                         {d.label}
                       </span>
-                      {[0, 1, 2].map((fila) => (
-                        <span key={fila} className={`w-full h-3 rounded-sm transition-colors ${
-                          activo ? 'bg-jungle-600' : 'bg-jungle-50 group-hover:bg-jungle-100'
-                        }`} />
-                      ))}
                     </button>
                   );
                 })}

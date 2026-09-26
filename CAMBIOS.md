@@ -4,6 +4,14 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 
 ---
 
+# Sesión 2026-09-26 — Reestructura de "Mi Servicio" (menos saturación)
+
+## "Mi Servicio" pasa de un formulario gigante a 3 modales por sección
+**Pedido:** el usuario mostró capturas de "Mi Servicio" (Perfil de prestador) — un solo formulario largo con TODOS los campos (nombre, categoría, precio, contacto, horario, cómo llegar, mascotas...) visibles de golpe al tocar "Editar", muy saturado sobre todo en móvil. Pidió que cada edición abra una ventana emergente enfocada solo en esa parte, como el modal de "Iniciar sesión".
+**Arreglo:** "Mi Servicio" ahora es una vista de solo lectura con 3 tarjetas (Información básica · Precio y contacto · Detalles para el turista), cada una con su propio lápiz de editar. Cada lápiz abre un modal (`ModalEditarSeccion`, mismo patrón visual que `AuthModal`: hoja desde abajo en móvil, centrado en escritorio) con solo los campos de esa sección. El guardado sigue siendo el mismo PATCH de siempre a `/api/servicios/editar` — no se tocó el backend. Al abrir cualquier modal, el formulario se refresca desde el servicio real (`formDesdeServicio()`), así "Cancelar" nunca deja un campo a medio escribir filtrándose a otra sección.
+**Probado en vivo:** con sesión de prestador simulada (mock de `/api/auth/perfil` y `/api/servicios/editar`) — abrí y guardé cambios en los 3 modales, y confirmé que cancelar sin guardar descarta el cambio (reabrí el modal y seguía el valor original).
+- Archivos: `src/components/PerfilScreen.tsx`
+
 # Sesión 2026-09-25 — Limpieza de datos demo
 
 ## Prestadores demo eliminados

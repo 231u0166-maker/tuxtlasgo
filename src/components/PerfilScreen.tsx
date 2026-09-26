@@ -152,6 +152,28 @@ function parseIdeal(raw: string[] | string | undefined): string[] {
   try { return JSON.parse(raw); } catch { return []; }
 }
 
+// Deriva el form editable a partir del servicio guardado — se usa al
+// cargar Y cada vez que se abre un modal de edición, para que "Editar"
+// siempre parta de los datos reales (nunca de un borrador abandonado
+// de otro modal que se haya cancelado).
+function formDesdeServicio(srv: ServicioAPI): FormServicio {
+  return {
+    nombre:      srv.nombre      ?? '',
+    categoria:   srv.categoria   ?? '',
+    municipio:   srv.municipio   ?? '',
+    descripcion: srv.descripcion ?? '',
+    precio:      srv.precio      ?? '',
+    contacto:    srv.contacto    ?? '',
+    horario:     srv.horario     ?? '',
+    dias_abierto: srv.dias_abierto ?? '',
+    duracion:    srv.duracion    ?? '',
+    como_llegar: srv.como_llegar ?? '',
+    tip:         srv.tip         ?? '',
+    mascotas:    srv.mascotas    ?? '',
+    ideal_para:  parseIdeal(srv.ideal_para),
+  };
+}
+
 // ─────────────── ENTRADA ───────────────
 interface Props {
   onVolver: () => void;
@@ -568,7 +590,6 @@ function PerfilPrestador({
   const [fotos, setFotos]         = useState<string[]>([]);
   const [cargando, setCargando]   = useState(true);
   const [error, setError]         = useState('');
-  const [editando, setEditando]   = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito]         = useState(false);
   const [enlaces, setEnlaces]     = useState<EnlaceServicio[]>([]);
@@ -586,6 +607,11 @@ function PerfilPrestador({
     precio: '', contacto: '', horario: '', dias_abierto: '',
     duracion: '', como_llegar: '', tip: '', mascotas: '', ideal_para: [],
   });
+  // Qué modal de edición está abierto — antes era un solo booleano
+  // ("editando") que revelaba TODO el formulario de golpe (12+ campos
+  // de una sola pasada, ver captura del usuario). Ahora cada sección
+  // se edita en su propio modal, como el de "Iniciar sesión".
+  const [modalEditar, setModalEditar] = useState<'basica' | 'precio' | 'detalles' | null>(null);
 
   async function cargar() {
     setCargando(true);
@@ -605,21 +631,7 @@ function PerfilPrestador({
         setServicio(srv);
         setFotos(parseFotos(srv.fotos));
         setEnlaces(parseEnlaces(srv.enlaces));
-        setForm({
-          nombre:      srv.nombre      ?? '',
-          categoria:   srv.categoria   ?? '',
-          municipio:   srv.municipio   ?? '',
-          descripcion: srv.descripcion ?? '',
-          precio:      srv.precio      ?? '',
-          contacto:    srv.contacto    ?? '',
-          horario:     srv.horario     ?? '',
-          dias_abierto: srv.dias_abierto ?? '',
-          duracion:    srv.duracion    ?? '',
-          como_llegar: srv.como_llegar ?? '',
-          tip:         srv.tip         ?? '',
-          mascotas:    srv.mascotas    ?? '',
-          ideal_para:  parseIdeal(srv.ideal_para),
-        });
+        setForm(formDesdeServicio(srv));
       } else {
         setServicio(null);
       }
@@ -706,7 +718,7 @@ function PerfilPrestador({
           estado: (data.servicio.estado ?? servicio?.estado ?? '').trim().toLowerCase(),
         };
         setServicio(srv);
-        setEditando(false);
+        setModalEditar(null);
         setExito(true);
         setTimeout(() => setExito(false), 3000);
         // Actualiza el catálogo en tiempo real — el turista ve los cambios de inmediato
@@ -718,6 +730,15 @@ function PerfilPrestador({
       alert('Sin conexión. Verifica tu internet.');
     }
     setGuardando(false);
+  }
+
+  // Refresca el form desde el servicio real antes de abrir cualquier
+  // modal — así "Cancelar" nunca deja un campo a medio escribir de
+  // una sección filtrándose al guardar otra (el PATCH manda el form
+  // completo, aunque solo se haya tocado una sección).
+  function abrirModal(seccion: 'basica' | 'precio' | 'detalles') {
+    if (servicio) setForm(formDesdeServicio(servicio));
+    setModalEditar(seccion);
   }
 
   function toggleIdeal(id: string) {
@@ -1108,129 +1129,35 @@ function PerfilPrestador({
                   <BarraPerfilCompleto servicio={servicio} fotos={fotos} />
                 </div>
 
-                {editando ? (
-                  <div className="space-y-4">
-                    {/* Formulario largo sin agrupar era una sola pared
-                        de campos — separarlo en "lo esencial" vs.
-                        "detalles" ayuda a ubicarse y a saber cuánto
-                        falta, sin tocar el guardado (sigue siendo un
-                        solo PATCH con todo el form). */}
-                    <p className="text-[11px] font-bold text-jungle-400 uppercase tracking-wide">Información básica</p>
-                    <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre del negocio <span className="text-red-500">*</span></label>
-                      <input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
-                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría</label>
-                        <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                          {['Gastronomia','Naturaleza','Aventura','Hospedaje','Comercio','Cooperativa','Otro'].map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
-                        <select value={form.municipio} onChange={e => setForm({ ...form, municipio: e.target.value })}
-                          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                          {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Descripción <span className="text-red-500">*</span></label>
-                      <textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}
-                        rows={4} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
-                        <SelectorPrecio valor={form.precio} onCambiar={(s) => setForm({ ...form, precio: s })} />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp / correo</label>
-                        <SelectorContacto valor={form.contacto} onCambiar={(s) => setForm({ ...form, contacto: s })} />
-                      </div>
-                    </div>
-                    <p className="text-[11px] font-bold text-jungle-400 uppercase tracking-wide pt-2 border-t border-jungle-100">Detalles para el turista</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8">
-                      <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
-                        <SelectorHorario valor={form.horario} onCambiar={(s) => setForm({ ...form, horario: s })} />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-jungle-700 mb-1 block">Días abierto</label>
-                        <SelectorDias valor={form.dias_abierto} onCambiar={(s) => setForm({ ...form, dias_abierto: s })} />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
-                      <SelectorDuracion valor={form.duracion} onCambiar={(s) => setForm({ ...form, duracion: s })} />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">Cómo llegar</label>
-                      <textarea value={form.como_llegar} onChange={e => setForm({ ...form, como_llegar: e.target.value })}
-                        placeholder="ej: A 45 minutos de Catemaco por carretera costera."
-                        rows={2} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">💡 Consejo para el visitante</label>
-                      <input value={form.tip} onChange={e => setForm({ ...form, tip: e.target.value })}
-                        placeholder="ej: Lleva efectivo, no siempre hay señal."
-                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1 block">🐾 ¿Aceptan mascotas?</label>
-                      <input value={form.mascotas} onChange={e => setForm({ ...form, mascotas: e.target.value })}
-                        placeholder="ej: Sí, aceptamos perros / No se permiten mascotas / Solo en la terraza"
-                        className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                      <p className="text-[11px] text-jungle-500 mt-1">Si lo dejas vacío, el asistente dirá honestamente que no tiene ese dato — nunca lo inventa.</p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-2 block">Ideal para</label>
-                      <div className="flex flex-wrap gap-2">
-                        {IDEAL_OPCIONES.map(op => (
-                          <button key={op.id} type="button" onClick={() => toggleIdeal(op.id)}
-                            className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${
-                              form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
-                            }`}>
-                            {op.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex gap-3 pt-2">
-                      <button onClick={guardar} disabled={guardando}
-                        className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
-                        {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                        Guardar cambios
-                      </button>
-                      <button onClick={() => setEditando(false)}
-                        className="px-5 bg-jungle-100 hover:bg-jungle-200 text-jungle-700 py-3 rounded-xl text-sm font-semibold">
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <InfoFila icono={<Store size={14} />}  label="Categoría"   valor={servicio.categoria} />
-                    <InfoFila icono={null}                 label="Municipio"   valor={servicio.municipio} />
-                    <InfoFila icono={<Phone size={14} />}  label="Contacto"    valor={servicio.contacto} />
-                    <InfoFila icono={null}                 label="Precio"      valor={servicio.precio} />
-                    <InfoFila icono={<Clock size={14} />}  label="Horario"
-                      valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
-                    <InfoFila icono={null}  label="Duración"    valor={servicio.duracion} />
-                    <InfoFila icono={null}  label="Cómo llegar" valor={servicio.como_llegar} />
-                    <InfoFila icono={null}  label="Consejo"     valor={servicio.tip} />
-                    <InfoFila icono={null}  label="🐾 Mascotas"  valor={servicio.mascotas} />
+                {/* Antes "Editar" revelaba un solo formulario con las
+                    12+ cosas de golpe (nombre, precio, horario, cómo
+                    llegar, mascotas...) en una sola pared de campos —
+                    saturaba, sobre todo en móvil. Ahora cada sección
+                    es una tarjeta de solo lectura con su propio lápiz,
+                    que abre un modal enfocado nada más en esa sección
+                    (mismo patrón que el modal de "Iniciar sesión"). */}
+                <div className="space-y-3">
+                  <SeccionServicio titulo="Información básica" onEditar={() => abrirModal('basica')}>
+                    <InfoFila icono={<Store size={14} />} label="Categoría" valor={servicio.categoria} />
+                    <InfoFila icono={null} label="Municipio" valor={servicio.municipio} />
                     <div className="bg-jungle-50 rounded-xl p-3">
                       <p className="text-xs font-semibold text-jungle-500 mb-1">Descripción</p>
                       <p className="text-sm text-jungle-800">{servicio.descripcion}</p>
                     </div>
+                  </SeccionServicio>
+
+                  <SeccionServicio titulo="Precio y contacto" onEditar={() => abrirModal('precio')}>
+                    <InfoFila icono={null} label="Precio" valor={servicio.precio} />
+                    <InfoFila icono={<Phone size={14} />} label="Contacto" valor={servicio.contacto} />
+                  </SeccionServicio>
+
+                  <SeccionServicio titulo="Detalles para el turista" onEditar={() => abrirModal('detalles')}>
+                    <InfoFila icono={<Clock size={14} />} label="Horario"
+                      valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
+                    <InfoFila icono={null} label="Duración" valor={servicio.duracion} />
+                    <InfoFila icono={null} label="Cómo llegar" valor={servicio.como_llegar} />
+                    <InfoFila icono={null} label="Consejo" valor={servicio.tip} />
+                    <InfoFila icono={null} label="🐾 Mascotas" valor={servicio.mascotas} />
                     {parseIdeal(servicio.ideal_para).length > 0 && (
                       <div>
                         <p className="text-xs font-semibold text-jungle-500 mb-1.5">Ideal para</p>
@@ -1244,18 +1171,15 @@ function PerfilPrestador({
                         </div>
                       </div>
                     )}
-                    <div className="bg-jungle-50 rounded-xl p-3 flex items-center gap-3">
-                      <div>
-                        <p className="text-[10px] text-jungle-500 uppercase tracking-wide font-semibold">Código de seguimiento</p>
-                        <p className="font-display font-bold text-lg text-jungle-900 tracking-wider">{servicio.codigo_seguimiento}</p>
-                      </div>
+                  </SeccionServicio>
+
+                  <div className="bg-jungle-50 rounded-xl p-3 flex items-center gap-3">
+                    <div>
+                      <p className="text-[10px] text-jungle-500 uppercase tracking-wide font-semibold">Código de seguimiento</p>
+                      <p className="font-display font-bold text-lg text-jungle-900 tracking-wider">{servicio.codigo_seguimiento}</p>
                     </div>
-                    <button onClick={() => setEditando(true)}
-                      className="w-full flex items-center justify-center gap-2 border border-jungle-200 hover:bg-jungle-50 text-jungle-700 py-3 rounded-xl text-sm font-semibold transition-colors">
-                      <Edit3 size={15} /> Editar información del servicio
-                    </button>
                   </div>
-                )}
+                </div>
               </div>
             )}
 
@@ -1416,6 +1340,105 @@ function PerfilPrestador({
           nombreOtro={chatAbierto.nombre}
           onCerrar={() => { setChatAbierto(null); cargarReservacionesEntrantes(); }}
         />
+      )}
+
+      {modalEditar === 'basica' && (
+        <ModalEditarSeccion titulo="Información básica" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre del negocio <span className="text-red-500">*</span></label>
+            <input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
+              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría</label>
+              <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
+                className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                {['Gastronomia','Naturaleza','Aventura','Hospedaje','Comercio','Cooperativa','Otro'].map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
+              <select value={form.municipio} onChange={e => setForm({ ...form, municipio: e.target.value })}
+                className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Descripción <span className="text-red-500">*</span></label>
+            <textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}
+              rows={4} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+          </div>
+        </ModalEditarSeccion>
+      )}
+
+      {modalEditar === 'precio' && (
+        <ModalEditarSeccion titulo="Precio y contacto" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
+            <SelectorPrecio valor={form.precio} onCambiar={(s) => setForm({ ...form, precio: s })} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp / correo</label>
+            <SelectorContacto valor={form.contacto} onCambiar={(s) => setForm({ ...form, contacto: s })} />
+          </div>
+        </ModalEditarSeccion>
+      )}
+
+      {modalEditar === 'detalles' && (
+        <ModalEditarSeccion titulo="Detalles para el turista" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+            <div>
+              <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
+              <SelectorHorario valor={form.horario} onCambiar={(s) => setForm({ ...form, horario: s })} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Días abierto</label>
+              <SelectorDias valor={form.dias_abierto} onCambiar={(s) => setForm({ ...form, dias_abierto: s })} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
+            <SelectorDuracion valor={form.duracion} onCambiar={(s) => setForm({ ...form, duracion: s })} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Cómo llegar</label>
+            <textarea value={form.como_llegar} onChange={e => setForm({ ...form, como_llegar: e.target.value })}
+              placeholder="ej: A 45 minutos de Catemaco por carretera costera."
+              rows={2} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">💡 Consejo para el visitante</label>
+            <input value={form.tip} onChange={e => setForm({ ...form, tip: e.target.value })}
+              placeholder="ej: Lleva efectivo, no siempre hay señal."
+              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">🐾 ¿Aceptan mascotas?</label>
+            <input value={form.mascotas} onChange={e => setForm({ ...form, mascotas: e.target.value })}
+              placeholder="ej: Sí, aceptamos perros / No se permiten mascotas / Solo en la terraza"
+              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+            <p className="text-[11px] text-jungle-500 mt-1">Si lo dejas vacío, el asistente dirá honestamente que no tiene ese dato — nunca lo inventa.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-2 block">Ideal para</label>
+            <div className="flex flex-wrap gap-2">
+              {IDEAL_OPCIONES.map(op => (
+                <button key={op.id} type="button" onClick={() => toggleIdeal(op.id)}
+                  className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${
+                    form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
+                  }`}>
+                  {op.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </ModalEditarSeccion>
       )}
     </div>
   );
@@ -2242,6 +2265,59 @@ function BarraPerfilCompleto({ servicio, fotos }: { servicio: ServicioAPI; fotos
           Completa horario, cómo llegar, consejo, mascotas, fotos e "ideal para" en Mi Servicio para llegar al 100%.
         </p>
       )}
+    </div>
+  );
+}
+
+// Tarjeta de solo lectura para una sección de "Mi Servicio", con su
+// propio lápiz de editar — reemplaza al formulario único gigante.
+function SeccionServicio({ titulo, onEditar, children }: { titulo: string; onEditar: () => void; children: React.ReactNode }) {
+  return (
+    <div className="border border-jungle-100 rounded-xl p-3.5">
+      <div className="flex items-center justify-between mb-2.5">
+        <p className="text-[11px] font-bold text-jungle-400 uppercase tracking-wide">{titulo}</p>
+        <button onClick={onEditar} className="text-jungle-500 hover:text-jungle-800 hover:bg-jungle-50 p-1.5 -m-1.5 rounded-lg transition-colors"
+          aria-label={`Editar ${titulo}`}>
+          <Edit3 size={14} />
+        </button>
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+// Modal enfocado en UNA sección de "Mi Servicio" — mismo patrón visual
+// que AuthModal (hoja desde abajo en móvil, centrado en escritorio),
+// para que editar el negocio se sienta igual de simple que iniciar
+// sesión, en vez de la pared de campos de antes.
+function ModalEditarSeccion({
+  titulo, onClose, onGuardar, guardando, children,
+}: {
+  titulo: string; onClose: () => void; onGuardar: () => void; guardando: boolean; children: React.ReactNode;
+}) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }}
+      className="lg:!items-center lg:!justify-center lg:p-8">
+      <div className="bg-white w-full rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto lg:max-w-lg lg:max-h-[90vh] lg:shadow-2xl">
+        <div className="sticky top-0 bg-white border-b border-jungle-100 px-6 py-4 flex items-center justify-between rounded-t-3xl z-10">
+          <h2 className="font-display font-extrabold text-lg text-jungle-950">{titulo}</h2>
+          <button onClick={onClose} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={22} /></button>
+        </div>
+        <div className="px-6 py-6 space-y-4">
+          {children}
+          <div className="flex gap-3 pt-2">
+            <button onClick={onGuardar} disabled={guardando}
+              className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+              {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Guardar cambios
+            </button>
+            <button onClick={onClose}
+              className="px-5 bg-jungle-100 hover:bg-jungle-200 text-jungle-700 py-3 rounded-xl text-sm font-semibold">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

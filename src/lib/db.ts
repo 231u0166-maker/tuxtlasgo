@@ -366,6 +366,19 @@ export async function listarCatalogoCacheado(): Promise<Lugar[]> {
   return db.catalogoCache.toArray();
 }
 
+// Limpieza puntual: quita del IndexedDB de este dispositivo dos
+// prestadores demo que se retiraron del seed (ver seedDemoSiVacio) —
+// quienes ya los tenían sembrados de una sesión anterior seguían
+// viéndolos porque el seed solo corre una vez, cuando la tabla está
+// vacía. Se identifican por su código de seguimiento fijo, así que
+// esto no toca nada que el usuario haya registrado él mismo.
+export async function limpiarPrestadoresDemoRetirados() {
+  await db.prestadores
+    .where('codigoSeguimiento')
+    .anyOf(['TGO-DEMO', 'TGO-DEM3'])
+    .delete();
+}
+
 // Seed inicial: si la BD está vacía, agrega prestadores demo
 export async function seedDemoSiVacio() {
   const count = await db.prestadores.count();

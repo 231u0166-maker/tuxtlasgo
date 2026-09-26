@@ -9,7 +9,7 @@ import ComunidadPage from './components/ComunidadPage';
 import TerminosPage from './components/TerminosPage';
 import PrivacidadPage from './components/PrivacidadPage';
 import CopyrightPage from './components/CopyrightPage';
-import { seedDemoSiVacio, listarServiciosAprobadosComoLugares, cachearCatalogoAprobado, listarCatalogoCacheado } from './lib/db';
+import { seedDemoSiVacio, limpiarPrestadoresDemoRetirados, listarServiciosAprobadosComoLugares, cachearCatalogoAprobado, listarCatalogoCacheado } from './lib/db';
 import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
 import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
@@ -124,6 +124,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
+        await limpiarPrestadoresDemoRetirados();
         await seedDemoSiVacio();
         await recargarCatalogo();
         await cargarConocimientoDinamico();

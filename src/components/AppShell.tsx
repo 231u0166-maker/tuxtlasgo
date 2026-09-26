@@ -50,7 +50,6 @@ const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
   { id: 'inicio', label: 'Destacados', icon: Sparkles },
   { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'chat', label: 'Asistente IA', icon: MessageCircle },
-  { id: 'patrocinados', label: 'Patrocinados', icon: Crown },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },
   { id: 'perfil', label: "Mi Perfil", icon: User }
 ];

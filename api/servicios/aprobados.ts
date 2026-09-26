@@ -111,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           dias: s.dias_abierto || 'Consultar disponibilidad',
           horario: s.horario || 'Consultar horario',
         },
-        comoLlegar: s.como_llegar || undefined,
+        comoLlegar: s.como_llegar || `En ${s.municipio}. Contacto: ${s.contacto}`,
         tip: s.tip || undefined,
         verificado: true,
         contacto: s.contacto || '',

@@ -35,6 +35,13 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 **Probado en vivo:** cambié la política de "Flexible" a "No reembolsable" desde el modal, guardé, y el resumen se actualizó correctamente sin recargar la página.
 - Archivos: `src/components/PerfilScreen.tsx`
 
+## "Tu calendario" y "Fechas no disponibles" fusionados
+**Pedido:** el usuario notó que esas dos tarjetas hacían básicamente lo mismo (bloquear/desbloquear fechas) y preguntó si convenía fusionarlas.
+**Diagnóstico confirmado:** sí eran redundantes — el calendario (`CalendarioReservacionesPrestador.tsx`) ya permite tocar un día vacío para bloquearlo/desbloquearlo; la lista de chips + campo de fecha de "Fechas no disponibles" hacía lo mismo por otro camino.
+**Arreglo (sin quitar funcionalidad):** se fusionaron en una sola tarjeta. El calendario queda arriba tal cual; abajo, separado por una línea, se conserva la lista de chips (para ver todas las fechas bloqueadas sin importar el mes) y el campo de fecha rápido (para bloquear un día lejano sin navegar mes por mes con las flechas) — las dos formas de bloquear se mantienen, solo dejaron de ser dos tarjetas separadas.
+**Probado en vivo:** toqué un día del calendario (28 de septiembre) y confirmé que apareció de inmediato como chip "28 sep" en la sección de abajo, dentro de la misma tarjeta.
+- Archivos: `src/components/PerfilScreen.tsx`
+
 # Sesión 2026-09-25 — Limpieza de datos demo
 
 ## Prestadores demo eliminados

@@ -1688,27 +1688,30 @@ function PanelReservacionesPrestador({
       )}
 
       {acepta && mpConectado && (
-        <>
-          {/* Calendario — antes solo había una lista de chips de texto
-              para bloquear fechas, sin ninguna vista de calendario
-              real. Verde = confirmada, ámbar = pendiente, gris =
-              bloqueada a mano; toca un día vacío para bloquearlo. */}
-          <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-            <p className="text-sm font-semibold text-jungle-900 mb-1">Tu calendario</p>
-            <p className="text-xs text-jungle-500 mb-3">Reservaciones y fechas bloqueadas, de un vistazo.</p>
-            <CalendarioReservacionesPrestador
-              reservaciones={reservaciones ?? []}
-              fechasBloqueadas={bloqueadas}
-              onBloquear={onAgregarFechaBloqueada}
-              onDesbloquear={onQuitarFechaBloqueada}
-              onAbrirChat={onAbrirChat}
-            />
-          </div>
+        // Calendario + fechas bloqueadas fusionados en una sola
+        // tarjeta — antes eran dos, pero hacían básicamente lo mismo
+        // (bloquear/desbloquear fechas): el calendario ya deja tocar
+        // un día para bloquearlo, y la lista de chips de abajo es
+        // para verlas todas de un vistazo sin importar el mes, o
+        // agregar una fecha lejana sin navegar mes por mes con las
+        // flechas. Se quedan las dos formas de bloquear (ninguna
+        // funcionalidad se quitó), solo dejaron de ser dos tarjetas
+        // separadas que hacían sentir la pantalla más larga de lo
+        // necesario.
+        <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+          <p className="text-sm font-semibold text-jungle-900 mb-1">Tu calendario</p>
+          <p className="text-xs text-jungle-500 mb-3">Reservaciones y fechas bloqueadas, de un vistazo.</p>
+          <CalendarioReservacionesPrestador
+            reservaciones={reservaciones ?? []}
+            fechasBloqueadas={bloqueadas}
+            onBloquear={onAgregarFechaBloqueada}
+            onDesbloquear={onQuitarFechaBloqueada}
+            onAbrirChat={onAbrirChat}
+          />
 
-          {/* Fechas bloqueadas */}
-          <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+          <div className="mt-4 pt-4 border-t border-jungle-100">
             <p className="text-sm font-semibold text-jungle-900 mb-1">Fechas no disponibles</p>
-            <p className="text-xs text-jungle-500 mb-3">Bloquea los días que ya no tengas cupo.</p>
+            <p className="text-xs text-jungle-500 mb-3">O agrega una fecha lejana directo, sin navegar mes por mes.</p>
             {bloqueadas.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
                 {bloqueadas.map(f => (
@@ -1733,7 +1736,7 @@ function PanelReservacionesPrestador({
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Solicitudes entrantes */}

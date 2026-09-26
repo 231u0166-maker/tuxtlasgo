@@ -372,20 +372,6 @@ export async function seedDemoSiVacio() {
   if (count > 0) return;
   await db.prestadores.bulkAdd([
     {
-      nombreNegocio: 'Lanchas Don Cheve',
-      categoria: 'Aventura',
-      municipio: 'Catemaco',
-      descripcion:
-        'Recorridos en lancha por la laguna de Catemaco. Capacidad para 7 personas. 25 años de experiencia mostrando las islas y la reserva.',
-      precio: '$200 MXN por persona',
-      contacto: 'WhatsApp: 294-100-0001',
-      ubicacionLat: 18.42,
-      ubicacionLng: -95.118,
-      creadoEn: Date.now() - 86400000 * 3,
-      estado: 'aprobado',
-      codigoSeguimiento: 'TGO-DEMO',
-    },
-    {
       nombreNegocio: 'Cabañas El Mirador',
       categoria: 'Hospedaje',
       municipio: 'San Andrés Tuxtla',
@@ -398,21 +384,6 @@ export async function seedDemoSiVacio() {
       creadoEn: Date.now() - 86400000 * 1,
       estado: 'pendiente',
       codigoSeguimiento: 'TGO-DEM2',
-    },
-    {
-      nombreNegocio: 'Restaurante & Tours Pedro Hernández',
-      categoria: 'Gastronomia',
-      municipio: 'Catemaco',
-      descripcion:
-        'Pedro Hernández, guía turístico local con 40 años de experiencia en la región de Los Tuxtlas y propietario de restaurante familiar en Catemaco. Ofrece recorridos personalizados por la laguna, la selva y sitios arqueológicos, además de cocina regional auténtica. Microempresa con raíces locales y atención personalizada.',
-      precio: 'Tours desde $300 MXN · Menú del día $120 MXN',
-      contacto: 'WhatsApp: 294-100-0003',
-      ubicacionLat: 18.4174,
-      ubicacionLng: -95.1096,
-      creadoEn: Date.now() - 86400000 * 0,
-      estado: 'aprobado',
-      codigoSeguimiento: 'TGO-DEM3',
-      foto: '/imgPrestadores/Prestador_img.jpg',
     },
   ]);
 }

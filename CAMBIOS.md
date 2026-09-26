@@ -4,6 +4,90 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 
 ---
 
+# Sesión 2026-09-25 — Limpieza de datos demo
+
+## Prestadores demo eliminados
+**Pedido:** quitar dos sitios de la lista.
+**Nota:** "Restaurante & Tours Pedro Hernández" y "Lanchas Don Cheve" no existían en la base de datos real — eran datos de ejemplo que se insertan automáticamente en el IndexedDB local cuando la app arranca sin prestadores (`seedDemoSiVacio`). Se quitaron de ese seed; solo queda "Cabañas El Mirador" como demo.
+- Archivos: `src/lib/db.ts`
+
+---
+
+# Sesión 2026-09-23/24 — Copyright, chat offline/online, Premium
+
+Todo probado en vivo en el navegador (no solo compilado) antes de darlo por bueno — varios de estos bugs solo se veían usando el chat de verdad, no leyendo el código.
+
+## A. Copyright y footer
+**Pedido:** proteger la autoría de la plataforma para que no se la roben.
+**Arreglo:** aviso de copyright en el footer y meta tags en `index.html`, página dedicada `/copyright` con detalle legal, enlace en la sección Legal del footer, e iconos de Facebook/Instagram con sus colores de marca reales (antes monocromos).
+- Archivos: `src/components/LandingPage.tsx`, `src/components/CopyrightPage.tsx` (nuevo), `src/App.tsx`, `index.html`
+
+## B. Pantalla en blanco con señal débil (no caída, solo lenta)
+**Causa:** los dos `fetch` de arranque (catálogo de prestadores y conocimiento dinámico) no tenían timeout — con señal intermitente (normal en Los Tuxtlas) se quedaban colgados para siempre y la app nunca mostraba nada (`if (!listo) return null`).
+**Arreglo:** `AbortController` + timeout de 6s en ambos, cayendo al catálogo cacheado en IndexedDB si no responde a tiempo.
+- Archivos: `src/App.tsx`, `src/lib/conocimiento.ts`
+
+## C. Servicios básicos (hospital/farmacia/comisaría) consultables por el chat
+**Pedido:** que el chat pueda decir qué hospital/farmacia/comisaría hay cerca de un lugar, sin que aparezcan como categoría nueva en Explorar/Mapa.
+**Arreglo:** base de datos oculta con 9 lugares reales (3 tipos × 3 municipios, geocodificados vía OpenStreetMap Nominatim) que solo el chat consulta bajo demanda — nunca se mezcla con `LUGARES`/`catalogoActivo`. Resuelve por lugar mencionado, por municipio, o por GPS. Funciona igual online que offline (motor de reglas local, sin llamadas de red).
+- Archivos: `src/data/serviciosBasicos.ts` (nuevo), `src/lib/chatbot.ts`, `src/components/ChatAssistant.tsx`, `src/lib/routing.ts` (se exportó `distanciaHaversine`)
+
+## D. Hospital más cercano integrado al generador de rutas
+**Pedido:** si el turista menciona una condición médica (diabético, cardíaco, etc.), la ruta que se le arme debe traer el hospital más cercano a cada día — pero SOLO si lo mencionó, nunca por defecto.
+**Arreglo:** `PreferenciasUsuario.requiereHospitalCercano`, persistente igual que días/presupuesto mientras dure el plan de viaje. Se detecta en CUALQUIER mensaje de la conversación (no solo el que pide la ruta) — si el turista dice "soy diabético" antes de pedir la ruta, se confirma con un mensaje corto y se aplica cuando arme la ruta después, sin que lo repita. También hay un modo de seguimiento: preguntar "qué hospital consideras para esta ruta" después de ya tenerla armada, sin regenerar nada (usa solo los días de la ruta MÁS RECIENTE).
+- Archivos: `src/lib/chatbot.ts`, `src/components/ChatAssistant.tsx`
+
+## E. Dos falsos positivos por tolerancia a errores de dedo (bugs reales encontrados en QA)
+**Causa:** el motor de PLN tolera errores de escritura (distancia de edición ≤1), y dos palabras cortas chocaban con palabras comunes: "asma" (condición médica) hacía match con "**arma**" (como en "ARMA una ruta", la forma más común de pedirla) — activaba la nota de hospital sin que el turista dijera nada médico. "medico" chocaba con "**medio**" (como en "presupuesto medio", una de las 3 palabras de precio que usa TODA la app) — desviaba preguntas normales hacia "aquí está el hospital más cercano".
+**Arreglo:** coincidencia EXACTA (sin tolerancia a errores) para las palabras de condición médica y de servicios básicos — perder una que venga con typo real es mejor que activarlo de más con palabras comunes.
+- Archivos: `src/lib/chatbot.ts`
+
+## F. "mi itinerario" no se reconocía como la ruta ya armada
+**Causa:** solo "mi ruta"/"este itinerario" estaban en la lista de frases — preguntar "en mi itinerario qué hospital hay" no calzaba y regeneraba una ruta nueva en vez de responder sobre la existente.
+**Arreglo:** agregado "mi itinerario" a la lista.
+- Archivos: `src/lib/chatbot.ts`
+
+## G. "qué onda" se clasificaba como intención de comida, no saludo
+**Causa:** "onda" hacía match por tolerancia a errores con "fonda" (palabra clave de comida), y esa categoría se revisaba antes que saludo en la lista.
+**Arreglo:** saludo/agradecimiento se revisan primero en mensajes cortos sin negación, antes que cualquier otra intención.
+- Archivos: `src/lib/chatbot.ts`
+
+## H. Geocodificación corregida — hospital de Santiago Tuxtla
+**Causa:** tenía las mismas coordenadas que el centro del pueblo, aunque su dirección real es "Carretera Santiago Tuxtla–Isla Km 1.5" — decía "a unos 0 metros" en vez de la distancia real.
+**Arreglo:** geocodificado por separado contra un hospital real en OpenStreetMap; ahora reporta ~1.2 km, coherente con la dirección.
+- Archivos: `src/data/serviciosBasicos.ts`
+
+## I. Fichas de conocimiento mezclaban categorías (recomendaciones incorrectas)
+**Causa:** la ficha "Hospedaje en Los Tuxtlas" recomendaba Nanciyaga y La Jungla Balneario (categoría real: Naturaleza) como si fueran hoteles, junto con Sirena Olmeca (el único que sí es Hospedaje). La ficha "Naturaleza y aventura" mezclaba ambas categorías bajo las mismas palabras clave, y como el límite es mostrar 3 lugares, el único lugar de Aventura real (Cerro del Venado) quedaba excluido por completo al preguntar por "aventura".
+**Arreglo:** "Hospedaje" ahora solo vincula a Sirena Olmeca (el texto sigue mencionando las otras como alternativa, aclarando que no son hoteles). "Naturaleza y aventura" se separó en dos fichas independientes, cada una con sus lugares reales.
+- Archivos: `src/lib/conocimiento.ts`
+
+## J. Default de interés forzaba "Naturaleza" sin avisar
+**Causa:** si el mensaje no mencionaba ninguna categoría reconocible (ej. "quiero visitar el pueblo"), la ruta se armaba forzosamente con `intereses: ['Naturaleza']`, dando reservas ecológicas retiradas del centro en vez de una muestra real del lugar.
+**Arreglo:** ahora queda `[]` — el motor de puntuación arma una mezcla real por calificación/destacados en vez de forzar una sola categoría.
+- Archivos: `src/components/ChatAssistant.tsx`
+
+## K. Aviso de "supuestos" simplificado
+**Causa:** CUALQUIER ruta pedida sin especificar días/presupuesto/grupo mostraba "No me quedó claro todo de tu mensaje, así que asumí: X, Y, Z" — molesto e innecesario para pedidos simples y claros como "ruta de pura gastronomía en Catemaco".
+**Arreglo:** el aviso solo aparece cuando se corrige algo que el turista SÍ pidió explícitamente (ej. pidió 5 días y el generador solo arma hasta 3) — no por simplemente no mencionar un dato.
+- Archivos: `src/components/ChatAssistant.tsx`
+
+## L. Bug de producción: el Plan Premium nunca afectaba las recomendaciones
+**Causa:** `api/servicios/aprobados.ts` (el endpoint real que alimenta el catálogo de la app) nunca consultaba ni devolvía las columnas `premium`/`premium_hasta` de la base de datos — un prestador podía pagar los $89 MXN/mes, la base se actualizaba bien, pero la IA nunca se enteraba.
+**Arreglo:** se agregaron esas columnas a la consulta y al objeto que se devuelve, con el mismo criterio de vigencia que ya usaba la versión offline.
+**Nota:** el flujo de pago en sí (`api/pagos/mercadopago.ts`) sigue sin confirmarse con un pago real completado — ver sección de pendientes abajo.
+- Archivos: `api/servicios/aprobados.ts`
+
+## M. Nuevo módulo "Patrocinados"
+**Pedido:** que pagar Premium dé un beneficio más visible que solo un desempate invisible en el chat — sin que eso le quite credibilidad a "Destacados" (curaduría real, sin dinero de por medio).
+**Arreglo:** insignia "Patrocinado" (morada) distinta de "Destacado" (ámbar) en las tarjetas. Pestaña propia "Patrocinados" en el menú (escritorio y móvil) mostrando solo prestadores Premium activos. Además, en "Destacados" (Inicio) los prestadores Premium que no estén ya destacados también se muestran ahí — así pagar siempre da un lugar en la portada, incluso si algún día dejan de estar en la lista curada de "Destacados".
+- Archivos: `src/components/PatrocinadosScreen.tsx` (nuevo), `src/components/PlaceCard.tsx`, `src/components/InicioScreen.tsx`, `src/components/AppShell.tsx`, `src/components/BottomNav.tsx`
+
+## Pendiente — pago de Mercado Pago sin confirmar
+El flujo de pago del Plan Premium nunca se ha probado de punta a punta con un pago real completado. Se revisaron 5 intentos reales en la base de datos (ago. 2026) que quedaron en `pendiente` para siempre, sin `mp_payment_id` — confirmado que eran pruebas incompletas de un familiar, no evidencia de un webhook roto. El código del webhook se ve correcto, pero "se ve bien" no es lo mismo que "confirmado". El 2026-09-24 se activó `premium = TRUE` manualmente en la base real para el servicio 19 ("Artesanias Paseo Del Malecon") como ejemplo de demo — **eso no confirma que el flujo de pago funcione**, es solo un ajuste manual de administrador.
+
+---
+
 ## 1. Bug Comunidad
 **Causa:** `agregarAlAlbum()` en `PerfilScreen.tsx` subía la foto y la guardaba en `usuarios.fotos`, pero nunca llamaba a `/api/comunidad/publicaciones`. Eran dos tablas totalmente desconectadas.
 

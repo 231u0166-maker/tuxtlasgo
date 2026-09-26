@@ -23,6 +23,12 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 **Probado en vivo:** servicio de prueba con contacto y cómo llegar reales — la ficha muestra "Contacto: 294 125 0703" primero y "Cómo llegar" justo debajo, en ese orden.
 - Archivos: `src/components/PlaceDetail.tsx`, `src/components/PerfilScreen.tsx`
 
+## Números de contacto agregados a 6 lugares curados
+**Pedido:** el usuario proporcionó los teléfonos reales que faltaban para que se vean en la nueva sección "Contacto".
+**Arreglo:** se agregó el campo `contacto` en `src/data/lugares.ts` para: La Moyotera Restaurant-Bar (+52 294 103 3530), Palapas Gorel (294 103 2934), La Bicicleta Café (294 688 1177), Sirena Olmeca Restaurant-Cabañas (232 115 9176), Reserva Ecológica Nanciyaga (294 129 2037) y Hechizo de Amor (294 945 9418).
+**Probado en vivo:** verificado que "Hechizo de Amor" ya muestra "Contacto: 294 945 9418" en su ficha.
+- Archivos: `src/data/lugares.ts`
+
 ---
 
 # Sesión 2026-09-23/24 — Copyright, chat offline/online, Premium

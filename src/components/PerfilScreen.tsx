@@ -2256,11 +2256,19 @@ const DIAS_SEMANA_EDICION = [
   { id: 'dom', label: 'D', nombre: 'Domingo' },
 ];
 
+// "Días abierto" es un patrón semanal que se repite siempre (abierto
+// TODOS los lunes, no solo el lunes de tal fecha) — a propósito NO es
+// una cuadrícula de fechas reales (eso obligaría al prestador a venir
+// cada mes a marcar el mes siguiente, para siempre). Lo que se pidió
+// fue la APARIENCIA de un calendario: se abre en su propia ventana,
+// con columnas L-D como encabezado de calendario, pero tocar una
+// columna completa marca/desmarca ese día de la semana para siempre.
 function SelectorDias({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
   const [seleccionados, setSeleccionados] = useState<string[]>(() => {
     if (/todos/i.test(valor)) return DIAS_SEMANA_EDICION.map((d) => d.id);
     return DIAS_SEMANA_EDICION.filter((d) => new RegExp(d.nombre, 'i').test(valor)).map((d) => d.id);
   });
+  const [abierto, setAbierto] = useState(false);
 
   useEffect(() => {
     if (seleccionados.length === 0) return;
@@ -2273,23 +2281,64 @@ function SelectorDias({ valor, onCambiar }: { valor: string; onCambiar: (s: stri
     setSeleccionados((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  const resumen = seleccionados.length === 7
+    ? 'Todos los días'
+    : seleccionados.length === 0
+    ? 'Selecciona los días'
+    : DIAS_SEMANA_EDICION.filter((d) => seleccionados.includes(d.id)).map((d) => d.label).join(', ');
+
   return (
-    <div>
-      <div className="flex gap-2.5">
-        {DIAS_SEMANA_EDICION.map((d) => (
-          <button key={d.id} type="button" onClick={() => alternar(d.id)} title={d.nombre}
-            className={`flex-1 h-9 min-w-[2rem] rounded-full text-xs font-bold transition-colors ${seleccionados.includes(d.id) ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-500'}`}>
-            {d.label}
-          </button>
-        ))}
-      </div>
-      {seleccionados.length < 7 && (
-        <button type="button" onClick={() => setSeleccionados(DIAS_SEMANA_EDICION.map((d) => d.id))}
-          className="text-[11px] font-semibold text-jungle-500 hover:text-jungle-700 mt-1.5">
-          Marcar todos los días
-        </button>
+    <>
+      <button type="button" onClick={() => setAbierto(true)}
+        className="w-full flex items-center justify-between bg-jungle-50 hover:bg-jungle-100 rounded-xl px-3 py-2.5 text-sm transition-colors">
+        <span className={seleccionados.length ? 'text-jungle-900 font-medium' : 'text-jungle-400'}>{resumen}</span>
+        <Calendar size={16} className="text-jungle-400 flex-shrink-0" />
+      </button>
+
+      {abierto && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }}
+          className="lg:!items-center lg:!justify-center lg:p-8">
+          <div className="bg-white w-full rounded-t-3xl lg:rounded-3xl max-h-[85vh] overflow-y-auto lg:max-w-sm lg:shadow-2xl">
+            <div className="sticky top-0 bg-white border-b border-jungle-100 px-6 py-4 flex items-center justify-between rounded-t-3xl">
+              <h3 className="font-display font-extrabold text-lg text-jungle-950">Días abierto</h3>
+              <button onClick={() => setAbierto(false)} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={22} /></button>
+            </div>
+            <div className="px-6 py-6">
+              <p className="text-xs text-jungle-500 mb-4">Toca un día para marcarlo como abierto todas las semanas.</p>
+              <div className="grid grid-cols-7 gap-1.5">
+                {DIAS_SEMANA_EDICION.map((d) => {
+                  const activo = seleccionados.includes(d.id);
+                  return (
+                    <button key={d.id} type="button" onClick={() => alternar(d.id)} title={d.nombre}
+                      className="flex flex-col items-center gap-1 group">
+                      <span className={`w-full aspect-square rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                        activo ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-500 group-hover:bg-jungle-100'
+                      }`}>
+                        {d.label}
+                      </span>
+                      {[0, 1, 2].map((fila) => (
+                        <span key={fila} className={`w-full h-3 rounded-sm transition-colors ${
+                          activo ? 'bg-jungle-600' : 'bg-jungle-50 group-hover:bg-jungle-100'
+                        }`} />
+                      ))}
+                    </button>
+                  );
+                })}
+              </div>
+              <button type="button"
+                onClick={() => setSeleccionados(seleccionados.length === 7 ? [] : DIAS_SEMANA_EDICION.map((d) => d.id))}
+                className="text-xs font-semibold text-jungle-600 hover:text-jungle-800 mt-5">
+                {seleccionados.length === 7 ? 'Quitar todos' : 'Marcar todos los días'}
+              </button>
+              <button type="button" onClick={() => setAbierto(false)}
+                className="w-full bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl text-sm font-semibold mt-6">
+                Listo
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-    </div>
+    </>
   );
 }
 

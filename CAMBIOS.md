@@ -8,8 +8,14 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 
 ## Prestadores demo eliminados
 **Pedido:** quitar dos sitios de la lista.
-**Nota:** "Restaurante & Tours Pedro Hernández" y "Lanchas Don Cheve" no existían en la base de datos real — eran datos de ejemplo que se insertan automáticamente en el IndexedDB local cuando la app arranca sin prestadores (`seedDemoSiVacio`). Se quitaron de ese seed; solo queda "Cabañas El Mirador" como demo.
-- Archivos: `src/lib/db.ts`
+**Nota:** "Restaurante & Tours Pedro Hernández" y "Lanchas Don Cheve" no existían en la base de datos real — eran datos de ejemplo que se insertan automáticamente en el IndexedDB local cuando la app arranca sin prestadores (`seedDemoSiVacio`). Se quitaron de ese seed; solo queda "Cabañas El Mirador" como demo. Además, quien ya los tenía sembrados de antes seguía viéndolos (el seed solo corre una vez) — se agregó `limpiarPrestadoresDemoRetirados()` que los borra del dispositivo al abrir la app, sin tocar favoritos/rutas/chats. Probado inyectando esos registros a mano en IndexedDB y confirmando que desaparecen al recargar.
+- Archivos: `src/lib/db.ts`, `src/App.tsx`
+
+## Pestaña "Patrocinados" eliminada
+**Pedido:** quitar el apartado/pestaña "Patrocinados" y revisar que no quedara rastro.
+**Alcance (decisión del usuario):** solo la pestaña y pantalla dedicada. La insignia morada "Patrocinado" en las tarjetas y la mezcla de prestadores Premium dentro de "Destacados" (Inicio) se dejaron intactas a propósito — el Plan Premium sigue dando ese beneficio visible, solo sin pestaña propia.
+**Arreglo:** se borró `PatrocinadosScreen.tsx`, la entrada `patrocinados` de `BottomNav.tsx` (móvil, incluyendo el tipo `Tab` y el import de `Crown` ahí) y el import/render de esa pantalla en `AppShell.tsx` (el ícono `Crown` ya no se usaba ahí tampoco). Se limpió un comentario en `InicioScreen.tsx` que hacía referencia a la pestaña ya inexistente. Verificado en vivo (escritorio y ancho móvil) que la pestaña ya no aparece en ningún menú.
+- Archivos: `src/components/BottomNav.tsx`, `src/components/AppShell.tsx`, `src/components/InicioScreen.tsx`, `src/components/PatrocinadosScreen.tsx` (eliminado)
 
 ---
 

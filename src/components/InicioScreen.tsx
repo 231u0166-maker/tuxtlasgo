@@ -33,11 +33,11 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
   // primero la curaduría nuestra (destacado: rating/calidad, sin
   // dinero de por medio), y DESPUÉS los prestadores Premium ($89
   // MXN/mes) que todavía no estén ya destacados — para que pagar
-  // Premium siempre les dé un lugar aquí, no solo en su pestaña
-  // "Patrocinados" aparte. Nunca se ocultan entre sí: si un lugar es
-  // ambas cosas, PlaceCard ya muestra las dos insignias sin chocar
-  // ("Destacado" ámbar + "Patrocinado" morado). El badge de cada uno
-  // es lo que deja claro cuál es curaduría y cuál es pauta pagada.
+  // Premium siempre les dé un lugar aquí. Nunca se ocultan entre sí:
+  // si un lugar es ambas cosas, PlaceCard ya muestra las dos insignias
+  // sin chocar ("Destacado" ámbar + "Patrocinado" morado). El badge de
+  // cada uno es lo que deja claro cuál es curaduría y cuál es pauta
+  // pagada.
   const destacados = getCatalogoActivo().filter((l) => l.destacado);
   const patrocinadosSinDestacar = getCatalogoActivo().filter((l) => l.premium && !l.destacado);
   const paraTi = [...destacados, ...patrocinadosSinDestacar];

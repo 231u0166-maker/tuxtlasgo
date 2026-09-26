@@ -28,6 +28,13 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 **Ajuste pedido después:** se quitaron las barras decorativas debajo de cada círculo (el usuario las vio de sobra) — quedan solo los 7 círculos L-D.
 - Archivos: `src/components/PerfilScreen.tsx`
 
+## "Reservaciones": configuración a resumen + modal (calendario y solicitudes intactos)
+**Pedido:** el tab "Reservaciones" no se sentía tan complejo como "Mi Servicio", pero seguía siendo todo en una sola pantalla larga — aplicar el mismo criterio donde conviniera, con cuidado porque esta parte ya funciona en producción (pagos reales, Mercado Pago).
+**Decisión de alcance:** solo "Política de cancelación" + "Anticipo mínimo" (ajustes que se configuran una vez y rara vez se tocan) se movieron a resumen + modal de edición — mismo patrón que "Mi Servicio". El calendario, "Fechas no disponibles" y "Solicitudes" se dejaron visibles tal cual, porque son información operativa que el prestador necesita ver de un vistazo, no un formulario para esconder.
+**Arreglo:** nueva tarjeta "Configuración de reservaciones" de solo lectura (política actual, anticipo actual, si muestra USD) con su lápiz de editar. El modal reutiliza exactamente la misma lógica de guardado (`onGuardarConfig`, incluyendo el aviso de la comisión 6%/94% al publicar por primera vez) — no se tocó ningún endpoint ni la lógica de pagos. "Eliminar reservaciones" pasó de botón grande junto a "Guardar" a un link rojo pequeño debajo del resumen, mismo comportamiento (con su confirmación).
+**Probado en vivo:** cambié la política de "Flexible" a "No reembolsable" desde el modal, guardé, y el resumen se actualizó correctamente sin recargar la página.
+- Archivos: `src/components/PerfilScreen.tsx`
+
 # Sesión 2026-09-25 — Limpieza de datos demo
 
 ## Prestadores demo eliminados

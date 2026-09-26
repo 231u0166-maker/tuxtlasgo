@@ -1513,6 +1513,19 @@ function PanelReservacionesPrestador({
   const montoNum = parseFloat(montoDraft);
   const montoUsd = Number.isFinite(montoNum) && montoNum > 0 ? Math.round(montoNum / TASA_USD_REFERENCIA) : null;
 
+  // Ventana de edición para política/anticipo — antes vivían siempre
+  // visibles en la pantalla (junto con calendario y solicitudes,
+  // saturando igual que pasaba en "Mi Servicio"). Ahora es un resumen
+  // de solo lectura + su propio modal, mismo patrón ya aprobado ahí.
+  const [modalConfigAbierto, setModalConfigAbierto] = useState(false);
+
+  function abrirModalConfig() {
+    setPoliticaDraft(servicio.politica_cancelacion ?? 'flexible');
+    setMontoDraft(servicio.monto_minimo != null ? String(servicio.monto_minimo) : '');
+    setMostrarUsdDraft(!!servicio.mostrar_usd_reservacion);
+    setModalConfigAbierto(true);
+  }
+
   async function publicar() {
     if (!mpConectado) return;
     // "Lo único que tiene que aceptar" antes de activar: el reparto
@@ -1521,21 +1534,23 @@ function PanelReservacionesPrestador({
       'Al publicar reservaciones, aceptas que TuxtlasGO retenga automáticamente el 6% de comisión de cada reservación pagada dentro de la app. El 94% restante se deposita directo a tu cuenta de Mercado Pago conectada.\n\n¿Aceptas y quieres publicar?'
     );
     if (!confirmado) return;
-    await onGuardarConfig({
+    const ok = await onGuardarConfig({
       politica_cancelacion: politicaDraft,
       monto_minimo: montoDraft.trim() ? montoNum : null,
       mostrar_usd_reservacion: mostrarUsdDraft,
       activar: true,
     });
+    if (ok) setModalConfigAbierto(false);
   }
 
   async function guardarCambios() {
-    await onGuardarConfig({
+    const ok = await onGuardarConfig({
       politica_cancelacion: politicaDraft,
       monto_minimo: montoDraft.trim() ? montoNum : null,
       mostrar_usd_reservacion: mostrarUsdDraft,
       activar: true,
     });
+    if (ok) setModalConfigAbierto(false);
   }
 
   function eliminar() {
@@ -1545,7 +1560,7 @@ function PanelReservacionesPrestador({
 
   const FormularioConfig = (
     <>
-      <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+      <div>
         <p className="text-sm font-semibold text-jungle-900 mb-3">Política de cancelación</p>
         <div className="space-y-2">
           <button
@@ -1565,7 +1580,7 @@ function PanelReservacionesPrestador({
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+      <div>
         <p className="text-sm font-semibold text-jungle-900 mb-1">Anticipo mínimo para confirmar</p>
         <p className="text-xs text-jungle-500 mb-3">Lo que se retiene para cerrar la reservación (10–20% es lo usual) — opcional.</p>
         <div className="relative">
@@ -1635,38 +1650,41 @@ function PanelReservacionesPrestador({
       </div>
 
       {mpConectado && (
-        <>
-          {FormularioConfig}
-
-          {/* Publicar cuando está apagado; Guardar + Eliminar cuando
-              ya está activo — como se pidió. */}
-          {!acepta ? (
-            <button
-              onClick={publicar}
-              disabled={guardandoConfig}
-              className="w-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold"
-            >
-              {guardandoConfig ? 'Publicando…' : 'Publicar reservaciones'}
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={guardarCambios}
-                disabled={guardandoConfig}
-                className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold"
-              >
-                {guardandoConfig ? 'Guardando…' : 'Guardar cambios'}
-              </button>
-              <button
-                onClick={eliminar}
-                disabled={guardandoConfig}
-                className="flex-1 bg-white border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 py-3 rounded-xl text-sm font-semibold"
-              >
+        <SeccionServicio titulo="Configuración de reservaciones" onEditar={abrirModalConfig}>
+          {acepta ? (
+            <>
+              <InfoFila icono={null} label="Política de cancelación"
+                valor={servicio.politica_cancelacion === 'no_reembolsable' ? 'No reembolsable' : 'Flexible'} />
+              <InfoFila icono={null} label="Anticipo mínimo"
+                valor={servicio.monto_minimo != null ? `$${servicio.monto_minimo} MXN` : 'Sin anticipo'} />
+              <InfoFila icono={null} label="Mostrar en USD" valor={servicio.mostrar_usd_reservacion ? 'Sí' : 'No'} />
+              <button onClick={eliminar} disabled={guardandoConfig}
+                className="text-xs font-semibold text-red-600 hover:text-red-800 disabled:opacity-60">
                 Eliminar reservaciones
               </button>
-            </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-jungle-500">Configura tu política de cancelación y anticipo antes de publicar.</p>
+              <button onClick={abrirModalConfig}
+                className="w-full bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl text-sm font-semibold">
+                Configurar y publicar
+              </button>
+            </>
           )}
-        </>
+        </SeccionServicio>
+      )}
+
+      {modalConfigAbierto && (
+        <ModalEditarSeccion
+          titulo="Configuración de reservaciones"
+          onClose={() => setModalConfigAbierto(false)}
+          onGuardar={acepta ? guardarCambios : publicar}
+          guardando={guardandoConfig}
+          textoGuardar={acepta ? 'Guardar cambios' : 'Publicar reservaciones'}
+        >
+          {FormularioConfig}
+        </ModalEditarSeccion>
       )}
 
       {acepta && mpConectado && (
@@ -2422,9 +2440,9 @@ function SeccionServicio({ titulo, onEditar, children }: { titulo: string; onEdi
 // para que editar el negocio se sienta igual de simple que iniciar
 // sesión, en vez de la pared de campos de antes.
 function ModalEditarSeccion({
-  titulo, onClose, onGuardar, guardando, children,
+  titulo, onClose, onGuardar, guardando, children, textoGuardar,
 }: {
-  titulo: string; onClose: () => void; onGuardar: () => void; guardando: boolean; children: React.ReactNode;
+  titulo: string; onClose: () => void; onGuardar: () => void; guardando: boolean; children: React.ReactNode; textoGuardar?: string;
 }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }}
@@ -2440,7 +2458,7 @@ function ModalEditarSeccion({
             <button onClick={onGuardar} disabled={guardando}
               className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
               {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Guardar cambios
+              {textoGuardar ?? 'Guardar cambios'}
             </button>
             <button onClick={onClose}
               className="px-5 bg-jungle-100 hover:bg-jungle-200 text-jungle-700 py-3 rounded-xl text-sm font-semibold">

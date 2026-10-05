@@ -28,6 +28,8 @@ import FavoritesScreen from './FavoritesScreen';
 import SugerenciasChat from './SugerenciasChat';
 import PlaceDetail from './PlaceDetail';
 import OfflineIndicator from './OfflineIndicator';
+import SelectorIdioma from './SelectorIdioma';
+import { useT } from '../lib/i18n';
 import type { Lugar } from '../data/lugares';
 import { obtenerRutaPorTramos, obtenerUbicacionGPS, type Coord } from '../lib/routing';
 import PerfilScreen from './PerfilScreen';
@@ -54,6 +56,7 @@ const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
 ];
 
 export default function AppShell() {
+  const t = useT();
   // "Empezar a chatear" / "Explorar" del menú de la landing (móvil)
   // llegan aquí como /app?tab=chat o /app?tab=explorar — se lee UNA
   // vez al montar, no hace falta que sea reactivo a cambios después.
@@ -336,9 +339,9 @@ export default function AppShell() {
         `[TuxtlasGO] Precisión del GPS muy baja: ${Math.round(resultado.precisionMetros)}m de margen de error.`
       );
       setErrorRuta(
-        `Tu ubicación no es muy precisa (margen de ~${Math.round(
-          resultado.precisionMetros
-        )}m). Activa "Ubicación precisa" en los permisos de esta app, en Ajustes de tu teléfono, para que el punto azul quede exacto.`
+        t('Tu ubicación no es muy precisa (margen de ~{m}m). Activa "Ubicación precisa" en los permisos de esta app, en Ajustes de tu teléfono, para que el punto azul quede exacto.', {
+          m: Math.round(resultado.precisionMetros),
+        })
       );
     }
 
@@ -512,7 +515,7 @@ export default function AppShell() {
           </Link>
           <button
             onClick={alternarSidebar}
-            title={sidebarColapsado ? 'Expandir menú' : 'Colapsar menú'}
+            title={sidebarColapsado ? t('Expandir menú') : t('Colapsar menú')}
             className="w-8 h-8 rounded-full flex items-center justify-center text-jungle-300 hover:bg-jungle-800 hover:text-white transition-colors flex-shrink-0"
           >
             {sidebarColapsado ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -525,15 +528,15 @@ export default function AppShell() {
             así que un ícono aparte solo para el historial hubiera
             sido redundante con el botón de colapsar de arriba. */}
         <nav className={`flex-1 py-4 space-y-1 ${sidebarColapsado ? 'px-2' : 'px-3'}`}>
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            const activo = t.id === tab;
+          {TABS.map((tb) => {
+            const Icon = tb.icon;
+            const activo = tb.id === tab;
             return (
               <button
-                key={t.id}
-                onClick={() => cambiarTab(t.id)}
-                onDoubleClick={() => { if (t.id === 'chat') setDispararHistorial((v) => v + 1); }}
-                title={sidebarColapsado ? t.label : undefined}
+                key={tb.id}
+                onClick={() => cambiarTab(tb.id)}
+                onDoubleClick={() => { if (tb.id === 'chat') setDispararHistorial((v) => v + 1); }}
+                title={sidebarColapsado ? t(tb.label) : undefined}
                 className={`w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
                   } ${activo
                     ? 'bg-jungle-700 text-white shadow-sm'
@@ -541,7 +544,7 @@ export default function AppShell() {
                   }`}
               >
                 <Icon size={18} strokeWidth={activo ? 2.5 : 2} className="flex-shrink-0" />
-                {!sidebarColapsado && t.label}
+                {!sidebarColapsado && t(tb.label)}
               </button>
             );
           })}
@@ -549,14 +552,17 @@ export default function AppShell() {
 
         {/* Acciones de usuario */}
         <div className={`py-4 border-t border-jungle-700/50 space-y-2 ${sidebarColapsado ? 'px-2' : 'px-3'}`}>
+          <div className={sidebarColapsado ? 'flex justify-center' : 'px-3'}>
+            <SelectorIdioma variante="claro" />
+          </div>
           <Link
             to="/prestador"
-            title={sidebarColapsado ? 'Portal prestadores' : undefined}
+            title={sidebarColapsado ? t('Portal prestadores') : undefined}
             className={`flex items-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
               }`}
           >
             <Briefcase size={16} className="flex-shrink-0" />
-            {!sidebarColapsado && 'Portal prestadores'}
+            {!sidebarColapsado && t('Portal prestadores')}
           </Link>
 
           {usuario ? (
@@ -573,7 +579,7 @@ export default function AppShell() {
                   <button
                     onClick={async () => { await apiLogout(); setUsuario(null); }}
                     className="text-jungle-400 hover:text-red-400 transition-colors"
-                    title="Cerrar sesión"
+                    title={t('Cerrar sesión')}
                   >
                     <LogOut size={15} />
                   </button>
@@ -583,12 +589,12 @@ export default function AppShell() {
           ) : (
             <button
               onClick={() => setMostrarAuth(true)}
-              title={sidebarColapsado ? 'Iniciar sesión' : undefined}
+              title={sidebarColapsado ? t('Iniciar sesión') : undefined}
               className={`w-full flex items-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-jungle-950 transition-colors ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
                 }`}
             >
               <User size={16} className="flex-shrink-0" />
-              {!sidebarColapsado && 'Iniciar sesión'}
+              {!sidebarColapsado && t('Iniciar sesión')}
             </button>
           )}
         </div>
@@ -615,15 +621,10 @@ export default function AppShell() {
                 <Navigation size={22} className="text-jungle-700" />
               </div>
               <h3 className="font-display font-bold text-lg text-jungle-950 mb-1">
-                TuxtlasGO quiere ubicarte
+                {t('TuxtlasGO quiere ubicarte')}
               </h3>
               <p className="text-sm text-jungle-700 mb-4">
-                Es para trazarte la ruta real desde donde estás hasta el
-                lugar que elijas — no se comparte con nadie más, se usa
-                solo en tu teléfono. Tu navegador te va a preguntar a
-                continuación; elige <strong>"Permitir"</strong> (y de ser
-                posible, <strong>"ubicación precisa"</strong>) para que
-                el punto en el mapa quede exacto.
+                {t('Es para trazarte la ruta real desde donde estás hasta el lugar que elijas — no se comparte con nadie más, se usa solo en tu teléfono. Tu navegador te va a preguntar a continuación; elige "Permitir" (y de ser posible, "ubicación precisa") para que el punto en el mapa quede exacto.')}
               </p>
               <div className="flex gap-2">
                 <button
@@ -633,13 +634,13 @@ export default function AppShell() {
                   }}
                   className="flex-1 border-2 border-jungle-200 text-jungle-800 py-2.5 rounded-xl font-semibold text-sm"
                 >
-                  Ahora no
+                  {t('Ahora no')}
                 </button>
                 <button
                   onClick={pedirPermisoUbicacion}
                   className="flex-1 bg-jungle-700 text-white py-2.5 rounded-xl font-semibold text-sm"
                 >
-                  Permitir ubicación
+                  {t('Permitir ubicación')}
                 </button>
               </div>
             </div>
@@ -651,9 +652,9 @@ export default function AppShell() {
           <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
             <div className="bg-white rounded-2xl px-6 py-5 shadow-xl flex flex-col items-center gap-3 max-w-xs">
               <div className="w-8 h-8 border-2 border-jungle-200 border-t-jungle-700 rounded-full animate-spin" />
-              <div className="text-sm font-semibold text-jungle-900">Calculando ruta…</div>
+              <div className="text-sm font-semibold text-jungle-900">{t('Calculando ruta…')}</div>
               <div className="text-xs text-jungle-600 text-center">
-                Trazando el camino por carretera. Se guardará para usarse sin internet.
+                {t('Trazando el camino por carretera. Se guardará para usarse sin internet.')}
               </div>
             </div>
           </div>
@@ -715,14 +716,14 @@ export default function AppShell() {
                       type="search"
                       value={busquedaExplorar}
                       onChange={(e) => setBusquedaExplorar(e.target.value)}
-                      placeholder="Buscar lugares, comida, hoteles..."
+                      placeholder={t('Buscar lugares, comida, hoteles...')}
                       className="w-full bg-white text-jungle-950 placeholder:text-jungle-500 rounded-full pl-10 pr-4 py-3 text-sm shadow-lg focus:outline-none focus:ring-2 focus:ring-jungle-400"
                     />
                   </div>
                   <button
                     type="button"
                     className="w-11 h-11 flex-shrink-0 rounded-full bg-white text-jungle-700 shadow-lg flex items-center justify-center"
-                    aria-label="Filtros del mapa"
+                    aria-label={t('Filtros del mapa')}
                   >
                     <SlidersHorizontal size={16} />
                   </button>
@@ -748,7 +749,7 @@ export default function AppShell() {
                 >
                   <div className="w-10 h-1.5 rounded-full bg-obsidiana-900/15" />
                   <span className="text-[11px] font-semibold text-obsidiana-800/50">
-                    {hojaExplorarAbierta ? 'Volver al mapa' : 'Ver servicios'}
+                    {hojaExplorarAbierta ? t('Volver al mapa') : t('Ver servicios')}
                   </span>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
@@ -786,15 +787,15 @@ export default function AppShell() {
             <div className="flex-shrink-0 bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 pt-6 pb-5 rounded-b-3xl relative">
               <button
                 onClick={() => setDispararHistorial((v) => v + 1)}
-                aria-label="Historial de chats"
-                title="Historial de chats"
+                aria-label={t('Historial de chats')}
+                title={t('Historial de chats')}
                 className="lg:hidden absolute top-4 right-4 w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-white/90 hover:bg-white/10 transition-colors"
               >
                 <History size={18} />
               </button>
-              <h1 className="font-display font-extrabold text-2xl">Tu guía</h1>
+              <h1 className="font-display font-extrabold text-2xl">{t('Tu guía')}</h1>
               <p className="text-sm text-jungle-100 opacity-90">
-                Rutas personalizadas y respuestas al momento, aunque no tengas señal.
+                {t('Rutas personalizadas y respuestas al momento, aunque no tengas señal.')}
               </p>
             </div>
             <div className="flex-1 min-h-0">
@@ -814,7 +815,7 @@ export default function AppShell() {
                         onClick={() => cambiarTab('mapa')}
                         className="w-full flex items-center justify-center gap-1.5 bg-jungle-50 hover:bg-jungle-100 text-jungle-800 rounded-xl py-2.5 text-sm font-semibold border border-jungle-100"
                       >
-                        <Map size={15} /> Ver ruta en el mapa
+                        <Map size={15} /> {t('Ver ruta en el mapa')}
                       </button>
                     </div>
                   ) : null
@@ -832,7 +833,7 @@ export default function AppShell() {
               onPointerDown={iniciarArrastrePanel}
               role="separator"
               aria-orientation="vertical"
-              aria-label="Ajustar ancho del panel"
+              aria-label={t('Ajustar ancho del panel')}
               className={`hidden lg:flex flex-shrink-0 w-2.5 -mx-[5px] z-20 relative cursor-col-resize group items-center justify-center touch-none ${arrastrandoPanel ? 'bg-laguna-100' : 'hover:bg-jungle-50'}`}
             >
               <div className={`w-1 h-10 rounded-full transition-colors ${arrastrandoPanel ? 'bg-laguna-500' : 'bg-jungle-200 group-hover:bg-jungle-400'}`} />
@@ -876,9 +877,9 @@ export default function AppShell() {
               <button
                 onClick={() => { setRutaVisible(null); setMiUbicacion(null); cambiarTab(tabAntesDeMapa); }}
                 className="lg:hidden absolute top-3 left-3 z-30 bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
-                aria-label="Cerrar mapa"
+                aria-label={t('Cerrar mapa')}
               >
-                <X size={14} /> Cerrar mapa
+                <X size={14} /> {t('Cerrar mapa')}
               </button>
             )}
 
@@ -890,7 +891,7 @@ export default function AppShell() {
             {tab !== 'mapa' && mostrarMapaAlLado && (
               <button
                 onClick={() => setMapaExpandido((v) => !v)}
-                title={mapaExpandido ? 'Mostrar panel' : 'Expandir mapa'}
+                title={mapaExpandido ? t('Mostrar panel') : t('Expandir mapa')}
                 className="hidden lg:flex absolute top-3 left-3 z-30 w-9 h-9 bg-white rounded-full shadow-md border border-jungle-100 items-center justify-center text-jungle-800 hover:bg-jungle-50"
               >
                 {mapaExpandido ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}

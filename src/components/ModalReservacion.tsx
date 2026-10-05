@@ -13,8 +13,10 @@ import { X, Calendar, Users, MapPin, Loader2, CheckCircle2 } from 'lucide-react'
 import { getToken, getUsuarioLocal } from '../lib/auth';
 import type { Lugar } from '../data/lugares';
 import CalendarioSeleccionFecha from './CalendarioSeleccionFecha';
+import { useT } from '../lib/i18n';
 
 export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; onCerrar: () => void }) {
+  const t = useT();
   const usuario = getUsuarioLocal();
   const [fecha, setFecha] = useState('');
   const [nombreViajero, setNombreViajero] = useState(usuario?.nombre ?? '');
@@ -30,7 +32,7 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
   useEffect(() => {
     if (!fecha || !lugar.servicioId) { setDisponibilidad('sin_checar'); return; }
     setDisponibilidad('checando');
-    const t = setTimeout(async () => {
+    const temporizador = setTimeout(async () => {
       try {
         const res = await fetch(`/api/reservaciones?disponibilidad=1&servicio_id=${lugar.servicioId}&fecha=${fecha}`);
         const data = await res.json();
@@ -39,16 +41,16 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
         setDisponibilidad('sin_checar');
       }
     }, 300);
-    return () => clearTimeout(t);
+    return () => clearTimeout(temporizador);
   }, [fecha, lugar.servicioId]);
 
   async function enviar() {
     if (!usuario) {
-      setError('Inicia sesión para reservar.');
+      setError(t('Inicia sesión para reservar.'));
       return;
     }
     if (!fecha || !nombreViajero.trim()) {
-      setError('Falta la fecha o el nombre del viajero.');
+      setError(t('Falta la fecha o el nombre del viajero.'));
       return;
     }
     setEnviando(true);
@@ -69,10 +71,10 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
       if (data.ok) {
         setEnviado(true);
       } else {
-        setError(data.error ?? 'No se pudo enviar la solicitud');
+        setError(data.error ? t(data.error) : t('No se pudo enviar la solicitud'));
       }
     } catch {
-      setError('Sin conexión. Verifica tu internet.');
+      setError(t('Sin conexión. Verifica tu internet.'));
     }
     setEnviando(false);
   }
@@ -84,30 +86,30 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 bg-white/95 backdrop-blur px-5 pt-5 pb-1 flex items-center justify-between">
-          <h2 className="font-display font-bold text-jungle-950">Reservar</h2>
+          <h2 className="font-display font-bold text-jungle-950">{t('Reservar')}</h2>
           <button onClick={onCerrar} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={20} /></button>
         </div>
 
         {enviado ? (
           <div className="px-5 pb-8 pt-6 text-center">
             <CheckCircle2 size={48} className="mx-auto text-green-500 mb-3" />
-            <p className="font-display font-bold text-lg text-jungle-950 mb-1.5">Solicitud enviada</p>
+            <p className="font-display font-bold text-lg text-jungle-950 mb-1.5">{t('Solicitud enviada')}</p>
             <p className="text-sm text-jungle-500 mb-6">
-              {lugar.nombre} va a revisar tu solicitud y te avisamos cuando la confirme. Puedes ver el estado en Mis lugares → Reservas.
+              {t('{nombre} va a revisar tu solicitud y te avisamos cuando la confirme. Puedes ver el estado en Mis lugares → Reservas.', { nombre: lugar.nombre })}
             </p>
             <button onClick={onCerrar} className="w-full bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl text-sm font-semibold">
-              Entendido
+              {t('Entendido')}
             </button>
           </div>
         ) : (
           <div className="px-5 pb-6 pt-3 space-y-4">
             {/* Dónde — fijo, es este lugar */}
             <div>
-              <p className="text-xs font-semibold text-jungle-500 mb-1.5 flex items-center gap-1"><MapPin size={12} /> Dónde</p>
+              <p className="text-xs font-semibold text-jungle-500 mb-1.5 flex items-center gap-1"><MapPin size={12} /> {t('Dónde')}</p>
               <div className="bg-jungle-50 rounded-xl px-3.5 py-3 text-sm font-semibold text-jungle-900">{lugar.nombre}</div>
               {!!lugar.montoMinimo && (
                 <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-2">
-                  Este servicio pide un anticipo de ${lugar.montoMinimo} MXN para confirmar
+                  {t('Este servicio pide un anticipo de ${monto} MXN para confirmar', { monto: lugar.montoMinimo })}
                   {lugar.mostrarUsdReservacion && ` (≈ $${Math.round(lugar.montoMinimo / 17.1)} USD)`}.
                 </p>
               )}
@@ -117,7 +119,7 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
                 minúsculo del navegador; los días ya ocupados salen
                 tachados y no se pueden tocar. */}
             <div>
-              <p className="text-xs font-semibold text-jungle-500 mb-1.5 flex items-center gap-1"><Calendar size={12} /> Cuándo</p>
+              <p className="text-xs font-semibold text-jungle-500 mb-1.5 flex items-center gap-1"><Calendar size={12} /> {t('Cuándo')}</p>
               <CalendarioSeleccionFecha
                 valor={fecha}
                 onSeleccionar={setFecha}
@@ -125,27 +127,27 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
                 fechasBloqueadas={lugar.fechasBloqueadas}
               />
               {disponibilidad === 'checando' && (
-                <p className="text-xs text-jungle-400 mt-1.5 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Revisando disponibilidad…</p>
+                <p className="text-xs text-jungle-400 mt-1.5 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> {t('Revisando disponibilidad…')}</p>
               )}
               {disponibilidad === 'disponible' && (
-                <p className="text-xs text-green-600 font-semibold mt-1.5">✓ Disponible</p>
+                <p className="text-xs text-green-600 font-semibold mt-1.5">{t('✓ Disponible')}</p>
               )}
               {disponibilidad === 'no_disponible' && (
-                <p className="text-xs text-red-600 font-semibold mt-1.5">No disponible esa fecha — elige otra</p>
+                <p className="text-xs text-red-600 font-semibold mt-1.5">{t('No disponible esa fecha — elige otra')}</p>
               )}
             </div>
 
             {/* Viajero */}
             <div>
-              <p className="text-xs font-semibold text-jungle-500 mb-1.5 flex items-center gap-1"><Users size={12} /> Viajero</p>
+              <p className="text-xs font-semibold text-jungle-500 mb-1.5 flex items-center gap-1"><Users size={12} /> {t('Viajero')}</p>
               <input
                 value={nombreViajero}
                 onChange={(e) => setNombreViajero(e.target.value)}
-                placeholder="Tu nombre"
+                placeholder={t('Tu nombre')}
                 className="w-full bg-jungle-50 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 mb-2"
               />
               <div className="flex items-center gap-3">
-                <span className="text-xs text-jungle-500">Personas</span>
+                <span className="text-xs text-jungle-500">{t('Personas')}</span>
                 <button onClick={() => setNumeroPersonas((n) => Math.max(1, n - 1))} className="w-8 h-8 rounded-full bg-jungle-100 text-jungle-700 font-bold">−</button>
                 <span className="text-sm font-semibold w-6 text-center">{numeroPersonas}</span>
                 <button onClick={() => setNumeroPersonas((n) => n + 1)} className="w-8 h-8 rounded-full bg-jungle-100 text-jungle-700 font-bold">+</button>
@@ -159,7 +161,7 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
             <textarea
               value={notas}
               onChange={(e) => setNotas(e.target.value)}
-              placeholder="Notas para el prestador (opcional)"
+              placeholder={t('Notas para el prestador (opcional)')}
               rows={2}
               className="w-full bg-jungle-50 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none"
             />
@@ -172,10 +174,10 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
               className="w-full flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white py-3.5 rounded-xl text-sm font-semibold"
             >
               {enviando ? <Loader2 size={16} className="animate-spin" /> : null}
-              Enviar solicitud de reservación
+              {t('Enviar solicitud de reservación')}
             </button>
             <p className="text-[11px] text-jungle-400 text-center">
-              Sin cargo por ahora — solo se envía tu solicitud, el prestador la confirma.
+              {t('Sin cargo por ahora — solo se envía tu solicitud, el prestador la confirma.')}
             </p>
           </div>
         )}

@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MessageCircle, X, Clock, ChevronRight, Users, Bell } from 'lucide-react';
 import { getToken, getUsuarioLocal } from '../lib/auth';
+import { useT } from '../lib/i18n';
 
 const CLAVE_POSICION = 'tuxtlasgo-burbuja-pos';
 const TAMANO_BOTON = 56;
@@ -34,6 +35,7 @@ interface Notificacion {
 }
 
 export default function NotificacionesBurbuja() {
+  const t = useT();
   const usuario = getUsuarioLocal();
   const navigate = useNavigate();
   const [abierta, setAbierta] = useState(false);
@@ -182,12 +184,12 @@ export default function NotificacionesBurbuja() {
           } ${enMitadDerecha ? 'right-0' : 'left-0'}`}
         >
           <div className="bg-jungle-800 text-white px-4 py-3 flex items-center justify-between">
-            <p className="font-display font-bold text-sm">Notificaciones</p>
+            <p className="font-display font-bold text-sm">{t('Notificaciones')}</p>
             <button onClick={() => setAbierta(false)} className="text-jungle-200 hover:text-white"><X size={16} /></button>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {total === 0 && avisos.length === 0 ? (
-              <p className="text-xs text-jungle-400 text-center py-8">Todo al día 🎉</p>
+              <p className="text-xs text-jungle-400 text-center py-8">{t('Todo al día 🎉')}</p>
             ) : (
               <>
                 {avisos.map((n) => (
@@ -198,8 +200,8 @@ export default function NotificacionesBurbuja() {
                   >
                     <Bell size={15} className="text-jungle-500 flex-shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-jungle-900">{n.titulo}</p>
-                      <p className="text-[11px] text-jungle-500 mt-0.5">{n.mensaje}</p>
+                      <p className="text-xs font-semibold text-jungle-900">{t(n.titulo)}</p>
+                      <p className="text-[11px] text-jungle-500 mt-0.5">{t(n.mensaje)}</p>
                     </div>
                   </button>
                 ))}
@@ -212,7 +214,7 @@ export default function NotificacionesBurbuja() {
                     <Clock size={15} className="text-amber-500 flex-shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-jungle-900 truncate">{r.titulo}</p>
-                      <p className="text-[11px] text-jungle-400">Nueva solicitud de reservación</p>
+                      <p className="text-[11px] text-jungle-400">{t('Nueva solicitud de reservación')}</p>
                     </div>
                     <ChevronRight size={14} className="text-jungle-300 flex-shrink-0" />
                   </button>
@@ -226,7 +228,7 @@ export default function NotificacionesBurbuja() {
                     <MessageCircle size={15} className="text-jungle-600 flex-shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-jungle-900 truncate">{r.titulo}</p>
-                      <p className="text-[11px] text-jungle-400">{r.mensajes_no_leidos} mensaje{(r.mensajes_no_leidos ?? 0) > 1 ? 's' : ''} nuevo{(r.mensajes_no_leidos ?? 0) > 1 ? 's' : ''}</p>
+                      <p className="text-[11px] text-jungle-400">{(r.mensajes_no_leidos ?? 0) > 1 ? t('{n} mensajes nuevos', { n: r.mensajes_no_leidos ?? 0 }) : t('{n} mensaje nuevo', { n: r.mensajes_no_leidos ?? 0 })}</p>
                     </div>
                     <ChevronRight size={14} className="text-jungle-300 flex-shrink-0" />
                   </button>
@@ -242,7 +244,7 @@ export default function NotificacionesBurbuja() {
             onClick={() => setAbierta(false)}
             className="flex items-center gap-2 px-4 py-3 bg-jungle-50 hover:bg-jungle-100 border-t border-jungle-100 text-xs font-semibold text-jungle-700 transition-colors"
           >
-            <Users size={14} /> Mientras esperas, mira la Comunidad
+            <Users size={14} /> {t('Mientras esperas, mira la Comunidad')}
             <ChevronRight size={13} className="ml-auto text-jungle-400" />
           </Link>
         </div>
@@ -254,7 +256,7 @@ export default function NotificacionesBurbuja() {
         className={`relative w-14 h-14 rounded-full bg-jungle-700 hover:bg-jungle-800 text-white shadow-xl flex items-center justify-center touch-none select-none ${
           arrastrando ? 'cursor-grabbing scale-105' : 'cursor-grab transition-colors'
         }`}
-        aria-label="Notificaciones — mantén presionado para mover"
+        aria-label={t('Notificaciones — mantén presionado para mover')}
       >
         {abierta ? <X size={22} /> : <MessageCircle size={22} />}
         {!abierta && total > 0 && (

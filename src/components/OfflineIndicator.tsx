@@ -1,4 +1,5 @@
 import { WifiOff, CheckCircle2 } from 'lucide-react';
+import { useT } from '../lib/i18n';
 import { useOffline } from '../hooks/useOffline';
 
 // Indicador discreto de modo offline. Antes era una banda naranja que
@@ -6,6 +7,7 @@ import { useOffline } from '../hooks/useOffline';
 // inferior derecha, encima del bottom nav. No estorba a la navegación.
 export default function OfflineIndicator() {
   const offline = useOffline();
+  const t = useT();
   if (!offline) return null;
 
   return (
@@ -21,10 +23,11 @@ export default function OfflineIndicator() {
 }
 
 export function OfflineReadyBadge() {
+  const t = useT();
   return (
     <div className="inline-flex items-center gap-1.5 text-xs bg-jungle-100 text-jungle-800 px-2.5 py-1 rounded-full font-medium">
       <CheckCircle2 size={12} />
-      Disponible offline
+      {t('Disponible offline')}
     </div>
   );
 }

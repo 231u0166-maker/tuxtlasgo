@@ -4,6 +4,19 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 
 ---
 
+# Sesión 2026-10-04 — Interfaz en inglés (ES/EN) para turistas extranjeros
+
+## Botón de idioma + traducción básica de la interfaz
+**Pedido:** que un extranjero pueda operar la PWA. Se acordó alcance básico: lo necesario para operar; el asistente de chat queda para después.
+**Arreglo:** i18n propio, sin dependencias nuevas y 100% offline (`src/lib/i18n.tsx`). La clave es el texto en español (`t('Explorar')`), con diccionario en `src/lib/i18n-en.ts`; lo que no tenga traducción se muestra en español, nunca se rompe. El idioma se guarda en `localStorage`, la primera vez respeta el idioma del dispositivo, y actualiza `<html lang>`. Botón ES/EN (`SelectorIdioma.tsx`) en: navbar de la landing, sidebar de escritorio, modal de login y Perfil (único lugar en móvil dentro de la app).
+**Traducido:** landing y navbar, login/registro/recuperar, Inicio, Explorar, tarjetas, detalle del lugar, modal de reservar y calendarios (meses y días), Mis lugares (favoritos/rutas/reservas/pago), mapa y sus controles, filtros del viaje, perfil de turista, notificaciones, barra de navegación. Los datos de lugares escritos por prestadores (horario, duración, costo, días) pasan por `td()`, que traduce solo frases comunes ("Todos los días", "horas", "por persona"…). Los errores que devuelve el servidor también están en el diccionario.
+**Queda en español a propósito:** descripciones/consejos/"cómo llegar" de cada lugar (vienen de la BD), paneles de prestador y admin, páginas legales, Comunidad y Galería, y **las respuestas del asistente** (el motor de PLN y el prompt de IA aún no son bilingües; solo se tradujo el placeholder y el botón de enviar).
+**Probado en vivo:** Inicio, Explorar, Perfil y detalle de un lugar en inglés; el cambio ES↔EN funciona, persiste y cambia `<html lang>`. En la prueba encontré y corregí un bug mío (la duración en `PlaceCard` no pasaba por `td`). No probé en el navegador login, reservar ni Mis lugares con sesión iniciada: esos están verificados solo por compilación (`tsc` limpio).
+- Archivos nuevos: `src/lib/i18n.tsx`, `src/lib/i18n-en.ts`, `src/components/SelectorIdioma.tsx`
+- Archivos tocados: `main.tsx` y los componentes de pantalla del turista (AppShell, AuthModal, BottomNav, Calendario*, ExploreScreen, FavoritesScreen, FiltrosViaje, InicioScreen, LandingPage, MapScreen, ModalReservacion, NavbarLanding, NotificacionesBurbuja, OfflineIndicator, PerfilScreen, PlaceCard, PlaceDetail, SugerenciasChat, ChatAssistant)
+
+---
+
 # Sesión 2026-09-26 — Reestructura de "Mi Servicio" (menos saturación)
 
 ## "Mi Servicio" pasa de un formulario gigante a 3 modales por sección

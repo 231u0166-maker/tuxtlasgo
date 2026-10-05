@@ -2,6 +2,7 @@ import { Sparkles } from 'lucide-react';
 import PlaceCard from './PlaceCard';
 import type { Lugar } from '../data/lugares';
 import { getCatalogoActivo } from '../lib/chatbot';
+import { useT } from '../lib/i18n';
 
 // ============================================================
 // SUGERENCIAS DEL CHAT — estado "nada preguntado todavía"
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export default function SugerenciasChat({ onVerLugar }: Props) {
+  const t = useT();
   const destacados = getCatalogoActivo().filter((l) => l.destacado).slice(0, 6);
 
   return (
@@ -30,7 +32,7 @@ export default function SugerenciasChat({ onVerLugar }: Props) {
       <div className="flex items-center gap-2 mb-4">
         <Sparkles size={16} className="text-sun-600" />
         <h2 className="font-display font-bold text-[15px] text-obsidiana-900">
-          Para ti en Los Tuxtlas
+          {t('Para ti en {lugar}', { lugar: 'Los Tuxtlas' })}
         </h2>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -40,7 +42,7 @@ export default function SugerenciasChat({ onVerLugar }: Props) {
       </div>
       {destacados.length === 0 && (
         <p className="text-sm text-obsidiana-800/50">
-          Todavía no hay lugares destacados en el catálogo.
+          {t('Todavía no hay lugares destacados en el catálogo.')}
         </p>
       )}
     </div>

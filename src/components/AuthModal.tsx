@@ -3,6 +3,8 @@ import {
   X, Eye, EyeOff, Loader2, CheckCircle2, Copy,
   Lock, Mail, User,
 } from 'lucide-react';
+import { useT } from '../lib/i18n';
+import SelectorIdioma from './SelectorIdioma';
 import { apiLogin, apiRegistro, apiRecuperar, type UsuarioSesion } from '../lib/auth';
 
 type Vista = 'login' | 'registro' | 'recuperar' | 'codigo';
@@ -23,6 +25,7 @@ interface Props {
 }
 
 export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
+  const t = useT();
   const [vista, setVista] = useState<Vista>(vistaInicial ?? 'login');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
@@ -55,7 +58,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
     const res = await apiLogin({ correo: correoLogin, password: passLogin });
     setCargando(false);
     if (res.ok && res.usuario) onSuccess(res.usuario);
-    else setError(res.error ?? 'Correo o contraseña incorrectos');
+    else setError(t(res.error ?? 'Correo o contraseña incorrectos'));
   }
 
   // Registro SIEMPRE simple, igual para todos — convertirse en
@@ -69,11 +72,11 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
     setError('');
     // Mismo criterio que el servidor — se valida aquí también para
     // dar el error al instante, sin esperar el viaje de ida y vuelta.
-    if (!NOMBRE_VALIDO.test(nombre.trim())) return setError('Escribe un nombre real (solo letras y espacios)');
-    if (!CORREO_VALIDO.test(correoReg.trim())) return setError('Escribe un correo válido (ej. nombre@dominio.com)');
-    if (passReg !== passConf) return setError('Las contraseñas no coinciden');
-    if (passReg.length < 6) return setError('La contraseña debe tener mínimo 6 caracteres');
-    if (!terminos) return setError('Debes aceptar los términos y condiciones');
+    if (!NOMBRE_VALIDO.test(nombre.trim())) return setError(t('Escribe un nombre real (solo letras y espacios)'));
+    if (!CORREO_VALIDO.test(correoReg.trim())) return setError(t('Escribe un correo válido (ej. nombre@dominio.com)'));
+    if (passReg !== passConf) return setError(t('Las contraseñas no coinciden'));
+    if (passReg.length < 6) return setError(t('La contraseña debe tener mínimo 6 caracteres'));
+    if (!terminos) return setError(t('Debes aceptar los términos y condiciones'));
     setCargando(true);
     const res = await apiRegistro({
       nombre,
@@ -87,7 +90,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
       setUsuarioRegistrado(res.usuario);
       setVista('codigo');
     } else {
-      setError(res.error ?? 'Error al crear la cuenta');
+      setError(t(res.error ?? 'Error al crear la cuenta'));
     }
   }
 
@@ -98,7 +101,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
     const res = await apiRecuperar({ correo: correoRec, codigoRecuperacion: codigoRec, nuevaPassword: passNueva });
     setCargando(false);
     if (res.ok) setRecuperado(true);
-    else setError(res.error ?? 'Correo o código incorrectos');
+    else setError(t(res.error ?? 'Correo o código incorrectos'));
   }
 
   function copiarCodigo() {
@@ -116,15 +119,15 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
             <div className="w-16 h-16 bg-jungle-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <CheckCircle2 size={32} className="text-jungle-600" />
             </div>
-            <h2 className="font-display font-extrabold text-2xl text-jungle-950">¡Cuenta creada!</h2>
-            <p className="text-jungle-600 mt-1 text-sm">Bienvenido, {usuarioRegistrado?.nombre.split(' ')[0]}</p>
+            <h2 className="font-display font-extrabold text-2xl text-jungle-950">{t('¡Cuenta creada!')}</h2>
+            <p className="text-jungle-600 mt-1 text-sm">{t('Bienvenido, {nombre}', { nombre: usuarioRegistrado?.nombre.split(' ')[0] ?? '' })}</p>
           </div>
           <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 mb-6">
             <div className="flex items-center gap-2 mb-2">
               <Lock size={16} className="text-amber-600" />
-              <p className="text-xs font-bold text-amber-900">Guarda tu código de recuperación</p>
+              <p className="text-xs font-bold text-amber-900">{t('Guarda tu código de recuperación')}</p>
             </div>
-            <p className="text-xs text-amber-700 mb-3">Si olvidas tu contraseña lo necesitarás. <strong>No lo podrás ver de nuevo.</strong></p>
+            <p className="text-xs text-amber-700 mb-3">{t('Si olvidas tu contraseña lo necesitarás.')} <strong>{t('No lo podrás ver de nuevo.')}</strong></p>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-white border border-amber-200 rounded-xl px-4 py-3 text-base font-bold text-center text-jungle-900 tracking-widest">
                 {codigoMostrado}
@@ -136,7 +139,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
           </div>
           <button onClick={() => { if (usuarioRegistrado) onSuccess(usuarioRegistrado); else onClose(); }}
             className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl transition-colors">
-            Ya lo guardé — Entrar a la app
+            {t('Ya lo guardé — Entrar a la app')}
           </button>
         </div>
       </div>
@@ -150,7 +153,10 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
         {/* Header sticky */}
         <div className="sticky top-0 bg-white border-b border-jungle-100 px-6 py-4 flex items-center justify-between rounded-t-3xl z-10">
           <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-8 w-auto object-contain" />
-          <button onClick={onClose} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={22} /></button>
+          <div className="flex items-center gap-2">
+            <SelectorIdioma />
+            <button onClick={onClose} aria-label={t('Cerrar')} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={22} /></button>
+          </div>
         </div>
 
         <div className="px-6 py-6 pb-12">
@@ -159,23 +165,23 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
           {vista === 'recuperar' && (
             <div>
               <button onClick={() => { setVista('login'); setError(''); setRecuperado(false); }}
-                className="text-xs text-jungle-600 underline mb-5 block">← Volver al inicio de sesión</button>
+                className="text-xs text-jungle-600 underline mb-5 block">{t('← Volver al inicio de sesión')}</button>
               {recuperado ? (
                 <div className="text-center py-6">
                   <CheckCircle2 size={40} className="text-jungle-600 mx-auto mb-3" />
-                  <h3 className="font-display font-bold text-lg text-jungle-950 mb-2">¡Contraseña actualizada!</h3>
-                  <p className="text-sm text-jungle-600 mb-5">Ya puedes iniciar sesión con tu nueva contraseña.</p>
+                  <h3 className="font-display font-bold text-lg text-jungle-950 mb-2">{t('¡Contraseña actualizada!')}</h3>
+                  <p className="text-sm text-jungle-600 mb-5">{t('Ya puedes iniciar sesión con tu nueva contraseña.')}</p>
                   <button onClick={() => { setVista('login'); setRecuperado(false); setError(''); }}
-                    className="bg-jungle-700 text-white font-bold px-8 py-3 rounded-2xl">Iniciar sesión</button>
+                    className="bg-jungle-700 text-white font-bold px-8 py-3 rounded-2xl">{t('Iniciar sesión')}</button>
                 </div>
               ) : (
                 <>
-                  <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">Recuperar contraseña</h2>
-                  <p className="text-sm text-jungle-600 mb-6">Ingresa tu correo y el código de recuperación que guardaste.</p>
+                  <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">{t('Recuperar contraseña')}</h2>
+                  <p className="text-sm text-jungle-600 mb-6">{t('Ingresa tu correo y el código de recuperación que guardaste.')}</p>
                   {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
                   <form onSubmit={handleRecuperar} className="space-y-4">
                     <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Correo electrónico</label>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">{t('Correo electrónico')}</label>
                       <div className="relative">
                         <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
                         <input type="email" value={correoRec} onChange={e => setCorreoRec(e.target.value)} required placeholder="tu@email.com"
@@ -183,22 +189,22 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Código de recuperación</label>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">{t('Código de recuperación')}</label>
                       <input type="text" value={codigoRec} onChange={e => setCodigoRec(e.target.value.toUpperCase())} required placeholder="REC-XXXXXXXX"
                         className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Nueva contraseña</label>
+                      <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">{t('Nueva contraseña')}</label>
                       <div className="relative">
                         <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
-                        <input type="password" value={passNueva} onChange={e => setPassNueva(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres"
+                        <input type="password" value={passNueva} onChange={e => setPassNueva(e.target.value)} required minLength={6} placeholder={t('Mínimo 6 caracteres')}
                           className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                       </div>
                     </div>
                     <button type="submit" disabled={cargando}
                       className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
                       {cargando && <Loader2 size={18} className="animate-spin" />}
-                      Cambiar contraseña
+                      {t('Cambiar contraseña')}
                     </button>
                   </form>
                 </>
@@ -209,12 +215,12 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
           {/* ─── LOGIN ─── */}
           {vista === 'login' && (
             <div>
-              <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">Iniciar sesión</h2>
-              <p className="text-sm text-jungle-600 mb-6">Ingresa tus datos para continuar</p>
+              <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">{t('Iniciar sesión')}</h2>
+              <p className="text-sm text-jungle-600 mb-6">{t('Ingresa tus datos para continuar')}</p>
               {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Correo electrónico</label>
+                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">{t('Correo electrónico')}</label>
                   <div className="relative">
                     <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
                     <input type="email" value={correoLogin} onChange={e => setCorreoLogin(e.target.value)} required placeholder="tu@email.com"
@@ -223,13 +229,13 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-jungle-700">Contraseña</label>
+                    <label className="text-xs font-semibold text-jungle-700">{t('Contraseña')}</label>
                     <button type="button" onClick={() => { setVista('recuperar'); setError(''); }}
-                      className="text-xs text-jungle-600 underline">¿Olvidaste tu contraseña?</button>
+                      className="text-xs text-jungle-600 underline">{t('¿Olvidaste tu contraseña?')}</button>
                   </div>
                   <div className="relative">
                     <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
-                    <input type={verPass ? 'text' : 'password'} value={passLogin} onChange={e => setPassLogin(e.target.value)} required placeholder="Tu contraseña"
+                    <input type={verPass ? 'text' : 'password'} value={passLogin} onChange={e => setPassLogin(e.target.value)} required placeholder={t('Tu contraseña')}
                       className="w-full border border-jungle-200 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                     <button type="button" onClick={() => setVerPass(!verPass)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-jungle-400">
@@ -240,12 +246,12 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
                 <button type="submit" disabled={cargando}
                   className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors mt-2">
                   {cargando && <Loader2 size={18} className="animate-spin" />}
-                  Iniciar sesión
+                  {t('Iniciar sesión')}
                 </button>
               </form>
               <p className="text-center text-sm text-jungle-600 mt-6">
-                ¿No tienes cuenta?{' '}
-                <button onClick={() => { setVista('registro'); setError(''); }} className="font-bold text-jungle-800 underline">Regístrate aquí</button>
+                {t('¿No tienes cuenta?')}{' '}
+                <button onClick={() => { setVista('registro'); setError(''); }} className="font-bold text-jungle-800 underline">{t('Regístrate aquí')}</button>
               </p>
             </div>
           )}
@@ -253,21 +259,21 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
           {/* ─── REGISTRO ─── */}
           {vista === 'registro' && (
             <div>
-              <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">Crear cuenta</h2>
-              <p className="text-sm text-jungle-600 mb-6">Completa los datos para registrarte</p>
+              <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">{t('Crear cuenta')}</h2>
+              <p className="text-sm text-jungle-600 mb-6">{t('Completa los datos para registrarte')}</p>
               {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
 
               <form onSubmit={handleRegistro} className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Nombre completo <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">{t('Nombre completo')} <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
-                    <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} required minLength={2} placeholder="Tu nombre y apellido"
+                    <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} required minLength={2} placeholder={t('Tu nombre y apellido')}
                       className="w-full border border-jungle-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Correo electrónico <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">{t('Correo electrónico')} <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
                     <input type="email" value={correoReg} onChange={e => setCorreoReg(e.target.value)} required placeholder="tu@email.com"
@@ -275,10 +281,10 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Contraseña <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">{t('Contraseña')} <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
-                    <input type={verPass ? 'text' : 'password'} value={passReg} onChange={e => setPassReg(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres"
+                    <input type={verPass ? 'text' : 'password'} value={passReg} onChange={e => setPassReg(e.target.value)} required minLength={6} placeholder={t('Mínimo 6 caracteres')}
                       className="w-full border border-jungle-200 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
                     <button type="button" onClick={() => setVerPass(!verPass)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-jungle-400">
@@ -287,38 +293,38 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Confirmar contraseña <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">{t('Confirmar contraseña')} <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
-                    <input type="password" value={passConf} onChange={e => setPassConf(e.target.value)} required placeholder="Repite tu contraseña"
+                    <input type="password" value={passConf} onChange={e => setPassConf(e.target.value)} required placeholder={t('Repite tu contraseña')}
                       className={`w-full border rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 ${passConf && passReg !== passConf ? 'border-red-300 bg-red-50' : 'border-jungle-200'}`} />
                   </div>
-                  {passConf && passReg !== passConf && <p className="text-xs text-red-500 mt-1">Las contraseñas no coinciden</p>}
+                  {passConf && passReg !== passConf && <p className="text-xs text-red-500 mt-1">{t('Las contraseñas no coinciden')}</p>}
                 </div>
                 {/* Términos */}
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={terminos} onChange={e => setTerminos(e.target.checked)}
                     className="mt-0.5 w-4 h-4 rounded border-jungle-300 text-jungle-600" />
                   <span className="text-xs text-jungle-600">
-                    Acepto los{' '}
+                    {t('Acepto los')}{' '}
                     <a href="/terminos" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                       className="text-jungle-800 underline font-semibold hover:text-jungle-950">
-                      términos y condiciones
+                      {t('términos y condiciones')}
                     </a>{' '}
-                    del sistema
+                    {t('del sistema')}
                   </span>
                 </label>
 
                 <button type="submit" disabled={cargando || (passConf !== '' && passReg !== passConf)}
                   className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
                   {cargando && <Loader2 size={18} className="animate-spin" />}
-                  Crear cuenta
+                  {t('Crear cuenta')}
                 </button>
               </form>
 
               <p className="text-center text-sm text-jungle-600 mt-6">
-                ¿Ya tienes cuenta?{' '}
-                <button onClick={() => { setVista('login'); setError(''); }} className="font-bold text-jungle-800 underline">Inicia sesión</button>
+                {t('¿Ya tienes cuenta?')}{' '}
+                <button onClick={() => { setVista('login'); setError(''); }} className="font-bold text-jungle-800 underline">{t('Inicia sesión')}</button>
               </p>
             </div>
           )}

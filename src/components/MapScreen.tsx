@@ -11,6 +11,7 @@ import {
   type Lugar,
 } from '../data/lugares';
 import { listarServiciosAprobadosComoLugares } from '../lib/db';
+import { useT } from '../lib/i18n';
 import { colorTramo } from '../lib/colores';
 
 // ============================================================
@@ -311,6 +312,7 @@ export default function MapScreen({
   onLimpiarRuta,
   vistaCompacta,
 }: Props) {
+  const t = useT();
   const mapRef = useRef<MapRef>(null);
   const contenedorRef = useRef<HTMLDivElement>(null);
 
@@ -656,8 +658,8 @@ export default function MapScreen({
             onClick={() => setMostrarFiltroCategorias((v) => !v)}
             className={`w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center border hover:bg-jungle-50 ${categoriaFiltroInterna ? 'border-jungle-600 text-jungle-700' : 'border-jungle-100 text-jungle-800'
               }`}
-            title="Filtrar por categoría"
-            aria-label="Filtrar lugares por categoría"
+            title={t('Filtrar por categoría')}
+            aria-label={t('Filtrar lugares por categoría')}
             aria-expanded={mostrarFiltroCategorias}
           >
             <SlidersHorizontal size={17} />
@@ -671,7 +673,7 @@ export default function MapScreen({
                   }`}
               >
                 <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${!categoriaFiltroInterna ? 'border-jungle-700 bg-jungle-700' : 'border-jungle-300'}`} />
-                Todos
+                {t('Todos')}
                 <span className="ml-auto text-xs font-normal text-jungle-500">{lugaresParaConteo.length}</span>
               </button>
               {CATEGORIAS.map((c) => {
@@ -686,7 +688,7 @@ export default function MapScreen({
                       }`}
                   >
                     <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${activa ? 'border-jungle-700 bg-jungle-700' : 'border-jungle-300'}`} />
-                    <span>{c.emoji} {c.id}</span>
+                    <span>{c.emoji} {t(c.id)}</span>
                     <span className="ml-auto text-xs font-normal text-jungle-500">{cantidad}</span>
                   </button>
                 );
@@ -700,8 +702,8 @@ export default function MapScreen({
           <button
             onClick={() => setMostrarCapas((v) => !v)}
             className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border border-jungle-100"
-            title="Tipo de mapa"
-            aria-label="Cambiar tipo de mapa"
+            title={t('Tipo de mapa')}
+            aria-label={t('Cambiar tipo de mapa')}
             aria-expanded={mostrarCapas}
           >
             <Layers size={18} />
@@ -715,7 +717,7 @@ export default function MapScreen({
                   }`}
               >
                 <MapIcon size={18} />
-                Calles
+                {t('Calles')}
               </button>
               <button
                 onClick={() => { setVistaTerreno(true); setMostrarCapas(false); }}
@@ -723,7 +725,7 @@ export default function MapScreen({
                   }`}
               >
                 <Mountain size={18} />
-                Terreno
+                {t('Terreno')}
               </button>
             </div>
           )}
@@ -734,16 +736,16 @@ export default function MapScreen({
           <button
             onClick={() => mapRef.current?.getMap()?.zoomIn({ duration: 250 })}
             className="w-10 h-10 flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border-b border-jungle-100"
-            aria-label="Acercar"
-            title="Acercar"
+            aria-label={t('Acercar')}
+            title={t('Acercar')}
           >
             <Plus size={18} />
           </button>
           <button
             onClick={() => mapRef.current?.getMap()?.zoomOut({ duration: 250 })}
             className="w-10 h-10 flex items-center justify-center text-jungle-800 hover:bg-jungle-50"
-            aria-label="Alejar"
-            title="Alejar"
+            aria-label={t('Alejar')}
+            title={t('Alejar')}
           >
             <Minus size={18} />
           </button>
@@ -753,8 +755,8 @@ export default function MapScreen({
         <button
           onClick={resetearVista}
           className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border border-jungle-100"
-          title="Regresar a Los Tuxtlas"
-          aria-label="Regresar al centro del mapa"
+          title={t('Regresar a Los Tuxtlas')}
+          aria-label={t('Regresar al centro del mapa')}
         >
           <Compass size={20} />
         </button>
@@ -767,10 +769,10 @@ export default function MapScreen({
         <button
           onClick={onLimpiarRuta}
           className="hidden lg:flex absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3.5 pr-4 py-1.5 items-center gap-1.5 text-xs font-semibold"
-          aria-label="Cerrar ruta y volver al mapa normal"
+          aria-label={t('Cerrar ruta y volver al mapa normal')}
         >
           <X size={14} />
-          Cerrar ruta
+          {t('Cerrar ruta')}
         </button>
       )}
 
@@ -782,13 +784,13 @@ export default function MapScreen({
           {tilesListos ? (
             <div className="bg-white shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-jungle-800">
               <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
-              <span className="hidden sm:inline">Mapa disponible </span>offline ✓
+              {t('Mapa disponible offline ✓')}
             </div>
           ) : descargando ? (
             <div className="bg-white shadow-lg rounded-xl px-3 py-2.5 flex flex-col gap-1 min-w-[160px]">
               <div className="flex items-center gap-2 text-sm font-semibold text-jungle-800">
                 <Loader2 size={14} className="animate-spin flex-shrink-0" />
-                Guardando mapa… {progreso}%
+                {t('Guardando mapa…')} {progreso}%
               </div>
               <div className="w-full bg-jungle-100 rounded-full h-1.5">
                 <div
@@ -798,12 +800,12 @@ export default function MapScreen({
               </div>
               <p className="text-[10px] text-jungle-500">
                 {progreso < 20
-                  ? 'Preparando…'
+                  ? t('Preparando…')
                   : progreso < 70
-                    ? 'Descargando calles y edificios…'
+                    ? t('Descargando calles y edificios…')
                     : progreso < 95
-                      ? 'Guardando estilo del mapa…'
-                      : 'Finalizando…'}
+                      ? t('Guardando estilo del mapa…')
+                      : t('Finalizando…')}
               </p>
             </div>
           ) : (
@@ -812,7 +814,7 @@ export default function MapScreen({
               className="bg-white hover:bg-jungle-50 shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-jungle-900"
             >
               <Download size={14} className="flex-shrink-0" />
-              <span className="hidden xs:inline">Descargar mapa</span>
+              <span className="hidden xs:inline">{t('Descargar mapa')}</span>
             </button>
           )}
         </div>
@@ -824,7 +826,7 @@ export default function MapScreen({
           <div className="bg-white rounded-2xl p-5 max-w-sm animate-fade-in">
             <div className="flex items-start justify-between mb-2">
               <h3 className="font-display font-bold text-lg text-jungle-950">
-                Descargar mapa para usar offline
+                {t('Descargar mapa para usar offline')}
               </h3>
               <button
                 onClick={() => setMostrarAyuda(false)}
@@ -834,16 +836,14 @@ export default function MapScreen({
               </button>
             </div>
             <p className="text-sm text-jungle-700 mb-4">
-              Vamos a guardar el mapa de Los Tuxtlas en tu dispositivo. Tarda
-              unos segundos. Después podrás ver el mapa aunque no tengas
-              internet. Mantén esta pantalla abierta mientras descarga.
+              {t('Vamos a guardar el mapa de Los Tuxtlas en tu dispositivo. Tarda unos segundos. Después podrás ver el mapa aunque no tengas internet. Mantén esta pantalla abierta mientras descarga.')}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setMostrarAyuda(false)}
                 className="flex-1 border-2 border-jungle-200 text-jungle-800 py-2.5 rounded-xl font-semibold text-sm"
               >
-                Ahora no
+                {t('Ahora no')}
               </button>
               <button
                 onClick={() => {
@@ -852,7 +852,7 @@ export default function MapScreen({
                 }}
                 className="flex-1 bg-jungle-700 text-white py-2.5 rounded-xl font-semibold text-sm"
               >
-                Descargar ahora
+                {t('Descargar ahora')}
               </button>
             </div>
           </div>

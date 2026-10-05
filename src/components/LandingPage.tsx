@@ -19,6 +19,7 @@ import {
 import OfflineIndicator from './OfflineIndicator';
 import NavbarLanding, { type ModoLanding } from './NavbarLanding';
 import AuthModal from './AuthModal';
+import { useT } from '../lib/i18n';
 
 interface LandingProps {
   usuario?: UsuarioSesion | null;
@@ -34,6 +35,7 @@ interface LandingProps {
 // el carrusel con setInterval (menos JS corriendo todo el tiempo,
 // no solo se ve mejor).
 export default function LandingPage({ usuario = null, onUsuario }: LandingProps) {
+  const t = useT();
   // Base-visual SECTION-01: la landing tiene dos "modos" de contenido
   // (turista / prestador) que viven en el mismo componente y la misma
   // ruta "/" — no se navega a otra URL al cambiar, así el toggle del
@@ -70,15 +72,14 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
                 className="h-8 w-auto object-contain brightness-0 invert"
               />
               <p className="text-sm text-jungle-100/60 leading-relaxed max-w-xs">
-                Plataforma turística inteligente de Los Tuxtlas, Veracruz. Rutas
-                con IA, mapa offline y prestadores locales verificados.
+                {t('Plataforma turística inteligente de Los Tuxtlas, Veracruz. Rutas con IA, mapa offline y prestadores locales verificados.')}
               </p>
               <div className="flex items-center gap-3 pt-1">
                 <a
                   href="https://www.facebook.com/share/1RRL1HJ5jS/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="Facebook de TuxtlasGO"
+                  aria-label={t('Facebook de TuxtlasGO')}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1877F2] text-white transition-transform hover:scale-110"
                 >
                   <Facebook size={18} />
@@ -87,7 +88,7 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
                   href="https://www.instagram.com/tuxtlasgo?stkn=NnN6cTNicDI4bHFv"
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="Instagram de TuxtlasGO"
+                  aria-label={t('Instagram de TuxtlasGO')}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-[#FEDA75] via-[#D62976] to-[#4F5BD5] text-white transition-transform hover:scale-110"
                 >
                   <Instagram size={18} />
@@ -97,27 +98,27 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
 
             <div>
               <h3 className="font-display font-semibold text-xs text-white uppercase tracking-wider mb-4">
-                Explora
+                {t('Explora')}
               </h3>
               <ul className="space-y-2.5 text-sm text-jungle-100/60">
                 <li>
                   <Link to="/app" className="hover:text-white transition-colors">
-                    Empezar a explorar
+                    {t('Empezar a explorar')}
                   </Link>
                 </li>
                 <li>
                   <Link to="/prestador" className="hover:text-white transition-colors">
-                    Para prestadores
+                    {t('Para prestadores')}
                   </Link>
                 </li>
                 <li>
                   <Link to="/comunidad" className="hover:text-white transition-colors">
-                    Comunidad
+                    {t('Comunidad')}
                   </Link>
                 </li>
                 <li>
                   <Link to="/galeria" className="hover:text-white transition-colors">
-                    Galería
+                    {t('Galería')}
                   </Link>
                 </li>
               </ul>
@@ -125,17 +126,17 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
 
             <div>
               <h3 className="font-display font-semibold text-xs text-white uppercase tracking-wider mb-4">
-                Legal
+                {t('Legal')}
               </h3>
               <ul className="space-y-2.5 text-sm text-jungle-100/60">
                 <li>
                   <Link to="/terminos" className="hover:text-white transition-colors">
-                    Términos y condiciones
+                    {t('Términos y condiciones')}
                   </Link>
                 </li>
                 <li>
                   <Link to="/privacidad" className="hover:text-white transition-colors">
-                    Aviso de privacidad
+                    {t('Aviso de privacidad')}
                   </Link>
                 </li>
                 <li>
@@ -148,8 +149,7 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
           </div>
 
           <div className="mt-12 pt-6 border-t border-white/10 text-xs text-jungle-100/40 text-center sm:text-left">
-            © {new Date().getFullYear()} TuxtlasGO · Los Tuxtlas, Veracruz. Todos los derechos reservados. Prohibida su
-            reproducción total o parcial sin autorización.
+            © {new Date().getFullYear()} TuxtlasGO · {t('Los Tuxtlas, Veracruz. Todos los derechos reservados. Prohibida su reproducción total o parcial sin autorización.')}
           </div>
         </div>
       </footer>
@@ -169,6 +169,7 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
 
 // ─── Modo turista — contenido existente, sin cambios de copy ───
 function SeccionesTurista() {
+  const t = useT();
   return (
     <>
       {/* HERO — collage tipo mood-board, gradiente suave detrás */}
@@ -186,34 +187,33 @@ function SeccionesTurista() {
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
               <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.5rem] text-obsidiana-900 leading-[1.05] tracking-tight">
-                Tu guía de
+                {t('Tu guía de')}
                 <br />
-                Los Tuxtlas,
+                {t('Los Tuxtlas,')}
                 <br />
-                <span className="text-jungle-700">sin límites.</span>
+                <span className="text-jungle-700">{t('sin límites.')}</span>
               </h1>
               <p className="text-lg text-obsidiana-800/70 max-w-md leading-relaxed">
-                Rutas personalizadas con IA, mapa offline y prestadores locales
-                verificados. Sin cuenta, sin anuncios, sin depender de señal.
+                {t('Rutas personalizadas con IA, mapa offline y prestadores locales verificados. Sin cuenta, sin anuncios, sin depender de señal.')}
               </p>
               <div className="flex flex-wrap gap-3 pt-1">
                 <Link
                   to="/app"
                   className="bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 shadow-lg shadow-jungle-700/25 transition-colors"
                 >
-                  Empezar a explorar
+                  {t('Empezar a explorar')}
                   <ChevronRight size={18} />
                 </Link>
                 <button
                   onClick={() => {
                     alert(
-                      'Para instalar en tu celular: ábrela en Chrome o Safari y elige "Agregar a pantalla de inicio".'
+                      t('Para instalar en tu celular: ábrela en Chrome o Safari y elige "Agregar a pantalla de inicio".')
                     );
                   }}
                   className="bg-white border border-jungle-200 text-jungle-800 px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 hover:border-jungle-400 transition-colors"
                 >
                   <Download size={18} />
-                  Instalar en mi celular
+                  {t('Instalar en mi celular')}
                 </button>
               </div>
             </div>
@@ -228,15 +228,13 @@ function SeccionesTurista() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-2xl mb-12">
             <p className="text-sun-700 text-sm font-semibold uppercase tracking-wide mb-2">
-              Por qué TuxtlasGO
+              {t('Por qué TuxtlasGO')}
             </p>
             <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
-              Pensada para Los Tuxtlas
+              {t('Pensada para Los Tuxtlas')}
             </h2>
             <p className="text-obsidiana-800/60 text-[15px] leading-relaxed">
-              Resolvemos los tres problemas que enfrenta el turismo en la región:
-              conectividad, información dispersa y baja visibilidad de los prestadores
-              locales.
+              {t('Resolvemos los tres problemas que enfrenta el turismo en la región: conectividad, información dispersa y baja visibilidad de los prestadores locales.')}
             </p>
           </div>
 
@@ -281,9 +279,9 @@ function SeccionesTurista() {
                   <f.icon className="w-5 h-5 text-jungle-700 group-hover:text-white transition-colors" />
                 </div>
                 <h3 className="font-display font-bold text-base text-obsidiana-900 mb-1.5">
-                  {f.title}
+                  {t(f.title)}
                 </h3>
-                <p className="text-sm text-obsidiana-800/60 leading-relaxed">{f.desc}</p>
+                <p className="text-sm text-obsidiana-800/60 leading-relaxed">{t(f.desc)}</p>
               </div>
             ))}
           </div>
@@ -297,16 +295,16 @@ function SeccionesTurista() {
             <ShieldCheck className="text-white" size={22} />
           </div>
           <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
-            Listo para descubrir Los Tuxtlas
+            {t('Listo para descubrir Los Tuxtlas')}
           </h2>
           <p className="text-obsidiana-800/60 mb-8">
-            La aplicación es gratuita. Tus datos no salen de tu dispositivo.
+            {t('La aplicación es gratuita. Tus datos no salen de tu dispositivo.')}
           </p>
           <Link
             to="/app"
             className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl shadow-jungle-700/25 transition-colors"
           >
-            Empezar ahora
+            {t('Empezar ahora')}
             <ChevronRight size={20} />
           </Link>
         </div>
@@ -320,6 +318,7 @@ function SeccionesTurista() {
 // CTA) para no introducir un segundo layout, solo cambia el contenido:
 // aquí se habla de alcance/comisiones/verificación, no de rutas.
 function SeccionesPrestador() {
+  const t = useT();
   return (
     <>
       <section className="relative overflow-hidden">
@@ -337,26 +336,24 @@ function SeccionesPrestador() {
             <div className="space-y-6">
               <div className="inline-flex items-center gap-2 bg-white text-obsidiana-800 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-sm border border-obsidiana-900/5">
                 <Percent size={13} className="text-sun-600" />
-                Sin comisiones abusivas
+                {t('Sin comisiones abusivas')}
               </div>
               <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.5rem] text-obsidiana-900 leading-[1.05] tracking-tight">
-                Tu servicio,
+                {t('Tu servicio,')}
                 <br />
-                frente a quien
+                {t('frente a quien')}
                 <br />
-                <span className="text-jungle-700">ya viene para acá.</span>
+                <span className="text-jungle-700">{t('ya viene para acá.')}</span>
               </h1>
               <p className="text-lg text-obsidiana-800/70 max-w-md leading-relaxed">
-                Regístrate en minutos y aparece ante turistas que están
-                planeando su viaje a Los Tuxtlas en este momento — con o sin
-                contenido previo en redes sociales.
+                {t('Regístrate en minutos y aparece ante turistas que están planeando su viaje a Los Tuxtlas en este momento — con o sin contenido previo en redes sociales.')}
               </p>
               <div className="flex flex-wrap gap-3 pt-1">
                 <Link
                   to="/prestador"
                   className="bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 shadow-lg shadow-jungle-700/25 transition-colors"
                 >
-                  Únete ahora
+                  {t('Únete ahora')}
                   <ChevronRight size={18} />
                 </Link>
               </div>
@@ -371,14 +368,13 @@ function SeccionesPrestador() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-2xl mb-12">
             <p className="text-sun-700 text-sm font-semibold uppercase tracking-wide mb-2">
-              Por qué registrarte en TuxtlasGO
+              {t('Por qué registrarte en TuxtlasGO')}
             </p>
             <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
-              Hecho para prestadores locales
+              {t('Hecho para prestadores locales')}
             </h2>
             <p className="text-obsidiana-800/60 text-[15px] leading-relaxed">
-              Sin intermediarios, sin depender de tener ya una presencia
-              armada en redes — empiezas con lo que tengas.
+              {t('Sin intermediarios, sin depender de tener ya una presencia armada en redes — empiezas con lo que tengas.')}
             </p>
           </div>
 
@@ -423,9 +419,9 @@ function SeccionesPrestador() {
                   <f.icon className="w-5 h-5 text-jungle-700 group-hover:text-white transition-colors" />
                 </div>
                 <h3 className="font-display font-bold text-base text-obsidiana-900 mb-1.5">
-                  {f.title}
+                  {t(f.title)}
                 </h3>
-                <p className="text-sm text-obsidiana-800/60 leading-relaxed">{f.desc}</p>
+                <p className="text-sm text-obsidiana-800/60 leading-relaxed">{t(f.desc)}</p>
               </div>
             ))}
           </div>
@@ -438,16 +434,16 @@ function SeccionesPrestador() {
             <Percent className="text-white" size={22} />
           </div>
           <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
-            Súmate a los prestadores de Los Tuxtlas
+            {t('Súmate a los prestadores de Los Tuxtlas')}
           </h2>
           <p className="text-obsidiana-800/60 mb-8">
-            Registrar tu servicio es gratis. Tú decides qué información compartes.
+            {t('Registrar tu servicio es gratis. Tú decides qué información compartes.')}
           </p>
           <Link
             to="/prestador"
             className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl shadow-jungle-700/25 transition-colors"
           >
-            Únete ahora
+            {t('Únete ahora')}
             <ChevronRight size={20} />
           </Link>
         </div>

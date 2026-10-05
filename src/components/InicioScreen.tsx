@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send, Sparkles } from 'lucide-react';
 import PlaceCard from './PlaceCard';
+import { useT } from '../lib/i18n';
 import type { Lugar } from '../data/lugares';
 import { getCatalogoActivo } from '../lib/chatbot';
 
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Props) {
+  const t = useT();
   const [texto, setTexto] = useState('');
   // "Para ti" mezcla dos cosas a propósito, siempre en este orden:
   // primero la curaduría nuestra (destacado: rating/calidad, sin
@@ -66,10 +68,10 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
       <div className="flex-1 overflow-y-auto">
         <div className="px-4 lg:px-8 pt-6 pb-2">
           <h1 className="font-display font-extrabold text-2xl text-obsidiana-900">
-            ¿A dónde vamos hoy?
+            {t('¿A dónde vamos hoy?')}
           </h1>
           <p className="text-sm text-obsidiana-800/60 mt-1">
-            Pregúntame lo que quieras, o mira lo que tenemos para ti.
+            {t('Pregúntame lo que quieras, o mira lo que tenemos para ti.')}
           </p>
         </div>
 
@@ -78,7 +80,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
             nada, cae a "Los Tuxtlas" en general. */}
         <section className="px-4 lg:px-8 mt-5">
           <h2 className="font-display font-bold text-lg text-obsidiana-900 mb-3">
-            Para ti en {ubicacion?.trim() || 'Los Tuxtlas'}
+            {t('Para ti en {lugar}', { lugar: ubicacion?.trim() || 'Los Tuxtlas' })}
           </h2>
           {paraTi.length > 0 ? (
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
@@ -88,7 +90,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
             </div>
           ) : (
             <p className="text-sm text-obsidiana-800/40">
-              Todavía no hay lugares destacados en el catálogo.
+              {t('Todavía no hay lugares destacados en el catálogo.')}
             </p>
           )}
         </section>
@@ -96,7 +98,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
         {/* Consulta rápida */}
         <section className="px-4 lg:px-8 mt-6 mb-6">
           <h2 className="font-display font-bold text-lg text-obsidiana-900 mb-3">
-            Consulta rápida
+            {t('Consulta rápida')}
           </h2>
           <div className="flex flex-wrap gap-2">
             {SUGERENCIAS_RAPIDAS.map((s) => (
@@ -106,7 +108,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-jungle-50 text-jungle-800 text-sm font-medium hover:bg-jungle-100 transition-colors"
               >
                 <Sparkles size={13} className="text-sun-600 flex-shrink-0" />
-                {s}
+                {t(s)}
               </button>
             ))}
           </div>
@@ -131,7 +133,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
                 enviar();
               }
             }}
-            placeholder="Escribir un mensaje..."
+            placeholder={t('Escribir un mensaje...')}
             rows={1}
             className="flex-1 min-w-0 bg-white border border-jungle-200 rounded-2xl px-4 py-3 text-base text-jungle-950 leading-snug resize-none overflow-y-auto max-h-[160px] focus:outline-none focus:ring-2 focus:ring-jungle-300 focus:border-jungle-400 placeholder:text-jungle-400 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           />
@@ -139,7 +141,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
             onClick={enviar}
             disabled={!texto.trim()}
             className="w-11 h-11 rounded-full bg-jungle-700 disabled:bg-jungle-200 text-white flex items-center justify-center flex-shrink-0 transition-colors"
-            aria-label="Enviar"
+            aria-label={t('Enviar')}
           >
             <Send size={16} />
           </button>

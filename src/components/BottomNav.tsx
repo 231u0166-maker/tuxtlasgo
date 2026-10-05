@@ -1,3 +1,4 @@
+import { useT } from '../lib/i18n';
 import { Home, Compass, MessageCircle, Heart, User } from 'lucide-react';
 
 export type Tab = 'inicio' | 'explorar' | 'mapa' | 'chat' | 'favoritos' | 'perfil';
@@ -20,19 +21,20 @@ const tabs: { id: Tab; label: string; icon: typeof Compass }[] = [
 ];
 
 export default function BottomNav({ activa, onChange }: Props) {
+  const t = useT();
   return (
     <nav
       className="flex-shrink-0 bg-white border-t border-jungle-100 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}
     >
       <div className="flex max-w-2xl mx-auto">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const activo = t.id === activa;
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const activo = tab.id === activa;
           return (
             <button
-              key={t.id}
-              onClick={() => onChange(t.id)}
+              key={tab.id}
+              onClick={() => onChange(tab.id)}
               className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${activo ? 'text-jungle-700' : 'text-jungle-500 hover:text-jungle-700'
                 }`}
             >
@@ -42,7 +44,7 @@ export default function BottomNav({ activa, onChange }: Props) {
                 className={activo ? 'scale-110 transition-transform' : ''}
               />
               <span className={`text-[10px] ${activo ? 'font-bold' : 'font-medium'}`}>
-                {t.label}
+                {t(tab.label)}
               </span>
               {activo && (
                 <span className="absolute top-0 w-8 h-0.5 bg-jungle-700 rounded-b" />

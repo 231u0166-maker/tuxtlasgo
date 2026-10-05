@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 // ============================================================
 // CALENDARIO DE SELECCIÓN DE FECHA — un mes grande, un solo día
@@ -17,6 +18,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 // ============================================================
 
 const DIAS_SEMANA = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+const DIAS_SEMANA_EN = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -44,6 +46,7 @@ interface Props {
 }
 
 export default function CalendarioSeleccionFecha({ valor, onSeleccionar, fechaMinima, fechasBloqueadas = [] }: Props) {
+  const { t, idioma } = useI18n();
   const seleccionada = desdeISO(valor);
   const minima = desdeISO(fechaMinima) ?? new Date();
   const bloqueadas = new Set(fechasBloqueadas);
@@ -72,25 +75,25 @@ export default function CalendarioSeleccionFecha({ valor, onSeleccionar, fechaMi
           onClick={() => puedeRetroceder && setMesVisible(new Date(mesVisible.getFullYear(), mesVisible.getMonth() - 1, 1))}
           disabled={!puedeRetroceder}
           className="w-8 h-8 rounded-full flex items-center justify-center text-jungle-700 hover:bg-white disabled:opacity-25 disabled:hover:bg-transparent"
-          aria-label="Mes anterior"
+          aria-label={t('Mes anterior')}
         >
           <ChevronLeft size={17} />
         </button>
         <span className="text-sm font-semibold text-jungle-950">
-          {MESES[mesVisible.getMonth()]} de {mesVisible.getFullYear()}
+          {t(MESES[mesVisible.getMonth()])}{idioma === 'en' ? ' ' : ' de '}{mesVisible.getFullYear()}
         </span>
         <button
           type="button"
           onClick={() => setMesVisible(new Date(mesVisible.getFullYear(), mesVisible.getMonth() + 1, 1))}
           className="w-8 h-8 rounded-full flex items-center justify-center text-jungle-700 hover:bg-white"
-          aria-label="Mes siguiente"
+          aria-label={t('Mes siguiente')}
         >
           <ChevronRight size={17} />
         </button>
       </div>
 
       <div className="grid grid-cols-7 gap-y-1 mb-1">
-        {DIAS_SEMANA.map((d, i) => (
+        {(idioma === 'en' ? DIAS_SEMANA_EN : DIAS_SEMANA).map((d, i) => (
           <div key={i} className="text-center text-[11px] font-semibold text-jungle-400 py-1">
             {d}
           </div>
@@ -111,7 +114,7 @@ export default function CalendarioSeleccionFecha({ valor, onSeleccionar, fechaMi
                 type="button"
                 disabled={deshabilitada}
                 onClick={() => onSeleccionar(iso)}
-                title={esBloqueada ? 'Ya está ocupado ese día' : undefined}
+                title={esBloqueada ? t('Ya está ocupado ese día') : undefined}
                 className={`relative w-9 h-9 rounded-full text-[13px] flex items-center justify-center transition-colors ${
                   esSeleccionada
                     ? 'bg-jungle-700 text-white font-semibold'
@@ -129,7 +132,7 @@ export default function CalendarioSeleccionFecha({ valor, onSeleccionar, fechaMi
 
       {fechasBloqueadas.length > 0 && (
         <p className="text-[11px] text-jungle-400 mt-2.5 flex items-center gap-1.5">
-          <span className="w-3 text-center line-through text-jungle-300">0</span> Ya ocupado
+          <span className="w-3 text-center line-through text-jungle-300">0</span> {t('Ya ocupado')}
         </p>
       )}
     </div>

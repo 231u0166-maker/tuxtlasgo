@@ -27,6 +27,7 @@ import { manejarErrorImagen } from '../lib/imagenLugar';
 import type { TipoEnlace } from '../lib/enlaces';
 import { registrarEventoServicio } from '../lib/eventos';
 import ModalReservacion from './ModalReservacion';
+import { useT, useTd } from '../lib/i18n';
 
 interface Props {
   lugar: Lugar;
@@ -35,6 +36,8 @@ interface Props {
 }
 
 export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
+  const t = useT();
+  const td = useTd();
   const [fav, setFav] = useState(false);
   const [mostrarReservacion, setMostrarReservacion] = useState(false);
   const cat = CATEGORIAS.find((c) => c.id === lugar.categoria);
@@ -103,14 +106,14 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
           <button
             onClick={onClose}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/95 backdrop-blur flex items-center justify-center hover:bg-white shadow-md"
-            aria-label="Cerrar"
+            aria-label={t('Cerrar')}
           >
             <X size={20} className="text-jungle-900" />
           </button>
           <button
             onClick={handleFav}
             className="absolute top-4 left-4 w-10 h-10 rounded-full bg-white/95 backdrop-blur flex items-center justify-center hover:bg-white shadow-md"
-            aria-label="Favorito"
+            aria-label={t('Favorito')}
           >
             <Heart
               size={20}
@@ -125,12 +128,12 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
               <span
                 className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${cat?.color}`}
               >
-                {cat?.emoji} {lugar.categoria}
+                {cat?.emoji} {t(lugar.categoria)}
               </span>
               {lugar.verificado && (
                 <span className="inline-flex items-center gap-1 text-xs bg-jungle-100 text-jungle-800 px-2.5 py-1 rounded-full font-medium">
                   <BadgeCheck size={12} />
-                  Info verificada
+                  {t('Info verificada')}
                 </span>
               )}
             </div>
@@ -158,19 +161,19 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <InfoChip
               icon={Clock}
-              label="Duración"
-              value={lugar.duracionSugerida}
+              label={t('Duración')}
+              value={td(lugar.duracionSugerida)}
             />
-            <InfoChip icon={DollarSign} label="Costo" value={lugar.precioMxn} />
+            <InfoChip icon={DollarSign} label={t('Costo')} value={td(lugar.precioMxn)} />
             <InfoChip
               icon={Calendar}
-              label="Días"
-              value={lugar.abierto.dias}
+              label={t('Días')}
+              value={td(lugar.abierto.dias)}
             />
             <InfoChip
               icon={Clock}
-              label="Horario"
-              value={lugar.abierto.horario}
+              label={t('Horario')}
+              value={td(lugar.abierto.horario)}
             />
           </div>
 
@@ -181,7 +184,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
             <div className="bg-jungle-50 rounded-xl p-4">
               <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
                 <Phone size={12} />
-                Contacto
+                {t('Contacto')}
               </div>
               <p className="text-sm text-jungle-900">{lugar.contacto}</p>
             </div>
@@ -191,7 +194,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
           <div className="bg-jungle-50 rounded-xl p-4">
             <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
               <Navigation size={12} />
-              Cómo llegar
+              {t('Cómo llegar')}
             </div>
             <p className="text-sm text-jungle-900">{lugar.comoLlegar}</p>
           </div>
@@ -201,7 +204,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
               <div className="flex items-center gap-1.5 text-xs text-amber-700 mb-1 uppercase tracking-wide font-semibold">
                 <Lightbulb size={12} />
-                Consejo
+                {t('Consejo')}
               </div>
               <p className="text-sm text-amber-900">{lugar.tip}</p>
             </div>
@@ -214,7 +217,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
             <div className="bg-jungle-50 rounded-xl p-4">
               <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
                 <PawPrint size={12} />
-                Mascotas
+                {t('Mascotas')}
               </div>
               <p className="text-sm text-jungle-900">{lugar.mascotas}</p>
             </div>
@@ -223,7 +226,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
           {/* Ideal para */}
           <div>
             <div className="text-xs font-semibold text-jungle-600 uppercase tracking-wide mb-2">
-              Ideal para
+              {t('Ideal para')}
             </div>
             <div className="flex flex-wrap gap-2">
               {lugar.ideal.map((g) => (
@@ -232,12 +235,12 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
                   className="bg-jungle-100 text-jungle-800 px-3 py-1 rounded-full text-xs font-medium"
                 >
                   {g === 'solo'
-                    ? '🧍 viajeros solos'
+                    ? t('🧍 viajeros solos')
                     : g === 'pareja'
-                    ? '💕 parejas'
+                    ? t('💕 parejas')
                     : g === 'familia'
-                    ? '👨‍👩‍👧 familias'
-                    : '🎉 grupos'}
+                    ? t('👨‍👩‍👧 familias')
+                    : t('🎉 grupos')}
                 </span>
               ))}
             </div>
@@ -259,7 +262,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
               className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
             >
               <Route size={18} />
-              Ver en el mapa
+              {t('Ver en el mapa')}
             </button>
             {lugar.aceptaReservaciones && (
               <button
@@ -267,7 +270,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
                 className="flex-1 bg-sun-500 hover:bg-sun-400 text-obsidiana-950 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
               >
                 <CalendarCheck size={18} />
-                Reservar
+                {t('Reservar')}
               </button>
             )}
           </div>
@@ -284,7 +287,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
                   className="flex items-center gap-1.5 bg-jungle-50 hover:bg-jungle-100 text-jungle-800 text-xs font-semibold px-3 py-2 rounded-full"
                 >
                   <IconoEnlaceLugar tipo={en.tipo} />
-                  {ETIQUETA_ENLACE[en.tipo]}
+                  {en.tipo === 'sitio' ? t('Sitio web') : en.tipo === 'otro' ? t('Enlace') : ETIQUETA_ENLACE[en.tipo]}
                 </a>
               ))}
             </div>
@@ -333,6 +336,7 @@ function CarruselFotos({
   nombre: string;
   categoria: Lugar['categoria'];
 }) {
+  const t = useT();
   const [indice, setIndice] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -355,20 +359,20 @@ function CarruselFotos({
     <div>
       <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-2 uppercase tracking-wide font-semibold">
         <Images size={12} />
-        Más fotos
+        {t('Más fotos')}
       </div>
       <div
         ref={scrollRef}
         onScroll={onScroll}
         role="region"
-        aria-label={`Fotos de ${nombre}`}
+        aria-label={t('Fotos de {nombre}', { nombre })}
         className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth rounded-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {fotos.map((url, i) => (
           <div key={`${url}-${i}`} className="w-full flex-shrink-0 snap-center aspect-[4/3] bg-jungle-100">
             <img
               src={url}
-              alt={`${nombre} — foto ${i + 1} de ${fotos.length}`}
+              alt={t('{nombre} — foto {i} de {n}', { nombre, i: i + 1, n: fotos.length })}
               loading="lazy"
               onError={manejarErrorImagen(categoria, nombre)}
               className="w-full h-full object-cover"
@@ -381,7 +385,7 @@ function CarruselFotos({
           <button
             key={i}
             onClick={() => irA(i)}
-            aria-label={`Ir a la foto ${i + 1} de ${fotos.length}`}
+            aria-label={t('Ir a la foto {i} de {n}', { i: i + 1, n: fotos.length })}
             aria-current={i === indice}
             className={`h-1.5 rounded-full transition-all ${
               i === indice ? 'w-5 bg-jungle-700' : 'w-1.5 bg-jungle-200'

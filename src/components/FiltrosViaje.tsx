@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MapPin, Calendar, Users, DollarSign, ChevronDown, Minus, Plus, X, SlidersHorizontal } from 'lucide-react';
 import CalendarioRango from './CalendarioRango';
+import { useT } from '../lib/i18n';
 
 // ============================================================
 // BARRA DE FILTROS — Dónde / Cuándo / Quién / Presupuesto
@@ -64,6 +65,7 @@ interface Props {
 type PopoverAbierto = 'donde' | 'cuando' | 'quien' | 'presupuesto' | 'todo' | null;
 
 export default function FiltrosViaje({ valor, onCambiar }: Props) {
+  const t = useT();
   const [estado, setEstado] = useState<FiltrosViajeValor>({ ...VALOR_DEFAULT, ...valor });
   const [abierto, setAbierto] = useState<PopoverAbierto>(null);
 
@@ -85,19 +87,19 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
       <div className="hidden lg:inline-flex flex-wrap items-center gap-0.5 bg-white rounded-full border border-obsidiana-900/10 p-[5px] shadow-[0_2px_10px_rgba(28,25,23,0.05)]">
         <Pastilla
           icon={MapPin}
-          label={estado.donde || 'Dónde'}
+          label={estado.donde || t('Dónde')}
           activo={abierto === 'donde'}
           onClick={() => setAbierto('donde')}
         />
         <Pastilla
           icon={Calendar}
-          label={estado.desde ? `${estado.desde}${estado.hasta ? ` – ${estado.hasta}` : ''}` : 'Cuándo'}
+          label={estado.desde ? `${estado.desde}${estado.hasta ? ` – ${estado.hasta}` : ''}` : t('Cuándo')}
           activo={abierto === 'cuando'}
           onClick={() => setAbierto('cuando')}
         />
         <Pastilla
           icon={Users}
-          label={totalQuien > 0 ? `${totalQuien} viajero${totalQuien === 1 ? '' : 's'}` : 'Quién'}
+          label={totalQuien > 0 ? (totalQuien === 1 ? t('{n} viajero', { n: totalQuien }) : t('{n} viajeros', { n: totalQuien })) : t('Quién')}
           activo={abierto === 'quien'}
           onClick={() => setAbierto('quien')}
         />
@@ -115,8 +117,8 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
         type="button"
         onClick={() => setAbierto('todo')}
         className="lg:hidden w-9 h-9 flex items-center justify-center rounded-full text-white/90 hover:bg-white/10 transition-colors flex-shrink-0"
-        aria-label="Filtros del viaje"
-        title="Filtros del viaje"
+        aria-label={t('Filtros del viaje')}
+        title={t('Filtros del viaje')}
       >
         <SlidersHorizontal size={18} />
       </button>
@@ -158,7 +160,7 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
           {abierto === 'quien' && (
             <Modal
               titulo="Quién"
-              subtitulo={`${totalQuien} viajero${totalQuien === 1 ? '' : 's'}`}
+              subtitulo={totalQuien === 1 ? t('{n} viajero', { n: totalQuien }) : t('{n} viajeros', { n: totalQuien })}
               onCerrar={cerrar}
             >
               <div className="space-y-1 mb-1">
@@ -225,7 +227,7 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
         <HojaInferior onCerrar={cerrar}>
           <div className="max-h-[75vh] overflow-y-auto px-5 pt-2 pb-5">
             <label className="text-xs font-semibold text-obsidiana-800/50 uppercase tracking-wide">
-              Dónde
+              {t('Dónde')}
             </label>
             <Campo
               placeholder="Catemaco, San Andrés Tuxtla..."
@@ -234,7 +236,7 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
             />
 
             <label className="text-xs font-semibold text-obsidiana-800/50 uppercase tracking-wide">
-              Cuándo
+              {t('Cuándo')}
             </label>
             <div className="mb-5 mt-1.5">
               <CalendarioRango
@@ -245,7 +247,7 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
             </div>
 
             <label className="text-xs font-semibold text-obsidiana-800/50 uppercase tracking-wide">
-              Quién viaja
+              {t('Quién viaja')}
             </label>
             <div className="space-y-1 mb-5 mt-1">
               <ContadorQuien
@@ -279,7 +281,7 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
             </div>
 
             <label className="text-xs font-semibold text-obsidiana-800/50 uppercase tracking-wide mb-2 block">
-              Presupuesto
+              {t('Presupuesto')}
             </label>
             <div className="flex gap-2 mb-5">
               {([1, 2, 3] as const).map((nivel) => (
@@ -298,18 +300,18 @@ export default function FiltrosViaje({ valor, onCambiar }: Props) {
             </div>
 
             <label className="text-xs font-semibold text-obsidiana-800/50 uppercase tracking-wide">
-              Preferencias adicionales
+              {t('Preferencias adicionales')}
             </label>
             <textarea
               value={estado.notas}
               onChange={(e) => actualizar({ notas: e.target.value })}
-              placeholder="Cuéntanos lo que sabes hasta ahora: compañeros de viaje, cosas que no te puedes perder, preferencias..."
+              placeholder={t('Cuéntanos lo que sabes hasta ahora: compañeros de viaje, cosas que no te puedes perder, preferencias...')}
               rows={3}
               maxLength={500}
               className="w-full mt-1.5 mb-1 px-3.5 py-3 rounded-xl border border-obsidiana-900/10 bg-amate-50 text-sm resize-none focus:outline-none focus:border-jungle-400"
             />
             <p className="text-[11px] text-obsidiana-800/40 text-right mb-4">
-              {estado.notas.length}/500 caracteres
+              {t('{n}/500 caracteres', { n: estado.notas.length })}
             </p>
 
             <BotonGuardar etiqueta="Guardar" onClick={cerrar} />
@@ -331,6 +333,7 @@ function Pastilla({
   activo: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -339,7 +342,7 @@ function Pastilla({
         }`}
     >
       <Icon size={15} className="flex-shrink-0" />
-      <span className="max-w-[9rem] truncate">{label}</span>
+      <span className="max-w-[9rem] truncate">{t(label)}</span>
       <ChevronDown size={13} className={`flex-shrink-0 transition-transform ${activo ? 'rotate-180' : ''}`} />
     </button>
   );
@@ -365,6 +368,7 @@ export function Overlay({ onCerrar, children }: { onCerrar: () => void; children
 // que el menú de NavbarLanding), fondo oscurecido detrás, tocar
 // fuera cierra.
 function HojaInferior({ onCerrar, children }: { onCerrar: () => void; children: React.ReactNode }) {
+  const t = useT();
   return (
     <div className="fixed inset-0 z-[200]">
       <div
@@ -381,11 +385,11 @@ function HojaInferior({ onCerrar, children }: { onCerrar: () => void; children: 
           <div className="w-10 h-1.5 rounded-full bg-obsidiana-900/15" />
         </div>
         <div className="flex items-center justify-between px-5 pb-2">
-          <span className="font-display font-bold text-[15px] text-obsidiana-900">Tu viaje</span>
+          <span className="font-display font-bold text-[15px] text-obsidiana-900">{t('Tu viaje')}</span>
           <button
             type="button"
             onClick={onCerrar}
-            aria-label="Cerrar"
+            aria-label={t('Cerrar')}
             className="w-[26px] h-[26px] rounded-full bg-amate-100 flex items-center justify-center text-obsidiana-800/50 hover:text-obsidiana-900 transition-colors"
           >
             <X size={13} />
@@ -408,19 +412,20 @@ export function Modal({
   onCerrar: () => void;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div className={`w-[340px] max-w-[90vw] bg-white ${RADIO_MODAL} ${SOMBRA_MODAL} p-[22px]`}>
       <div className="flex items-start justify-between mb-4">
         <div>
-          <span className="block font-display font-bold text-[15px] text-obsidiana-900">{titulo}</span>
+          <span className="block font-display font-bold text-[15px] text-obsidiana-900">{t(titulo)}</span>
           {subtitulo && (
-            <span className="block text-[12.5px] text-obsidiana-800/50 mt-0.5">{subtitulo}</span>
+            <span className="block text-[12.5px] text-obsidiana-800/50 mt-0.5">{t(subtitulo)}</span>
           )}
         </div>
         <button
           type="button"
           onClick={onCerrar}
-          aria-label="Cerrar"
+          aria-label={t('Cerrar')}
           className="w-[26px] h-[26px] rounded-full bg-amate-100 flex items-center justify-center text-obsidiana-800/50 hover:text-obsidiana-900 transition-colors flex-shrink-0"
         >
           <X size={13} />
@@ -440,12 +445,13 @@ function Campo({
   onChange: (v: string) => void;
   placeholder: string;
 }) {
+  const t = useT();
   return (
     <input
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
+      placeholder={t(placeholder)}
       className="w-full mb-5 px-3.5 py-3 rounded-xl border border-obsidiana-900/10 bg-amate-50 text-sm focus:outline-none focus:border-jungle-400"
     />
   );
@@ -460,9 +466,10 @@ function FilaToggle({
   valor: boolean;
   onCambiar: (v: boolean) => void;
 }) {
+  const t = useT();
   return (
     <label className="flex items-center justify-between text-[13.5px] text-obsidiana-800 mb-5 last:mb-0">
-      {etiqueta}
+      {t(etiqueta)}
       <button
         type="button"
         onClick={() => onCambiar(!valor)}
@@ -480,13 +487,14 @@ function FilaToggle({
 }
 
 function BotonGuardar({ onClick, etiqueta = 'Guardar' }: { onClick: () => void; etiqueta?: string }) {
+  const t = useT();
   return (
     <button
       type="button"
       onClick={onClick}
       className="w-full py-3 rounded-xl bg-jungle-700 hover:bg-jungle-800 text-white font-semibold text-sm transition-colors"
     >
-      {etiqueta}
+      {t(etiqueta)}
     </button>
   );
 }
@@ -504,11 +512,12 @@ function ContadorQuien({
   min: number;
   onCambiar: (n: number) => void;
 }) {
+  const t = useT();
   return (
     <div className="flex items-center justify-between py-2.5 text-sm text-obsidiana-800">
       <div>
-        <div>{etiqueta}</div>
-        {nota && <div className="text-[12px] text-obsidiana-800/45 mt-0.5">{nota}</div>}
+        <div>{t(etiqueta)}</div>
+        {nota && <div className="text-[12px] text-obsidiana-800/45 mt-0.5">{t(nota)}</div>}
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
         <button

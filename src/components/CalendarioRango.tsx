@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 // ============================================================
 // CALENDARIO DE RANGO — un mes visible, navegación con flechas
@@ -15,6 +16,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 // del inicio, se intercambian). Un tercer click reinicia el rango.
 
 const DIAS_SEMANA = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+const DIAS_SEMANA_EN = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -43,6 +45,7 @@ interface Props {
 }
 
 export default function CalendarioRango({ desde, hasta, onCambiar }: Props) {
+  const { t, idioma } = useI18n();
   const inicioRango = desdeISO(desde);
   const finRango = desdeISO(hasta);
 
@@ -85,25 +88,25 @@ export default function CalendarioRango({ desde, hasta, onCambiar }: Props) {
           type="button"
           onClick={() => setMesVisible(new Date(mesVisible.getFullYear(), mesVisible.getMonth() - 1, 1))}
           className="w-7 h-7 rounded-full flex items-center justify-center text-obsidiana-800/60 hover:bg-obsidiana-900/5"
-          aria-label="Mes anterior"
+          aria-label={t('Mes anterior')}
         >
           <ChevronLeft size={15} />
         </button>
         <span className="text-[13.5px] font-semibold text-obsidiana-900">
-          {MESES[mesVisible.getMonth()]} de {mesVisible.getFullYear()}
+          {t(MESES[mesVisible.getMonth()])}{idioma === 'en' ? ' ' : ' de '}{mesVisible.getFullYear()}
         </span>
         <button
           type="button"
           onClick={() => setMesVisible(new Date(mesVisible.getFullYear(), mesVisible.getMonth() + 1, 1))}
           className="w-7 h-7 rounded-full flex items-center justify-center text-obsidiana-800/60 hover:bg-obsidiana-900/5"
-          aria-label="Mes siguiente"
+          aria-label={t('Mes siguiente')}
         >
           <ChevronRight size={15} />
         </button>
       </div>
 
       <div className="grid grid-cols-7 gap-y-1 mb-1">
-        {DIAS_SEMANA.map((d, i) => (
+        {(idioma === 'en' ? DIAS_SEMANA_EN : DIAS_SEMANA).map((d, i) => (
           <div key={i} className="text-center text-[10.5px] font-semibold text-obsidiana-800/40 py-1">
             {d}
           </div>

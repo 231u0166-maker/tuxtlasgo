@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import { LUGARES, CATEGORIAS, type Categoria, type Lugar } from '../data/lugares';
 import PlaceCard from './PlaceCard';
+import { useT } from '../lib/i18n';
 import { OfflineReadyBadge } from './OfflineIndicator';
 
 interface Props {
@@ -38,6 +39,7 @@ export default function ExploreScreen({
   const busqueda = busquedaProp ?? busquedaLocal;
   const setBusqueda = onBusquedaChange ?? setBusquedaLocal;
 
+  const t = useT();
   const [catActiva, setCatActiva] = useState<Categoria | 'todas'>('todas');
 
   const todosLugares = lugaresProps ?? LUGARES;
@@ -69,12 +71,12 @@ export default function ExploreScreen({
       <div className="hidden lg:block bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 lg:px-8 pt-6 lg:pt-8 pb-8 rounded-b-3xl">
         <div className="flex items-center justify-between mb-1">
           <h1 className="font-display font-extrabold text-2xl lg:text-3xl">
-            Descubre Los Tuxtlas
+            {t('Descubre Los Tuxtlas')}
           </h1>
           <OfflineReadyBadge />
         </div>
         <p className="text-sm text-jungle-100 opacity-90 mb-5">
-          {todosLugares.length} lugares verificados, listos para tu próxima aventura.
+          {t('{n} lugares verificados, listos para tu próxima aventura.', { n: todosLugares.length })}
         </p>
         <Buscador value={busqueda} onChange={setBusqueda} claro />
       </div>
@@ -83,7 +85,7 @@ export default function ExploreScreen({
       <div className="px-4 lg:px-8 mt-4 lg:mt-5">
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scroll-smooth snap-x">
           <CategoryChip
-            label="Todos"
+            label={t('Todos')}
             emoji="✨"
             activo={catActiva === 'todas'}
             onClick={() => setCatActiva('todas')}
@@ -91,7 +93,7 @@ export default function ExploreScreen({
           {CATEGORIAS.map((c) => (
             <CategoryChip
               key={c.id}
-              label={c.id}
+              label={t(c.id)}
               emoji={c.emoji}
               activo={catActiva === c.id}
               onClick={() => setCatActiva(c.id)}
@@ -102,7 +104,7 @@ export default function ExploreScreen({
 
       {/* Destacados */}
       {sinFiltro && destacados.length > 0 && (
-        <FilaHorizontal titulo="Destacados" lugares={destacados} onVerLugar={onVerLugar} />
+        <FilaHorizontal titulo={t('Destacados')} lugares={destacados} onVerLugar={onVerLugar} />
       )}
 
       {/* Una sección por categoría — Restaurantes/Actividades/
@@ -116,7 +118,7 @@ export default function ExploreScreen({
           return (
             <FilaHorizontal
               key={s.categoria}
-              titulo={s.titulo}
+              titulo={t(s.titulo)}
               lugares={lugaresSeccion}
               onVerLugar={onVerLugar}
             />
@@ -130,22 +132,22 @@ export default function ExploreScreen({
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-display font-bold text-lg text-jungle-950">
             {sinFiltro
-              ? 'Todos los lugares'
+              ? t('Todos los lugares')
               : catActiva === 'todas'
-                ? 'Resultados'
-                : CATEGORIAS.find((c) => c.id === catActiva)?.id}
+                ? t('Resultados')
+                : t(CATEGORIAS.find((c) => c.id === catActiva)?.id ?? '')}
           </h2>
           <span className="text-xs text-jungle-600">
-            {filtrados.length} resultado{filtrados.length !== 1 ? 's' : ''}
+            {filtrados.length === 1 ? t('{n} resultado', { n: 1 }) : t('{n} resultados', { n: filtrados.length })}
           </span>
         </div>
 
         {filtrados.length === 0 ? (
           <div className="text-center py-12 text-jungle-700">
             <SlidersHorizontal className="mx-auto mb-3 opacity-40" size={40} />
-            <p className="font-semibold">Sin resultados</p>
+            <p className="font-semibold">{t('Sin resultados')}</p>
             <p className="text-sm opacity-70 mt-1">
-              Prueba con otra palabra o cambia la categoría.
+              {t('Prueba con otra palabra o cambia la categoría.')}
             </p>
           </div>
         ) : (
@@ -192,6 +194,7 @@ function Buscador({
   onChange: (v: string) => void;
   claro?: boolean;
 }) {
+  const t = useT();
   return (
     <div className="relative">
       <Search
@@ -202,7 +205,7 @@ function Buscador({
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Buscar lugares, comida, hoteles..."
+        placeholder={t('Buscar lugares, comida, hoteles...')}
         className={`w-full rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${claro
           ? 'bg-white text-jungle-950 placeholder:text-jungle-500'
           : 'bg-jungle-50 text-jungle-950 border border-jungle-100 placeholder:text-jungle-500'

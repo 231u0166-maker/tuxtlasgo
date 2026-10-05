@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Menu, X, MessageCircle, Compass, TreePine } from 'lucide-react';
 import { type UsuarioSesion } from '../lib/auth';
+import { useT } from '../lib/i18n';
+import SelectorIdioma from './SelectorIdioma';
 
 // ============================================================
 // NAVBAR DE LANDING — modo turista / modo prestador
@@ -28,6 +30,7 @@ export default function NavbarLanding({
   usuario,
   onCerrarSesion,
 }: Props) {
+  const t = useT();
   const esTurista = modo === 'turista';
   const [menuMovil, setMenuMovil] = useState(false);
 
@@ -38,7 +41,7 @@ export default function NavbarLanding({
           <button
             onClick={() => onCambiarModo('turista')}
             className="flex-shrink-0"
-            aria-label="Ir al inicio"
+            aria-label={t('Ir al inicio')}
           >
             <img
               src="/logo-tuxtlasgo.png"
@@ -50,7 +53,7 @@ export default function NavbarLanding({
           {/* Links centrales — el set cambia según modo (PDF págs. 1-2 turista, 22-26 prestador) */}
           <nav className="hidden md:flex items-center gap-6 text-sm">
             {esTurista && (
-              <span className="font-semibold text-obsidiana-900">Para turistas</span>
+              <span className="font-semibold text-obsidiana-900">{t('Para turistas')}</span>
             )}
             <button
               onClick={() => onCambiarModo(esTurista ? 'prestador' : 'turista')}
@@ -60,14 +63,14 @@ export default function NavbarLanding({
                   : 'font-semibold text-obsidiana-900'
               }
             >
-              Para prestadores
+              {t('Para prestadores')}
             </button>
             {/* Galería y Comunidad ya tienen su propia página. */}
             <Link to="/galeria" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
-              Galería
+              {t('Galería')}
             </Link>
             <Link to="/comunidad" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
-              Comunidad
+              {t('Comunidad')}
             </Link>
           </nav>
 
@@ -77,16 +80,17 @@ export default function NavbarLanding({
                 onClick={onCerrarSesion}
                 className="hidden sm:block text-sm text-obsidiana-800/70 hover:text-obsidiana-900 font-medium px-4 py-2 rounded-full hover:bg-obsidiana-900/5 transition-colors"
               >
-                Cerrar sesión
+                {t('Cerrar sesión')}
               </button>
             ) : (
               <button
                 onClick={onIniciarSesion}
                 className="hidden sm:block text-sm text-obsidiana-800/70 hover:text-obsidiana-900 font-medium px-4 py-2 rounded-full hover:bg-obsidiana-900/5 transition-colors"
               >
-                Inicio sesión
+                {t('Iniciar sesión')}
               </button>
             )}
+            <SelectorIdioma />
             <Link
               to={esTurista ? '/app' : '/prestador'}
               className="bg-jungle-700 hover:bg-jungle-800 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors flex items-center gap-1"
@@ -99,7 +103,7 @@ export default function NavbarLanding({
             <button
               onClick={() => setMenuMovil(true)}
               className="md:hidden w-9 h-9 flex items-center justify-center text-obsidiana-800 rounded-full hover:bg-obsidiana-900/5 transition-colors flex-shrink-0"
-              aria-label="Menú"
+              aria-label={t('Menú')}
               aria-expanded={menuMovil}
             >
               <Menu size={20} />
@@ -149,6 +153,7 @@ function MenuMovil({
   onCerrarSesion: () => void;
   onCerrar: () => void;
 }) {
+  const t = useT();
   const esTurista = modo === 'turista';
 
   return createPortal(
@@ -170,7 +175,7 @@ function MenuMovil({
           <button
             onClick={onCerrar}
             className="w-9 h-9 flex items-center justify-center text-obsidiana-800 rounded-full hover:bg-obsidiana-900/5"
-            aria-label="Cerrar menú"
+            aria-label={t('Cerrar menú')}
           >
             <X size={20} />
           </button>
@@ -179,13 +184,13 @@ function MenuMovil({
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <ItemMenu
             icon={MessageCircle}
-            label="Empezar a chatear"
+            label={t('Empezar a chatear')}
             to="/app?tab=chat"
             onClick={onCerrar}
           />
           <ItemMenu
             icon={Compass}
-            label="Explorar"
+            label={t('Explorar')}
             to="/app?tab=explorar"
             onClick={onCerrar}
           />
@@ -193,25 +198,25 @@ function MenuMovil({
           <div className="h-px bg-obsidiana-900/5 my-2" />
 
           <ItemMenu
-            label="Para turistas"
+            label={t('Para turistas')}
             activo={esTurista}
             onClick={() => { onCambiarModo('turista'); onCerrar(); }}
           />
           <ItemMenu
-            label="Para prestadores"
+            label={t('Para prestadores')}
             activo={!esTurista}
             onClick={() => { onCambiarModo('prestador'); onCerrar(); }}
           />
-          <ItemMenu label="Galería" to="/galeria" onClick={onCerrar} />
-          <ItemMenu label="Comunidad" to="/comunidad" onClick={onCerrar} />
+          <ItemMenu label={t('Galería')} to="/galeria" onClick={onCerrar} />
+          <ItemMenu label={t('Comunidad')} to="/comunidad" onClick={onCerrar} />
 
           <div className="h-px bg-obsidiana-900/5 my-2" />
 
           {/* Sin páginas propias de políticas todavía — se dejan
               inertes, mismo trato que Galería/Comunidad, en vez de
               apuntar a un link que no existe. */}
-          <ItemMenu label="Política de privacidad" to="/privacidad" compacto />
-          <ItemMenu label="Condiciones de uso" to="/terminos" compacto />
+          <ItemMenu label={t('Política de privacidad')} to="/privacidad" compacto />
+          <ItemMenu label={t('Condiciones de uso')} to="/terminos" compacto />
         </div>
 
         <div className="p-4 border-t border-obsidiana-900/5 flex-shrink-0">
@@ -220,14 +225,14 @@ function MenuMovil({
               onClick={() => { onCerrarSesion(); onCerrar(); }}
               className="w-full text-center py-3 rounded-full border border-obsidiana-900/10 text-sm font-semibold text-obsidiana-800 hover:bg-obsidiana-900/5 transition-colors"
             >
-              Cerrar sesión
+              {t('Cerrar sesión')}
             </button>
           ) : (
             <button
               onClick={() => { onIniciarSesion(); onCerrar(); }}
               className="w-full text-center py-3 rounded-full border border-obsidiana-900/10 text-sm font-semibold text-obsidiana-800 hover:bg-obsidiana-900/5 transition-colors"
             >
-              Inicio sesión
+              {t('Iniciar sesión')}
             </button>
           )}
         </div>

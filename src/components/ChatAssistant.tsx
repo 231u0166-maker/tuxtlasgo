@@ -40,6 +40,7 @@ import {
 
 import { guardarRuta, mapaDescargado, guardarChat, type ChatGuardado } from '../lib/db';
 import { registrarEventoServicio } from '../lib/eventos';
+import { useT } from '../lib/i18n';
 import HistorialChats from './HistorialChats';
 import { buscarRespuestaVerificada } from '../lib/embeddings';
 import {
@@ -124,6 +125,9 @@ export default function ChatAssistant({
   onMensajeInicialConsumido,
   dispararHistorial,
 }: Props) {
+  // Solo la interfaz (placeholder, botones). Las respuestas del asistente
+  // siguen en español: el motor de PLN y el prompt de IA aún no son bilingües.
+  const tr = useT();
   // Se usa para decidir si intentar el cálculo de distancia/tiempo en
   // vivo desde la ubicación del turista — ver nota junto a
   // pareceSolicitudDeDistancia más abajo: ese cálculo SIEMPRE necesita
@@ -1420,7 +1424,7 @@ export default function ChatAssistant({
                 enviarTexto();
               }
             }}
-            placeholder={generandoIA ? 'Pensando…' : 'Escribir un mensaje...'}
+            placeholder={generandoIA ? tr('Pensando…') : tr('Escribir un mensaje...')}
             disabled={generandoIA}
             rows={1}
             inputMode="text"
@@ -1434,7 +1438,7 @@ export default function ChatAssistant({
             onClick={() => enviarTexto()}
             disabled={!input.trim() || generandoIA}
             className="w-10 h-10 rounded-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white flex items-center justify-center flex-shrink-0"
-            aria-label="Enviar"
+            aria-label={tr('Enviar')}
           >
             <Send size={18} />
           </button>

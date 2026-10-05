@@ -27,6 +27,8 @@ import CalendarioReservacionesPrestador from './CalendarioReservacionesPrestador
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { recargarCatalogo } from '../App';
+import { useT } from '../lib/i18n';
+import SelectorIdioma from './SelectorIdioma';
 import { TIPOS_ENLACE, nuevoEnlaceId, parseEnlaces, type EnlaceServicio, type TipoEnlace } from '../lib/enlaces';
 import { useHojaArrastrable } from '../lib/useHojaArrastrable';
 import ChatReservacion from './ChatReservacion';
@@ -187,6 +189,7 @@ interface Props {
 }
 
 export default function PerfilScreen({ onVolver, onIniciarSesion, onCerrarSesion }: Props) {
+  const t = useT();
   const usuario = getUsuarioLocal();
 
   if (!usuario) {
@@ -194,20 +197,23 @@ export default function PerfilScreen({ onVolver, onIniciarSesion, onCerrarSesion
       <div className="min-h-screen bg-jungle-50 flex items-center justify-center p-6">
         <div className="text-center">
           <p className="text-jungle-600 mb-4 font-medium">
-            Inicia sesión para ver tu perfil.
+            {t('Inicia sesión para ver tu perfil.')}
           </p>
           <button
             onClick={onIniciarSesion ?? onVolver}
             className="bg-jungle-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold"
           >
-            Iniciar sesión
+            {t('Iniciar sesión')}
           </button>
           <Link
             to="/prestador"
             className="block mt-3 text-sm font-semibold text-jungle-700 underline underline-offset-2"
           >
-            Soy prestador
+            {t('Soy prestador')}
           </Link>
+          <div className="mt-6 flex justify-center">
+            <SelectorIdioma />
+          </div>
         </div>
       </div>
     );
@@ -222,7 +228,7 @@ export default function PerfilScreen({ onVolver, onIniciarSesion, onCerrarSesion
           onClick={onCerrarSesion}
           className="lg:hidden absolute top-3 right-3 z-20 bg-white/90 backdrop-blur shadow-sm rounded-full px-3 py-1.5 text-xs font-semibold text-red-600 border border-red-100"
         >
-          Cerrar sesión
+          {t('Cerrar sesión')}
         </button>
       )}
       {usuario.tipo === 'prestador'
@@ -243,6 +249,7 @@ function PerfilTurista({
   usuario: UsuarioSesion;
   onVolver: () => void;
 }) {
+  const t = useT();
   const [editando, setEditando]     = useState(false);
   const [guardando, setGuardando]   = useState(false);
   const [form, setForm]             = useState<FormUsuario>({ nombre: usuario.nombre, bio: '' });
@@ -386,10 +393,10 @@ function PerfilTurista({
       <div className="bg-gradient-to-br from-jungle-800 to-jungle-950 px-4 pt-5 pb-24">
         <div className="flex items-center justify-between">
           <button onClick={onVolver} className="flex items-center gap-1 text-jungle-200 hover:text-white text-sm">
-            <ArrowLeft size={16} /> Inicio
+            <ArrowLeft size={16} /> {t('Inicio')}
           </button>
           <span className="text-xs bg-jungle-700 text-jungle-200 px-2.5 py-1 rounded-full font-semibold uppercase tracking-wide">
-            Turista
+            {t('Turista')}
           </span>
         </div>
       </div>
@@ -441,11 +448,11 @@ function PerfilTurista({
         <div className="bg-white rounded-2xl border border-jungle-100 p-4">
           {editando ? (
             <>
-              <label className="text-xs font-semibold text-jungle-600 mb-1.5 block">Sobre mí</label>
+              <label className="text-xs font-semibold text-jungle-600 mb-1.5 block">{t('Sobre mí')}</label>
               <textarea
                 value={form.bio}
                 onChange={e => setForm({ ...form, bio: e.target.value })}
-                placeholder="Cuéntales a los demás sobre ti…"
+                placeholder={t('Cuéntales a los demás sobre ti…')}
                 rows={3}
                 maxLength={300}
                 className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none"
@@ -457,13 +464,13 @@ function PerfilTurista({
                   className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
                 >
                   {guardando ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                  Guardar
+                  {t('Guardar')}
                 </button>
                 <button
                   onClick={() => setEditando(false)}
                   className="px-4 bg-jungle-100 hover:bg-jungle-200 text-jungle-700 py-2.5 rounded-xl text-sm font-semibold"
                 >
-                  Cancelar
+                  {t('Cancelar')}
                 </button>
               </div>
             </>
@@ -471,17 +478,25 @@ function PerfilTurista({
             <>
               <p className="text-sm text-jungle-700 leading-relaxed">
                 {form.bio || (
-                  <span className="text-jungle-400 italic">Sin descripción todavía. ¡Cuéntanos sobre ti!</span>
+                  <span className="text-jungle-400 italic">{t('Sin descripción todavía. ¡Cuéntanos sobre ti!')}</span>
                 )}
               </p>
               <button
                 onClick={() => setEditando(true)}
                 className="mt-3 flex items-center gap-1.5 text-xs text-jungle-600 hover:text-jungle-900 font-semibold"
               >
-                <Edit3 size={12} /> Editar perfil
+                <Edit3 size={12} /> {t('Editar perfil')}
               </button>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Idioma — el único lugar en móvil para cambiarlo sin salir de la app */}
+      <div className="px-4 mb-4">
+        <div className="bg-white rounded-2xl border border-jungle-100 p-4 flex items-center justify-between">
+          <span className="text-sm font-semibold text-jungle-900">{t('Idioma')}</span>
+          <SelectorIdioma />
         </div>
       </div>
 
@@ -489,7 +504,7 @@ function PerfilTurista({
       <div className="px-4">
         <div className="bg-white rounded-2xl border border-jungle-100 p-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-jungle-900 text-sm">📷 Mis fotos</h2>
+            <h2 className="font-semibold text-jungle-900 text-sm">{t('📷 Mis fotos')}</h2>
             <button
               onClick={() => inputAlbumRef.current?.click()}
               disabled={subiendoAlbum}
@@ -499,7 +514,7 @@ function PerfilTurista({
                 ? <Loader2 size={13} className="animate-spin" />
                 : <ImagePlus size={13} />
               }
-              {subiendoAlbum ? 'Subiendo…' : 'Agregar'}
+              {subiendoAlbum ? t('Subiendo…') : t('Agregar')}
             </button>
             <input ref={inputAlbumRef} type="file" accept="image/*" className="hidden" onChange={agregarAlAlbum} />
           </div>
@@ -514,13 +529,13 @@ function PerfilTurista({
               className="rounded border-jungle-300 text-jungle-700 focus:ring-jungle-400"
             />
             <Users size={13} className="text-jungle-400" />
-            Compartir también en la Comunidad al subir
+            {t('Compartir también en la Comunidad al subir')}
           </label>
 
           {album.length === 0 ? (
             <div className="text-center py-8 text-jungle-300">
               <ImagePlus size={32} className="mx-auto mb-2" />
-              <p className="text-sm text-jungle-400">Aún no tienes fotos. ¡Comparte tu experiencia en Los Tuxtlas!</p>
+              <p className="text-sm text-jungle-400">{t('Aún no tienes fotos. ¡Comparte tu experiencia en Los Tuxtlas!')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
@@ -532,7 +547,7 @@ function PerfilTurista({
                     <button
                       onClick={() => eliminarFotoAlbum(url)}
                       className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center"
-                      aria-label="Eliminar foto"
+                      aria-label={t('Eliminar foto')}
                     >
                       <X size={12} className="text-white" />
                     </button>
@@ -544,7 +559,7 @@ function PerfilTurista({
                       className={`absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${
                         compartida ? 'bg-jungle-700 text-white' : 'bg-black/50 text-white hover:bg-black/70'
                       }`}
-                      title={compartida ? 'Ya está en la Comunidad' : 'Compartir en la Comunidad'}
+                      title={compartida ? t('Ya está en la Comunidad') : t('Compartir en la Comunidad')}
                     >
                       {compartiendoUrl === url
                         ? <Loader2 size={11} className="animate-spin" />
@@ -552,7 +567,7 @@ function PerfilTurista({
                           ? <CheckCircle2 size={11} />
                           : <Share2 size={11} />
                       }
-                      {compartida ? 'En Comunidad' : 'Compartir'}
+                      {compartida ? t('En Comunidad') : t('Compartir')}
                     </button>
                   </div>
                 );

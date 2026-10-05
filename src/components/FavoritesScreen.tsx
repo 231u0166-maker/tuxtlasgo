@@ -6,6 +6,7 @@ import { LUGARES, type Lugar } from '../data/lugares';
 import PlaceCard from './PlaceCard';
 import { getToken, getUsuarioLocal } from '../lib/auth';
 import ChatReservacion from './ChatReservacion';
+import { useI18n, useT } from '../lib/i18n';
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
@@ -33,6 +34,8 @@ interface ReservacionTurista {
 }
 
 export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) {
+  const { t, td, idioma } = useI18n();
+  const loc = idioma === 'en' ? 'en-US' : 'es-MX';
   const [tab, setTab] = useState<'favoritos' | 'rutas' | 'reservaciones'>('favoritos');
   const usuario = getUsuarioLocal();
 
@@ -90,11 +93,11 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
       if (data.ok && data.url) {
         window.location.href = data.url; // al checkout de Mercado Pago del prestador
       } else {
-        alert(data.error ?? 'No se pudo iniciar el pago');
+        alert(data.error ? t(data.error) : t('No se pudo iniciar el pago'));
         setPagando(null);
       }
     } catch {
-      alert('Sin conexión. Verifica tu internet.');
+      alert(t('Sin conexión. Verifica tu internet.'));
       setPagando(null);
     }
   }
@@ -106,9 +109,9 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
     const params = new URLSearchParams(window.location.search);
     const resultado = params.get('reserva_pago');
     if (!resultado) return;
-    if (resultado === 'exito') setMensajePago({ tipo: 'exito', texto: 'Pago recibido — confirmando con el prestador…' });
-    else if (resultado === 'pendiente') setMensajePago({ tipo: 'pendiente', texto: 'Tu pago está pendiente de confirmación (normal con SPEI/OXXO).' });
-    else if (resultado === 'error') setMensajePago({ tipo: 'error', texto: 'El pago no se completó. Puedes intentarlo de nuevo.' });
+    if (resultado === 'exito') setMensajePago({ tipo: 'exito', texto: t('Pago recibido — confirmando con el prestador…') });
+    else if (resultado === 'pendiente') setMensajePago({ tipo: 'pendiente', texto: t('Tu pago está pendiente de confirmación (normal con SPEI/OXXO).') });
+    else if (resultado === 'error') setMensajePago({ tipo: 'error', texto: t('El pago no se completó. Puedes intentarlo de nuevo.') });
     params.delete('reserva_pago');
     window.history.replaceState({}, '', `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`);
     if (resultado === 'exito') setTimeout(cargarReservaciones, 2500);
@@ -120,15 +123,15 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
   // política del servicio — esto no existía y era justo lo que se
   // pidió resolver ("dependiendo de la política se le notifica").
   function textoConsecuenciaCancelacion(r: ReservacionTurista): string {
-    if (r.pago_estado !== 'pagado') return '¿Cancelar esta reservación? Como no has pagado el anticipo, no se te cobrará nada.';
-    if (r.politica === 'flexible') return '¿Cancelar esta reservación? Este servicio tiene política flexible: tu anticipo se reembolsa por completo.';
-    return '¿Cancelar esta reservación? Este servicio tiene política NO reembolsable — tu anticipo podría no devolverse. ¿Deseas continuar?';
+    if (r.pago_estado !== 'pagado') return t('¿Cancelar esta reservación? Como no has pagado el anticipo, no se te cobrará nada.');
+    if (r.politica === 'flexible') return t('¿Cancelar esta reservación? Este servicio tiene política flexible: tu anticipo se reembolsa por completo.');
+    return t('¿Cancelar esta reservación? Este servicio tiene política NO reembolsable — tu anticipo podría no devolverse. ¿Deseas continuar?');
   }
 
   async function cancelarReservacion(id: number) {
     const r = reservaciones?.find((x) => x.id === id);
     if (r && !confirm(textoConsecuenciaCancelacion(r))) return;
-    if (!r && !confirm('¿Cancelar esta reservación?')) return;
+    if (!r && !confirm(t('¿Cancelar esta reservación?'))) return;
     try {
       const res = await fetch('/api/reservaciones', {
         method: 'PATCH',
@@ -137,9 +140,9 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
       });
       const data = await res.json();
       if (data.ok) setReservaciones((prev) => prev?.map((x) => (x.id === id ? { ...x, estado: 'cancelada' } : x)) ?? null);
-      else alert(data.error ?? 'No se pudo cancelar');
+      else alert(data.error ? t(data.error) : t('No se pudo cancelar'));
     } catch {
-      alert('Sin conexión. Verifica tu internet.');
+      alert(t('Sin conexión. Verifica tu internet.'));
     }
   }
 
@@ -148,7 +151,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
   // hacer con ella (rechazada o ya cancelada).
   const [quitando, setQuitando] = useState<number | null>(null);
   async function quitarReservacion(id: number) {
-    if (!confirm('¿Quitar esta reservación de tu lista? Esto la borra por completo, no se puede deshacer.')) return;
+    if (!confirm(t('¿Quitar esta reservación de tu lista? Esto la borra por completo, no se puede deshacer.'))) return;
     setQuitando(id);
     try {
       const res = await fetch('/api/reservaciones', {
@@ -158,15 +161,15 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
       });
       const data = await res.json();
       if (data.ok) setReservaciones((prev) => prev?.filter((x) => x.id !== id) ?? null);
-      else alert(data.error ?? 'No se pudo quitar');
+      else alert(data.error ? t(data.error) : t('No se pudo quitar'));
     } catch {
-      alert('Sin conexión. Verifica tu internet.');
+      alert(t('Sin conexión. Verifica tu internet.'));
     }
     setQuitando(null);
   }
 
   const eliminarRuta = async (id: number) => {
-    if (confirm('¿Eliminar esta ruta?')) {
+    if (confirm(t('¿Eliminar esta ruta?'))) {
       await db.rutas.delete(id);
     }
   };
@@ -174,9 +177,9 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
   return (
     <div className="pb-24 lg:pb-6">
       <header className="bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 pt-6 pb-5 rounded-b-3xl">
-        <h1 className="font-display font-extrabold text-2xl">Mis lugares</h1>
+        <h1 className="font-display font-extrabold text-2xl">{t('Mis lugares')}</h1>
         <p className="text-sm text-jungle-100 opacity-90 mb-4">
-          Todo se guarda en tu dispositivo, incluso sin conexión.
+          {t('Todo se guarda en tu dispositivo, incluso sin conexión.')}
         </p>
 
         <div className="flex bg-white/15 backdrop-blur rounded-xl p-1">
@@ -185,14 +188,14 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
             className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${tab === 'favoritos' ? 'bg-white text-jungle-900' : 'text-white'
               }`}
           >
-            <Heart size={14} /> Favoritos ({favoritos?.length || 0})
+            <Heart size={14} /> {t('Favoritos')} ({favoritos?.length || 0})
           </button>
           <button
             onClick={() => setTab('rutas')}
             className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${tab === 'rutas' ? 'bg-white text-jungle-900' : 'text-white'
               }`}
           >
-            <Route size={14} /> Rutas ({rutas?.length || 0})
+            <Route size={14} /> {t('Rutas')} ({rutas?.length || 0})
           </button>
           {usuario?.tipo === 'turista' && (
             <button
@@ -200,7 +203,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
               className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${tab === 'reservaciones' ? 'bg-white text-jungle-900' : 'text-white'
                 }`}
             >
-              <BookmarkCheck size={14} /> Reservas
+              <BookmarkCheck size={14} /> {t('Reservas')}
             </button>
           )}
         </div>
@@ -212,8 +215,8 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
             {!favoritos || favoritos.length === 0 ? (
               <EmptyState
                 icon={Heart}
-                titulo="Aún no tienes favoritos"
-                texto='Toca el ❤️ en cualquier lugar para guardarlo aquí.'
+                titulo={t('Aún no tienes favoritos')}
+                texto={t('Toca el ❤️ en cualquier lugar para guardarlo aquí.')}
               />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -230,8 +233,8 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
             {!rutas || rutas.length === 0 ? (
               <EmptyState
                 icon={Route}
-                titulo="No tienes rutas guardadas"
-                texto='Habla con el asistente y arma una ruta personalizada.'
+                titulo={t('No tienes rutas guardadas')}
+                texto={t('Habla con el asistente y arma una ruta personalizada.')}
               />
             ) : (
               <div className="space-y-4">
@@ -247,17 +250,17 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                         </div>
                         <div className="text-xs text-jungle-600 flex items-center gap-1 mt-0.5">
                           <Calendar size={11} />
-                          {new Date(r.creadaEn).toLocaleDateString('es-MX', {
+                          {new Date(r.creadaEn).toLocaleDateString(loc, {
                             day: 'numeric',
                             month: 'long',
                           })}{' '}
-                          · {r.dias.length} día{r.dias.length > 1 ? 's' : ''}
+                          · {r.dias.length > 1 ? t('{n} días', { n: r.dias.length }) : t('{n} día', { n: r.dias.length })}
                         </div>
                       </div>
                       <button
                         onClick={() => r.id && eliminarRuta(r.id)}
                         className="text-jungle-400 hover:text-red-500 p-1"
-                        aria-label="Eliminar ruta"
+                        aria-label={t('Eliminar ruta')}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -273,7 +276,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                           className="w-full bg-jungle-700 hover:bg-jungle-800 text-white text-xs font-semibold py-2 flex items-center justify-center gap-1.5 rounded-xl mb-2 transition-colors"
                         >
                           <MapPin size={12} />
-                          Ver ruta en el mapa
+                          {t('Ver ruta en el mapa')}
                         </button>
                       ) : null;
                     })()}
@@ -287,7 +290,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                           className="border-t border-jungle-100 pt-3 mt-3"
                         >
                           <div className="text-xs font-bold text-jungle-700 uppercase tracking-wide mb-2">
-                            Día {d.dia}
+                            {t('Día {n}', { n: d.dia })}
                           </div>
                           <div className="space-y-1.5">
                             {lugaresDia.map((l) => (
@@ -299,7 +302,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                                 <span className="w-1.5 h-1.5 bg-jungle-500 rounded-full" />
                                 {l.nombre}
                                 <span className="text-xs text-jungle-500 ml-auto">
-                                  {l.duracionSugerida}
+                                  {td(l.duracionSugerida)}
                                 </span>
                               </button>
                             ))}
@@ -328,14 +331,14 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
             {cargandoReservas && (
               <div className="text-center py-10 text-jungle-400">
                 <Loader2 size={26} className="animate-spin mx-auto mb-2" />
-                <p className="text-sm">Cargando tus reservaciones…</p>
+                <p className="text-sm">{t('Cargando tus reservaciones…')}</p>
               </div>
             )}
             {!cargandoReservas && (!reservaciones || reservaciones.length === 0) && (
               <EmptyState
                 icon={BookmarkCheck}
-                titulo="No tienes reservaciones"
-                texto="Cuando reserves un servicio, aparecerá aquí."
+                titulo={t('No tienes reservaciones')}
+                texto={t('Cuando reserves un servicio, aparecerá aquí.')}
               />
             )}
             {!cargandoReservas && reservaciones && reservaciones.length > 0 && (
@@ -352,22 +355,22 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                       <EtiquetaEstado estado={r.estado} />
                       {r.estado === 'confirmada' && r.pago_estado === 'pagado' && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 flex items-center gap-1">
-                          ✓ Pagado
+                          {t('✓ Pagado')}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-jungle-600 mt-2">
                       <span className="flex items-center gap-1">
                         <Calendar size={12} />
-                        {new Date(r.fecha + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {new Date(r.fecha + 'T00:00:00').toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
-                      <span>{r.numero_personas} persona{r.numero_personas > 1 ? 's' : ''}</span>
+                      <span>{r.numero_personas > 1 ? t('{n} personas', { n: r.numero_personas }) : t('{n} persona', { n: r.numero_personas })}</span>
                     </div>
                     {r.estado === 'confirmada' && r.pago_estado !== 'pagado' && !!r.monto_minimo && (
                       <>
                         {r.pago_vencimiento && (
                           <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5 mt-2 text-center">
-                            Paga antes del {new Date(r.pago_vencimiento).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} a las {new Date(r.pago_vencimiento).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })} o se libera tu lugar
+                            {t('Paga antes del {fecha} a las {hora} o se libera tu lugar', { fecha: new Date(r.pago_vencimiento).toLocaleDateString(loc, { day: 'numeric', month: 'short' }), hora: new Date(r.pago_vencimiento).toLocaleTimeString(loc, { hour: 'numeric', minute: '2-digit' }) })}
                           </p>
                         )}
                         <button
@@ -375,7 +378,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                           disabled={pagando === r.id}
                           className="w-full mt-2 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white text-xs font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5"
                         >
-                          {pagando === r.id ? 'Abriendo Mercado Pago…' : `Pagar anticipo — $${r.monto_minimo} MXN${r.mostrar_usd_reservacion ? ` (≈$${Math.round(r.monto_minimo / 17.1)} USD)` : ''}`}
+                          {pagando === r.id ? t('Abriendo Mercado Pago…') : `${t('Pagar anticipo')} — $${r.monto_minimo} MXN${r.mostrar_usd_reservacion ? ` (≈$${Math.round(r.monto_minimo / 17.1)} USD)` : ''}`}
                         </button>
                       </>
                     )}
@@ -385,7 +388,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                           onClick={() => setChatAbierto({ id: r.id, nombre: r.servicio_nombre })}
                           className="relative text-xs font-semibold text-jungle-700 hover:text-jungle-900 flex items-center gap-1"
                         >
-                          <MessageCircle size={13} /> Mensajes
+                          <MessageCircle size={13} /> {t('Mensajes')}
                           {!!r.mensajes_no_leidos && (
                             <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                               {r.mensajes_no_leidos}
@@ -396,7 +399,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                           onClick={() => cancelarReservacion(r.id)}
                           className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
                         >
-                          <X size={12} /> Cancelar reservación
+                          <X size={12} /> {t('Cancelar reservación')}
                         </button>
                       </div>
                     )}
@@ -408,7 +411,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                           className="text-xs font-semibold text-jungle-500 hover:text-red-600 disabled:opacity-50 flex items-center gap-1"
                         >
                           {quitando === r.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                          Quitar reservación
+                          {t('Quitar reservación')}
                         </button>
                       </div>
                     )}
@@ -432,6 +435,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
 }
 
 function EtiquetaEstado({ estado }: { estado: ReservacionTurista['estado'] }) {
+  const t = useT();
   const estilos: Record<string, string> = {
     pendiente: 'bg-amber-100 text-amber-800',
     confirmada: 'bg-green-100 text-green-800',
@@ -446,7 +450,7 @@ function EtiquetaEstado({ estado }: { estado: ReservacionTurista['estado'] }) {
   };
   return (
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 flex items-center gap-1 ${estilos[estado]}`}>
-      <Clock size={10} /> {etiquetas[estado]}
+      <Clock size={10} /> {t(etiquetas[estado])}
     </span>
   );
 }

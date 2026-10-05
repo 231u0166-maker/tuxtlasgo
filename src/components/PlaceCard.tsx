@@ -1,5 +1,6 @@
 import { Star, MapPin, Clock, Heart } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useT, useTd } from '../lib/i18n';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
@@ -12,6 +13,8 @@ interface Props {
 }
 
 export default function PlaceCard({ lugar, onClick, compact }: Props) {
+  const t = useT();
+  const td = useTd();
   const [fav, setFav] = useState(false);
 
   useEffect(() => {
@@ -77,7 +80,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
         <button
           onClick={handleFav}
           className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur flex items-center justify-center hover:bg-white transition"
-          aria-label="Favorito"
+          aria-label={t('Favorito')}
         >
           <Heart
             size={18}
@@ -88,12 +91,12 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
           <span
             className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cat?.color || 'bg-white text-jungle-800'}`}
           >
-            {cat?.emoji} {lugar.categoria}
+            {cat?.emoji} {t(lugar.categoria)}
           </span>
         </div>
         {lugar.destacado && (
           <div className="absolute bottom-3 left-3 bg-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">
-            Destacado
+            {t('Destacado')}
           </div>
         )}
         {/* Distinto del badge "Destacado" (esa es curaduría nuestra,
@@ -103,7 +106,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
             contenido editorial sin decirlo. */}
         {lugar.premium && (
           <div className="absolute bottom-3 right-3 bg-violet-600 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">
-            Patrocinado
+            {t('Patrocinado')}
           </div>
         )}
       </div>
@@ -122,7 +125,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
             </span>
           ) : (
             <span className="flex items-center gap-1 text-jungle-500">
-              Prestador local
+              {t('Prestador local')}
             </span>
           )}
           <span className="flex items-center gap-1">
@@ -131,7 +134,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
           </span>
           <span className="flex items-center gap-1">
             <Clock size={12} />
-            {lugar.duracionSugerida}
+            {td(lugar.duracionSugerida)}
           </span>
         </div>
       </div>

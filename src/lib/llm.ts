@@ -31,6 +31,7 @@
 import { Lugar } from '../data/lugares';
 import {
   getCatalogoActivo,
+  seleccionarConVariedad,
   detectarIntent,
   detectarMunicipio,
   esSolicitudInapropiada,
@@ -56,17 +57,11 @@ const MAPA_INTENT_CAT: Record<string, Lugar['categoria']> = {
   aventura: 'Aventura',
 };
 
-// Orden final de candidatos: rating + pequeño empate a favor de Premium.
-// Mismo criterio que chatbot.ts (filtrarLugaresConRazones), aplicado
-// aquí también para que la nube y el motor de reglas recomienden con
-// la misma lógica de negocio.
-function ordenarConBoostPremium(lugares: Lugar[]): Lugar[] {
-  return [...lugares].sort((a, b) => {
-    const scoreA = a.rating + (a.premium ? 0.4 : 0);
-    const scoreB = b.rating + (b.premium ? 0.4 : 0);
-    return scoreB - scoreA;
-  });
-}
+// El orden final de candidatos (rating + pequeño empate a favor de
+// Premium) y la rotación entre ellos viven en chatbot.ts
+// (seleccionarConVariedad), para que la nube y el motor de reglas
+// recomienden con la misma lógica de negocio y no repitan siempre los
+// mismos lugares.
 
 export async function recuperarContexto(
   texto: string,
@@ -122,7 +117,7 @@ export async function recuperarContexto(
     candidatos = catalogo.filter((l) => l.destacado || l.rating >= 4.5);
   }
 
-  const lugares = ordenarConBoostPremium(candidatos).slice(0, k);
+  const lugares = seleccionarConVariedad(candidatos, k);
 
   const hit = buscarConocimiento(texto);
   const conocimiento = hit ? hit.respuesta : null;

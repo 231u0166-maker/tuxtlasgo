@@ -69,15 +69,12 @@ export default function ExploreScreen({
           cumple ese rol de "encabezado", y el buscador ahí vive
           flotando sobre el mapa (AppShell.tsx), no aquí. */}
       <div className="hidden lg:block bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 lg:px-8 pt-6 lg:pt-8 pb-8 rounded-b-3xl">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-5">
           <h1 className="font-display font-extrabold text-2xl lg:text-3xl">
             {t('Descubre Los Tuxtlas')}
           </h1>
           <OfflineReadyBadge />
         </div>
-        <p className="text-sm text-jungle-100 opacity-90 mb-5">
-          {t('{n} lugares verificados, listos para tu próxima aventura.', { n: todosLugares.length })}
-        </p>
         <Buscador value={busqueda} onChange={setBusqueda} claro />
       </div>
 

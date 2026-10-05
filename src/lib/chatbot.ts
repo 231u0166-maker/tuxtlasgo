@@ -1292,6 +1292,64 @@ function ordenarConVariedad<T extends { score: number }>(
   return resultado;
 }
 
+// ─────────────── ROTACIÓN DE RECOMENDACIONES ───────────────
+// Hallazgo real de campo (QA): al pedir lo mismo varias veces, el chat
+// respondía con los MISMOS 3 lugares (solo cambiaba el texto de la
+// intro), porque cada respuesta ordenaba por rating y tomaba los 3
+// primeros. Ahora se elige con un sorteo ponderado dentro de los mejores
+// candidatos y se recuerda lo que ya se mostró en esta sesión para
+// bajarle prioridad. Sigue sin recomendar nada que no encaje (el filtro
+// de categoría/presupuesto/grupo ya ocurrió antes); solo rota entre
+// opciones igual de válidas. Con pocos candidatos (≤ n) devuelve todos.
+const ultimosMostrados: string[] = [];
+const MEMORIA_MOSTRADOS = 8;
+
+export function recordarMostrados(lugares: Lugar[]): void {
+  for (const l of lugares) {
+    const i = ultimosMostrados.indexOf(l.id);
+    if (i !== -1) ultimosMostrados.splice(i, 1);
+    ultimosMostrados.push(l.id);
+  }
+  while (ultimosMostrados.length > MEMORIA_MOSTRADOS) ultimosMostrados.shift();
+}
+
+function fueMostradoRecientemente(l: Lugar): boolean {
+  return ultimosMostrados.includes(l.id);
+}
+
+export function seleccionarConVariedad(candidatos: Lugar[], n: number): Lugar[] {
+  if (candidatos.length <= n) {
+    recordarMostrados(candidatos);
+    return [...candidatos];
+  }
+  // Mismo criterio de calidad que antes: rating + empate a favor de Premium
+  const puntaje = (l: Lugar) => l.rating + (l.premium ? 0.4 : 0);
+  const ordenados = [...candidatos].sort((a, b) => puntaje(b) - puntaje(a));
+  // Pool de los mejores (n + 3): deja entrar variedad sin bajar a lo flojo
+  const pool = ordenados.slice(0, n + 3);
+  const minimo = Math.min(...pool.map(puntaje));
+  const elegidos: Lugar[] = [];
+  const restantes = [...pool];
+  while (elegidos.length < n && restantes.length > 0) {
+    const pesos = restantes.map((l) => {
+      const base = puntaje(l) - minimo + 0.6;
+      return fueMostradoRecientemente(l) ? base * 0.2 : base;
+    });
+    let umbral = Math.random() * pesos.reduce((a, b) => a + b, 0);
+    let idx = 0;
+    for (; idx < restantes.length - 1; idx++) {
+      umbral -= pesos[idx];
+      if (umbral <= 0) break;
+    }
+    elegidos.push(restantes[idx]);
+    restantes.splice(idx, 1);
+  }
+  // Se presentan de mejor a peor puntaje, no en el orden del sorteo
+  elegidos.sort((a, b) => puntaje(b) - puntaje(a));
+  recordarMostrados(elegidos);
+  return elegidos;
+}
+
 // Detecta si el turista está preguntando "cuánto tiempo/distancia me
 // tomaría llegar desde donde estoy" — a diferencia de "cuéntame sobre
 // este lugar" (que ya resuelve buscarLugarPorNombre por sí solo). Esto
@@ -1333,9 +1391,15 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   // por categoría (como hoy), esto ya cubre tanto "mostrar el mejor
   // calificado" como "rotar entre las opciones válidas" con un solo
   // mecanismo — según cuántos candidatos reales haya en cada caso.
-  const recomendados = ordenarConVariedad(recomendadosConScore, 3).map(
-    (s) => s.lugar
-  );
+  // Lo que ya se mostró en esta sesión baja de prioridad para que dos
+  // rutas seguidas no sean la misma. Con pocos candidatos igual entra
+  // (solo baja puntos, no se excluye).
+  const recomendados = ordenarConVariedad(
+    recomendadosConScore
+      .map((s) => ({ ...s, score: s.score - (fueMostradoRecientemente(s.lugar) ? 3 : 0) }))
+      .sort((a, b) => b.score - a.score),
+    4
+  ).map((s) => s.lugar);
 
   // Si el turista pidió un municipio específico ("una ruta en
   // Catemaco"), la ruta se queda SOLO ahí — hallazgo real de campo:
@@ -1452,6 +1516,7 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
     }
   }
 
+  recordarMostrados(dias.flatMap((d) => d.lugares));
   return dias;
 }
 
@@ -1846,10 +1911,10 @@ export function responderTextoLibre(
         .map((c) => c.lugar);
 
       if (dentro.length > 0) {
-        sugerencias = dentro.slice(0, 3);
+        sugerencias = seleccionarConVariedad(dentro, 3);
         notaFiltro = `Sí — con ${formatearMXN(presupuestoPregunta.monto)} tienes ${dentro.length === 1 ? 'esta opción' : 'estas opciones'} dentro de presupuesto:\n\n`;
       } else if (sinPrecioClaro.length > 0) {
-        sugerencias = sinPrecioClaro.slice(0, 3);
+        sugerencias = seleccionarConVariedad(sinPrecioClaro, 3);
         notaFiltro = `No tengo un precio único y comparable para confirmarte cuál entra exactamente en ${formatearMXN(presupuestoPregunta.monto)} (varios lugares cobran por actividad o servicio, no una sola tarifa) — aquí tienes las opciones registradas para que revises el detalle de cada una:\n\n`;
       } else if (fuera.length > 0) {
         sugerencias = fuera.slice(0, 3);
@@ -1866,9 +1931,9 @@ export function responderTextoLibre(
         .filter((l) => l.precio === presupuestoCualitativo)
         .sort((a, b) => b.rating - a.rating);
       if (delNivel.length > 0) {
-        sugerencias = delNivel.slice(0, 3);
+        sugerencias = seleccionarConVariedad(delNivel, 3);
       } else {
-        sugerencias = candidatos.sort((a, b) => b.rating - a.rating).slice(0, 3);
+        sugerencias = seleccionarConVariedad(candidatos, 3);
         notaFiltro = `No tengo ninguno marcado específicamente como ${presupuestoCualitativo === 'bajo' ? 'económico' : 'de lujo'} en esta categoría — aquí tienes las mejores opciones que sí tengo:\n\n`;
       }
     } else if (esPreguntaSobreMascotas(texto)) {
@@ -1883,7 +1948,7 @@ export function responderTextoLibre(
         sugerencias = conDato.slice(0, 3);
         notaFiltro = `Esto es lo que tengo registrado sobre mascotas en ${cat.toLowerCase()}${municipioMencionado ? ` en ${municipioMencionado}` : ''}:\n\n${conDato.map((l) => `${l.nombre}: ${l.mascotas}`).join('\n')}\n\n`;
       } else {
-        sugerencias = candidatos.sort((a, b) => b.rating - a.rating).slice(0, 3);
+        sugerencias = seleccionarConVariedad(candidatos, 3);
         notaFiltro = `Todavía no tengo registrada la política de mascotas de ningún lugar de ${cat.toLowerCase()}${municipioMencionado ? ` en ${municipioMencionado}` : ''} — te recomiendo confirmar directamente antes de ir. Mientras tanto, aquí tienes las mejores opciones:\n\n`;
       }
     } else if (grupoPregunta) {
@@ -1897,12 +1962,15 @@ export function responderTextoLibre(
       const otros = candidatos
         .filter((l) => !l.ideal.includes(grupoPregunta))
         .sort((a, b) => b.rating - a.rating);
-      sugerencias = [...paraEseGrupo, ...otros].slice(0, 3);
+      sugerencias =
+        paraEseGrupo.length >= 3
+          ? seleccionarConVariedad(paraEseGrupo, 3)
+          : [...paraEseGrupo, ...seleccionarConVariedad(otros, 3 - paraEseGrupo.length)];
       if (paraEseGrupo.length === 0) {
         notaFiltro = `No tengo ninguno marcado específicamente como ideal para ${grupoTextoLegible(grupoPregunta)}, pero estas son las mejores opciones que sí tengo:\n\n`;
       }
     } else {
-      sugerencias = candidatos.sort((a, b) => b.rating - a.rating).slice(0, 3);
+      sugerencias = seleccionarConVariedad(candidatos, 3);
     }
 
     // Hallazgo real de campo (QA): "Muéstrame hoteles con alberca y
@@ -1979,9 +2047,7 @@ export function responderTextoLibre(
       if (enMunicipio.length > 0) candidatosGrupo = enMunicipio;
     }
     if (candidatosGrupo.length > 0) {
-      const sugerenciasGrupo = candidatosGrupo
-        .sort((a, b) => b.rating - a.rating)
-        .slice(0, 3);
+      const sugerenciasGrupo = seleccionarConVariedad(candidatosGrupo, 3);
       return {
         id: crypto.randomUUID(),
         role: 'bot',
@@ -2041,11 +2107,10 @@ export function responderTextoLibre(
 
   // PASO 4: solo un municipio mencionado, sin categoría clara
   if (municipioMencionado) {
-    const delMunicipio = catalogoActivo.filter(
-      (l) => l.municipio === municipioMencionado
-    )
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 3);
+    const delMunicipio = seleccionarConVariedad(
+      catalogoActivo.filter((l) => l.municipio === municipioMencionado),
+      3
+    );
     const introsMuni = [
       `Lo más destacado de ${municipioMencionado}:`,
       `En ${municipioMencionado} no te puedes perder esto:`,

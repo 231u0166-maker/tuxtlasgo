@@ -1,6 +1,7 @@
 import { Star, MapPin, Clock, Heart } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useT, useTd } from '../lib/i18n';
+import { optimizarImagen, ANCHO_TARJETA, ANCHO_MINIATURA } from '../lib/imagenOptimizada';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
@@ -36,7 +37,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
         className="w-full flex gap-3 bg-white rounded-xl p-3 hover:bg-jungle-50 transition-colors text-left border border-jungle-100"
       >
         <img
-          src={lugar.imagen}
+          src={optimizarImagen(lugar.imagen, ANCHO_MINIATURA)}
           alt={lugar.nombre}
           className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
           loading="lazy"
@@ -71,7 +72,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
     >
       <div className="relative aspect-[4/3] bg-jungle-100 overflow-hidden">
         <img
-          src={lugar.imagen}
+          src={optimizarImagen(lugar.imagen, ANCHO_TARJETA)}
           alt={lugar.nombre}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"

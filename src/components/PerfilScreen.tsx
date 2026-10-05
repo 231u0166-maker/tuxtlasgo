@@ -16,7 +16,7 @@ import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
   Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
-  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users, ChevronDown } from 'lucide-react';
+  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
@@ -27,6 +27,7 @@ import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { recargarCatalogo } from '../App';
 import { useT } from '../lib/i18n';
+import { optimizarImagen, ANCHO_TARJETA } from '../lib/imagenOptimizada';
 import SelectorIdioma from './SelectorIdioma';
 import { TIPOS_ENLACE, nuevoEnlaceId, parseEnlaces, type EnlaceServicio, type TipoEnlace } from '../lib/enlaces';
 import { useHojaArrastrable } from '../lib/useHojaArrastrable';
@@ -1151,45 +1152,7 @@ function PerfilPrestador({
                     que abre un modal enfocado nada más en esa sección
                     (mismo patrón que el modal de "Iniciar sesión"). */}
                 <div className="space-y-3">
-                  <SeccionServicio
-                    titulo="Información básica"
-                    abierta={modalEditar === 'basica'}
-                    onToggle={() => (modalEditar === 'basica' ? setModalEditar(null) : abrirModal('basica'))}
-                    editor={
-                      <EditorSeccion onGuardar={guardar} onCancelar={() => setModalEditar(null)} guardando={guardando}>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre del negocio <span className="text-red-500">*</span></label>
-            <input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
-              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría</label>
-              <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
-                className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                {['Gastronomia','Naturaleza','Aventura','Hospedaje','Comercio','Cooperativa','Otro'].map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
-              <select value={form.municipio} onChange={e => setForm({ ...form, municipio: e.target.value })}
-                className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Descripción <span className="text-red-500">*</span></label>
-            <textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}
-              rows={4} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
-          </div>
-                      </EditorSeccion>
-                    }
-                  >
+                  <SeccionServicio titulo="Información básica" onEditar={() => abrirModal('basica')}>
                     <InfoFila icono={<Store size={14} />} label="Categoría" valor={servicio.categoria} />
                     <InfoFila icono={null} label="Municipio" valor={servicio.municipio} />
                     <div className="bg-jungle-50 rounded-xl p-3">
@@ -1198,80 +1161,12 @@ function PerfilPrestador({
                     </div>
                   </SeccionServicio>
 
-                  <SeccionServicio
-                    titulo="Precio y contacto"
-                    abierta={modalEditar === 'precio'}
-                    onToggle={() => (modalEditar === 'precio' ? setModalEditar(null) : abrirModal('precio'))}
-                    editor={
-                      <EditorSeccion onGuardar={guardar} onCancelar={() => setModalEditar(null)} guardando={guardando}>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
-            <SelectorPrecio valor={form.precio} onCambiar={(s) => setForm({ ...form, precio: s })} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp / correo</label>
-            <SelectorContacto valor={form.contacto} onCambiar={(s) => setForm({ ...form, contacto: s })} />
-          </div>
-                      </EditorSeccion>
-                    }
-                  >
+                  <SeccionServicio titulo="Precio y contacto" onEditar={() => abrirModal('precio')}>
                     <InfoFila icono={null} label="Precio" valor={servicio.precio} />
                     <InfoFila icono={<Phone size={14} />} label="Contacto" valor={servicio.contacto} />
                   </SeccionServicio>
 
-                  <SeccionServicio
-                    titulo="Detalles para el turista"
-                    abierta={modalEditar === 'detalles'}
-                    onToggle={() => (modalEditar === 'detalles' ? setModalEditar(null) : abrirModal('detalles'))}
-                    editor={
-                      <EditorSeccion onGuardar={guardar} onCancelar={() => setModalEditar(null)} guardando={guardando}>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
-            <SelectorHorario valor={form.horario} onCambiar={(s) => setForm({ ...form, horario: s })} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-2 block">Días abierto</label>
-            <SelectorDias valor={form.dias_abierto} onCambiar={(s) => setForm({ ...form, dias_abierto: s })} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
-            <SelectorDuracion valor={form.duracion} onCambiar={(s) => setForm({ ...form, duracion: s })} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Cómo llegar</label>
-            <textarea value={form.como_llegar} onChange={e => setForm({ ...form, como_llegar: e.target.value })}
-              placeholder="ej: A 45 minutos de Catemaco por carretera costera."
-              rows={2} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">💡 Consejo para el visitante</label>
-            <input value={form.tip} onChange={e => setForm({ ...form, tip: e.target.value })}
-              placeholder="ej: Lleva efectivo, no siempre hay señal."
-              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">🐾 ¿Aceptan mascotas?</label>
-            <input value={form.mascotas} onChange={e => setForm({ ...form, mascotas: e.target.value })}
-              placeholder="ej: Sí, aceptamos perros / No se permiten mascotas / Solo en la terraza"
-              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-            <p className="text-[11px] text-jungle-500 mt-1">Si lo dejas vacío, el asistente dirá honestamente que no tiene ese dato — nunca lo inventa.</p>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-2 block">Ideal para</label>
-            <div className="flex flex-wrap gap-2">
-              {IDEAL_OPCIONES.map(op => (
-                <button key={op.id} type="button" onClick={() => toggleIdeal(op.id)}
-                  className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${
-                    form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
-                  }`}>
-                  {op.label}
-                </button>
-              ))}
-            </div>
-          </div>
-                      </EditorSeccion>
-                    }
-                  >
+                  <SeccionServicio titulo="Detalles para el turista" onEditar={() => abrirModal('detalles')}>
                     <InfoFila icono={<Clock size={14} />} label="Horario"
                       valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
                     <InfoFila icono={null} label="Duración" valor={servicio.duracion} />
@@ -1464,6 +1359,102 @@ function PerfilPrestador({
 
 
 
+      {modalEditar === 'basica' && (
+        <ModalEditarSeccion titulo="Información básica" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Nombre del negocio <span className="text-red-500">*</span></label>
+            <input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
+              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Categoría</label>
+              <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
+                className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                {['Gastronomia','Naturaleza','Aventura','Hospedaje','Comercio','Cooperativa','Otro'].map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
+              <select value={form.municipio} onChange={e => setForm({ ...form, municipio: e.target.value })}
+                className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Descripción <span className="text-red-500">*</span></label>
+            <textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}
+              rows={4} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+          </div>
+        </ModalEditarSeccion>
+      )}
+
+      {modalEditar === 'precio' && (
+        <ModalEditarSeccion titulo="Precio y contacto" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
+            <SelectorPrecio valor={form.precio} onCambiar={(s) => setForm({ ...form, precio: s })} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp / correo</label>
+            <SelectorContacto valor={form.contacto} onCambiar={(s) => setForm({ ...form, contacto: s })} />
+          </div>
+        </ModalEditarSeccion>
+      )}
+
+      {modalEditar === 'detalles' && (
+        <ModalEditarSeccion titulo="Detalles para el turista" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
+            <SelectorHorario valor={form.horario} onCambiar={(s) => setForm({ ...form, horario: s })} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-2 block">Días abierto</label>
+            <SelectorDias valor={form.dias_abierto} onCambiar={(s) => setForm({ ...form, dias_abierto: s })} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
+            <SelectorDuracion valor={form.duracion} onCambiar={(s) => setForm({ ...form, duracion: s })} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Cómo llegar</label>
+            <textarea value={form.como_llegar} onChange={e => setForm({ ...form, como_llegar: e.target.value })}
+              placeholder="ej: A 45 minutos de Catemaco por carretera costera."
+              rows={2} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">💡 Consejo para el visitante</label>
+            <input value={form.tip} onChange={e => setForm({ ...form, tip: e.target.value })}
+              placeholder="ej: Lleva efectivo, no siempre hay señal."
+              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-1 block">🐾 ¿Aceptan mascotas?</label>
+            <input value={form.mascotas} onChange={e => setForm({ ...form, mascotas: e.target.value })}
+              placeholder="ej: Sí, aceptamos perros / No se permiten mascotas / Solo en la terraza"
+              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+            <p className="text-[11px] text-jungle-500 mt-1">Si lo dejas vacío, el asistente dirá honestamente que no tiene ese dato — nunca lo inventa.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-jungle-700 mb-2 block">Ideal para</label>
+            <div className="flex flex-wrap gap-2">
+              {IDEAL_OPCIONES.map(op => (
+                <button key={op.id} type="button" onClick={() => toggleIdeal(op.id)}
+                  className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${
+                    form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
+                  }`}>
+                  {op.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </ModalEditarSeccion>
+      )}
     </div>
   );
 }
@@ -2224,7 +2215,7 @@ function ColumnaRueda({ opciones, indice, onCambiar }: { opciones: (string | num
 
   return (
     <div ref={ref} onScroll={alScrollear}
-      className="relative h-[108px] w-14 overflow-y-scroll snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      className="relative h-[108px] flex-1 min-w-0 max-w-14 overflow-y-scroll snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div style={{ height: ALTO_ITEM_RUEDA }} />
       {opciones.map((op, i) => (
         <div key={i} onClick={() => elegir(i)}
@@ -2261,9 +2252,9 @@ function RuedaHora({ valor, onCambiar }: { valor: string; onCambiar: (hhmm: stri
   }
 
   return (
-    <div className="relative flex items-center justify-center gap-1 bg-jungle-50 rounded-2xl py-1">
+    <div className="relative flex items-center justify-center gap-0.5 bg-jungle-50 rounded-2xl py-1 px-1 min-w-0">
       {/* Banda que marca la fila seleccionada, igual que un picker de alarma */}
-      <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 h-9 bg-white rounded-xl border border-jungle-200 pointer-events-none" />
+      <div className="absolute inset-x-1.5 top-1/2 -translate-y-1/2 h-9 bg-white rounded-xl border border-jungle-200 pointer-events-none" />
       <ColumnaRueda opciones={HORAS_12} indice={h - 1} onCambiar={(i) => cambiar(i + 1, m, ampm)} />
       <span className="text-jungle-400 font-bold relative">:</span>
       <ColumnaRueda opciones={MINUTOS_60} indice={m} onCambiar={(i) => cambiar(h, i, ampm)} />
@@ -2283,12 +2274,12 @@ function SelectorHorario({ valor, onCambiar }: { valor: string; onCambiar: (s: s
   }, [desde, hasta]);
 
   return (
-    <div className="flex items-start gap-3">
-      <div className="flex-1">
+    <div className="flex items-start gap-2">
+      <div className="flex-1 min-w-0">
         <p className="text-[11px] font-semibold text-jungle-500 mb-1.5 text-center">Desde</p>
         <RuedaHora valor={desde} onCambiar={setDesde} />
       </div>
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <p className="text-[11px] font-semibold text-jungle-500 mb-1.5 text-center">Hasta</p>
         <RuedaHora valor={hasta} onCambiar={setHasta} />
       </div>
@@ -2447,42 +2438,9 @@ function BarraPerfilCompleto({ servicio, fotos }: { servicio: ServicioAPI; fotos
   );
 }
 
-// Tarjeta de una sección de "Mi Servicio". Con `onToggle` es un acordeón:
-// el encabezado entero es un botón con flecha; cerrada muestra el resumen
-// de solo lectura y abierta despliega el formulario (`editor`) ahí mismo,
-// sin modal. Sin `onToggle` conserva el lápiz de antes, que abre un modal
-// (lo sigue usando "Configuración de reservaciones").
-function SeccionServicio({
-  titulo, onEditar, abierta, onToggle, editor, children,
-}: {
-  titulo: string;
-  onEditar?: () => void;
-  abierta?: boolean;
-  onToggle?: () => void;
-  editor?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  if (onToggle) {
-    return (
-      <div className={`border rounded-xl transition-colors ${abierta ? 'border-jungle-400 shadow-sm' : 'border-jungle-100'}`}>
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={!!abierta}
-          className="w-full flex items-center justify-between gap-3 p-3.5 text-left rounded-xl hover:bg-jungle-50/60 transition-colors"
-        >
-          <span className="text-[11px] font-bold text-jungle-400 uppercase tracking-wide">{titulo}</span>
-          <span className="flex items-center gap-1.5 text-jungle-500 flex-shrink-0">
-            {abierta && <span className="text-[11px] font-semibold">Editando</span>}
-            <ChevronDown size={18} className={`transition-transform duration-200 ${abierta ? 'rotate-180' : ''}`} />
-          </span>
-        </button>
-        <div key={abierta ? 'editor' : 'resumen'} className="px-3.5 pb-3.5 animate-fade-in">
-          {abierta ? editor : <div className="space-y-3">{children}</div>}
-        </div>
-      </div>
-    );
-  }
+// Tarjeta de solo lectura para una sección de "Mi Servicio", con su
+// propio lápiz de editar — reemplaza al formulario único gigante.
+function SeccionServicio({ titulo, onEditar, children }: { titulo: string; onEditar: () => void; children: React.ReactNode }) {
   return (
     <div className="border border-jungle-100 rounded-xl p-3.5">
       <div className="flex items-center justify-between mb-2.5">
@@ -2493,31 +2451,6 @@ function SeccionServicio({
         </button>
       </div>
       <div className="space-y-3">{children}</div>
-    </div>
-  );
-}
-
-// Formulario que se despliega dentro de la tarjeta (acordeón): mismos
-// campos y mismo botón de guardar que tenía el modal, pero en línea.
-function EditorSeccion({
-  onGuardar, onCancelar, guardando, children,
-}: {
-  onGuardar: () => void; onCancelar: () => void; guardando: boolean; children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-4 pt-1 border-t border-jungle-100 mt-0.5 pt-4">
-      {children}
-      <div className="flex gap-3 pt-1">
-        <button onClick={onGuardar} disabled={guardando}
-          className="flex-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
-          {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-          Guardar cambios
-        </button>
-        <button onClick={onCancelar}
-          className="px-5 bg-jungle-100 hover:bg-jungle-200 text-jungle-700 py-3 rounded-xl text-sm font-semibold">
-          Cancelar
-        </button>
-      </div>
     </div>
   );
 }
@@ -2576,7 +2509,7 @@ function PreviewCard({ lugar }: { lugar: Lugar }) {
   return (
     <div className="bg-white rounded-2xl border border-jungle-100 overflow-hidden shadow-sm">
       <div className="relative h-44">
-        <img src={lugar.imagen} alt={lugar.nombre} className="w-full h-full object-cover" />
+        <img src={optimizarImagen(lugar.imagen, ANCHO_TARJETA)} alt={lugar.nombre} className="w-full h-full object-cover" />
         <div className="absolute top-3 left-3 flex gap-2">
           {cat && (
             <span className="bg-white/90 text-jungle-800 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">

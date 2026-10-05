@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { X, MapPin, ChevronRight } from 'lucide-react';
 import { LUGARES, CATEGORIAS, type Categoria } from '../data/lugares';
+import { optimizarImagen, ANCHO_TARJETA, ANCHO_DETALLE } from '../lib/imagenOptimizada';
 import SubNavPublica from './SubNavPublica';
 
 interface FotoGaleria {
@@ -95,7 +96,7 @@ export default function GaleriaPage() {
               className="block w-full mb-3 break-inside-avoid relative group rounded-2xl overflow-hidden bg-jungle-100"
             >
               <img
-                src={f.url}
+                src={optimizarImagen(f.url, ANCHO_TARJETA)}
                 alt={f.lugarNombre}
                 loading="lazy"
                 className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
@@ -127,7 +128,7 @@ export default function GaleriaPage() {
             <X size={20} />
           </button>
           <div className="max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
-            <img src={fotoActiva.url} alt={fotoActiva.lugarNombre} className="w-full max-h-[75vh] object-contain rounded-2xl" />
+            <img src={optimizarImagen(fotoActiva.url, ANCHO_DETALLE)} alt={fotoActiva.lugarNombre} className="w-full max-h-[75vh] object-contain rounded-2xl" />
             <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
               <div>
                 <p className="text-white font-display font-bold text-lg">{fotoActiva.lugarNombre}</p>

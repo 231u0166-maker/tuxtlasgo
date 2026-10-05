@@ -28,6 +28,7 @@ import type { TipoEnlace } from '../lib/enlaces';
 import { registrarEventoServicio } from '../lib/eventos';
 import ModalReservacion from './ModalReservacion';
 import { useT, useTd } from '../lib/i18n';
+import { optimizarImagen, ANCHO_DETALLE } from '../lib/imagenOptimizada';
 
 interface Props {
   lugar: Lugar;
@@ -98,7 +99,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
       >
         <div className="relative aspect-[16/10] bg-jungle-200">
           <img
-            src={lugar.imagen}
+            src={optimizarImagen(lugar.imagen, ANCHO_DETALLE)}
             alt={lugar.nombre}
             onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
             className="w-full h-full object-cover"
@@ -371,7 +372,7 @@ function CarruselFotos({
         {fotos.map((url, i) => (
           <div key={`${url}-${i}`} className="w-full flex-shrink-0 snap-center aspect-[4/3] bg-jungle-100">
             <img
-              src={url}
+              src={optimizarImagen(url, ANCHO_DETALLE)}
               alt={t('{nombre} — foto {i} de {n}', { nombre, i: i + 1, n: fotos.length })}
               loading="lazy"
               onError={manejarErrorImagen(categoria, nombre)}

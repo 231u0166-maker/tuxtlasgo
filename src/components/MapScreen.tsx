@@ -302,6 +302,27 @@ interface Props {
   vistaCompacta?: boolean;
 }
 
+// Rendimiento en celulares (sobre todo la PWA instalada en Android, donde
+// el mapa ocupa toda la pantalla sin la barra del navegador): MapLibre
+// dibuja con el devicePixelRatio completo (×2.6–3 en Android), o sea 7–9
+// veces más píxeles que en una pantalla de escritorio, con inclinación 3D
+// y edificios encima. En equipos de gama baja (poca RAM o pocos núcleos)
+// se limita la resolución interna del canvas y se quitan las
+// animaciones de fundido de etiquetas, que obligan a repintar cuadros
+// extra después de cada movimiento. El mapa se ve igual de nítido a
+// simple vista; solo cambia cuánto trabaja la GPU.
+function esGamaBaja(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  return (nav.deviceMemory !== undefined && nav.deviceMemory <= 4)
+    || (navigator.hardwareConcurrency !== undefined && navigator.hardwareConcurrency <= 4);
+}
+const GAMA_BAJA = esGamaBaja();
+const PIXEL_RATIO_MAPA = Math.min(
+  typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
+  GAMA_BAJA ? 1.5 : 2
+);
+
 export default function MapScreen({
   onVerLugar,
   filtroCategorias,
@@ -571,6 +592,8 @@ export default function MapScreen({
           zoom: 11,
           pitch: 45,
         }}
+        pixelRatio={PIXEL_RATIO_MAPA}
+        fadeDuration={GAMA_BAJA ? 0 : 300}
         minZoom={9}
         maxZoom={18}
         maxBounds={[

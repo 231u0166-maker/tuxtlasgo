@@ -41,6 +41,7 @@ import {
 import { guardarRuta, mapaDescargado, guardarChat, type ChatGuardado } from '../lib/db';
 import { registrarEventoServicio } from '../lib/eventos';
 import { useT } from '../lib/i18n';
+import { optimizarImagen, ANCHO_MINIATURA } from '../lib/imagenOptimizada';
 import HistorialChats from './HistorialChats';
 import { buscarRespuestaVerificada } from '../lib/embeddings';
 import {
@@ -1625,7 +1626,7 @@ function TarjetaLugarChat({
       className="w-full flex gap-3 bg-white rounded-xl p-2.5 hover:bg-jungle-50 transition-colors text-left border border-jungle-100"
     >
       <img
-        src={lugar.imagen}
+        src={optimizarImagen(lugar.imagen, ANCHO_MINIATURA)}
         alt={lugar.nombre}
         className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
         loading="lazy"

@@ -15,6 +15,7 @@ import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/cono
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
 import { embeddingsListo, indexarCatalogo, indexarConocimiento, inicializarEmbeddings } from './lib/embeddings';
 import ActualizacionDisponible from './components/ActualizacionDisponible';
+import { optimizarImagen, ANCHO_TARJETA, ANCHO_DETALLE, ANCHO_MINIATURA } from './lib/imagenOptimizada';
 
 // ============================================================
 // PWA INSTALADA — saltar la landing de marketing
@@ -44,8 +45,12 @@ async function precachearImagenes(lugares: any[]) {
   const cache = await caches.open('cloudinary-fotos');
   const urls: string[] = [];
   for (const l of lugares) {
-    if (l.imagen && l.imagen.includes('cloudinary')) urls.push(l.imagen);
-    if (l.imagenesExtra) urls.push(...l.imagenesExtra.filter((u: string) => u.includes('cloudinary')));
+    // Variante de tarjeta (640) y de detalle (1000) de cada foto — son las
+    // que la UI pide, así que son las que deben estar disponibles offline.
+    const originales: string[] = [];
+    if (l.imagen && l.imagen.includes('cloudinary')) originales.push(l.imagen);
+    if (l.imagenesExtra) originales.push(...l.imagenesExtra.filter((u: string) => u.includes('cloudinary')));
+    for (const u of originales) urls.push(optimizarImagen(u, ANCHO_TARJETA), optimizarImagen(u, ANCHO_DETALLE), optimizarImagen(u, ANCHO_MINIATURA));
   }
   // Cachear en paralelo, ignorar errores individuales
   await Promise.allSettled(

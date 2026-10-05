@@ -202,39 +202,76 @@ export default function AppShell() {
   // que se controla con el dedo.
   const ALTURA_HOJA_COLAPSADA = 130;
   const [hojaExplorarAbierta, setHojaExplorarAbierta] = useState(false);
-  const [alturaArrastrePx, setAlturaArrastrePx] = useState<number | null>(null);
   const refPanelExplorar = useRef<HTMLDivElement>(null);
-  const arrastreRef = useRef<{ y: number; alturaInicialPx: number; contenedorAlto: number; movioSuficiente: boolean } | null>(null);
+  const refHoja = useRef<HTMLDivElement>(null);
+  const arrastreRef = useRef<{
+    y: number;
+    // Cuánto está desplazada hacia abajo la hoja al empezar (0 = abierta).
+    desplazInicial: number;
+    // Máximo desplazamiento = alto de la hoja menos la parte que
+    // siempre se asoma (el asa + las categorías).
+    desplazMax: number;
+    actual: number;
+    cuadro: number | null;
+    movioSuficiente: boolean;
+  } | null>(null);
   const seMovioRef = useRef(false);
 
+  // La hoja mide siempre 85% del panel y se mueve con `transform`,
+  // NO cambiando su `height`. Antes cada pointermove hacía setState
+  // (re-render de todo AppShell) y cambiaba el alto, lo que obliga al
+  // navegador a recalcular el layout de todas las tarjetas de dentro
+  // varias veces por cuadro — en celulares modestos se trababa al
+  // subir. Ahora, mientras el dedo se mueve, solo se escribe
+  // transform directo al elemento (sin React y sin layout, lo hace la
+  // GPU), un cuadro por rAF; el estado de React se actualiza una sola
+  // vez al soltar.
+  const transformCerrada = `translateY(calc(100% - ${ALTURA_HOJA_COLAPSADA}px))`;
+  const transformAbierta = 'translateY(0)';
+  const TRANSICION_HOJA = 'transform 0.25s ease-out';
+
   const iniciarArrastreHoja = (e: React.PointerEvent) => {
+    const hoja = refHoja.current;
+    if (!hoja) return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    const contenedorAlto = refPanelExplorar.current?.clientHeight ?? window.innerHeight;
-    const alturaInicialPx = hojaExplorarAbierta ? contenedorAlto * 0.85 : ALTURA_HOJA_COLAPSADA;
-    arrastreRef.current = { y: e.clientY, alturaInicialPx, contenedorAlto, movioSuficiente: false };
+    const desplazMax = Math.max(0, hoja.offsetHeight - ALTURA_HOJA_COLAPSADA);
+    const desplazInicial = hojaExplorarAbierta ? 0 : desplazMax;
+    arrastreRef.current = {
+      y: e.clientY, desplazInicial, desplazMax, actual: desplazInicial, cuadro: null, movioSuficiente: false,
+    };
+    hoja.style.transition = 'none';
   };
 
   const moverArrastreHoja = (e: React.PointerEvent) => {
     const inicio = arrastreRef.current;
     if (!inicio) return;
-    const delta = inicio.y - e.clientY; // arrastrar hacia arriba (Y menor) = hoja más alta
+    const delta = e.clientY - inicio.y; // hacia arriba (Y menor) = hoja más arriba
     if (Math.abs(delta) > 6) inicio.movioSuficiente = true;
-    const nuevaAltura = Math.min(
-      Math.max(inicio.alturaInicialPx + delta, ALTURA_HOJA_COLAPSADA),
-      inicio.contenedorAlto * 0.9
-    );
-    setAlturaArrastrePx(nuevaAltura);
+    inicio.actual = Math.min(Math.max(inicio.desplazInicial + delta, 0), inicio.desplazMax);
+    if (inicio.cuadro !== null) return; // ya hay un cuadro pendiente
+    inicio.cuadro = requestAnimationFrame(() => {
+      inicio.cuadro = null;
+      if (refHoja.current) refHoja.current.style.transform = `translateY(${inicio.actual}px)`;
+    });
   };
 
   const terminarArrastreHoja = () => {
     const inicio = arrastreRef.current;
-    seMovioRef.current = inicio?.movioSuficiente ?? false;
-    if (inicio && alturaArrastrePx !== null) {
-      const mitad = (ALTURA_HOJA_COLAPSADA + inicio.contenedorAlto * 0.85) / 2;
-      setHojaExplorarAbierta(alturaArrastrePx > mitad);
-    }
     arrastreRef.current = null;
-    setAlturaArrastrePx(null);
+    if (!inicio) return;
+    if (inicio.cuadro !== null) cancelAnimationFrame(inicio.cuadro);
+    seMovioRef.current = inicio.movioSuficiente;
+    const abrir = inicio.actual < inicio.desplazMax / 2;
+    // Se escribe el destino directo para animar desde donde quedó el
+    // dedo, y se sincroniza el estado de React (que produce el mismo
+    // transform, así que no hay salto).
+    const hoja = refHoja.current;
+    if (hoja) {
+      hoja.style.transition = TRANSICION_HOJA;
+      hoja.style.transform = abrir ? transformAbierta : transformCerrada;
+    }
+    // Un toque sin arrastre lo resuelve manejarClickAsaHoja.
+    if (inicio.movioSuficiente) setHojaExplorarAbierta(abrir);
   };
 
   const manejarClickAsaHoja = () => {
@@ -249,10 +286,12 @@ export default function AppShell() {
     setHojaExplorarAbierta((v) => !v);
   };
 
-  const alturaHojaEstilo: React.CSSProperties =
-    alturaArrastrePx !== null
-      ? { height: `${alturaArrastrePx}px`, transition: 'none' }
-      : { height: hojaExplorarAbierta ? '85%' : `${ALTURA_HOJA_COLAPSADA}px`, transition: 'height 0.25s ease-out' };
+  const alturaHojaEstilo: React.CSSProperties = {
+    height: '85%',
+    transform: hojaExplorarAbierta ? transformAbierta : transformCerrada,
+    transition: TRANSICION_HOJA,
+    willChange: 'transform',
+  };
 
   // Mensaje que viene del campo de texto de Inicio (o de una
   // "consulta rápida") — se guarda aquí un instante nada más,
@@ -725,6 +764,7 @@ export default function AppShell() {
                   casi completo — dos estados con imán al soltar, no
                   cualquier alto intermedio. */}
               <div
+                ref={refHoja}
                 className="lg:hidden absolute inset-x-0 bottom-0 z-[45] bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(12,10,9,0.18)] flex flex-col"
                 style={alturaHojaEstilo}
               >

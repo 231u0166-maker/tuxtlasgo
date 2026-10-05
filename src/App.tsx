@@ -158,7 +158,7 @@ export default function App() {
       <Routes>
         <Route
           path="/"
-          element={corriendoComoPWAInstalada() ? <Navigate to="/app" replace /> : <LandingPage usuario={usuario} onUsuario={setUsuario} />}
+          element={corriendoComoPWAInstalada() ? <AppShell /> : <LandingPage usuario={usuario} onUsuario={setUsuario} />}
         />
         <Route path="/app" element={<AppShell />} />
         <Route path="/prestador" element={<ProviderPanel />} />

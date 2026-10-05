@@ -111,7 +111,15 @@ export default defineConfig({
         background_color: '#f0fdf4',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/app',
+        // La PWA arranca en la raíz para que la URL que se ve sea
+        // go.tuxtlas.xyz y no go.tuxtlas.xyz/app. En modo instalado,
+        // App.tsx pinta la app en "/" directo (sin redirigir a /app,
+        // que volvería a mostrar esa ruta).
+        start_url: '/',
+        // `id` fijo en '/app': el id por defecto sale del start_url, y
+        // cambiarlo haría que las instalaciones ya hechas se tomen como
+        // una app distinta (y no se actualicen). Así conservan su identidad.
+        id: '/app',
         scope: '/',
         lang: 'es-MX',
         categories: ['travel', 'navigation', 'lifestyle'],

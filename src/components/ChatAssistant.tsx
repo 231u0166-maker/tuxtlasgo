@@ -806,6 +806,7 @@ export default function ChatAssistant({
               dia: dia.dia,
               lugares: dia.lugares,
               resumen: dia.resumen,
+              momentos: dia.momentos,
             },
             timestamp: Date.now(),
           },
@@ -1567,6 +1568,11 @@ function Burbuja({
                     onClick={() => onVerLugar(lugar)}
                     className="flex-1 text-left bg-jungle-50 hover:bg-jungle-100 rounded-lg p-2 transition-colors mb-1"
                   >
+                    {mensaje.rutaDia!.momentos?.[i] && (
+                      <div className="text-[10px] font-bold uppercase tracking-wide text-sun-700 mb-0.5">
+                        {mensaje.rutaDia!.momentos![i]}
+                      </div>
+                    )}
                     <div className="font-semibold text-jungle-950 text-sm leading-tight">
                       {lugar.nombre}
                     </div>

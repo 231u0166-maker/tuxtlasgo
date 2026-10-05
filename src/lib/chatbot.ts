@@ -106,7 +106,7 @@ export interface MensajeChat {
   // distintas para la misma pregunta, y la que se veía (la línea) no
   // era la real.
   rutaGeometria?: [number, number][];
-  rutaDia?: { dia: number; lugares: Lugar[]; resumen: string };
+  rutaDia?: { dia: number; lugares: Lugar[]; resumen: string; momentos?: string[] };
   timestamp: number;
 }
 
@@ -675,6 +675,9 @@ export function filtrarLugares(prefs: PreferenciasUsuario): Lugar[] {
 export interface DiaRuta {
   dia: number;
   lugares: Lugar[];
+  // Momento del día de cada parada (misma posición que `lugares`):
+  // "Desayuno", "Mañana", "Tarde", "Comida", "Cena"…
+  momentos: string[];
   resumen: string;
   razonamiento: string; // explicación de por qué se armó así
 }
@@ -1388,15 +1391,32 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
       dias.flatMap((d) => d.lugares.map((l) => l.id))
     );
 
+    // Hallazgo real de campo (QA): un día salía con 3 restaurantes
+    // seguidos aunque el turista también quisiera naturaleza/aventura,
+    // porque Gastronomía se podía repetir sin límite y los mejor
+    // puntuados eran casi todos restaurantes. Ahora, si todavía quedan
+    // actividades (Naturaleza/Aventura) por usar entre los intereses del
+    // turista, un día lleva como máximo 2 lugares para comer y deja el
+    // resto a la actividad. Si NO hay actividades en sus intereses (solo
+    // pidió gastronomía) se permiten hasta 3 — no se le mezclan
+    // categorías que no pidió.
+    const esActividad = (l: Lugar) => l.categoria === 'Aventura' || l.categoria === 'Naturaleza';
+    const hayActividadesPendientes = seleccion.some(
+      (l) => esActividad(l) && !yaSeleccionados.has(l.id)
+    );
+    const maxGastronomiaDia = hayActividadesPendientes ? 2 : lugaresPorDia;
+    const cabeEnElDia = (l: Lugar) => {
+      if (yaSeleccionados.has(l.id) || usados.has(l.id)) return false;
+      if (l.categoria === 'Gastronomia') {
+        return dia.filter((d) => d.categoria === 'Gastronomia').length < maxGastronomiaDia;
+      }
+      return !dia.some((d) => d.categoria === l.categoria);
+    };
+
     // Prioridad 1: del municipio del día
     for (const l of lugaresMuni) {
       if (dia.length >= lugaresPorDia) break;
-      if (yaSeleccionados.has(l.id) || usados.has(l.id)) continue;
-      if (
-        dia.some((d) => d.categoria === l.categoria) &&
-        l.categoria !== 'Gastronomia'
-      )
-        continue;
+      if (!cabeEnElDia(l)) continue;
       dia.push(l);
       usados.add(l.id);
     }
@@ -1404,34 +1424,19 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
     // Rellenar de otros municipios
     for (const l of seleccion) {
       if (dia.length >= lugaresPorDia) break;
-      if (yaSeleccionados.has(l.id) || usados.has(l.id)) continue;
-      if (
-        dia.some((d) => d.categoria === l.categoria) &&
-        l.categoria !== 'Gastronomia'
-      )
-        continue;
+      if (!cabeEnElDia(l)) continue;
       dia.push(l);
       usados.add(l.id);
     }
 
-    // Ordenar el día por momento ideal
-    dia.sort((a, b) => {
-      const orden: Record<Categoria, number> = {
-        Aventura: 1,
-        Naturaleza: 2,
-        Gastronomia: 3,
-        Hospedaje: 4,
-        Comercio: 5,
-        Cooperativa: 6,
-        Otro: 7,
-      };
-      return orden[a.categoria] - orden[b.categoria];
-    });
+    // Ordenar el día por momento ideal y etiquetar cada parada
+    // (desayuno → actividad → comida/cena).
+    const { lugares: diaOrdenado, momentos } = ordenarDiaPorMomentos(dia);
 
-    if (dia.length > 0) {
+    if (diaOrdenado.length > 0) {
       let infoPresupuesto: { costoConocido: number; huboSinPrecio: boolean; restanteDespues: number } | null = null;
       if (presupuestoRestante !== null) {
-        const costos = dia.map((l) => estimarPrecioMXN(l.precioMxn));
+        const costos = diaOrdenado.map((l) => estimarPrecioMXN(l.precioMxn));
         const costoConocido = costos.reduce((s: number, c) => s + (c ?? 0), 0);
         const huboSinPrecio = costos.some((c) => c === null);
         presupuestoRestante -= costoConocido;
@@ -1439,14 +1444,130 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
       }
       dias.push({
         dia: i + 1,
-        lugares: dia,
-        resumen: armarResumen(i + 1, municipio, dia, prefs),
-        razonamiento: armarRazonamiento(dia, prefs, infoPresupuesto),
+        lugares: diaOrdenado,
+        momentos,
+        resumen: armarResumen(i + 1, municipio, diaOrdenado, prefs),
+        razonamiento: armarRazonamiento(diaOrdenado, momentos, prefs, infoPresupuesto),
       });
     }
   }
 
   return dias;
+}
+
+// ─────────────── MOMENTOS DEL DÍA ───────────────
+// Etiquetas que se muestran junto a cada parada.
+const ETIQUETA_FRASE: Record<string, string> = {
+  Desayuno: 'para desayunar',
+  Mañana: 'para la mañana',
+  Mediodía: 'para el mediodía',
+  Tarde: 'para pasar la tarde',
+  Comida: 'para comer',
+  Cena: 'para cenar',
+  Descanso: 'para descansar',
+  Paseo: 'para pasear',
+  Actividad: 'como actividad del día',
+};
+
+const TAGS_DESAYUNO = ['desayunos', 'desayuno', 'cafe', 'brunch', 'postres'];
+const TAGS_NOCHE = ['nocturno', 'atardecer', 'bar', 'cocteles', 'rooftop', 'música en vivo', 'mariscos', 'terraza'];
+
+function puntosTags(l: Lugar, tags: string[]): number {
+  return l.tags.filter((t) => tags.includes(t.toLowerCase())).length;
+}
+
+// Ordena las paradas de un día por momento (desayuno → actividades →
+// comida/cena → descanso) y devuelve la etiqueta de cada una. Entre los
+// lugares para comer, el de más "pinta de desayuno" (cafés, desayunos,
+// brunch) va primero y el de más "pinta de noche" (bar, atardecer,
+// mariscos) va al final — así no se manda a desayunar a un rooftop-bar.
+function ordenarDiaPorMomentos(dia: Lugar[]): { lugares: Lugar[]; momentos: string[] } {
+  const gastro = dia.filter((l) => l.categoria === 'Gastronomia');
+  const actividades = dia.filter((l) => l.categoria === 'Aventura' || l.categoria === 'Naturaleza');
+  const paseos = dia.filter((l) => l.categoria === 'Comercio' || l.categoria === 'Cooperativa' || l.categoria === 'Otro');
+  const hospedaje = dia.filter((l) => l.categoria === 'Hospedaje');
+
+  // Aventura antes que Naturaleza (mismo criterio que el orden anterior)
+  actividades.sort((a, b) => (a.categoria === b.categoria ? 0 : a.categoria === 'Aventura' ? -1 : 1));
+
+  // Más "desayuno" primero, más "noche" al final
+  gastro.sort(
+    (a, b) =>
+      puntosTags(b, TAGS_DESAYUNO) - puntosTags(a, TAGS_DESAYUNO) ||
+      puntosTags(a, TAGS_NOCHE) - puntosTags(b, TAGS_NOCHE)
+  );
+
+  const lugares: Lugar[] = [];
+  const momentos: string[] = [];
+  const poner = (l: Lugar, momento: string) => {
+    lugares.push(l);
+    momentos.push(momento);
+  };
+
+  // Solo se manda a "desayunar" a un lugar que de verdad tenga pinta de
+  // desayuno (café, brunch, desayunos…). Un rooftop-bar o un restaurante
+  // de mariscos no — hallazgo real de la prueba: salía "Hechizo de Amor
+  // para desayunar". Si ninguno califica, el día arranca con la actividad.
+  const puedeDesayunar = gastro.length > 0 && puntosTags(gastro[0], TAGS_DESAYUNO) > 0;
+
+  if (actividades.length > 0 && gastro.length > 0) {
+    if (puedeDesayunar) {
+      // desayuno → actividad(es) → cena
+      poner(gastro.shift()!, 'Desayuno');
+      if (actividades.length >= 2) {
+        poner(actividades[0], 'Mañana');
+        poner(actividades[1], 'Tarde');
+      } else {
+        poner(actividades[0], 'Tarde');
+      }
+      paseos.forEach((l) => poner(l, 'Paseo'));
+      gastro.forEach((l, i) => poner(l, i === 0 && gastro.length > 1 ? 'Comida' : 'Cena'));
+    } else {
+      // actividad → comida → actividad → cena
+      poner(actividades[0], 'Mañana');
+      poner(gastro[0], 'Comida');
+      if (actividades[1]) poner(actividades[1], 'Tarde');
+      if (gastro[1]) poner(gastro[1], 'Cena');
+      paseos.forEach((l) => poner(l, 'Paseo'));
+    }
+  } else if (gastro.length > 0) {
+    // Solo lugares para comer
+    const etiquetas = puedeDesayunar
+      ? (gastro.length === 1 ? ['Comida'] : gastro.length === 2 ? ['Desayuno', 'Comida'] : ['Desayuno', 'Comida', 'Cena'])
+      : (gastro.length === 1 ? ['Comida'] : gastro.length === 2 ? ['Comida', 'Cena'] : ['Comida', 'Tarde', 'Cena']);
+    gastro.forEach((l, i) => poner(l, etiquetas[i] ?? 'Cena'));
+    paseos.forEach((l) => poner(l, 'Paseo'));
+  } else if (actividades.length > 0) {
+    const etiquetas =
+      actividades.length === 1 ? ['Actividad'] : actividades.length === 2 ? ['Mañana', 'Tarde'] : ['Mañana', 'Mediodía', 'Tarde'];
+    actividades.forEach((l, i) => poner(l, etiquetas[i] ?? 'Tarde'));
+    paseos.forEach((l) => poner(l, 'Paseo'));
+  } else {
+    paseos.forEach((l) => poner(l, 'Paseo'));
+  }
+  hospedaje.forEach((l) => poner(l, 'Descanso'));
+
+  return { lugares, momentos };
+}
+
+// "Te dejé X para desayunar, después Y para pasar la tarde (naturaleza)
+// y cierro con Z para cenar." — una cláusula por parada, en orden.
+function narrarDia(lugares: Lugar[], momentos: string[]): string {
+  const clausulas = lugares.map((l, i) => {
+    const frase = ETIQUETA_FRASE[momentos[i]] ?? 'en el día';
+    const tipo =
+      l.categoria === 'Naturaleza' || l.categoria === 'Aventura' ? ` (${l.categoria.toLowerCase()})` : '';
+    return `${l.nombre} ${frase}${tipo}`;
+  });
+  if (clausulas.length === 0) return '';
+  if (clausulas.length === 1) return `Te dejé ${clausulas[0]}.`;
+  const conectores = ['Te dejé', 'después', 'luego', 'y para cerrar'];
+  const partes = clausulas.map((c, i) => {
+    if (i === 0) return `${conectores[0]} ${c}`;
+    if (i === clausulas.length - 1) return `${conectores[3]} ${c}`;
+    return `${i === 1 ? conectores[1] : conectores[2]} ${c}`;
+  });
+  return `${partes.join(', ')}.`;
 }
 
 function armarResumen(
@@ -1525,21 +1646,15 @@ export function grupoTextoLegible(grupo: GrupoViaje): string {
 
 function armarRazonamiento(
   lugares: Lugar[],
+  momentos: string[],
   prefs: PreferenciasUsuario,
   presupuestoInfo?: { costoConocido: number; huboSinPrecio: boolean; restanteDespues: number } | null
 ): string {
-  const primero = lugares[0];
   const partes: string[] = [];
-  partes.push(
-    `Te puse ${primero.nombre} para empezar porque ${primero.categoria === 'Aventura' || primero.categoria === 'Naturaleza'
-      ? 'conviene aprovechar la mañana para actividad al aire libre'
-      : 'es un buen arranque de día'
-    }.`
-  );
-  const tieneGastronomia = lugares.some((l) => l.categoria === 'Gastronomia');
-  if (tieneGastronomia) {
-    partes.push('Dejé la comida para media tarde, cuando ya tengas hambre.');
-  }
+  // Una frase por parada, en el orden real del día y con el momento que
+  // de verdad se le asignó — antes solo se hablaba del primer lugar y de
+  // "la comida" en general, sin decir qué hace cada parada.
+  partes.push(narrarDia(lugares, momentos));
   if (prefs.presupuesto === 'bajo') {
     partes.push('Prioricé lugares económicos o gratuitos según tu presupuesto.');
   }

@@ -2,7 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut, X, History,
   Sparkles, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
-  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, Search, SlidersHorizontal
+  PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal
 } from 'lucide-react';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -127,26 +127,15 @@ export default function AppShell() {
   // sistema, no escondida dentro de "Cómo llegar".
   const [mostrarExplicacionUbicacion, setMostrarExplicacionUbicacion] = useState(false);
 
-  // Riel de escritorio colapsable (base-visual, SECTION-02) — solo
-  // afecta el <aside> de lg+, el bottom nav de celular no se toca.
-  // Se lee de localStorage en el primer render para que no "salte"
-  // de expandido a colapsado después de pintar la pantalla.
-  const [sidebarColapsado, setSidebarColapsado] = useState(() => {
-    try {
-      return localStorage.getItem('sidebar-colapsado') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const alternarSidebar = () => {
-    setSidebarColapsado((v) => {
-      const nuevo = !v;
-      try {
-        localStorage.setItem('sidebar-colapsado', String(nuevo));
-      } catch { /* no crítico */ }
-      return nuevo;
-    });
-  };
+  // Riel de escritorio — solo afecta el <aside> de lg+, el bottom nav
+  // de celular no se toca. Siempre compacto (solo íconos); se expande
+  // al acercar el cursor (o al enfocarlo con teclado) y se cierra al
+  // alejarlo, en vez del botón de colapsar de antes, que obligaba a
+  // adivinar y a hacer clic. La expansión se pinta ENCIMA del
+  // contenido (ver el <aside> abajo), así el mapa y las tarjetas no
+  // se reacomodan cada vez que el cursor pasa por el borde.
+  const [sidebarExpandido, setSidebarExpandido] = useState(false);
+  const sidebarColapsado = !sidebarExpandido;
 
   // Ancho del panel izquierdo (Explorar / Chat) en escritorio — antes
   // era una clase fija (42%, entre 380 y 560px), sin forma de
@@ -494,15 +483,21 @@ export default function AppShell() {
       <OfflineIndicator />
 
       {/* ══════════════ SIDEBAR (solo desktop) ══════════════ */}
+      {/* El hueco en el layout es siempre de 72px; el <aside> se
+          expande hacia la derecha por encima del contenido. */}
+      <div className="hidden lg:block relative flex-shrink-0 w-[72px]">
       <aside
-        className={`hidden lg:flex flex-col flex-shrink-0 bg-jungle-900 text-white transition-[width] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : 'w-56 xl:w-64'
+        onMouseEnter={() => setSidebarExpandido(true)}
+        onMouseLeave={() => setSidebarExpandido(false)}
+        onFocus={() => setSidebarExpandido(true)}
+        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSidebarExpandido(false); }}
+        className={`absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden whitespace-nowrap bg-jungle-900 text-white transition-[width,box-shadow] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : 'w-64 shadow-2xl shadow-black/30'
           }`}
       >
         {/* Arriba: ícono + wordmark juntos como siempre — sueltos se
-            veían mal, ver captura. El botón de colapsar se queda acá
-            al lado (eso sí funcionaba bien). */}
+            veían mal, ver captura. */}
         <div
-          className={`border-b border-jungle-700/50 ${sidebarColapsado ? 'py-4 flex flex-col items-center gap-2' : 'py-4 px-4 flex items-center justify-between'
+          className={`border-b border-jungle-700/50 py-4 flex items-center ${sidebarColapsado ? 'justify-center' : 'px-4'
             }`}
         >
           <Link to="/" title={sidebarColapsado ? 'TuxtlasGO' : undefined} className="flex items-center gap-2 flex-shrink-0 min-w-0">
@@ -513,13 +508,6 @@ export default function AppShell() {
               </span>
             )}
           </Link>
-          <button
-            onClick={alternarSidebar}
-            title={sidebarColapsado ? t('Expandir menú') : t('Colapsar menú')}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-jungle-300 hover:bg-jungle-800 hover:text-white transition-colors flex-shrink-0"
-          >
-            {sidebarColapsado ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-          </button>
         </div>
 
         {/* Nav items — doble clic en "Asistente IA" abre el
@@ -599,6 +587,7 @@ export default function AppShell() {
           )}
         </div>
       </aside>
+      </div>
 
       {/* ══════════════ ÁREA PRINCIPAL ══════════════ */}
       <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">

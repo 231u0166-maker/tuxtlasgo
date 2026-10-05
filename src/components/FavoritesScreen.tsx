@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Heart, Route, Trash2, Calendar, MapPin, BookmarkCheck, Clock, X, Loader2, MessageCircle } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
-import { LUGARES, type Lugar } from '../data/lugares';
+import { type Lugar } from '../data/lugares';
+import { getCatalogoActivo } from '../lib/chatbot';
 import PlaceCard from './PlaceCard';
 import { getToken, getUsuarioLocal } from '../lib/auth';
 import ChatReservacion from './ChatReservacion';
@@ -42,7 +43,10 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
   const favoritos = useLiveQuery(async () => {
     const favs = await db.favoritos.orderBy('agregadoEn').reverse().toArray();
     const ids = new Set(favs.map((f) => f.id));
-    return LUGARES.filter((l) => ids.has(l.id));
+    // Catálogo activo (estáticos + prestadores aprobados), no solo LUGARES:
+    // los favoritos de prestadores se guardan como 'prestador-<n>' y
+    // LUGARES no los contiene, así que nunca aparecían en esta lista.
+    return getCatalogoActivo().filter((l) => ids.has(l.id));
   }, []);
 
   const rutas = useLiveQuery(
@@ -268,7 +272,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                     {/* Botón Ver en mapa — muestra todos los lugares de la ruta */}
                     {onVerRutaEnMapa && (() => {
                       const todosLugares = r.dias.flatMap(d =>
-                        d.lugaresIds.map(id => LUGARES.find(l => l.id === id)).filter(Boolean) as Lugar[]
+                        d.lugaresIds.map(id => getCatalogoActivo().find(l => l.id === id)).filter(Boolean) as Lugar[]
                       );
                       return todosLugares.length >= 2 ? (
                         <button
@@ -282,7 +286,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                     })()}
                     {r.dias.map((d) => {
                       const lugaresDia = d.lugaresIds
-                        .map((id) => LUGARES.find((l) => l.id === id))
+                        .map((id) => getCatalogoActivo().find((l) => l.id === id))
                         .filter(Boolean) as Lugar[];
                       return (
                         <div

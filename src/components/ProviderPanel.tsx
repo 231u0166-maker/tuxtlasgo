@@ -333,7 +333,6 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   // (como siempre), y cualquier otro lugar como "Municipio, Estado".
   const municipioFinal = componerMunicipio(estado, municipio.trim());
   const [descripcion, setDescripcion] = useState(() => borradorInicial?.descripcion ?? '');
-  const [generandoDescripcion, setGenerandoDescripcion] = useState(false);
   const [nivelPrecio, setNivelPrecio] = useState<NivelPrecio>(() => borradorInicial?.nivelPrecio ?? 'razonable');
   const [precioMin, setPrecioMin] = useState(() => borradorInicial?.precioMin ?? '');
   const [precioMax, setPrecioMax] = useState(() => borradorInicial?.precioMax ?? '');
@@ -459,33 +458,6 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     const usdMin = Math.round(min / TASA_USD_REFERENCIA);
     const usdMax = Math.round(max / TASA_USD_REFERENCIA);
     return `${nivel.simbolo} $${min.toLocaleString('es-MX')} – $${max.toLocaleString('es-MX')} MXN (aprox. $${usdMin} – $${usdMax} USD)`;
-  }
-
-  async function generarDescripcionIA() {
-    if (!nombreNegocio.trim()) {
-      setError('Escribe primero el nombre de tu negocio para poder generar la descripción.');
-      return;
-    }
-    setGenerandoDescripcion(true);
-    setError('');
-    try {
-      const r = await fetch('/api/ia/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemPrompt:
-            'Eres un redactor de descripciones cortas para negocios turísticos de Los Tuxtlas, Veracruz. Con los datos que te den (nombre, categoría, municipio), escribe una descripción de 2 a 3 frases, cálida y profesional, en español. NUNCA inventes detalles específicos que no te dieron (no inventes platillos, actividades ni servicios concretos que no mencionaron) — describe de forma genérica pero atractiva según su categoría. Responde solo con la descripción, sin comillas ni texto extra.',
-          mensajes: [{ role: 'user', content: `Nombre: ${nombreNegocio.trim()}. Categoría: ${categoria}. Municipio: ${municipioFinal}. Escribe la descripción.` }],
-        }),
-      });
-      const data = await r.json();
-      if (r.ok && data.texto) setDescripcion(data.texto.trim());
-      else setError('No se pudo generar la descripción ahora mismo — escríbela tú, no hay problema.');
-    } catch {
-      setError('Necesitas internet para generar la descripción con IA.');
-    } finally {
-      setGenerandoDescripcion(false);
-    }
   }
 
   function subirVerificacion(file: File) {
@@ -709,16 +681,9 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
 
           {paso === 'descripcion' && (
             <div className="max-w-xl">
-              <div className="flex items-start justify-between gap-4 mb-5">
-                <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900">
-                  Describe tu negocio
-                </h2>
-                <motion.button whileTap={{ scale: 0.94 }} type="button" onClick={generarDescripcionIA} disabled={generandoDescripcion}
-                  className="flex-shrink-0 inline-flex items-center gap-1.5 bg-sun-50 text-sun-700 px-3.5 py-2 rounded-full text-xs font-bold disabled:opacity-50">
-                  {generandoDescripcion ? <Loader2 size={13} className="animate-spin" /> : <span>✨</span>}
-                  Generar con IA
-                </motion.button>
-              </div>
+              <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-5">
+                Describe tu negocio
+              </h2>
               <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
                 placeholder="¿Qué ofreces? ¿Qué te hace especial?" rows={7}
                 className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-lg sm:text-xl text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none resize-none transition-colors" />

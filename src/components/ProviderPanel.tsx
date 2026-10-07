@@ -263,6 +263,9 @@ interface BorradorRegistro {
   nombreNegocio: string;
   categoria: string;
   municipio: string;
+  // Opcional: los borradores guardados antes de existir el selector de
+  // estado no lo tienen, y se asumen de Veracruz.
+  estado?: string;
   descripcion: string;
   nivelPrecio: NivelPrecio;
   precioMin: string;
@@ -283,6 +286,17 @@ interface BorradorRegistro {
   codigo: string;
   fotosSubidas: string[];
 }
+
+// Los tres municipios de la región siguen siendo el caso principal;
+// cualquier otro lugar de México también puede registrarse.
+const MUNICIPIOS_TUXTLAS = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
+const ESTADOS_MEXICO = [
+  'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas',
+  'Chihuahua', 'Ciudad de México', 'Coahuila', 'Colima', 'Durango', 'Guanajuato',
+  'Guerrero', 'Hidalgo', 'Jalisco', 'México', 'Michoacán', 'Morelos', 'Nayarit',
+  'Nuevo León', 'Oaxaca', 'Puebla', 'Querétaro', 'Quintana Roo', 'San Luis Potosí',
+  'Sinaloa', 'Sonora', 'Tabasco', 'Tamaulipas', 'Tlaxcala', 'Veracruz', 'Yucatán', 'Zacatecas',
+];
 
 function claveBorrador(usuarioId: number): string {
   return `tuxtlasgo-registro-borrador-${usuarioId}`;
@@ -324,6 +338,13 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   const [nombreNegocio, setNombreNegocio] = useState(() => borradorInicial?.nombreNegocio ?? '');
   const [categoria, setCategoria] = useState(() => borradorInicial?.categoria ?? 'Gastronomia');
   const [municipio, setMunicipio] = useState(() => borradorInicial?.municipio ?? 'Catemaco');
+  const [estado, setEstado] = useState(() => borradorInicial?.estado ?? 'Veracruz');
+  // Lo que se guarda y se envía: los municipios de Los Tuxtlas tal cual
+  // (como siempre), y cualquier otro lugar como "Municipio, Estado".
+  const municipioFinal =
+    estado === 'Veracruz' && MUNICIPIOS_TUXTLAS.includes(municipio)
+      ? municipio
+      : `${municipio.trim()}, ${estado}`;
   const [descripcion, setDescripcion] = useState(() => borradorInicial?.descripcion ?? '');
   const [generandoDescripcion, setGenerandoDescripcion] = useState(false);
   const [nivelPrecio, setNivelPrecio] = useState<NivelPrecio>(() => borradorInicial?.nivelPrecio ?? 'razonable');
@@ -372,7 +393,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     if (usuarioId) borrarBorrador(usuarioId);
     setMostrarAvisoBorrador(false);
     setPaso('info'); setDireccion(1);
-    setNombreNegocio(''); setCategoria('Gastronomia'); setMunicipio('Catemaco');
+    setNombreNegocio(''); setCategoria('Gastronomia'); setMunicipio('Catemaco'); setEstado('Veracruz');
     setDescripcion(''); setNivelPrecio('razonable'); setPrecioMin(''); setPrecioMax('');
     setContacto(''); setUbicacion(null); setUbicacionGuardada(false); setTerminos(false);
     setFotoVerificacion(''); setCodigo(''); setFotosSubidas([]); setError('');
@@ -433,12 +454,12 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   useEffect(() => {
     if (!usuarioId) return;
     guardarBorrador(usuarioId, {
-      paso, nombreNegocio, categoria, municipio, descripcion, nivelPrecio,
+      paso, nombreNegocio, categoria, municipio, estado, descripcion, nivelPrecio,
       precioMin, precioMax, contacto, ubicacion, ubicacionGuardada, terminos,
       fotoVerificacion, codigo, fotosSubidas,
     });
   }, [
-    usuarioId, paso, nombreNegocio, categoria, municipio, descripcion, nivelPrecio,
+    usuarioId, paso, nombreNegocio, categoria, municipio, estado, descripcion, nivelPrecio,
     precioMin, precioMax, contacto, ubicacion, ubicacionGuardada, terminos,
     fotoVerificacion, codigo, fotosSubidas,
   ]);
@@ -467,7 +488,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
         body: JSON.stringify({
           systemPrompt:
             'Eres un redactor de descripciones cortas para negocios turísticos de Los Tuxtlas, Veracruz. Con los datos que te den (nombre, categoría, municipio), escribe una descripción de 2 a 3 frases, cálida y profesional, en español. NUNCA inventes detalles específicos que no te dieron (no inventes platillos, actividades ni servicios concretos que no mencionaron) — describe de forma genérica pero atractiva según su categoría. Responde solo con la descripción, sin comillas ni texto extra.',
-          mensajes: [{ role: 'user', content: `Nombre: ${nombreNegocio.trim()}. Categoría: ${categoria}. Municipio: ${municipio}. Escribe la descripción.` }],
+          mensajes: [{ role: 'user', content: `Nombre: ${nombreNegocio.trim()}. Categoría: ${categoria}. Municipio: ${municipioFinal}. Escribe la descripción.` }],
         }),
       });
       const data = await r.json();
@@ -509,7 +530,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
         body: JSON.stringify({
           nombre: nombreNegocio.trim(),
           categoria,
-          municipio,
+          municipio: municipioFinal,
           descripcion: descripcion.trim(),
           precio: precioFinal(),
           contacto: contacto.trim(),
@@ -538,6 +559,9 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     if (paso === 'info' && (!nombreNegocio.trim() || nombreNegocio.trim().length < 3 || !NOMBRE_NEGOCIO_VALIDO.test(nombreNegocio.trim()))) {
       return setError('Escribe el nombre real de tu negocio (no solo números o símbolos).');
     }
+    if (paso === 'info' && municipio.trim().length < 2) {
+      return setError('Escribe el municipio o ciudad donde está tu negocio.');
+    }
     if (paso === 'descripcion' && (!descripcion.trim() || descripcion.trim().length < 20)) return setError('La descripción debe tener al menos 20 caracteres.');
     if (paso === 'contacto') {
       if (contacto.trim() && !TELEFONO_VALIDO.test(contacto.trim())) {
@@ -564,7 +588,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     { id: 'Cooperativa', emoji: '🤝' },
     { id: 'Otro', emoji: '⭐' },
   ];
-  const MUNICIPIOS_OPCIONES = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
+  const esOtroMunicipio = estado !== 'Veracruz' || !MUNICIPIOS_TUXTLAS.includes(municipio);
 
   return (
     // -mx-4 sm:-mx-6 rompe el padding del <main> del panel para que
@@ -653,15 +677,45 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
               </div>
 
               <div>
-                <h3 className="font-display font-bold text-xl text-obsidiana-900 mb-4">¿En qué municipio está?</h3>
-                <div className="flex flex-wrap gap-2.5">
-                  {MUNICIPIOS_OPCIONES.map((m) => (
-                    <motion.button key={m} whileTap={{ scale: 0.94 }} type="button" onClick={() => setMunicipio(m)}
-                      className={`px-5 py-3 rounded-2xl border-2 font-semibold text-sm transition-colors ${municipio === m ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-obsidiana-800'}`}>
-                      {m}
-                    </motion.button>
+                <h3 className="font-display font-bold text-xl text-obsidiana-900 mb-4">¿En qué estado está?</h3>
+                <select
+                  value={estado}
+                  onChange={(e) => {
+                    const nuevo = e.target.value;
+                    setEstado(nuevo);
+                    setMunicipio(nuevo === 'Veracruz' ? 'Catemaco' : '');
+                  }}
+                  className="w-full sm:w-auto bg-white border-2 border-jungle-100 focus:border-jungle-600 rounded-2xl px-5 py-3 font-semibold text-sm text-obsidiana-800 focus:outline-none transition-colors"
+                >
+                  {ESTADOS_MEXICO.map((e) => (
+                    <option key={e} value={e}>{e}</option>
                   ))}
-                </div>
+                </select>
+              </div>
+
+              <div>
+                <h3 className="font-display font-bold text-xl text-obsidiana-900 mb-4">¿En qué municipio está?</h3>
+                {estado === 'Veracruz' && (
+                  <div className="flex flex-wrap gap-2.5">
+                    {MUNICIPIOS_TUXTLAS.map((m) => (
+                      <motion.button key={m} whileTap={{ scale: 0.94 }} type="button" onClick={() => setMunicipio(m)}
+                        className={`px-5 py-3 rounded-2xl border-2 font-semibold text-sm transition-colors ${municipio === m ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-obsidiana-800'}`}>
+                        {m}
+                      </motion.button>
+                    ))}
+                    <motion.button whileTap={{ scale: 0.94 }} type="button" onClick={() => setMunicipio('')}
+                      className={`px-5 py-3 rounded-2xl border-2 font-semibold text-sm transition-colors ${esOtroMunicipio ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-obsidiana-800'}`}>
+                      Otro municipio
+                    </motion.button>
+                  </div>
+                )}
+                {esOtroMunicipio && (
+                  <input
+                    type="text" value={municipio} onChange={(e) => setMunicipio(e.target.value)}
+                    placeholder={estado === 'Veracruz' ? 'Ej: Xalapa' : 'Ej: Villahermosa'} maxLength={60}
+                    className={`w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors ${estado === 'Veracruz' ? 'mt-4' : ''}`}
+                  />
+                )}
               </div>
             </div>
           )}

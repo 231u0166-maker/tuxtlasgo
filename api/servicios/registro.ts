@@ -38,6 +38,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const NOMBRE_NEGOCIO_VALIDO = /[A-Za-zÀ-ÖØ-öø-ÿ]{2,}/; // al menos una palabra real de 2+ letras en algún lado
       const CATEGORIAS_VALIDAS = ['Gastronomia', 'Naturaleza', 'Aventura', 'Hospedaje', 'Comercio', 'Cooperativa', 'Otro'];
       const MUNICIPIOS_VALIDOS = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
+      const ESTADOS_VALIDOS = [
+        'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas',
+        'Chihuahua', 'Ciudad de México', 'Coahuila', 'Colima', 'Durango', 'Guanajuato',
+        'Guerrero', 'Hidalgo', 'Jalisco', 'México', 'Michoacán', 'Morelos', 'Nayarit',
+        'Nuevo León', 'Oaxaca', 'Puebla', 'Querétaro', 'Quintana Roo', 'San Luis Potosí',
+        'Sinaloa', 'Sonora', 'Tabasco', 'Tamaulipas', 'Tlaxcala', 'Veracruz', 'Yucatán', 'Zacatecas',
+      ];
+      // Negocios de otros lugares de México llegan como "Municipio, Estado".
+      const esMunicipioTuxtlas = MUNICIPIOS_VALIDOS.includes(municipio);
+      const municipioOtroValido = (m: unknown): boolean => {
+        if (typeof m !== 'string' || m.length > 100) return false;
+        const i = m.lastIndexOf(', ');
+        if (i < 2) return false;
+        return ESTADOS_VALIDOS.includes(m.slice(i + 2)) && /[A-Za-zÀ-ÖØ-öø-ÿ]{2,}/.test(m.slice(0, i));
+      };
+      // Caja aproximada de México, para descartar coordenadas absurdas.
+      const DENTRO_DE_MEXICO = (la: number, ln: number) => la >= 14 && la <= 33 && ln >= -119 && ln <= -86;
       const TELEFONO_VALIDO = /^\+?[\d\s-]{10,15}$/;
       // Caja delimitadora de Los Tuxtlas (con margen), para descartar
       // coordenadas claramente equivocadas (0,0; otro país; etc.) —
@@ -50,14 +67,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!CATEGORIAS_VALIDAS.includes(categoria)) {
         return res.status(400).json({ error: 'Categoría no válida' });
       }
-      if (!MUNICIPIOS_VALIDOS.includes(municipio)) {
+      if (!esMunicipioTuxtlas && !municipioOtroValido(municipio)) {
         return res.status(400).json({ error: 'Municipio no válido' });
       }
       if (!descripcion?.trim() || descripcion.trim().length < 20) return res.status(400).json({ error: 'Descripción mínimo 20 caracteres' });
       if (contacto?.trim() && !TELEFONO_VALIDO.test(contacto.trim())) {
         return res.status(400).json({ error: 'El contacto debe ser un número de teléfono (10 dígitos)' });
       }
-      if (typeof lat !== 'number' || typeof lng !== 'number' || Number.isNaN(lat) || Number.isNaN(lng) || !DENTRO_DE_TUXTLAS(lat, lng)) {
+      if (typeof lat !== 'number' || typeof lng !== 'number' || Number.isNaN(lat) || Number.isNaN(lng) || !DENTRO_DE_MEXICO(lat, lng)) {
+        return res.status(400).json({ error: 'La ubicación marcada no es válida — verifica el mapa' });
+      }
+      // Quien dice estar en Catemaco/San Andrés/Santiago sí debe marcar
+      // su negocio en la región, como antes.
+      if (esMunicipioTuxtlas && !DENTRO_DE_TUXTLAS(lat, lng)) {
         return res.status(400).json({ error: 'La ubicación marcada está fuera de Los Tuxtlas — verifica el mapa' });
       }
       // Sin esto el admin no tiene forma de verificar que quien se

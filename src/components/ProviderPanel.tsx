@@ -15,6 +15,7 @@ import OfflineIndicator from './OfflineIndicator';
 import AuthModal from './AuthModal';
 import GestorFotos from './GestorFotos';
 import { ESTILO_MAPA } from './MapScreen';
+import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio } from '../data/estados';
 
 // ============================================================
 // PANEL DEL PRESTADOR — v3 (ver MEJORAS DISEÑO PANEL PRESTADOR)
@@ -287,17 +288,6 @@ interface BorradorRegistro {
   fotosSubidas: string[];
 }
 
-// Los tres municipios de la región siguen siendo el caso principal;
-// cualquier otro lugar de México también puede registrarse.
-const MUNICIPIOS_TUXTLAS = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
-const ESTADOS_MEXICO = [
-  'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas',
-  'Chihuahua', 'Ciudad de México', 'Coahuila', 'Colima', 'Durango', 'Guanajuato',
-  'Guerrero', 'Hidalgo', 'Jalisco', 'México', 'Michoacán', 'Morelos', 'Nayarit',
-  'Nuevo León', 'Oaxaca', 'Puebla', 'Querétaro', 'Quintana Roo', 'San Luis Potosí',
-  'Sinaloa', 'Sonora', 'Tabasco', 'Tamaulipas', 'Tlaxcala', 'Veracruz', 'Yucatán', 'Zacatecas',
-];
-
 function claveBorrador(usuarioId: number): string {
   return `tuxtlasgo-registro-borrador-${usuarioId}`;
 }
@@ -341,10 +331,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   const [estado, setEstado] = useState(() => borradorInicial?.estado ?? 'Veracruz');
   // Lo que se guarda y se envía: los municipios de Los Tuxtlas tal cual
   // (como siempre), y cualquier otro lugar como "Municipio, Estado".
-  const municipioFinal =
-    estado === 'Veracruz' && MUNICIPIOS_TUXTLAS.includes(municipio)
-      ? municipio
-      : `${municipio.trim()}, ${estado}`;
+  const municipioFinal = componerMunicipio(estado, municipio.trim());
   const [descripcion, setDescripcion] = useState(() => borradorInicial?.descripcion ?? '');
   const [generandoDescripcion, setGenerandoDescripcion] = useState(false);
   const [nivelPrecio, setNivelPrecio] = useState<NivelPrecio>(() => borradorInicial?.nivelPrecio ?? 'razonable');

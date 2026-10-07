@@ -128,6 +128,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       valores.push(categoria);
     }
     if (municipio) {
+      // Mismo criterio que el registro: los 3 municipios de Los Tuxtlas,
+      // o "Municipio, Estado" con un estado real de México.
+      const MUNICIPIOS_TUXTLAS = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
+      const ESTADOS_VALIDOS = [
+        'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas',
+        'Chihuahua', 'Ciudad de México', 'Coahuila', 'Colima', 'Durango', 'Guanajuato',
+        'Guerrero', 'Hidalgo', 'Jalisco', 'México', 'Michoacán', 'Morelos', 'Nayarit',
+        'Nuevo León', 'Oaxaca', 'Puebla', 'Querétaro', 'Quintana Roo', 'San Luis Potosí',
+        'Sinaloa', 'Sonora', 'Tabasco', 'Tamaulipas', 'Tlaxcala', 'Veracruz', 'Yucatán', 'Zacatecas',
+      ];
+      const i = typeof municipio === 'string' ? municipio.lastIndexOf(', ') : -1;
+      const valido =
+        typeof municipio === 'string' &&
+        municipio.length <= 100 &&
+        (MUNICIPIOS_TUXTLAS.includes(municipio) ||
+          (i >= 2 &&
+            ESTADOS_VALIDOS.includes(municipio.slice(i + 2)) &&
+            /[A-Za-zÀ-ÖØ-öø-ÿ]{2,}/.test(municipio.slice(0, i))));
+      if (!valido) return res.status(400).json({ error: 'Municipio no válido' });
       campos.push(`municipio = $${idx++}`);
       valores.push(municipio);
     }

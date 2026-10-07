@@ -32,6 +32,7 @@ import SelectorIdioma from './SelectorIdioma';
 import { TIPOS_ENLACE, nuevoEnlaceId, parseEnlaces, type EnlaceServicio, type TipoEnlace } from '../lib/enlaces';
 import { useHojaArrastrable } from '../lib/useHojaArrastrable';
 import ChatReservacion from './ChatReservacion';
+import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio, separarMunicipio } from '../data/estados';
 
 // ─────────────── TIPOS ───────────────
 interface ServicioAPI {
@@ -715,6 +716,11 @@ function PerfilPrestador({
   }, []);
 
   async function guardar() {
+    const { estado: estadoForm, municipio: muniForm } = separarMunicipio(form.municipio);
+    if (form.municipio && muniForm.trim().length < 2) {
+      alert('Escribe el municipio o ciudad donde está tu negocio.');
+      return;
+    }
     setGuardando(true);
     setExito(false);
     try {
@@ -724,7 +730,10 @@ function PerfilPrestador({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${getToken()}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          municipio: form.municipio ? componerMunicipio(estadoForm, muniForm.trim()) : form.municipio,
+        }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -1377,15 +1386,44 @@ function PerfilPrestador({
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
-              <select value={form.municipio} onChange={e => setForm({ ...form, municipio: e.target.value })}
+              <label className="text-xs font-semibold text-jungle-700 mb-1 block">Estado</label>
+              <select value={separarMunicipio(form.municipio).estado}
+                onChange={e => {
+                  const nuevo = e.target.value;
+                  setForm({ ...form, municipio: componerMunicipio(nuevo, nuevo === 'Veracruz' ? 'Catemaco' : '') });
+                }}
                 className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
-                {['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'].map(m => (
-                  <option key={m} value={m}>{m}</option>
+                {ESTADOS_MEXICO.map(est => (
+                  <option key={est} value={est}>{est}</option>
                 ))}
               </select>
             </div>
           </div>
+          {(() => {
+            const { estado: estadoForm, municipio: muniForm } = separarMunicipio(form.municipio);
+            const esOtro = estadoForm !== 'Veracruz' || !MUNICIPIOS_TUXTLAS.includes(muniForm);
+            return (
+              <div>
+                <label className="text-xs font-semibold text-jungle-700 mb-1 block">Municipio</label>
+                {estadoForm === 'Veracruz' && (
+                  <select value={esOtro ? '__otro' : muniForm}
+                    onChange={e => setForm({ ...form, municipio: componerMunicipio('Veracruz', e.target.value === '__otro' ? '' : e.target.value) })}
+                    className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400">
+                    {MUNICIPIOS_TUXTLAS.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                    <option value="__otro">Otro municipio</option>
+                  </select>
+                )}
+                {esOtro && (
+                  <input value={muniForm} maxLength={60}
+                    onChange={e => setForm({ ...form, municipio: componerMunicipio(estadoForm, e.target.value) })}
+                    placeholder={estadoForm === 'Veracruz' ? 'Ej: Xalapa' : 'Ej: Villahermosa'}
+                    className={`w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 ${estadoForm === 'Veracruz' ? 'mt-2' : ''}`} />
+                )}
+              </div>
+            );
+          })()}
           <div>
             <label className="text-xs font-semibold text-jungle-700 mb-1 block">Descripción <span className="text-red-500">*</span></label>
             <textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}

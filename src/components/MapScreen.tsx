@@ -14,6 +14,19 @@ import { listarServiciosAprobadosComoLugares } from '../lib/db';
 import { useT } from '../lib/i18n';
 import { colorTramo } from '../lib/colores';
 
+// Referencia estable a propósito: el Map reaplica maxBounds cada vez que
+// el prop cambia de identidad, y eso deshacería el desbloqueo para
+// turistas de fuera de la región (ver efecto de la ruta).
+// Para turistas de otros estados: todo México con margen.
+const LIMITES_MEXICO: [[number, number], [number, number]] = [
+  [-120, 13],
+  [-84, 34],
+];
+const LIMITES_REGION: [[number, number], [number, number]] = [
+  [LOS_TUXTLAS_BOUNDS[0][1], LOS_TUXTLAS_BOUNDS[0][0]],
+  [LOS_TUXTLAS_BOUNDS[1][1], LOS_TUXTLAS_BOUNDS[1][0]],
+];
+
 // ============================================================
 // PANTALLA DE MAPA — migrado de Leaflet a MapLibre GL JS
 // ============================================================
@@ -359,6 +372,34 @@ export default function MapScreen({
   // a medias (ej. el turista pide otra ruta antes de que termine la
   // animación anterior) — sin esto, dos secuencias se pisarían entre sí.
   const secuenciaActiva = useRef(0);
+
+  // Turista de otro estado (Tabasco, CDMX, Jalisco...): si su ubicación
+  // cae fuera de Los Tuxtlas, el recuadro encerraba la cámara y no podía
+  // ver su ruta ni su seguimiento. Se amplía el límite a todo México con
+  // la API del mapa (por prop no sirve: undefined no lo limpia, null/el
+  // mundo entero hacen fallar o se revierten en MapLibre).
+  const origenFueraDeRegion =
+    !!miUbicacion &&
+    (miUbicacion[0] < LOS_TUXTLAS_BOUNDS[0][0] ||
+      miUbicacion[0] > LOS_TUXTLAS_BOUNDS[1][0] ||
+      miUbicacion[1] < LOS_TUXTLAS_BOUNDS[0][1] ||
+      miUbicacion[1] > LOS_TUXTLAS_BOUNDS[1][1]);
+  const origenFueraRef = useRef(origenFueraDeRegion);
+  origenFueraRef.current = origenFueraDeRegion;
+  // MapLibre revierte el límite a los pocos cientos de ms de aplicarlo
+  // (copia estado entre transformaciones internas), así que además de
+  // aplicarlo se verifica en idle/moveend y se corrige si no coincide.
+  const aplicarLimiteRegion = useCallback(() => {
+    const m = mapRef.current?.getMap();
+    if (!m) return;
+    const deseado = origenFueraRef.current ? LIMITES_MEXICO : LIMITES_REGION;
+    const actual = m.getMaxBounds();
+    if (actual && actual.getWest() === deseado[0][0] && actual.getNorth() === deseado[1][1]) return;
+    m.setMaxBounds(deseado);
+  }, []);
+  useEffect(() => {
+    aplicarLimiteRegion();
+  }, [origenFueraDeRegion, aplicarLimiteRegion]);
   const [serviciosPrestadores, setServiciosPrestadores] = useState<Lugar[]>([]);
   const [descargando, setDescargando] = useState(false);
   const [progreso, setProgreso] = useState(0);
@@ -528,7 +569,7 @@ export default function MapScreen({
         map.flyTo({ center: [p.coord[1], p.coord[0]], zoom: 15.5, pitch: 55, duration: 1300 });
         await esperar(1700);
       }
-      if (miUbicacion && !cancelado()) {
+      if (miUbicacion && !origenFueraDeRegion && !cancelado()) {
         map.flyTo({ center: [miUbicacion[1], miUbicacion[0]], zoom: 16, pitch: 55, duration: 1300 });
         await esperar(1700);
       }
@@ -594,12 +635,18 @@ export default function MapScreen({
         }}
         pixelRatio={PIXEL_RATIO_MAPA}
         fadeDuration={GAMA_BAJA ? 0 : 300}
-        minZoom={9}
+        minZoom={origenFueraDeRegion ? 4 : 9}
         maxZoom={18}
-        maxBounds={[
-          [LOS_TUXTLAS_BOUNDS[0][1], LOS_TUXTLAS_BOUNDS[0][0]],
-          [LOS_TUXTLAS_BOUNDS[1][1], LOS_TUXTLAS_BOUNDS[1][0]],
-        ]}
+        // Turista de otro estado (Tabasco, CDMX, Jalisco...): si su
+        // ubicación cae fuera de Los Tuxtlas, el recuadro encerraba la
+        // cámara y no podía ver su ruta ni su seguimiento. Sin origen
+        // lejano se conserva el límite de siempre.
+        // El límite se quita/restaura con map.setMaxBounds en el efecto
+        // de la ruta: pasar undefined por prop no lo limpia, y pasar el
+        // mundo entero hace fallar a MapLibre.
+        onLoad={aplicarLimiteRegion}
+        onIdle={aplicarLimiteRegion}
+        onMoveEnd={aplicarLimiteRegion}
         mapStyle={vistaTerreno ? (ESTILO_TERRENO as any) : ESTILO_MAPA}
         style={{ width: '100%', height: '100%' }}
       >

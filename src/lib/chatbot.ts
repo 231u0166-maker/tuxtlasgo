@@ -1439,7 +1439,19 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   });
 
   const dias: DiaRuta[] = [];
-  const lugaresPorDia = 3;
+  // Hallazgo real de campo (QA): con solo 3 paradas por día la ruta se
+  // sentía corta — pidió desayuno, 2–3 actividades por la tarde y la
+  // cena. Ahora el día tiene entre MIN y MAX paradas, repartiendo los
+  // lugares disponibles entre los días pedidos (con pocos lugares
+  // registrados no se inventa relleno: simplemente el día es más corto).
+  const MIN_POR_DIA = 3;
+  const MAX_POR_DIA = 5;
+  const MAX_ACTIVIDADES_DIA = 3;
+  const lugaresPorDia = Math.min(
+    MAX_POR_DIA,
+    Math.max(2, Math.ceil(seleccion.length / prefs.dias))
+  );
+  const minimoDia = Math.min(MIN_POR_DIA, lugaresPorDia);
   // Solo se calcula si el turista dio un monto REAL en pesos — si no
   // lo dio, esto queda en null y ningún día menciona presupuesto
   // restante (no se inventa un número que no existe).
@@ -1474,20 +1486,55 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
       if (l.categoria === 'Gastronomia') {
         return dia.filter((d) => d.categoria === 'Gastronomia').length < maxGastronomiaDia;
       }
+      // Varias actividades al aire libre en el mismo día (Naturaleza y/o
+      // Aventura), hasta MAX_ACTIVIDADES_DIA. Las demás categorías
+      // (hospedaje, comercio…) siguen siendo una por día.
+      if (esActividad(l)) return dia.filter(esActividad).length < MAX_ACTIVIDADES_DIA;
       return !dia.some((d) => d.categoria === l.categoria);
     };
 
-    // Prioridad 1: del municipio del día
-    for (const l of lugaresMuni) {
-      if (dia.length >= lugaresPorDia) break;
-      if (!cabeEnElDia(l)) continue;
-      dia.push(l);
-      usados.add(l.id);
+    // Hallazgo real de la prueba: llenando por puntaje, las actividades
+    // se comían todos los lugares del día y salía una ruta SIN desayuno
+    // ni cena. Ahora el día se arma por pasadas en el orden en que se
+    // vive: 1) un lugar de desayuno, 2) las actividades, 3) un lugar
+    // para cenar/comer, 4) lo demás. Cada pasada respeta los topes de
+    // arriba y toma primero lo mejor puntuado del municipio del día.
+    const pasadas: { sirve: (l: Lugar) => boolean; max: number }[] = [
+      { sirve: (l) => l.categoria === 'Gastronomia' && puntosTags(l, TAGS_DESAYUNO) > 0, max: 1 },
+      { sirve: esActividad, max: MAX_ACTIVIDADES_DIA },
+      { sirve: (l) => l.categoria === 'Gastronomia', max: 1 },
+      { sirve: () => true, max: lugaresPorDia },
+    ];
+    for (const pasada of pasadas) {
+      let agregados = 0;
+      for (const l of lugaresMuni) {
+        if (dia.length >= lugaresPorDia || agregados >= pasada.max) break;
+        if (!pasada.sirve(l) || !cabeEnElDia(l)) continue;
+        dia.push(l);
+        usados.add(l.id);
+        agregados++;
+      }
     }
 
-    // Rellenar de otros municipios
+    // Si pidió gastronomía y el municipio del día no tiene dónde comer
+    // (el día se llenó solo de actividades), se agrega el mejor lugar
+    // para comer disponible aunque sea de otro municipio — un día sin
+    // comida no es un día completo. Si el día ya está lleno, ocupa el
+    // lugar de la última parada.
+    if (prefs.intereses.includes('Gastronomia') && !dia.some((l) => l.categoria === 'Gastronomia')) {
+      const comida = seleccion.find((l) => l.categoria === 'Gastronomia' && cabeEnElDia(l));
+      if (comida) {
+        if (dia.length >= lugaresPorDia) dia.pop();
+        dia.push(comida);
+        usados.add(comida.id);
+      }
+    }
+
+    // Rellenar de otros municipios — solo hasta el mínimo del día. Pasar
+    // de ahí obligaría a traslados largos entre municipios solo por
+    // sumar paradas.
     for (const l of seleccion) {
-      if (dia.length >= lugaresPorDia) break;
+      if (dia.length >= minimoDia) break;
       if (!cabeEnElDia(l)) continue;
       dia.push(l);
       usados.add(l.id);
@@ -1577,21 +1624,22 @@ function ordenarDiaPorMomentos(dia: Lugar[]): { lugares: Lugar[]; momentos: stri
 
   if (actividades.length > 0 && gastro.length > 0) {
     if (puedeDesayunar) {
-      // desayuno → actividad(es) → cena
+      // desayuno → actividades (mañana/mediodía/tarde) → cena
       poner(gastro.shift()!, 'Desayuno');
-      if (actividades.length >= 2) {
-        poner(actividades[0], 'Mañana');
-        poner(actividades[1], 'Tarde');
-      } else {
-        poner(actividades[0], 'Tarde');
-      }
+      const etiquetasAct =
+        actividades.length === 1
+          ? ['Tarde']
+          : actividades.length === 2
+            ? ['Mañana', 'Tarde']
+            : ['Mañana', 'Mediodía', 'Tarde'];
+      actividades.forEach((l, i) => poner(l, etiquetasAct[i] ?? 'Tarde'));
       paseos.forEach((l) => poner(l, 'Paseo'));
       gastro.forEach((l, i) => poner(l, i === 0 && gastro.length > 1 ? 'Comida' : 'Cena'));
     } else {
-      // actividad → comida → actividad → cena
+      // actividad → comida → resto de actividades → cena
       poner(actividades[0], 'Mañana');
       poner(gastro[0], 'Comida');
-      if (actividades[1]) poner(actividades[1], 'Tarde');
+      actividades.slice(1).forEach((l) => poner(l, 'Tarde'));
       if (gastro[1]) poner(gastro[1], 'Cena');
       paseos.forEach((l) => poner(l, 'Paseo'));
     }

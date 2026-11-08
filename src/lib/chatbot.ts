@@ -1535,7 +1535,7 @@ function ordenarConVariedad<T extends { score: number }>(
 // de categoría/presupuesto/grupo ya ocurrió antes); solo rota entre
 // opciones igual de válidas. Con pocos candidatos (≤ n) devuelve todos.
 const ultimosMostrados: string[] = [];
-const MEMORIA_MOSTRADOS = 8;
+const MEMORIA_MOSTRADOS = 14;
 
 export function recordarMostrados(lugares: Lugar[]): void {
   for (const l of lugares) {
@@ -1550,6 +1550,24 @@ function fueMostradoRecientemente(l: Lugar): boolean {
   return ultimosMostrados.includes(l.id);
 }
 
+// Última búsqueda por categoría que se respondió (para entender "otros").
+// `vistos`: ids ya mostrados en ESTA búsqueda (misma categoría y municipio).
+let ultimaBusqueda: { cat: Categoria; municipio: string | null; vistos: Set<string> } | null = null;
+
+const FRASES_OTRAS_OPCIONES = [
+  'otros', 'otras', 'otra opcion', 'otras opciones', 'mas opciones', 'algo diferente', 'algo distinto',
+  'ninguno', 'ninguna', 'no me gusta', 'no me gustan', 'no me gusto', 'no me gustaron', 'no me convence',
+  'no me convencen', 'alternativa', 'alternativas', 'otro lugar', 'otros lugares', 'otro sitio', 'otros sitios',
+];
+
+// ¿Está pidiendo alternativas a lo que ya se le mostró? Solo cuenta si hay una
+// búsqueda anterior que repetir — sin ella, "otros" no significa nada.
+export function esPeticionDeOtrasOpciones(texto: string): boolean {
+  if (!ultimaBusqueda) return false;
+  const tokens = tokenizar(texto);
+  return FRASES_OTRAS_OPCIONES.some((f) => contieneClave(tokens, f));
+}
+
 export function seleccionarConVariedad(candidatos: Lugar[], n: number): Lugar[] {
   if (candidatos.length <= n) {
     recordarMostrados(candidatos);
@@ -1557,6 +1575,34 @@ export function seleccionarConVariedad(candidatos: Lugar[], n: number): Lugar[] 
   }
   // Mismo criterio de calidad que antes: rating + empate a favor de Premium
   const puntaje = (l: Lugar) => l.rating + (l.premium ? 0.4 : 0);
+
+  // Hallazgo real de campo (prueba en un teléfono): preguntando por
+  // restaurantes en Catemaco nunca salía ninguno de los ~9 negocios que se
+  // registraron en la plataforma. Un prestador recién registrado tiene
+  // calificación 0 (nadie lo ha calificado todavía), así que quedaba fuera
+  // del grupo de "los mejores" y, aun dentro, con una probabilidad mínima.
+  // Sin calificación NO significa malo: significa que falta información. Por
+  // eso, cuando hay de los dos tipos y se muestran 3 o más, se reserva un
+  // cupo (1 de cada 3) para un prestador sin calificar, rotando entre ellos
+  // (los mostrados hace poco quedan al final). Los demás lugares se eligen
+  // como siempre, por calificación.
+  const sinCalificar = candidatos.filter((l) => !(l.rating > 0));
+  const calificados = candidatos.filter((l) => l.rating > 0);
+  if (n >= 3 && sinCalificar.length > 0 && calificados.length > 0) {
+    const cupoSinCalificar = Math.min(sinCalificar.length, Math.max(1, Math.floor(n / 3)));
+    const frescos = sinCalificar.filter((l) => !fueMostradoRecientemente(l));
+    const ordenSinCalificar = [...frescos, ...sinCalificar.filter((l) => fueMostradoRecientemente(l))];
+    // al azar dentro de cada grupo (frescos primero), no siempre los mismos
+    const mezclar = <T,>(a: T[]) => [...a].sort(() => Math.random() - 0.5);
+    const elegidosSinCalificar = [
+      ...mezclar(ordenSinCalificar.filter((l) => !fueMostradoRecientemente(l))),
+      ...mezclar(ordenSinCalificar.filter((l) => fueMostradoRecientemente(l))),
+    ].slice(0, cupoSinCalificar);
+    const restoCalificados = seleccionarConVariedad(calificados, Math.min(calificados.length, n - elegidosSinCalificar.length));
+    const todos = [...restoCalificados, ...elegidosSinCalificar];
+    recordarMostrados(elegidosSinCalificar);
+    return todos.sort((a, b) => puntaje(b) - puntaje(a));
+  }
   const ordenados = [...candidatos].sort((a, b) => puntaje(b) - puntaje(a));
   // Pool de los mejores (n + 3): deja entrar variedad sin bajar a lo flojo
   const pool = ordenados.slice(0, n + 3);
@@ -2139,6 +2185,37 @@ export function responderTextoLibre(
     };
   }
 
+  // "Ninguno de esos me gusta", "otros", "más opciones": se vuelve a buscar
+  // lo MISMO (categoría y municipio de la última búsqueda) pero SIN lo que ya
+  // se mostró. Antes repetía exactamente las mismas opciones.
+  if (esPeticionDeOtrasOpciones(texto) && ultimaBusqueda) {
+    const { cat: catAnterior, municipio: muniAnterior, vistos } = ultimaBusqueda;
+    let reserva = catalogoMotor.filter((l) => l.categoria === catAnterior);
+    if (muniAnterior) {
+      const enMuni = reserva.filter((l) => l.municipio === muniAnterior);
+      if (enMuni.length > 0) reserva = enMuni;
+    }
+    const nuevos = reserva.filter((l) => !vistos.has(l.id));
+    const dondeTexto = muniAnterior ? ` en ${muniAnterior}` : '';
+    if (nuevos.length > 0) {
+      const elegidos = seleccionarConVariedad(nuevos, 3);
+      for (const l of elegidos) vistos.add(l.id);
+      return {
+        id: crypto.randomUUID(),
+        role: 'bot',
+        texto: `Claro, aquí tienes otras opciones de ${catAnterior.toLowerCase()}${dondeTexto}:`,
+        lugares: elegidos,
+        timestamp: Date.now(),
+      };
+    }
+    return {
+      id: crypto.randomUUID(),
+      role: 'bot',
+      texto: `Ya te mostré todas las opciones de ${catAnterior.toLowerCase()}${dondeTexto} que tengo registradas por ahora. Si quieres, dime otro tipo de lugar u otro municipio.`,
+      timestamp: Date.now(),
+    };
+  }
+
   // PASO 1: ¿es una pregunta de conocimiento general?
   // (clima, transporte, comida típica, seguridad, qué llevar, etc.)
   const conocimiento = buscarConocimiento(texto);
@@ -2377,10 +2454,21 @@ export function responderTextoLibre(
         const idsYaIncluidos = new Set(lugaresLigados.map((l) => l.id));
         // Con coincidencia exacta por tipo de servicio no se rellena con
         // lugares de la categoría: serían ruido ("artesanías" + una cafetería).
+        // Las tarjetas ligadas a la ficha ocupan como máximo 2 de los 3
+        // lugares: antes ocupaban los 3 y los negocios registrados en la
+        // plataforma nunca tenían espacio.
+        // Se rota cuáles 2 salen (antes eran siempre los mismos), y del resto
+        // van PRIMERO los negocios sin calificar: si no, quedaban al final y el
+        // límite de 3 los recortaba siempre.
+        const ligadosVisibles = porTipo.lugares.length > 0 ? [] : seleccionarConVariedad(lugaresLigados, Math.min(2, lugaresLigados.length));
+        const idsVisibles = new Set(ligadosVisibles.map((l) => l.id));
+        const resto = sugerencias.filter((l) => !idsVisibles.has(l.id));
+        const restoOrdenado = [...resto.filter((l) => !(l.rating > 0)), ...resto.filter((l) => l.rating > 0)];
         sugerencias = (porTipo.lugares.length > 0
           ? lugaresLigados
-          : [...lugaresLigados, ...sugerencias.filter((l) => !idsYaIncluidos.has(l.id))]
+          : [...ligadosVisibles, ...restoOrdenado]
         ).slice(0, 3);
+        void idsYaIncluidos;
       }
     }
 
@@ -2393,6 +2481,16 @@ export function responderTextoLibre(
         timestamp: Date.now(),
       };
     }
+
+    const mismaBusqueda =
+      ultimaBusqueda !== null &&
+      ultimaBusqueda.cat === cat &&
+      ultimaBusqueda.municipio === municipioConCobertura;
+    ultimaBusqueda = {
+      cat,
+      municipio: municipioConCobertura,
+      vistos: new Set([...(mismaBusqueda ? ultimaBusqueda!.vistos : []), ...sugerencias.map((l) => l.id)]),
+    };
 
     // Si además había un dato de conocimiento (ej: "dónde comer comida típica"),
     // lo anteponemos al listado de lugares.

@@ -20,6 +20,7 @@ import {
   extraerDiasCrudo,
   pareceSolicitudDeRuta,
   hayLugarPorTipoDeServicio,
+  esPeticionDeOtrasOpciones,
   pareceSolicitudDeDistancia,
   esSolicitudInapropiada,
   detectarMunicipio,
@@ -974,7 +975,10 @@ export default function ChatAssistant({
       //  - cuando hay prestadores registrados que coinciden por tipo
       //    ("artesanías" se quedaba con la ficha de licores en vez de
       //    mostrar los negocios de artesanías).
-      const omitirBanco = pareceSolicitudDeRuta(texto) || hayLugarPorTipoDeServicio(texto);
+      //  - "ninguno de esos me gusta" / "otros": se pide algo DISTINTO a lo
+      //    ya mostrado; la ficha repetiría las mismas opciones.
+      const omitirBanco =
+        pareceSolicitudDeRuta(texto) || hayLugarPorTipoDeServicio(texto) || esPeticionDeOtrasOpciones(texto);
       const coincidencia = omitirBanco
         ? null
         : await buscarRespuestaVerificada(texto).catch(() => null);

@@ -8,7 +8,10 @@ import {
   indexarCatalogo,
   indexarConocimiento,
   inicializarEmbeddings,
+  registroCarga,
   suscribirEstadoEmbeddings,
+  tamanoModeloEnCache,
+  tamanoModeloEsperado,
   type EstadoEmbeddings,
 } from '../lib/embeddings';
 import { getCatalogoActivo } from '../lib/chatbot';
@@ -48,6 +51,7 @@ export default function DiagnosticoIA() {
   const [estado, setEstado] = useState<EstadoEmbeddings>(estadoEmbeddings());
   const [vectores, setVectores] = useState<{ lugares: number; fichas: number } | null>(null);
   const [prueba, setPrueba] = useState('');
+  const [tamanos, setTamanos] = useState<{ guardado: number | null; instalado: number | null }>({ guardado: null, instalado: null });
 
   useEffect(() => {
     if (!activo) return;
@@ -65,6 +69,12 @@ export default function DiagnosticoIA() {
     const id = window.setInterval(leer, 2500);
     return () => window.clearInterval(id);
   }, [activo]);
+
+  // Tamaño del modelo guardado vs. el que se instaló: si cambia, el archivo se dañó.
+  useEffect(() => {
+    if (!activo) return;
+    tamanoModeloEnCache().then((guardado) => setTamanos({ guardado, instalado: tamanoModeloEsperado() }));
+  }, [activo, estado]);
 
   if (!activo) return null;
 
@@ -121,6 +131,15 @@ export default function DiagnosticoIA() {
       {estado.detalle && <div className="text-amber-300 break-words">{estado.detalle}</div>}
       <div>Vectores: {vectores ? `${vectores.lugares} lugares · ${vectores.fichas} fichas` : '…'}</div>
       <div>Fichas: {conteoFichas.precalculadas} precalculadas · {conteoFichas.calculadasAqui} calculadas aquí</div>
+      <div>
+        Modelo guardado: {tamanos.guardado ? `${(tamanos.guardado / 1048576).toFixed(1)} MB` : 'no se pudo leer'} · al instalar:{' '}
+        {tamanos.instalado ? `${(tamanos.instalado / 1048576).toFixed(1)} MB` : '—'}
+      </div>
+      {registroCarga.length > 0 && (
+        <div className="text-[10px] text-amber-200 leading-tight break-words">
+          {registroCarga.slice(-5).map((l, i) => (<div key={i}>{l}</div>))}
+        </div>
+      )}
       <div>
         RAM que reporta el navegador: {nav.deviceMemory ?? 'no la reporta'} GB · núcleos: {navigator.hardwareConcurrency ?? '?'}
         {nav.connection?.saveData ? ' · ahorro de datos ACTIVO' : ''}

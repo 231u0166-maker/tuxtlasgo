@@ -120,37 +120,167 @@ function crearPipeline(onProgress?: (info: { progreso: number; texto: string }) 
   }) as unknown as Promise<FeatureExtractionPipeline>;
 }
 
-// "Can't create a session" = el runtime no pudo armar el modelo en memoria
-// (poca memoria libre en ese momento) o el archivo guardado quedó dañado.
-// Intento 1 normal; intento 2 tras una pausa (la memoria suele liberarse);
-// intento 3 solo si hay internet: borra el modelo guardado y lo baja de
-// nuevo (nunca se borra sin conexión: sería perder un modelo que podría
-// estar bien).
+// ─────────── Carga robusta del modelo ───────────
+// Hallazgo de la prueba en un Galaxy A13 (4 GB): al RECARGAR la página el modelo
+// a veces falla con "Can't create a session", de forma intermitente (con y sin
+// internet, con 10 pestañas y con 1). Esa frase significa que el runtime no pudo
+// armar el modelo en memoria. Causas posibles: (a) poca memoria en ese instante
+// — por ejemplo la página anterior todavía liberando la suya — o (b) el archivo
+// guardado dañado. NO es un problema de red: el archivo ya se leyó.
+//
+// Mi versión anterior, ante cualquier fallo con internet, BORRABA el modelo y lo
+// descargaba otra vez (113 MB). Si la causa es memoria eso no arregla nada y
+// gasta los datos del turista en cada recarga fallida. Ahora solo se vuelve a
+// descargar con evidencia de archivo dañado, y cada intento queda anotado en el
+// panel de diagnóstico (`registroCarga`).
+export const registroCarga: string[] = [];
+function anotar(mensaje: string): void {
+  const hora = new Date().toLocaleTimeString('es-MX', { hour12: false });
+  registroCarga.push(`${hora} ${mensaje}`);
+  while (registroCarga.length > 14) registroCarga.shift();
+  fijarEstadoEmbeddings({ ...estadoActual }); // para que el panel se redibuje
+}
+
+const CLAVE_TAM_MODELO = 'tuxtlasgo-modelo-bytes';
+
+// Tamaño (bytes) del .onnx guardado, leído del encabezado — sin cargar los 113 MB.
+export async function tamanoModeloEnCache(): Promise<number | null> {
+  try {
+    const cache = await caches.open('transformers-cache');
+    for (const req of await cache.keys()) {
+      if (req.url.includes('multilingual-e5-small') && req.url.includes('.onnx')) {
+        const longitud = (await cache.match(req))?.headers.get('content-length');
+        return longitud ? parseInt(longitud, 10) : null;
+      }
+    }
+  } catch { /* sin Cache Storage */ }
+  return null;
+}
+export function tamanoModeloEsperado(): number | null {
+  try {
+    const v = localStorage.getItem(CLAVE_TAM_MODELO);
+    return v ? parseInt(v, 10) : null;
+  } catch { return null; }
+}
+async function recordarTamanoModelo(): Promise<void> {
+  const t = await tamanoModeloEnCache();
+  if (t) { try { localStorage.setItem(CLAVE_TAM_MODELO, String(t)); } catch { /* no crítico */ } }
+}
+
+// SOLO para pruebas, y solo con el panel de diagnóstico activo (?diag=1):
+// localStorage 'tuxtlasgo-diag-forzar-fallo' = 'memoria:2' o 'modelo:2' hace que
+// los próximos 2 intentos fallen como si fueran de ese tipo. Sirve para probar
+// la lógica de reintento sin esperar a que el teléfono falle solo.
+function falloForzado(): 'memoria' | 'modelo' | null {
+  try {
+    if (localStorage.getItem('tuxtlasgo-diag') !== '1') return null;
+    const v = localStorage.getItem('tuxtlasgo-diag-forzar-fallo');
+    if (!v) return null;
+    const [tipo, n] = v.split(':');
+    const restantes = parseInt(n, 10);
+    if (!(restantes > 0)) { localStorage.removeItem('tuxtlasgo-diag-forzar-fallo'); return null; }
+    if (restantes > 1) localStorage.setItem('tuxtlasgo-diag-forzar-fallo', `${tipo}:${restantes - 1}`);
+    else localStorage.removeItem('tuxtlasgo-diag-forzar-fallo');
+    return tipo === 'modelo' ? 'modelo' : 'memoria';
+  } catch { return null; }
+}
+
+type IntentoFallido = { ok: false; error: unknown; mensajes: string[] };
+type Intento = { ok: true; extractor: FeatureExtractionPipeline } | IntentoFallido;
+
+// Un intento, capturando los mensajes que el runtime imprime en consola
+// (ahí aparece la causa real: "bad_alloc", "protobuf parsing failed"…).
+async function intentarCrear(
+  onProgress?: (info: { progreso: number; texto: string }) => void
+): Promise<Intento> {
+  const mensajes: string[] = [];
+  const errorOriginal = console.error;
+  const avisoOriginal = console.warn;
+  const capturar = (args: unknown[]) => {
+    const t = args.map((a) => String(a)).join(' ');
+    if (/onnx|alloc|memory|protobuf|session|wasm|model/i.test(t)) mensajes.push(t.slice(0, 200));
+  };
+  console.error = (...a: unknown[]) => { capturar(a); errorOriginal(...a); };
+  console.warn = (...a: unknown[]) => { capturar(a); avisoOriginal(...a); };
+  try {
+    const forzado = falloForzado();
+    if (forzado) {
+      mensajes.push(forzado === 'memoria' ? 'simulado: std::bad_alloc' : 'simulado: Protobuf parsing failed');
+      throw new Error("Can't create a session");
+    }
+    return { ok: true, extractor: await crearPipeline(onProgress) };
+  } catch (error) {
+    return { ok: false, error, mensajes };
+  } finally {
+    console.error = errorOriginal;
+    console.warn = avisoOriginal;
+  }
+}
+
+function clasificarFallo(r: IntentoFallido): 'memoria' | 'modelo' | 'desconocido' {
+  const t = `${String((r.error as Error)?.message ?? r.error)} ${r.mensajes.join(' ')}`.toLowerCase();
+  if (/bad_alloc|out of memory|alloc|memoria/.test(t)) return 'memoria';
+  if (/protobuf|parsing|corrupt|invalid|not a valid|failed to load model/.test(t)) return 'modelo';
+  return 'desconocido';
+}
+
+function mensajeDe(r: IntentoFallido): string {
+  return (r.mensajes[r.mensajes.length - 1] ?? String((r.error as Error)?.message ?? r.error)).slice(0, 110);
+}
+
 async function crearExtractor(
   onProgress?: (info: { progreso: number; texto: string }) => void
 ): Promise<FeatureExtractionPipeline> {
-  try {
-    return await crearPipeline(onProgress);
-  } catch (e1) {
-    console.warn('[TuxtlasGO] Modelo: intento 1 falló, reintentando…', e1);
-    fijarEstadoEmbeddings({ fase: 'descargando', detalle: 'reintentando tras un fallo (intento 2)…' });
-    await esperar(2500);
-    try {
-      return await crearPipeline(onProgress);
-    } catch (e2) {
-      console.warn('[TuxtlasGO] Modelo: intento 2 falló.', e2);
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) throw e2;
-      fijarEstadoEmbeddings({ fase: 'descargando', detalle: 'borrando el modelo guardado y descargándolo de nuevo (intento 3)…' });
-      try {
-        const cache = await caches.open('transformers-cache');
-        for (const req of await cache.keys()) {
-          if (req.url.includes('multilingual-e5-small')) await cache.delete(req);
-        }
-      } catch { /* sin Cache Storage: se intenta igual */ }
-      await esperar(1000);
-      return await crearPipeline(onProgress);
+  let ultimo: IntentoFallido | null = null;
+  for (let n = 1; n <= 2; n++) {
+    if (n > 1) {
+      fijarEstadoEmbeddings({ fase: 'descargando', detalle: `reintentando (intento ${n})…` });
+      await esperar(4000); // da tiempo a que la página anterior libere su memoria
     }
+    const r = await intentarCrear(onProgress);
+    if (r.ok) {
+      await recordarTamanoModelo();
+      if (n > 1) anotar(`modelo listo en el intento ${n}`);
+      return r.extractor;
+    }
+    ultimo = r;
+    anotar(`intento ${n} falló (${clasificarFallo(r)}): ${mensajeDe(r)}`);
   }
+
+  // Los dos intentos fallaron. ¿Hay evidencia de que el archivo guardado está dañado?
+  const tipo = clasificarFallo(ultimo!);
+  const esperado = tamanoModeloEsperado();
+  const actual = await tamanoModeloEnCache();
+  const tamanoRaro = esperado !== null && actual !== null && esperado !== actual;
+  const enLinea = typeof navigator === 'undefined' || navigator.onLine !== false;
+
+  if (enLinea && (tipo === 'modelo' || tamanoRaro)) {
+    anotar(tamanoRaro ? 'el modelo guardado mide distinto al instalado → se descarga de nuevo' : 'el modelo guardado parece dañado → se descarga de nuevo');
+    fijarEstadoEmbeddings({ fase: 'descargando', detalle: 'el modelo guardado parece dañado: descargándolo de nuevo…' });
+    try {
+      const cache = await caches.open('transformers-cache');
+      for (const req of await cache.keys()) {
+        if (req.url.includes('multilingual-e5-small')) await cache.delete(req);
+      }
+    } catch { /* sin Cache Storage: se intenta igual */ }
+    await esperar(1000);
+    const r = await intentarCrear(onProgress);
+    if (r.ok) {
+      await recordarTamanoModelo();
+      anotar('modelo listo tras descargarlo de nuevo');
+      return r.extractor;
+    }
+    ultimo = r;
+    anotar(`falló también tras descargarlo de nuevo: ${mensajeDe(r)}`);
+  } else {
+    anotar(
+      tipo === 'memoria'
+        ? 'parece falta de memoria: NO se vuelve a descargar (no ayudaría y gastaría datos); se reintentará más tarde'
+        : 'sin evidencia de archivo dañado: no se vuelve a descargar; se reintentará más tarde'
+    );
+  }
+  const resumen = `${String((ultimo!.error as Error)?.message ?? ultimo!.error)} [${clasificarFallo(ultimo!)}]`;
+  throw new Error(resumen.slice(0, 200));
 }
 
 // ── Estado observable ──

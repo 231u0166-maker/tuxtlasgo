@@ -28,6 +28,7 @@ import {
   pareceSolicitudDeDistancia,
   esSolicitudInapropiada,
   detectarMunicipio,
+  detectarMunicipios,
   buscarLugarPorNombre,
   getCatalogoActivo,
   extraerPresupuestoLiteral,
@@ -1212,6 +1213,8 @@ export default function ChatAssistant({
         // menciona ninguno, la ruta sigue repartiendo entre varios
         // municipios como siempre.
         const municipioDetectado = detectarMunicipio(texto) ?? prefsDesdeFiltros?.municipio ?? undefined;
+        // "de Catemaco a San Andrés": dos o más municipios, en el orden en que los dijo.
+        const municipiosDetectados = detectarMunicipios(texto);
 
         const prefsCompletas: PreferenciasUsuario = {
           dias: diasFinal,
@@ -1219,6 +1222,7 @@ export default function ChatAssistant({
           presupuesto: presupuestoFinal,
           grupo: grupoFinal,
           municipio: municipioDetectado,
+          ...(municipiosDetectados.length >= 2 ? { municipios: municipiosDetectados } : {}),
           // Hallazgo real de campo: los otros campos (días, intereses,
           // presupuesto, grupo) sí se heredaban del mensaje anterior si
           // no se repetían — pero este no, así que "3 días, $6,000" y

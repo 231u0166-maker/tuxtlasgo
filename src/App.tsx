@@ -148,27 +148,45 @@ export default function App() {
     // (incluido el banco de respuestas que responde sin generar nada)
     // nunca se activaba justo en los dispositivos donde más se
     // necesita. Ahora corre siempre, en cualquier dispositivo.
-    const inicioEmbeddings = Date.now();
-    fijarEstadoEmbeddings({ fase: 'descargando', progreso: 0 });
-    inicializarEmbeddings(({ progreso }) => fijarEstadoEmbeddings({ fase: 'descargando', progreso }))
-      .then(async () => {
-        fijarEstadoEmbeddings({ fase: 'indexando' });
-        // Primero las fichas del banco de respuestas (traen su vector ya
-        // calculado): con eso ya se puede contestar. LISTO se marca aquí.
-        await indexarConocimiento(obtenerFichasParaIndexar());
-        fijarEstadoEmbeddings({ fase: 'listo', ms: Date.now() - inicioEmbeddings });
-        // Los lugares (cuyo texto sí hay que vectorizar en el dispositivo) se
-        // indexan después, en segundo plano, sin bloquear nada.
-        indexarCatalogo(getCatalogoActivo()).catch((e) =>
-          console.warn('[TuxtlasGO] No se pudo indexar el catálogo:', e)
-        );
-      })
-      .catch((e) => {
-        const mensaje = String(e?.message ?? e);
-        const omitido = mensaje.startsWith('EMBEDDINGS_MEMORIA') || mensaje.startsWith('EMBEDDINGS_AHORRO');
-        fijarEstadoEmbeddings({ fase: omitido ? 'omitido' : 'error', detalle: mensaje.slice(0, 300) });
-        console.warn('[TuxtlasGO] Embeddings no disponibles:', e);
-      });
+    // El arranque se retrasa unos segundos: al abrir o RECARGAR la app compiten
+    // por memoria el mapa, el catálogo y el modelo (113 MB), y en un teléfono de
+    // 4 GB la creación del modelo fallaba de forma intermitente justo al recargar.
+    // Si aun así falla, se reintenta UNA vez más a los 45 s, en silencio.
+    const arrancarEmbeddings = (reintentoTardio = false) => {
+      const inicioEmbeddings = Date.now();
+      fijarEstadoEmbeddings({ fase: 'descargando', progreso: 0 });
+      inicializarEmbeddings(({ progreso }) => fijarEstadoEmbeddings({ fase: 'descargando', progreso }))
+        .then(async () => {
+          fijarEstadoEmbeddings({ fase: 'indexando' });
+          // Primero las fichas del banco de respuestas (traen su vector ya
+          // calculado): con eso ya se puede contestar. LISTO se marca aquí.
+          await indexarConocimiento(obtenerFichasParaIndexar());
+          fijarEstadoEmbeddings({ fase: 'listo', ms: Date.now() - inicioEmbeddings });
+          // Los lugares (cuyo texto sí hay que vectorizar en el dispositivo) se
+          // indexan después, en segundo plano, sin bloquear nada.
+          indexarCatalogo(getCatalogoActivo()).catch((e) =>
+            console.warn('[TuxtlasGO] No se pudo indexar el catálogo:', e)
+          );
+        })
+        .catch((e) => {
+          // Si el modelo SÍ quedó cargado (algo posterior falló, no la carga), el
+          // estado no debe decir ERROR y apagar la etiqueta "IA: listo".
+          if (embeddingsListo()) {
+            fijarEstadoEmbeddings({ fase: 'listo', ms: Date.now() - inicioEmbeddings });
+            console.warn('[TuxtlasGO] Un paso posterior a la carga del modelo falló, pero el modelo está listo:', e);
+            return;
+          }
+          const mensaje = String(e?.message ?? e);
+          const omitido = mensaje.startsWith('EMBEDDINGS_MEMORIA') || mensaje.startsWith('EMBEDDINGS_AHORRO');
+          fijarEstadoEmbeddings({ fase: omitido ? 'omitido' : 'error', detalle: mensaje.slice(0, 300) });
+          console.warn('[TuxtlasGO] Embeddings no disponibles:', e);
+          if (!omitido && !reintentoTardio) {
+            window.setTimeout(() => arrancarEmbeddings(true), 45_000);
+          }
+        });
+    };
+    const temporizadorEmbeddings = window.setTimeout(() => arrancarEmbeddings(), 3000);
+    return () => window.clearTimeout(temporizadorEmbeddings);
   }, []);
 
   if (!listo) return null;

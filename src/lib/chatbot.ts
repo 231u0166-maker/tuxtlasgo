@@ -85,6 +85,10 @@ export interface PreferenciasUsuario {
   // guiado por botones nunca lo pide, así que en ese camino siempre
   // queda undefined — sin cambios ahí.
   municipio?: string;
+  // Opcional: el turista nombró DOS o más municipios en la petición ("una ruta de
+  // Catemaco a San Andrés"), en el orden en que los dijo. Si viene con 2 o más,
+  // la ruta pasa por todos ellos (no se queda solo en el primero).
+  municipios?: string[];
   // Opcional: monto TOTAL en pesos que el turista mencionó literalmente
   // ("con un presupuesto de $6,000") — a diferencia de `presupuesto`
   // (que es solo un nivel bajo/medio/alto), esto es un número real que
@@ -315,6 +319,29 @@ export function detectarMunicipio(texto: string): string | null {
     if (clave && contieneClave(tokens, clave)) return m;
   }
   return null;
+}
+
+// Todos los municipios que menciona el texto, en el orden en que los dijo
+// ("de San Andrés a Catemaco" → [San Andrés Tuxtla, Catemaco]). detectarMunicipio
+// devuelve solo UNO y por prioridad fija, no por orden de mención.
+export function detectarMunicipios(texto: string): string[] {
+  const tokens = tokenizar(texto);
+  const municipios = new Set<string>(MUNICIPIOS_BASE);
+  for (const l of catalogoActivo) {
+    if (l.municipio) municipios.add(l.municipio);
+  }
+  const hallados: { municipio: string; pos: number }[] = [];
+  for (const municipio of municipios) {
+    const palabras = tokenizar(claveDeMunicipio(municipio));
+    if (palabras.length === 0) continue;
+    for (let i = 0; i + palabras.length <= tokens.length; i++) {
+      if (palabras.every((p, j) => palabraCoincide(tokens[i + j], p))) {
+        hallados.push({ municipio, pos: i });
+        break;
+      }
+    }
+  }
+  return hallados.sort((a, b) => a.pos - b.pos).map((h) => h.municipio);
 }
 
 // ─────────── SERVICIOS BÁSICOS (hospitales, farmacias, comisarías) ───────────
@@ -1752,9 +1779,56 @@ function esCategoriaDeActividad(c: Categoria): boolean {
   return c === 'Aventura' || c === 'Naturaleza';
 }
 
+// Hallazgo real de campo (prueba en un teléfono): "ruta divertida de Catemaco a
+// San Andrés" salió con los 2 días en Catemaco — se tomaba solo el primer
+// municipio. Para UN día entre dos municipios: mañana y comida en el primero,
+// tarde y cena en el segundo, en ese orden (no se reordena por tipo de lugar,
+// que iría y vendría entre municipios). Con 2 o más días ya se reparte un día
+// por municipio en generarRuta. Devuelve null si algún municipio no tiene nada
+// que ofrecer: ahí se cae a la ruta normal en vez de inventar.
+function construirDiaEntreMunicipios(prefs: PreferenciasUsuario, candidatos: Lugar[]): DiaRuta | null {
+  const orden = (prefs.municipios ?? []).slice(0, 2);
+  const lugares: Lugar[] = [];
+  const momentos: string[] = [];
+  orden.forEach((muni, idx) => {
+    const deAqui = candidatos.filter((l) => l.municipio === muni && !lugares.includes(l));
+    const actividad = seleccionarConVariedad(deAqui.filter((l) => esCategoriaDeActividad(l.categoria)), 1)[0];
+    const comida = seleccionarConVariedad(deAqui.filter((l) => l.categoria === 'Gastronomia'), 1)[0];
+    if (actividad) { lugares.push(actividad); momentos.push(idx === 0 ? 'Mañana' : 'Tarde'); }
+    if (comida) { lugares.push(comida); momentos.push(idx === 0 ? 'Comida' : 'Cena'); }
+  });
+  if (!orden.every((m) => lugares.some((l) => l.municipio === m))) return null;
+
+  let infoPresupuesto: { costoConocido: number; huboSinPrecio: boolean; restanteDespues: number } | null = null;
+  if (prefs.montoTotalPesos !== undefined && prefs.montoTotalPesos !== null) {
+    const costos = lugares.map((l) => estimarPrecioMXN(l.precioMxn));
+    const costoConocido = costos.reduce((s: number, c) => s + (c ?? 0), 0);
+    infoPresupuesto = {
+      costoConocido,
+      huboSinPrecio: costos.some((c) => c === null),
+      restanteDespues: prefs.montoTotalPesos - costoConocido,
+    };
+  }
+  return {
+    dia: 1,
+    lugares,
+    momentos,
+    resumen: armarResumen(1, orden.join(' → '), lugares, prefs),
+    razonamiento: armarRazonamiento(lugares, momentos, prefs, infoPresupuesto),
+  };
+}
+
 export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   const recomendadosConScore = filtrarLugaresConRazones(prefs);
   if (recomendadosConScore.length === 0) return [];
+
+  if (prefs.municipios && prefs.municipios.length >= 2 && prefs.dias === 1) {
+    const unDia = construirDiaEntreMunicipios(prefs, recomendadosConScore.map((s) => s.lugar));
+    if (unDia) {
+      recordarMostrados(unDia.lugares);
+      return [unDia];
+    }
+  }
 
   // Hallazgo real de campo: "solo barajar empates exactos" casi nunca
   // se activaba en la práctica — el rating trae decimales distintos
@@ -1791,7 +1865,13 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   // normal (todos los municipios) en vez de dar una ruta vacía —
   // mejor algo útil que nada.
   let recomendadosFiltrados = recomendados;
-  if (prefs.municipio) {
+  // Si nombró varios municipios, la ruta pasa por los que tengan algo que ofrecer
+  // (en el orden en que los dijo); si no, se queda en el único que pidió.
+  const municipiosPedidos = (prefs.municipios ?? []).filter((m) => recomendados.some((l) => l.municipio === m));
+  const variosMunicipios = municipiosPedidos.length >= 2;
+  if (variosMunicipios) {
+    recomendadosFiltrados = recomendados.filter((l) => municipiosPedidos.includes(l.municipio));
+  } else if (prefs.municipio) {
     const soloEseMunicipio = recomendados.filter((l) => l.municipio === prefs.municipio);
     if (soloEseMunicipio.length > 0) recomendadosFiltrados = soloEseMunicipio;
   }
@@ -1831,15 +1911,18 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   const todosMunicipios = Object.keys(porMunicipio);
   // Si hay varios municipios, rotar empezando por el que no sea Catemaco
   // para dar variedad al turista
-  const municipios = todosMunicipios.sort((a, b) => {
-    // Priorizar municipios con más lugares disponibles pero rotar
-    const diff = porMunicipio[b].length - porMunicipio[a].length;
-    // Si la diferencia es pequeña (<=1), mezclar para no siempre Catemaco
-    if (Math.abs(diff) <= 1) {
-      return Math.random() > 0.5 ? 1 : -1;
-    }
-    return diff;
-  });
+  const municipios = variosMunicipios
+    ? // En el orden que dijo el turista (origen primero), sin barajar.
+      municipiosPedidos.filter((m) => porMunicipio[m]?.length)
+    : todosMunicipios.sort((a, b) => {
+        // Priorizar municipios con más lugares disponibles pero rotar
+        const diff = porMunicipio[b].length - porMunicipio[a].length;
+        // Si la diferencia es pequeña (<=1), mezclar para no siempre Catemaco
+        if (Math.abs(diff) <= 1) {
+          return Math.random() > 0.5 ? 1 : -1;
+        }
+        return diff;
+      });
 
   const dias: DiaRuta[] = [];
   // Hallazgo real de campo (QA): con solo 3 paradas por día la ruta se

@@ -83,7 +83,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
             {t('Para ti en {lugar}', { lugar: ubicacion?.trim() || 'Los Tuxtlas' })}
           </h2>
           {paraTi.length > 0 ? (
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
               {paraTi.map((l) => (
                 <PlaceCard key={l.id} lugar={l} onClick={() => onVerLugar(l)} />
               ))}

@@ -34,8 +34,20 @@ interface Notificacion {
   creado_en: string;
 }
 
-export default function NotificacionesBurbuja() {
+// Dónde vive el botón:
+//  - 'flotante':    la burbuja arrastrable de siempre (páginas fuera del shell).
+//  - 'barra':       un elemento más de la barra lateral de escritorio.
+//  - 'barra-movil': ícono compacto de la barra superior en celular.
+// El panel y los datos son los mismos en las tres.
+interface Props {
+  variante?: 'flotante' | 'barra' | 'barra-movil';
+  colapsado?: boolean; // solo 'barra': sidebar en modo riel (solo íconos)
+  onIrATab?: (tab: 'perfil' | 'favoritos' | 'comunidad') => void;
+}
+
+export default function NotificacionesBurbuja({ variante = 'flotante', colapsado = false, onIrATab }: Props) {
   const t = useT();
+  const botonRef = useRef<HTMLButtonElement>(null);
   const usuario = getUsuarioLocal();
   const navigate = useNavigate();
   const [abierta, setAbierta] = useState(false);
@@ -106,7 +118,9 @@ export default function NotificacionesBurbuja() {
 
   function irAReservas() {
     if (!usuario) return;
-    navigate(usuario.tipo === 'prestador' ? '/app?tab=perfil' : '/app?tab=favoritos');
+    const tab = usuario.tipo === 'prestador' ? 'perfil' : 'favoritos';
+    if (onIrATab) onIrATab(tab);
+    else navigate(`/app?tab=${tab}`);
   }
 
   function iniciarArrastre(e: React.PointerEvent<HTMLButtonElement>) {
@@ -155,6 +169,16 @@ export default function NotificacionesBurbuja() {
 
   if (!usuario) return null;
 
+  const enBarra = variante !== 'flotante';
+
+  function alAbrirCerrarBarra() {
+    setAbierta((v) => {
+      const abriendo = !v;
+      if (abriendo) marcarAvisosLeidos();
+      return abriendo;
+    });
+  }
+
   const pendientes = usuario.tipo === 'prestador' ? resumen.filter((r) => r.estado === 'pendiente') : [];
   const conMensajes = resumen.filter((r) => (r.mensajes_no_leidos ?? 0) > 0);
   const total = pendientes.length + conMensajes.length + avisosSinLeerAlAbrir;
@@ -168,21 +192,25 @@ export default function NotificacionesBurbuja() {
   const enMitadInferior = pos ? pos.y > window.innerHeight / 2 : true;
   const enMitadDerecha = pos ? pos.x > window.innerWidth / 2 : true;
 
-  const estiloBoton = pos
-    ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' }
-    : undefined;
+  // Panel de notificaciones — el mismo contenido en las tres variantes;
+  // solo cambia cómo se posiciona.
+  const rectBoton = abierta && enBarra ? botonRef.current?.getBoundingClientRect() : undefined;
+  const estiloPanelBarra: React.CSSProperties | undefined =
+    variante === 'barra' && rectBoton
+      ? { left: rectBoton.right + 8, top: Math.max(8, Math.min(rectBoton.top - 8, window.innerHeight - 440)) }
+      : undefined;
+  const clasePanel = !enBarra
+    ? `absolute w-80 max-w-[85vw] bg-white rounded-2xl shadow-2xl border border-jungle-100 overflow-hidden ${
+        enMitadInferior ? 'bottom-full mb-3' : 'top-full mt-3'
+      } ${enMitadDerecha ? 'right-0' : 'left-0'}`
+    : variante === 'barra'
+      ? 'fixed z-[90] w-80 max-w-[85vw] bg-white rounded-2xl shadow-2xl border border-jungle-100 overflow-hidden'
+      : 'fixed z-[90] right-3 top-14 w-80 max-w-[92vw] bg-white rounded-2xl shadow-2xl border border-jungle-100 overflow-hidden';
 
-  return (
-    <div
-      className={`fixed z-[70] ${pos ? '' : 'right-4 sm:right-6 bottom-20 lg:bottom-6'}`}
-      style={estiloBoton}
-    >
-      {abierta && (
-        <div
-          className={`absolute w-80 max-w-[85vw] bg-white rounded-2xl shadow-2xl border border-jungle-100 overflow-hidden ${
-            enMitadInferior ? 'bottom-full mb-3' : 'top-full mt-3'
-          } ${enMitadDerecha ? 'right-0' : 'left-0'}`}
-        >
+  const panel = abierta && (
+    <>
+      {enBarra && <div className="fixed inset-0 z-[85]" onClick={() => setAbierta(false)} aria-hidden="true" />}
+      <div className={clasePanel} style={estiloPanelBarra}>
           <div className="bg-jungle-800 text-white px-4 py-3 flex items-center justify-between">
             <p className="font-display font-bold text-sm">{t('Notificaciones')}</p>
             <button onClick={() => setAbierta(false)} className="text-jungle-200 hover:text-white"><X size={16} /></button>
@@ -239,16 +267,88 @@ export default function NotificacionesBurbuja() {
           {/* Mientras esperas confirmación/respuesta, algo que hacer
               en lo que llega — así no se siente como estar esperando
               sin más. Funciona desde cualquier pantalla, no solo /app. */}
-          <Link
-            to="/comunidad"
-            onClick={() => setAbierta(false)}
-            className="flex items-center gap-2 px-4 py-3 bg-jungle-50 hover:bg-jungle-100 border-t border-jungle-100 text-xs font-semibold text-jungle-700 transition-colors"
-          >
-            <Users size={14} /> {t('Mientras esperas, mira la Comunidad')}
-            <ChevronRight size={13} className="ml-auto text-jungle-400" />
-          </Link>
-        </div>
-      )}
+          {onIrATab ? (
+            <button
+              onClick={() => { setAbierta(false); onIrATab('comunidad'); }}
+              className="w-full flex items-center gap-2 px-4 py-3 bg-jungle-50 hover:bg-jungle-100 border-t border-jungle-100 text-xs font-semibold text-jungle-700 transition-colors text-left"
+            >
+              <Users size={14} /> {t('Mientras esperas, mira la Comunidad')}
+              <ChevronRight size={13} className="ml-auto text-jungle-400" />
+            </button>
+          ) : (
+            <Link
+              to="/comunidad"
+              onClick={() => setAbierta(false)}
+              className="flex items-center gap-2 px-4 py-3 bg-jungle-50 hover:bg-jungle-100 border-t border-jungle-100 text-xs font-semibold text-jungle-700 transition-colors"
+            >
+              <Users size={14} /> {t('Mientras esperas, mira la Comunidad')}
+              <ChevronRight size={13} className="ml-auto text-jungle-400" />
+            </Link>
+          )}
+      </div>
+    </>
+  );
+
+  const estiloBoton = pos
+    ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' }
+    : undefined;
+
+  if (variante === 'barra') {
+    return (
+      <>
+        <button
+          ref={botonRef}
+          onClick={alAbrirCerrarBarra}
+          title={colapsado ? t('Notificaciones') : undefined}
+          aria-label={t('Notificaciones')}
+          className={`relative w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+            colapsado ? 'px-0 justify-center' : 'px-3'
+          } ${abierta ? 'bg-jungle-700 text-white shadow-sm' : 'text-jungle-300 hover:bg-jungle-800 hover:text-white'}`}
+        >
+          <Bell size={18} strokeWidth={abierta ? 2.5 : 2} className="flex-shrink-0" />
+          {!colapsado && t('Notificaciones')}
+          {total > 0 && (
+            colapsado ? (
+              <span className="absolute top-1.5 right-3 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-jungle-900" />
+            ) : (
+              <span className="ml-auto bg-red-500 text-white text-[11px] font-bold min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center">
+                {total}
+              </span>
+            )
+          )}
+        </button>
+        {panel}
+      </>
+    );
+  }
+
+  if (variante === 'barra-movil') {
+    return (
+      <>
+        <button
+          ref={botonRef}
+          onClick={alAbrirCerrarBarra}
+          aria-label={t('Notificaciones')}
+          className="relative w-10 h-10 flex items-center justify-center rounded-full text-white hover:bg-white/10 transition-colors"
+        >
+          <Bell size={20} />
+          {total > 0 && (
+            <span className="absolute top-0.5 right-0.5 bg-red-500 text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center">
+              {total}
+            </span>
+          )}
+        </button>
+        {panel}
+      </>
+    );
+  }
+
+  return (
+    <div
+      className={`fixed z-[70] ${pos ? '' : 'right-4 sm:right-6 bottom-20 lg:bottom-6'}`}
+      style={estiloBoton}
+    >
+      {panel}
 
       <button
         onPointerDown={iniciarArrastre}

@@ -139,6 +139,7 @@ export const EN: Record<string, string> = {
   'Patrocinado': 'Sponsored',
   'Prestador local': 'Local provider',
   'Fuera de Los Tuxtlas': 'Outside Los Tuxtlas',
+  'Nuevo chat': 'New chat',
   'Te puede interesar': 'You may be interested',
   'También hay servicios registrados fuera de Los Tuxtlas': 'There are also services registered outside Los Tuxtlas',
   'Otra ubicación': 'Another location',

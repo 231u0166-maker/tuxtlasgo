@@ -62,7 +62,10 @@ interface CupoVideo {
   limiteMb?: number;
 }
 
-export default function ComunidadPage() {
+// `embebido`: se muestra DENTRO de la app (pestaña "Comunidad" de la barra
+// lateral) — sin la cabecera pública y con su propio scroll. Sin él es la
+// página independiente de siempre.
+export default function ComunidadPage({ embebido = false }: { embebido?: boolean }) {
   const usuario = getUsuarioLocal();
   const [publicaciones, setPublicaciones] = useState<Publicacion[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -99,10 +102,10 @@ export default function ComunidadPage() {
   useEffect(() => { cargar(); cargarCupoVideo(); }, []);
 
   return (
-    <div className="min-h-screen bg-amate-50">
-      <SubNavPublica activa="comunidad" />
+    <div className={embebido ? 'h-full overflow-y-auto bg-amate-50' : 'min-h-screen bg-amate-50'}>
+      {!embebido && <SubNavPublica activa="comunidad" />}
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-10 pb-16">
+      <div className={`max-w-2xl mx-auto px-4 sm:px-6 pb-16 ${embebido ? 'pt-6 lg:pt-10' : 'pt-10'}`}>
         <div className="flex items-center gap-2 mb-1">
           <Users size={26} className="text-jungle-700" />
           <h1 className="font-display font-extrabold text-3xl text-obsidiana-900">Comunidad</h1>

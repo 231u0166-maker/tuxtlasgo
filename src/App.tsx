@@ -5,7 +5,6 @@ import AppShell from './components/AppShell';
 import ProviderPanel from './components/ProviderPanel';
 import AdminPanel from './components/AdminPanel';
 import GaleriaPage from './components/GaleriaPage';
-import ComunidadPage from './components/ComunidadPage';
 import TerminosPage from './components/TerminosPage';
 import PrivacidadPage from './components/PrivacidadPage';
 import CopyrightPage from './components/CopyrightPage';
@@ -169,7 +168,7 @@ export default function App() {
         <Route path="/prestador" element={<ProviderPanel />} />
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="/galeria" element={<GaleriaPage />} />
-        <Route path="/comunidad" element={<ComunidadPage />} />
+        <Route path="/comunidad" element={<Navigate to="/app?tab=comunidad" replace />} />
         <Route path="/terminos" element={<TerminosPage />} />
         <Route path="/privacidad" element={<PrivacidadPage />} />
         <Route path="/copyright" element={<CopyrightPage />} />

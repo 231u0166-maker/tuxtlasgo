@@ -1,7 +1,7 @@
 import { useT } from '../lib/i18n';
-import { Home, Compass, MessageCircle, Heart, User } from 'lucide-react';
+import { Home, Compass, MessageCircle, Heart, User, Users } from 'lucide-react';
 
-export type Tab = 'inicio' | 'explorar' | 'mapa' | 'chat' | 'favoritos' | 'perfil';
+export type Tab = 'inicio' | 'explorar' | 'mapa' | 'chat' | 'comunidad' | 'favoritos' | 'perfil';
 
 interface Props {
   activa: Tab;
@@ -16,6 +16,7 @@ const tabs: { id: Tab; label: string; icon: typeof Compass }[] = [
   { id: 'inicio', label: 'Destacados', icon: Home },
   { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'chat', label: 'Asistente', icon: MessageCircle },
+  { id: 'comunidad', label: 'Comunidad', icon: Users },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },
   { id: 'perfil', label: "Mi Perfil", icon: User } // nuevo para el perfil
 ];

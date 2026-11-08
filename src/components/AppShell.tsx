@@ -2,9 +2,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut, X, History,
   Sparkles, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
-  PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal
+  PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, Users, Plus
 } from 'lucide-react';
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import AuthModal from './AuthModal';
@@ -28,6 +28,7 @@ import FavoritesScreen from './FavoritesScreen';
 import SugerenciasChat from './SugerenciasChat';
 import PlaceDetail from './PlaceDetail';
 import OtrasZonasOferta from './OtrasZonasOferta';
+import ComunidadPage from './ComunidadPage';
 import OfflineIndicator from './OfflineIndicator';
 import SelectorIdioma from './SelectorIdioma';
 import { useT } from '../lib/i18n';
@@ -52,6 +53,7 @@ const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
   { id: 'inicio', label: 'Destacados', icon: Sparkles },
   { id: 'explorar', label: 'Explorar', icon: Compass },
   { id: 'chat', label: 'Asistente IA', icon: MessageCircle },
+  { id: 'comunidad', label: 'Comunidad', icon: Users },
   { id: 'favoritos', label: 'Mis lugares', icon: Heart },
   { id: 'perfil', label: "Mi Perfil", icon: User }
 ];
@@ -64,7 +66,7 @@ export default function AppShell() {
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => {
     const deLaUrl = searchParams.get('tab');
-    const validos: Tab[] = ['inicio', 'explorar', 'chat', 'favoritos', 'perfil'];
+    const validos: Tab[] = ['inicio', 'explorar', 'chat', 'comunidad', 'favoritos', 'perfil'];
     return validos.includes(deLaUrl as Tab) ? (deLaUrl as Tab) : 'inicio';
   });
   // /app?registro=prestador — deep link genérico que abre el modal
@@ -142,7 +144,23 @@ export default function AppShell() {
   // contenido (ver el <aside> abajo), así el mapa y las tarjetas no
   // se reacomodan cada vez que el cursor pasa por el borde.
   const [sidebarExpandido, setSidebarExpandido] = useState(false);
-  const sidebarColapsado = !sidebarExpandido;
+  // En pantallas anchas (≥1280px) la barra va SIEMPRE abierta, con los
+  // nombres de cada sección (como la referencia que nos compartieron);
+  // en pantallas medianas se queda como riel de íconos que se abre al
+  // acercar el cursor, para no quitarle espacio al mapa y al chat.
+  const [esAncho, setEsAncho] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const actualizar = () => setEsAncho(mq.matches);
+    mq.addEventListener('change', actualizar);
+    return () => mq.removeEventListener('change', actualizar);
+  }, []);
+  const sidebarColapsado = !esAncho && !sidebarExpandido;
+  // Botón "Nuevo chat" de la barra: cada clic sube el número y el
+  // asistente empieza una conversación nueva.
+  const [nuevoChatSenal, setNuevoChatSenal] = useState(0);
 
   // Ancho del panel izquierdo (Explorar / Chat) en escritorio — antes
   // era una clase fija (42%, entre 380 y 560px), sin forma de
@@ -564,13 +582,13 @@ export default function AppShell() {
       {/* ══════════════ SIDEBAR (solo desktop) ══════════════ */}
       {/* El hueco en el layout es siempre de 72px; el <aside> se
           expande hacia la derecha por encima del contenido. */}
-      <div className="hidden lg:block relative flex-shrink-0 w-[72px]">
+      <div className="hidden lg:block relative flex-shrink-0 w-[72px] xl:w-64">
       <aside
         onMouseEnter={() => setSidebarExpandido(true)}
         onMouseLeave={() => setSidebarExpandido(false)}
         onFocus={() => setSidebarExpandido(true)}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSidebarExpandido(false); }}
-        className={`absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden whitespace-nowrap bg-jungle-900 text-white transition-[width,box-shadow] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : 'w-64 shadow-2xl shadow-black/30'
+        className={`absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden whitespace-nowrap bg-jungle-900 text-white transition-[width,box-shadow] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : esAncho ? 'w-64' : 'w-64 shadow-2xl shadow-black/30'
           }`}
       >
         {/* Arriba: ícono + wordmark juntos como siempre — sueltos se
@@ -594,27 +612,46 @@ export default function AppShell() {
             abajo): en escritorio ya se ve el chat con solo un clic,
             así que un ícono aparte solo para el historial hubiera
             sido redundante con el botón de colapsar de arriba. */}
-        <nav className={`flex-1 py-4 space-y-1 ${sidebarColapsado ? 'px-2' : 'px-3'}`}>
+        <nav className={`flex-1 py-4 space-y-1 overflow-y-auto ${sidebarColapsado ? 'px-2' : 'px-3'}`}>
           {TABS.map((tb) => {
             const Icon = tb.icon;
             const activo = tb.id === tab;
             return (
-              <button
-                key={tb.id}
-                onClick={() => cambiarTab(tb.id)}
-                onDoubleClick={() => { if (tb.id === 'chat') setDispararHistorial((v) => v + 1); }}
-                title={sidebarColapsado ? t(tb.label) : undefined}
-                className={`w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
-                  } ${activo
-                    ? 'bg-jungle-700 text-white shadow-sm'
-                    : 'text-jungle-300 hover:bg-jungle-800 hover:text-white'
-                  }`}
-              >
-                <Icon size={18} strokeWidth={activo ? 2.5 : 2} className="flex-shrink-0" />
-                {!sidebarColapsado && t(tb.label)}
-              </button>
+              <Fragment key={tb.id}>
+                {/* La campana vive en la barra, justo antes del perfil
+                    (solo se dibuja con sesión iniciada). */}
+                {tb.id === 'perfil' && (
+                  <NotificacionesBurbuja variante="barra" colapsado={sidebarColapsado} onIrATab={cambiarTab} />
+                )}
+                <button
+                  onClick={() => cambiarTab(tb.id)}
+                  onDoubleClick={() => { if (tb.id === 'chat') setDispararHistorial((v) => v + 1); }}
+                  title={sidebarColapsado ? t(tb.label) : undefined}
+                  className={`w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
+                    } ${activo
+                      ? 'bg-jungle-700 text-white shadow-sm'
+                      : 'text-jungle-300 hover:bg-jungle-800 hover:text-white'
+                    }`}
+                >
+                  <Icon size={18} strokeWidth={activo ? 2.5 : 2} className="flex-shrink-0" />
+                  {!sidebarColapsado && t(tb.label)}
+                </button>
+              </Fragment>
             );
           })}
+
+          <div className={sidebarColapsado ? 'pt-4 flex justify-center' : 'pt-4'}>
+            <button
+              onClick={() => { cambiarTab('chat'); setNuevoChatSenal((v) => v + 1); }}
+              title={sidebarColapsado ? t('Nuevo chat') : undefined}
+              className={`flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-600 text-white font-semibold text-sm transition-colors ${
+                sidebarColapsado ? 'w-10 h-10 rounded-full' : 'w-full py-2.5 rounded-full'
+              }`}
+            >
+              <Plus size={sidebarColapsado ? 18 : 16} className="flex-shrink-0" />
+              {!sidebarColapsado && t('Nuevo chat')}
+            </button>
+          </div>
         </nav>
 
         {/* Acciones de usuario */}
@@ -634,15 +671,27 @@ export default function AppShell() {
 
           {usuario ? (
             <div className={`flex items-center gap-2 py-2 ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'}`}>
-              <span
-                className="w-7 h-7 rounded-full bg-jungle-700 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0"
-                title={sidebarColapsado ? usuario.nombre : undefined}
-              >
-                {usuario.nombre.charAt(0).toUpperCase()}
-              </span>
+              {usuario.foto_url ? (
+                <img
+                  src={usuario.foto_url}
+                  alt=""
+                  title={sidebarColapsado ? usuario.nombre : undefined}
+                  className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                />
+              ) : (
+                <span
+                  className="w-9 h-9 rounded-full bg-jungle-700 text-white text-sm font-bold flex items-center justify-center flex-shrink-0"
+                  title={sidebarColapsado ? usuario.nombre : undefined}
+                >
+                  {usuario.nombre.charAt(0).toUpperCase()}
+                </span>
+              )}
               {!sidebarColapsado && (
                 <>
-                  <span className="text-sm text-jungle-200 truncate flex-1">{usuario.nombre.split(' ')[0]}</span>
+                  <span className="min-w-0 flex-1 leading-tight">
+                    <span className="block text-sm font-semibold text-white truncate">{usuario.nombre}</span>
+                    <span className="block text-[11px] text-jungle-300 truncate">{usuario.correo}</span>
+                  </span>
                   <button
                     onClick={async () => { await apiLogout(); setUsuario(null); }}
                     className="text-jungle-400 hover:text-red-400 transition-colors"
@@ -670,6 +719,19 @@ export default function AppShell() {
 
       {/* ══════════════ ÁREA PRINCIPAL ══════════════ */}
       <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
+
+        {/* Barra superior — solo celular (en escritorio la marca y la
+            campana están en la barra lateral). No se muestra con el
+            mapa a pantalla completa. */}
+        {tab !== 'mapa' && (
+          <header className="lg:hidden flex-shrink-0 flex items-center justify-between bg-jungle-900 text-white pl-4 pr-2 h-12">
+            <Link to="/" className="flex items-center gap-2 min-w-0">
+              <TreePine size={20} className="text-amber-400 flex-shrink-0" />
+              <span className="font-display font-extrabold text-base tracking-tight truncate">TuxtlasGO</span>
+            </Link>
+            <NotificacionesBurbuja variante="barra-movil" onIrATab={cambiarTab} />
+          </header>
+        )}
 
         {/* Toast error ruta */}
         {errorRuta && (
@@ -752,6 +814,12 @@ export default function AppShell() {
                 onIniciarSesion={() => setMostrarAuth(true)}
                 onCerrarSesion={async () => { await apiLogout(); setUsuario(null); }}
               />
+            </div>
+          )}
+
+          {tab === 'comunidad' && (
+            <div className="flex-1 h-full min-h-0 overflow-hidden">
+              <ComunidadPage embebido />
             </div>
           )}
 
@@ -885,6 +953,7 @@ export default function AppShell() {
                 mensajeInicial={mensajeInicialChat}
                 onMensajeInicialConsumido={() => setMensajeInicialChat(undefined)}
                 dispararHistorial={dispararHistorial}
+                nuevoChatSenal={nuevoChatSenal}
                 accionSobreInput={
                   rutaVisible ? (
                     <div className="lg:hidden px-3 pt-2 flex-shrink-0">
@@ -1001,10 +1070,8 @@ export default function AppShell() {
           <BottomNav activa={tab === 'mapa' ? tabAntesDeMapa : tab} onChange={cambiarTab} />
         </div>
 
-        {/* Burbuja de notificaciones — solo dentro de /app (las 5
-            pestañas: inicio/explorar/asistente/mis lugares/perfil),
-            no en Comunidad, Galería ni la landing. */}
-        <NotificacionesBurbuja />
+        {/* La campana de notificaciones ahora vive en la barra (lateral en
+            escritorio, superior en celular) — ya no hay burbuja flotante. */}
       </div>
 
       {/* PlaceDetail overlay */}

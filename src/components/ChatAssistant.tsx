@@ -113,6 +113,9 @@ interface Props {
   // número cada vez, en vez de mostrar un ícono aparte que ya sería
   // redundante con el botón de colapsar que ahí ya existe.
   dispararHistorial?: number;
+  // Botón "Nuevo chat" de la barra lateral: cada incremento empieza una
+  // conversación nueva (la anterior queda guardada en el historial).
+  nuevoChatSenal?: number;
 }
 
 export default function ChatAssistant({
@@ -125,6 +128,7 @@ export default function ChatAssistant({
   mensajeInicial,
   onMensajeInicialConsumido,
   dispararHistorial,
+  nuevoChatSenal,
 }: Props) {
   // Solo la interfaz (placeholder, botones). Las respuestas del asistente
   // siguen en español: el motor de PLN y el prompt de IA aún no son bilingües.
@@ -298,6 +302,13 @@ export default function ChatAssistant({
     if (!dispararHistorial) return;
     setMostrarHistorial(true);
   }, [dispararHistorial]);
+
+  // "Nuevo chat" de la barra lateral — igual que "Armar otra ruta".
+  useEffect(() => {
+    if (!nuevoChatSenal) return;
+    reiniciar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nuevoChatSenal]);
 
   // Mientras se espera que el turista elija cuál de varios lugares
   // ambiguos quiso decir — se guarda el texto ORIGINAL (para revisar

@@ -24,6 +24,18 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* App instalada (PWA): sin "deslizar hacia abajo para recargar". Recargar la
+   página en un teléfono de 4 GB hace que el modelo del asistente falle con
+   frecuencia al volver a armarse (prueba en un Galaxy A13: cerrar y abrir carga
+   bien, recargar falla). `body` ya tenía la regla; se agrega también en `html`
+   porque Chrome toma el gesto del elemento raíz. Solo aplica a la app
+   instalada: en el navegador normal el gesto sigue funcionando. */
+@media (display-mode: standalone) {
+  html {
+    overscroll-behavior-y: none;
+  }
+}
+
 * {
   -webkit-tap-highlight-color: transparent;
 }

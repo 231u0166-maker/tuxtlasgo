@@ -583,6 +583,90 @@ export function hayLugarPorTipoDeServicio(texto: string): boolean {
   return buscarPorTipoDeServicio(texto, catalogoMotor, detectarMunicipio(texto)).lugares.length > 0;
 }
 
+// ─────────── RUTA ENTRE LUGARES NOMBRADOS ("de La Moyotera a Eyipantla") ───────────
+// Hallazgo real de campo (prueba en un teléfono): "generame una ruta de la
+// moyotera a el salto de eyipantla" se respondió como "cuéntame de La
+// Moyotera" — buscarLugarPorNombre solo entiende UN lugar. Esto encuentra
+// TODOS los lugares que el turista nombró, en el orden en que los dijo.
+//
+// Un lugar cuenta si coincide al menos la mitad de sus palabras distintivas, y
+// si solo coincide parte de ellas, esa palabra debe ser casi exclusiva de ese
+// lugar entre todos los nombres del catálogo ("eyipantla" identifica a la
+// cascada aunque no se diga "cascada"; "restaurante" no identificaría a nadie).
+export function lugaresNombradosEnTexto(texto: string, catalogo: Lugar[]): Lugar[] {
+  const tokens = tokenizar(texto);
+  const frecuencia = new Map<string, number>();
+  for (const l of catalogo) {
+    for (const p of new Set(palabrasDistintivas(l.nombre))) frecuencia.set(p, (frecuencia.get(p) ?? 0) + 1);
+  }
+  const hallados: { lugar: Lugar; pos: number; clave: string }[] = [];
+  for (const lugar of catalogo) {
+    const distintivas = palabrasDistintivas(lugar.nombre).filter((p) => p.length >= 4);
+    if (distintivas.length === 0) continue;
+    const coinciden = distintivas.filter((p) => tokens.some((t) => palabraCoincide(t, p)));
+    if (coinciden.length < Math.ceil(distintivas.length / 2)) continue;
+    if (coinciden.length < distintivas.length && !coinciden.every((p) => (frecuencia.get(p) ?? 0) <= 1)) continue;
+    const pos = Math.min(...coinciden.map((p) => tokens.findIndex((t) => palabraCoincide(t, p))));
+    hallados.push({ lugar, pos, clave: [...coinciden].sort().join('|') });
+  }
+  // Dos lugares que coinciden por las mismas palabras ("bicicleta": La Bicicleta
+  // Café y Bicicleta nueva sucursal) son ambiguos: se desempata por municipio y,
+  // si sigue el empate, no se adivina.
+  const municipio = detectarMunicipio(texto);
+  const porClave = new Map<string, typeof hallados>();
+  for (const h of hallados) porClave.set(h.clave, [...(porClave.get(h.clave) ?? []), h]);
+  const finales: typeof hallados = [];
+  for (const grupo of porClave.values()) {
+    if (grupo.length === 1) { finales.push(grupo[0]); continue; }
+    const delMunicipio = municipio ? grupo.filter((g) => g.lugar.municipio === municipio) : [];
+    if (delMunicipio.length === 1) finales.push(delMunicipio[0]);
+  }
+  return finales.sort((a, b) => a.pos - b.pos).map((h) => h.lugar);
+}
+
+// "de X a Y", "desde X hasta Y" — también cuenta sin la palabra "ruta".
+export function pareceRutaDeAaB(texto: string): boolean {
+  const t = ' ' + normalizar(texto).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ') + ' ';
+  return /\s(de|desde)\s.+\s(a|al|hasta)\s/.test(t);
+}
+
+// Un "día" de ruta con EXACTAMENTE los lugares que pidió, en ese orden.
+export function construirRutaEntreLugares(lugares: Lugar[]): DiaRuta {
+  const momentos = lugares.map((_, i) => (i === 0 ? 'Salida' : i === lugares.length - 1 ? 'Llegada' : 'Parada'));
+  let metros = 0;
+  for (let i = 1; i < lugares.length; i++) {
+    metros += distanciaHaversine(lugares[i - 1].coords as [number, number], lugares[i].coords as [number, number]);
+  }
+  const km = metros / 1000;
+  const origen = lugares[0].nombre;
+  const destino = lugares[lugares.length - 1].nombre;
+  const distanciaTxt = km < 1 ? `unos ${Math.round(metros)} m` : `unos ${km.toFixed(1)} km`;
+  return {
+    dia: 1,
+    lugares,
+    momentos,
+    resumen: lugares.length === 2 ? `De ${origen} a ${destino}.` : `De ${origen} a ${destino}, con ${lugares.length - 2} ${lugares.length - 2 === 1 ? 'parada' : 'paradas'} en medio.`,
+    razonamiento: `Las paradas van en el orden que pediste. La distancia en línea recta es de ${distanciaTxt}; por carretera suele ser más. Para el trayecto por carretera y el tiempo, toca "Ver ruta en el mapa" (calcula el camino real con internet; sin internet lo dibuja en línea recta).`,
+  };
+}
+
+// ─────────── "QUÉ LUGARES VISITAR" ───────────
+// Hallazgo real de campo: "qué lugares me recomiendas visitar en Catemaco" se
+// respondía con restaurantes (la ficha de "dónde comer" se le parece en
+// significado). Pedir lugares para visitar/conocer es pedir naturaleza y
+// aventura — no comida ni hospedaje. NO debe confundirse con "mejor época para
+// visitar" (eso es clima), por eso exige "lugares/sitios…" o "qué visitar".
+export function pideLugaresParaVisitar(texto: string): boolean {
+  const t = normalizar(texto).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ');
+  return (
+    /\b(que|cuales|algun|algunos|unos|buenos|mejores)\s+(lugares|sitios|lugar|sitio|atracciones|rincones|puntos)\b.*\b(visitar|conocer|ver|recorrer|turisticos)\b/.test(t) ||
+    /\b(que|a donde|adonde)\s+(puedo\s+|debo\s+|me\s+recomiendas\s+)?(visitar|conocer)\b/.test(t) ||
+    /\b(lugares|sitios|puntos|atracciones)\s+(turisticos|para\s+visitar|para\s+conocer|de\s+interes)\b/.test(t) ||
+    /\bque\s+(hay|puedo)\s+(para|por)?\s*(ver|visitar|conocer)\b/.test(t) ||
+    /\bque\s+(me\s+)?recomiendas\s+(visitar|conocer|ver)\b/.test(t)
+  );
+}
+
 export interface CoincidenciaPorTipo {
   lugares: Lugar[];
   // Las palabras de la pregunta que sí describen a esos lugares (ej.
@@ -1552,7 +1636,22 @@ function fueMostradoRecientemente(l: Lugar): boolean {
 
 // Última búsqueda por categoría que se respondió (para entender "otros").
 // `vistos`: ids ya mostrados en ESTA búsqueda (misma categoría y municipio).
-let ultimaBusqueda: { cat: Categoria; municipio: string | null; vistos: Set<string> } | null = null;
+let ultimaBusqueda: { cats: Categoria[]; municipio: string | null; vistos: Set<string> } | null = null;
+
+function registrarBusqueda(cats: Categoria[], municipio: string | null, mostrados: Lugar[]): void {
+  const clave = cats.join('|');
+  const misma =
+    ultimaBusqueda !== null && ultimaBusqueda.cats.join('|') === clave && ultimaBusqueda.municipio === municipio;
+  ultimaBusqueda = {
+    cats,
+    municipio,
+    vistos: new Set([...(misma ? ultimaBusqueda!.vistos : []), ...mostrados.map((l) => l.id)]),
+  };
+}
+
+function nombreDeBusqueda(cats: Categoria[]): string {
+  return cats.length > 1 ? 'lugares para conocer' : cats[0].toLowerCase();
+}
 
 const FRASES_OTRAS_OPCIONES = [
   'otros', 'otras', 'otra opcion', 'otras opciones', 'mas opciones', 'algo diferente', 'algo distinto',
@@ -2189,8 +2288,9 @@ export function responderTextoLibre(
   // lo MISMO (categoría y municipio de la última búsqueda) pero SIN lo que ya
   // se mostró. Antes repetía exactamente las mismas opciones.
   if (esPeticionDeOtrasOpciones(texto) && ultimaBusqueda) {
-    const { cat: catAnterior, municipio: muniAnterior, vistos } = ultimaBusqueda;
-    let reserva = catalogoMotor.filter((l) => l.categoria === catAnterior);
+    const { cats: catsAnteriores, municipio: muniAnterior, vistos } = ultimaBusqueda;
+    const nombreAnterior = nombreDeBusqueda(catsAnteriores);
+    let reserva = catalogoMotor.filter((l) => catsAnteriores.includes(l.categoria));
     if (muniAnterior) {
       const enMuni = reserva.filter((l) => l.municipio === muniAnterior);
       if (enMuni.length > 0) reserva = enMuni;
@@ -2203,7 +2303,7 @@ export function responderTextoLibre(
       return {
         id: crypto.randomUUID(),
         role: 'bot',
-        texto: `Claro, aquí tienes otras opciones de ${catAnterior.toLowerCase()}${dondeTexto}:`,
+        texto: `Claro, aquí tienes otras opciones de ${nombreAnterior}${dondeTexto}:`,
         lugares: elegidos,
         timestamp: Date.now(),
       };
@@ -2211,9 +2311,44 @@ export function responderTextoLibre(
     return {
       id: crypto.randomUUID(),
       role: 'bot',
-      texto: `Ya te mostré todas las opciones de ${catAnterior.toLowerCase()}${dondeTexto} que tengo registradas por ahora. Si quieres, dime otro tipo de lugar u otro municipio.`,
+      texto: `Ya te mostré todas las opciones de ${nombreAnterior}${dondeTexto} que tengo registradas por ahora. Si quieres, dime otro tipo de lugar u otro municipio.`,
       timestamp: Date.now(),
     };
+  }
+
+  // "Qué lugares me recomiendas visitar": naturaleza y aventura, con el mismo
+  // criterio de variedad y cupo para negocios registrados que el resto.
+  if (pideLugaresParaVisitar(texto)) {
+    const catsVisitar: Categoria[] = ['Naturaleza', 'Aventura'];
+    let reservaVisitar = catalogoMotor.filter((l) => catsVisitar.includes(l.categoria));
+    let muniVisitar: string | null = municipioMencionado;
+    let notaVisitar = '';
+    if (municipioMencionado) {
+      const enMuni = reservaVisitar.filter((l) => l.municipio === municipioMencionado);
+      if (enMuni.length > 0) {
+        reservaVisitar = enMuni;
+      } else if (reservaVisitar.length > 0) {
+        muniVisitar = null;
+        notaVisitar = `Por ahora no tengo nada para conocer registrado en ${municipioMencionado} — esto es lo que sí tengo en otros municipios de Los Tuxtlas:`;
+      }
+    }
+    if (grupoPregunta) {
+      const paraGrupo = reservaVisitar.filter((l) => l.ideal.includes(grupoPregunta));
+      if (paraGrupo.length >= 3) reservaVisitar = paraGrupo;
+    }
+    if (reservaVisitar.length > 0) {
+      const sugeridos = seleccionarConVariedad(reservaVisitar, 3);
+      registrarBusqueda(catsVisitar, muniVisitar, sugeridos);
+      return {
+        id: crypto.randomUUID(),
+        role: 'bot',
+        texto:
+          notaVisitar ||
+          `Para conocer${muniVisitar ? ` en ${muniVisitar}` : ' en Los Tuxtlas'}, te recomiendo:`,
+        lugares: sugeridos,
+        timestamp: Date.now(),
+      };
+    }
   }
 
   // PASO 1: ¿es una pregunta de conocimiento general?
@@ -2482,15 +2617,7 @@ export function responderTextoLibre(
       };
     }
 
-    const mismaBusqueda =
-      ultimaBusqueda !== null &&
-      ultimaBusqueda.cat === cat &&
-      ultimaBusqueda.municipio === municipioConCobertura;
-    ultimaBusqueda = {
-      cat,
-      municipio: municipioConCobertura,
-      vistos: new Set([...(mismaBusqueda ? ultimaBusqueda!.vistos : []), ...sugerencias.map((l) => l.id)]),
-    };
+    registrarBusqueda([cat], municipioConCobertura, sugerencias);
 
     // Si además había un dato de conocimiento (ej: "dónde comer comida típica"),
     // lo anteponemos al listado de lugares.

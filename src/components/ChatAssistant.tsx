@@ -21,6 +21,10 @@ import {
   pareceSolicitudDeRuta,
   hayLugarPorTipoDeServicio,
   esPeticionDeOtrasOpciones,
+  pideLugaresParaVisitar,
+  lugaresNombradosEnTexto,
+  pareceRutaDeAaB,
+  construirRutaEntreLugares,
   pareceSolicitudDeDistancia,
   esSolicitudInapropiada,
   detectarMunicipio,
@@ -977,8 +981,12 @@ export default function ChatAssistant({
       //    mostrar los negocios de artesanías).
       //  - "ninguno de esos me gusta" / "otros": se pide algo DISTINTO a lo
       //    ya mostrado; la ficha repetiría las mismas opciones.
+      //  - "qué lugares visitar": no es "dónde comer" aunque se le parezca.
       const omitirBanco =
-        pareceSolicitudDeRuta(texto) || hayLugarPorTipoDeServicio(texto) || esPeticionDeOtrasOpciones(texto);
+        pareceSolicitudDeRuta(texto) ||
+        hayLugarPorTipoDeServicio(texto) ||
+        esPeticionDeOtrasOpciones(texto) ||
+        pideLugaresParaVisitar(texto);
       const coincidencia = omitirBanco
         ? null
         : await buscarRespuestaVerificada(texto).catch(() => null);
@@ -992,6 +1000,37 @@ export default function ChatAssistant({
           },
           300
         );
+        return;
+      }
+
+      // 1.5) "Ruta de X a Y" nombrando DOS o más lugares: antes se tomaba
+      // como "cuéntame de X" (solo entendía uno). Ahora se arma el trayecto
+      // con los lugares que dijo, en el orden en que los dijo.
+      const nombrados = lugaresNombradosEnTexto(texto, getCatalogoActivo());
+      if (nombrados.length >= 2 && (pareceSolicitudDeRuta(texto) || pareceRutaDeAaB(texto))) {
+        const tramo = nombrados.slice(0, 5);
+        const ruta = construirRutaEntreLugares(tramo);
+        responderBot(
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            texto: `Claro, aquí va el trayecto de ${tramo[0].nombre} a ${tramo[tramo.length - 1].nombre}:`,
+            timestamp: Date.now(),
+          },
+          500
+        );
+        setTimeout(() => {
+          setMensajes((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: 'bot',
+              texto: `${ruta.resumen}\n\n💡 ${ruta.razonamiento}`,
+              rutaDia: { dia: ruta.dia, lugares: ruta.lugares, resumen: ruta.resumen, momentos: ruta.momentos },
+              timestamp: Date.now(),
+            },
+          ]);
+        }, 1100);
         return;
       }
 

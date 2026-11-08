@@ -84,18 +84,67 @@ export async function inicializarEmbeddings(
   const motivo = motivoParaNoCargarModelo();
   if (motivo) throw new Error(motivo);
   if (!cargando) {
-    cargando = pipeline('feature-extraction', MODELO_EMBEDDINGS, {
-      progress_callback: (p: any) => {
-        if (p?.status === 'progress') {
-          onProgress?.({
-            progreso: (p.loaded ?? 0) / (p.total || 1),
-            texto: `Descargando motor de significado… ${p.file ?? ''}`,
-          });
-        }
-      },
-    }) as unknown as Promise<FeatureExtractionPipeline>;
+    // Pide al navegador que NO borre el modelo guardado (~113 MB) cuando
+    // falte espacio. Es solo una petición: puede decir que no.
+    try { void navigator.storage?.persist?.(); } catch { /* no crítico */ }
+    cargando = crearExtractor(onProgress).catch((e) => {
+      // Hallazgo de la prueba en un Galaxy A13 (4 GB): tras recargar la
+      // página, el modelo falló con "Can't create a session". Antes la
+      // promesa fallida se quedaba guardada aquí y NO se volvía a intentar
+      // hasta recargar de nuevo. Ahora se libera para poder reintentar.
+      cargando = null;
+      throw e;
+    });
   }
   extractor = await cargando;
+}
+
+const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+function crearPipeline(onProgress?: (info: { progreso: number; texto: string }) => void) {
+  return pipeline('feature-extraction', MODELO_EMBEDDINGS, {
+    progress_callback: (p: any) => {
+      if (p?.status === 'progress') {
+        onProgress?.({
+          progreso: (p.loaded ?? 0) / (p.total || 1),
+          texto: `Descargando motor de significado… ${p.file ?? ''}`,
+        });
+      }
+    },
+  }) as unknown as Promise<FeatureExtractionPipeline>;
+}
+
+// "Can't create a session" = el runtime no pudo armar el modelo en memoria
+// (poca memoria libre en ese momento) o el archivo guardado quedó dañado.
+// Intento 1 normal; intento 2 tras una pausa (la memoria suele liberarse);
+// intento 3 solo si hay internet: borra el modelo guardado y lo baja de
+// nuevo (nunca se borra sin conexión: sería perder un modelo que podría
+// estar bien).
+async function crearExtractor(
+  onProgress?: (info: { progreso: number; texto: string }) => void
+): Promise<FeatureExtractionPipeline> {
+  try {
+    return await crearPipeline(onProgress);
+  } catch (e1) {
+    console.warn('[TuxtlasGO] Modelo: intento 1 falló, reintentando…', e1);
+    fijarEstadoEmbeddings({ fase: 'descargando', detalle: 'reintentando tras un fallo (intento 2)…' });
+    await esperar(2500);
+    try {
+      return await crearPipeline(onProgress);
+    } catch (e2) {
+      console.warn('[TuxtlasGO] Modelo: intento 2 falló.', e2);
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) throw e2;
+      fijarEstadoEmbeddings({ fase: 'descargando', detalle: 'borrando el modelo guardado y descargándolo de nuevo (intento 3)…' });
+      try {
+        const cache = await caches.open('transformers-cache');
+        for (const req of await cache.keys()) {
+          if (req.url.includes('multilingual-e5-small')) await cache.delete(req);
+        }
+      } catch { /* sin Cache Storage: se intenta igual */ }
+      await esperar(1000);
+      return await crearPipeline(onProgress);
+    }
+  }
 }
 
 // ── Estado observable ──

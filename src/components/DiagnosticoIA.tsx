@@ -3,9 +3,15 @@ import { db } from '../lib/db';
 import {
   buscarRespuestaVerificada,
   estadoEmbeddings,
+  fijarEstadoEmbeddings,
+  indexarCatalogo,
+  indexarConocimiento,
+  inicializarEmbeddings,
   suscribirEstadoEmbeddings,
   type EstadoEmbeddings,
 } from '../lib/embeddings';
+import { getCatalogoActivo } from '../lib/chatbot';
+import { obtenerFichasParaIndexar } from '../lib/conocimiento';
 
 // Panel de diagnóstico del modelo de lenguaje — SOLO aparece si se abre la
 // app con ?diag=1 (se recuerda en este navegador hasta abrirla con ?diag=0).
@@ -64,6 +70,22 @@ export default function DiagnosticoIA() {
   const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
   const memoriaJS = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize;
 
+  // Reintento manual de la carga del modelo (por ejemplo tras el error
+  // "Can't create a session") sin tener que recargar la página.
+  async function reintentar() {
+    const inicio = Date.now();
+    fijarEstadoEmbeddings({ fase: 'descargando', progreso: 0, detalle: 'reintento manual…' });
+    try {
+      await inicializarEmbeddings(({ progreso }) => fijarEstadoEmbeddings({ fase: 'descargando', progreso }));
+      fijarEstadoEmbeddings({ fase: 'indexando' });
+      await indexarCatalogo(getCatalogoActivo());
+      await indexarConocimiento(obtenerFichasParaIndexar());
+      fijarEstadoEmbeddings({ fase: 'listo', ms: Date.now() - inicio });
+    } catch (e) {
+      fijarEstadoEmbeddings({ fase: 'error', detalle: String((e as Error)?.message ?? e).slice(0, 300) });
+    }
+  }
+
   async function probar(texto: string) {
     setPrueba('probando…');
     try {
@@ -109,6 +131,11 @@ export default function DiagnosticoIA() {
         <button onClick={() => probar('¿cómo llego desde la Ciudad de México?')} className="bg-white/15 rounded px-2 py-1">
           Probar: cómo llegar
         </button>
+        {(estado.fase === 'error' || estado.fase === 'omitido') && (
+          <button onClick={reintentar} className="bg-amber-500 text-black font-bold rounded px-2 py-1">
+            Reintentar
+          </button>
+        )}
       </div>
       {prueba && <div className="break-words">→ {prueba}</div>}
     </div>

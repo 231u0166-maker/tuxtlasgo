@@ -160,7 +160,7 @@ export default function App() {
       .catch((e) => {
         const mensaje = String(e?.message ?? e);
         const omitido = mensaje.startsWith('EMBEDDINGS_MEMORIA') || mensaje.startsWith('EMBEDDINGS_AHORRO');
-        fijarEstadoEmbeddings({ fase: omitido ? 'omitido' : 'error', detalle: mensaje.slice(0, 160) });
+        fijarEstadoEmbeddings({ fase: omitido ? 'omitido' : 'error', detalle: mensaje.slice(0, 300) });
         console.warn('[TuxtlasGO] Embeddings no disponibles:', e);
       });
   }, []);

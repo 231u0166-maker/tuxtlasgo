@@ -153,9 +153,15 @@ export default function App() {
     inicializarEmbeddings(({ progreso }) => fijarEstadoEmbeddings({ fase: 'descargando', progreso }))
       .then(async () => {
         fijarEstadoEmbeddings({ fase: 'indexando' });
-        await indexarCatalogo(getCatalogoActivo());
+        // Primero las fichas del banco de respuestas (traen su vector ya
+        // calculado): con eso ya se puede contestar. LISTO se marca aquí.
         await indexarConocimiento(obtenerFichasParaIndexar());
         fijarEstadoEmbeddings({ fase: 'listo', ms: Date.now() - inicioEmbeddings });
+        // Los lugares (cuyo texto sí hay que vectorizar en el dispositivo) se
+        // indexan después, en segundo plano, sin bloquear nada.
+        indexarCatalogo(getCatalogoActivo()).catch((e) =>
+          console.warn('[TuxtlasGO] No se pudo indexar el catálogo:', e)
+        );
       })
       .catch((e) => {
         const mensaje = String(e?.message ?? e);

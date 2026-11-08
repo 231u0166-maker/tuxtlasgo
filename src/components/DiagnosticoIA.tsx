@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { db } from '../lib/db';
 import {
   buscarRespuestaVerificada,
+  conteoFichas,
   estadoEmbeddings,
   fijarEstadoEmbeddings,
   indexarCatalogo,
@@ -78,9 +79,9 @@ export default function DiagnosticoIA() {
     try {
       await inicializarEmbeddings(({ progreso }) => fijarEstadoEmbeddings({ fase: 'descargando', progreso }));
       fijarEstadoEmbeddings({ fase: 'indexando' });
-      await indexarCatalogo(getCatalogoActivo());
       await indexarConocimiento(obtenerFichasParaIndexar());
       fijarEstadoEmbeddings({ fase: 'listo', ms: Date.now() - inicio });
+      indexarCatalogo(getCatalogoActivo()).catch(() => {});
     } catch (e) {
       fijarEstadoEmbeddings({ fase: 'error', detalle: String((e as Error)?.message ?? e).slice(0, 300) });
     }
@@ -119,6 +120,7 @@ export default function DiagnosticoIA() {
       </div>
       {estado.detalle && <div className="text-amber-300 break-words">{estado.detalle}</div>}
       <div>Vectores: {vectores ? `${vectores.lugares} lugares · ${vectores.fichas} fichas` : '…'}</div>
+      <div>Fichas: {conteoFichas.precalculadas} precalculadas · {conteoFichas.calculadasAqui} calculadas aquí</div>
       <div>
         RAM que reporta el navegador: {nav.deviceMemory ?? 'no la reporta'} GB · núcleos: {navigator.hardwareConcurrency ?? '?'}
         {nav.connection?.saveData ? ' · ahorro de datos ACTIVO' : ''}

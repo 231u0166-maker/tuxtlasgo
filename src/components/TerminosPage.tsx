@@ -23,7 +23,7 @@ export default function TerminosPage() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 pb-20">
         <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-obsidiana-900 mb-2">Términos y Condiciones</h1>
-        <p className="text-obsidiana-800/60 mb-10">Última actualización: agosto de 2026</p>
+        <p className="text-obsidiana-800/60 mb-10">Última actualización: noviembre de 2026</p>
 
         <div className="prose-tuxtlas space-y-8 text-obsidiana-800">
           <Seccion titulo="1. Aceptación de los términos">
@@ -86,7 +86,37 @@ export default function TerminosPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="6. Comunidad">
+          <Seccion titulo="6. Modo sin conexión y consumo de datos">
+            <p>
+              Para que el asistente responda sin internet, la primera vez que abres TuxtlasGO con conexión la
+              Plataforma <strong>descarga automáticamente en tu dispositivo</strong> un modelo de lenguaje (de unos{' '}
+              <strong>113 MB</strong>) y los datos de la región. Al usar la Plataforma aceptas esta descarga y el
+              consumo de datos que implica.
+            </p>
+            <ul>
+              <li>
+                Si usas <strong>datos móviles</strong>, la descarga se descuenta de tu plan. Te recomendamos abrir la
+                aplicación por primera vez con Wi-Fi.
+              </li>
+              <li>
+                Se guarda en tu dispositivo y no se vuelve a descargar mientras no borres los datos del sitio o el
+                navegador no libere ese espacio por falta de almacenamiento.
+              </li>
+              <li>
+                Si tu dispositivo tiene poca memoria (menos de 4 GB) o activaste el ahorro de datos de tu navegador,
+                la descarga no se realiza y el asistente funciona en modo básico, también sin internet.
+              </li>
+              <li>
+                El mapa sin conexión es una descarga distinta que tú inicias desde la sección Mapa, cuando quieras.
+              </li>
+              <li>
+                Puedes eliminar lo descargado en cualquier momento borrando los datos del sitio desde la
+                configuración de tu navegador; el asistente seguirá funcionando en modo básico.
+              </li>
+            </ul>
+          </Seccion>
+
+          <Seccion titulo="7. Comunidad">
             <p>
               La sección Comunidad permite compartir fotos, videos cortos (máximo 1 minuto) y experiencias. Al
               publicar contenido:
@@ -105,7 +135,7 @@ export default function TerminosPage() {
             </ul>
           </Seccion>
 
-          <Seccion titulo="7. Pagos y procesamiento">
+          <Seccion titulo="8. Pagos y procesamiento">
             <p>
               Todos los pagos dentro de TuxtlasGO (Plan Premium y anticipos de reservación) se procesan a través de
               Mercado Pago, una pasarela de pago certificada. TuxtlasGO no almacena números de tarjeta, CLABE ni
@@ -114,7 +144,7 @@ export default function TerminosPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="8. Mensajería">
+          <Seccion titulo="9. Mensajería">
             <p>
               La bandeja de mensajes ligada a cada reservación existe para que turistas y prestadores resuelvan
               dudas dentro de la Plataforma. Si decides coordinar o pagar algo fuera de TuxtlasGO por tu cuenta,
@@ -122,7 +152,7 @@ export default function TerminosPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="9. Limitación de responsabilidad">
+          <Seccion titulo="10. Limitación de responsabilidad">
             <p>
               TuxtlasGO es un intermediario tecnológico: no presta directamente los servicios turísticos anunciados
               (hospedaje, tours, alimentos, transporte). No somos responsables de la calidad, seguridad o legalidad
@@ -131,7 +161,7 @@ export default function TerminosPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="10. Propiedad intelectual">
+          <Seccion titulo="11. Propiedad intelectual">
             <p>
               El nombre "TuxtlasGO", su logotipo y el diseño de la Plataforma son propiedad de sus creadores. El
               contenido que tú subes (fotos, videos, texto) sigue siendo tuyo — solo le das permiso a TuxtlasGO de
@@ -139,7 +169,7 @@ export default function TerminosPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="11. Cambios a estos términos">
+          <Seccion titulo="12. Cambios a estos términos">
             <p>
               Podemos actualizar estos términos conforme la Plataforma evolucione. Los cambios importantes se
               anunciarán dentro de la app. El uso continuado de TuxtlasGO después de un cambio implica tu aceptación
@@ -147,14 +177,14 @@ export default function TerminosPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="12. Ley aplicable">
+          <Seccion titulo="13. Ley aplicable">
             <p>
               Estos términos se rigen por las leyes de los Estados Unidos Mexicanos, con jurisdicción en el estado
               de Veracruz.
             </p>
           </Seccion>
 
-          <Seccion titulo="13. Contacto">
+          <Seccion titulo="14. Contacto">
             <p>
               Si tienes dudas sobre estos términos, puedes contactarnos a través de los medios de contacto
               disponibles dentro de la Plataforma.

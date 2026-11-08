@@ -136,21 +136,21 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
 
   // ─── DÓNDE COMER ─────────────────────────────────────────
   {
-    claves: ['donde comer', 'que comer', 'restaurante', 'comida', 'cenar', 'desayunar', 'almorzar'],
+    claves: ['donde comer', 'que comer', 'restaurante', 'comida', 'cenar', 'desayunar', 'almorzar', 'comer', 'hambre', 'fonda', 'antojitos', 'comida tipica', 'platillo'],
     titulo: 'Dónde comer en Los Tuxtlas',
     respuesta:
       'En Catemaco tienes varias opciones: La Moyotera (mariscos y vistas a la laguna, $200-300), Palapas Gorel (ambiente al aire libre, $100-200), Restaurante Margiros (cocina variada, $100-300) y Hechizo de Amor (rooftop bar, $200-300). En San Andrés Tuxtla está La Bicicleta Café (café y cenas hasta la madrugada, $100-200). ¿Buscas algo específico o tienes un presupuesto en mente?',
     lugares: ['moyotera', 'palapas-gorel', 'margiros', 'hechizo-amor', 'bicicleta-cafe'],
   },
   {
-    claves: ['mariscos', 'pescado', 'mojarra', 'pulpo', 'camarones'],
+    claves: ['mariscos', 'marisco', 'pescado', 'mojarra', 'pulpo', 'camarones', 'ostiones', 'ceviche', 'langosta', 'tegogolo'],
     titulo: 'Mariscos en Los Tuxtlas',
     respuesta:
       'Para mariscos la mejor opción es La Moyotera en Catemaco — especialistas en pulpo a la parrilla, mojarra al chilpaya y tienen vistas al lago ($200-300). También puedes encontrar mariscos frescos en Palapas Gorel ($100-200).',
     lugares: ['moyotera', 'palapas-gorel'],
   },
   {
-    claves: ['cafe', 'cafetería', 'postres', 'desayuno'],
+    claves: ['cafe', 'cafetería', 'postres', 'desayuno', 'cafecito', 'pastel', 'panaderia'],
     titulo: 'Cafeterías y desayunos',
     respuesta:
       'La Bicicleta Café en San Andrés Tuxtla es la mejor opción para café de especialidad, postres y desayunos ($100-200, abre 7am). En Catemaco, Palapas Gorel y Restaurante Margiros también sirven buenos desayunos desde las 8-9 am.',
@@ -159,7 +159,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
 
   // ─── HOSPEDAJE ───────────────────────────────────────────
   {
-    claves: ['donde dormir', 'hotel', 'hospedaje', 'cabaña', 'cabana', 'pernoctar', 'donde quedarme'],
+    claves: ['donde dormir', 'hotel', 'hospedaje', 'cabaña', 'cabana', 'pernoctar', 'donde quedarme', 'alojamiento', 'hospedarme', 'posada', 'habitacion', 'cuarto', 'pasar la noche'],
     titulo: 'Hospedaje en Los Tuxtlas',
     respuesta:
       'Para hospedarte, la opción registrada como hospedaje es Sirena Olmeca ($800-$1,200/noche), complejo rústico donde el mar se junta con la laguna, ideal para desconectarse. Si buscas algo más económico o distinto, Nanciyaga tiene cabañas en plena selva ($1,600-$2,200/noche) y La Jungla Balneario tiene camping desde $100/noche — aunque esos dos son reservas naturales, no hoteles.',
@@ -175,7 +175,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
     lugares: ['sirena-olmeca'],
   },
   {
-    claves: ['camping', 'acampar', 'tienda', 'carpa'],
+    claves: ['camping', 'acampar', 'tienda', 'carpa', 'campamento', 'campar', 'tienda de campana'],
     titulo: 'Camping en Los Tuxtlas',
     respuesta:
       'La Jungla Balneario tiene área de camping desde $100 por noche, con acceso a sus albercas naturales, muelle y vistas al lago. Es la opción más económica para quedarte en la naturaleza de Catemaco.',
@@ -184,14 +184,14 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
 
   // ─── NATURALEZA Y AVENTURA ───────────────────────────────
   {
-    claves: ['naturaleza', 'selva', 'aventura', 'ecoturismo', 'senderismo', 'sendero'],
+    claves: ['naturaleza', 'selva', 'aventura', 'ecoturismo', 'senderismo', 'sendero', 'caminata', 'caminar', 'paisaje', 'aire libre', 'ecologico'],
     titulo: 'Naturaleza y aventura en Los Tuxtlas',
     respuesta:
       'Para naturaleza y aventura tienes: La Cascada de Eyipantla (50 metros de caída, $50 entrada), Nanciyaga (4 hectáreas de selva, kayak, monos, $80 entrada), La Jungla Balneario (albercas de manantial, tobogán en selva, $60 entrada) y el Cerro del Venado (vistas panorámicas, acceso libre). Todos están en los alrededores de Catemaco y San Andrés Tuxtla.',
     lugares: ['eyipantla', 'nanciyaga', 'jungla-balneario', 'cerro-venado'],
   },
   {
-    claves: ['monos', 'macacos', 'kayak', 'lancha', 'laguna'],
+    claves: ['monos', 'macacos', 'kayak', 'lancha', 'laguna', 'lanchas', 'mono', 'primate', 'remar', 'paseo en lancha'],
     titulo: 'Monos y actividades en la laguna',
     respuesta:
       'Para ver los monos macacos en la laguna de Catemaco, lo mejor es ir a Nanciyaga — hacen paseos en kayak hacia las islas donde viven los monos (incluido en la entrada de $80). También puedes contratar lanchas desde el malecón de Catemaco.',
@@ -207,7 +207,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
 
   // ─── HORARIOS ────────────────────────────────────────────
   {
-    claves: ['horario', 'a que hora', 'cuando abre', 'cuando cierra', 'que hora'],
+    claves: ['horario', 'a que hora', 'cuando abre', 'cuando cierra', 'que hora', 'hasta que hora', 'abren', 'cierran', 'horas de atencion'],
     titulo: 'Horarios en Los Tuxtlas',
     respuesta:
       'Horarios de los principales lugares: Margiros 8am-8pm • Palapas Gorel 9am-6pm • Bicicleta Café 7am-11pm • Moyotera 9am-9pm • Hechizo de Amor 12pm-11pm • Nanciyaga 9am-7pm • Jungla Balneario 8am-6pm • Sirena Olmeca 9am-6pm • Eyipantla 7am-7pm. ¿De cuál quieres saber más?',
@@ -215,7 +215,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
 
   // ─── CÓMO LLEGAR ─────────────────────────────────────────
   {
-    claves: ['como llegar', 'como llego', 'transporte', 'autobus', 'desde veracruz', 'desde cdmx'],
+    claves: ['como llegar', 'como llego', 'transporte', 'autobus', 'desde veracruz', 'desde cdmx', 'desde mexico', 'desde puebla', 'carretera', 'camion', 'ado', 'aeropuerto', 'viajar desde'],
     titulo: 'Cómo llegar a Los Tuxtlas',
     respuesta:
       'Desde el puerto de Veracruz son unas 2.5 horas por la carretera federal 180 hacia San Andrés Tuxtla y Catemaco. Hay autobuses ADO que salen seguido. Desde la CDMX son unas 7-8 horas en auto o puedes volar a Veracruz/Minatitlán y luego tomar carretera.',
@@ -223,7 +223,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
 
   // ─── CLIMA ───────────────────────────────────────────────
   {
-    claves: ['clima', 'calor', 'lluvia', 'temperatura', 'frio', 'cuando ir'],
+    claves: ['clima', 'calor', 'lluvia', 'temperatura', 'frio', 'cuando ir', 'epoca', 'temporada', 'llueve', 'llover', 'verano', 'invierno', 'estacion', 'mejor epoca'],
     titulo: 'Clima de Los Tuxtlas',
     respuesta:
       'Los Tuxtlas tiene clima tropical húmedo, caluroso casi todo el año (22-32°C). Llueve más de junio a octubre. La mejor época para visitar es de noviembre a abril — menos lluvia, caminos en mejor estado y cascadas con buen caudal. Lleva siempre repelente de insectos.',
@@ -231,7 +231,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
 
   // ─── QUÉ LLEVAR ──────────────────────────────────────────
   {
-    claves: ['que llevar', 'que traer', 'que empacar', 'ropa', 'equipaje'],
+    claves: ['que llevar', 'que traer', 'que empacar', 'ropa', 'equipaje', 'maleta', 'mochila', 'que meter', 'que necesito llevar', 'repelente', 'protector solar', 'zapatos'],
     titulo: 'Qué llevar a Los Tuxtlas',
     respuesta:
       'Lleva ropa ligera, calzado cómodo para caminar, gorra o sombrero, bloqueador solar y repelente de insectos (la selva tiene moscos). Para la cascada de Eyipantla y la Jungla Balneario lleva ropa de baño y toalla. Para Nanciyaga puedes ir en ropa cómoda — te prestarán lo necesario para el barro mineral.',
@@ -239,7 +239,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
 
   // ─── RESERVACIONES ───────────────────────────────────────
   {
-    claves: ['reservar', 'reservacion', 'apartar', 'mesa', 'cupo', 'disponibilidad'],
+    claves: ['reservar', 'reservacion', 'apartar', 'mesa', 'cupo', 'disponibilidad', 'reserva', 'reservaciones', 'agendar', 'anticipo', 'como aparto'],
     titulo: 'Cómo reservar en Los Tuxtlas',
     respuesta:
       'Para reservar puedes contactar directamente a los establecimientos. Nanciyaga y Sirena Olmeca convienen reservarlos con anticipación si quieres hospedarte. Hechizo de Amor es recomendable llegar antes de las 6pm para asegurar mesa en el atardecer. Los demás restaurantes generalmente no requieren reservación previa.',
@@ -248,7 +248,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
 
   // ─── BEBIDAS ARTESANALES ─────────────────────────────────
   {
-    claves: ['licor', 'gin', 'artesanal', 'bebida', 'chagalapoli', 'vermut', 'coctel'],
+    claves: ['licor', 'licores', 'gin', 'ginebra', 'artesanal', 'artesanales', 'bebida', 'chagalapoli', 'vermut', 'coctel', 'trago', 'copa'],
     titulo: 'Bebidas artesanales',
     respuesta:
       'Hechizo de Amor en Catemaco es famoso por sus licores artesanales — ginebras, vermuts y cócteles saborizados con frutas de la región, incluyendo el chagalapoli, un fruto silvestre endémico de Los Tuxtlas parecido al arándano. Es el lugar ideal para probar algo único que no encontrarás en otro lado.',
@@ -257,7 +257,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
 
   // ─── CHAMANES Y RITUALES ─────────────────────────────────
   {
-    claves: ['chaman', 'ritual', 'limpia', 'brujo', 'magia', 'espiritual'],
+    claves: ['chaman', 'ritual', 'limpia', 'brujo', 'magia', 'espiritual', 'brujos', 'limpias', 'brujeria', 'curandero', 'chamanes'],
     titulo: 'Chamanes y rituales',
     respuesta:
       'Para experiencias con chamanes y rituales de sanación, Nanciyaga es el lugar indicado — tienen chamanes locales y rituales auténticos incluidos en la visita. También ofrecen la aplicación de barro mineral, que es una experiencia única de bienestar. La reserva está a 7 km de Catemaco.',
@@ -308,6 +308,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
       'ambulancia', 'me corte', 'me corté', 'me cai', 'me caí', 'urgencias',
       'primeros auxilios', 'me pico', 'me picó', 'mordida', 'veneno',
       'farmacia', 'farmacias', 'medicamento', 'medicamentos',
+      'me siento mal', 'enfermo', 'enferma', 'doctor',
     ],
     titulo: 'Emergencias médicas y farmacias en Los Tuxtlas',
     prioridad: 10,
@@ -319,6 +320,7 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
       'policia', 'policía', 'comisaria', 'comisaría', 'robo', 'inseguridad',
       'denunciar', 'me robaron', 'perdi mis cosas', 'perdí mis cosas',
       'asalto', 'asaltaron', 'guardia nacional',
+      'es peligroso', 'es seguro caminar', 'seguridad', 'peligro',
     ],
     titulo: 'Seguridad, policía y comisarías en Los Tuxtlas',
     prioridad: 10,

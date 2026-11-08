@@ -30,6 +30,7 @@
 
 import { pipeline, env, type FeatureExtractionPipeline } from '@xenova/transformers';
 import { db } from './db';
+import vectoresPrecalculados from '../data/vectoresFichas.json';
 import type { Lugar } from '../data/lugares';
 
 // Hallazgo de la prueba offline (2026-11-07): por defecto Transformers.js
@@ -56,12 +57,17 @@ const MODELO_EMBEDDINGS = 'Xenova/multilingual-e5-small';
 // modelo, incompatibles) se recalculan solos en vez de compararse mal.
 const VERSION_VECTORES = 'e5s-1';
 
-// Reglas del banco de respuestas (calibradas con la prueba de 63 preguntas):
-// la ficha se muestra TAL CUAL solo si es lo bastante parecida Y le gana
-// con claridad a la segunda mejor. Con e5 las similitudes van de ~0.75 a
-// ~0.95 (no de 0 a 1 como MiniLM), por eso el umbral es tan alto.
-export const UMBRAL_BANCO = 0.84;
-export const MARGEN_BANCO = 0.01;
+// Reglas del banco de respuestas: la ficha se muestra TAL CUAL solo si es lo
+// bastante parecida Y le gana con claridad a la segunda mejor. Calibradas con
+// 93 preguntas (74 con ficha + 19 fuera de tema, escritas por el equipo, no por
+// turistas reales): con esta regla 43 de 74 se contestan bien y 0 mal; con
+// validación cruzada, ~60 % bien y ~1 respuesta equivocada por cada 100
+// preguntas. Lo que no pasa la regla NO se pierde: cae al motor de reglas.
+// Con e5 las similitudes van de ~0.75 a ~0.95 (no de 0 a 1 como MiniLM), y pesa
+// más el MARGEN contra la segunda ficha que la similitud absoluta (la regla
+// anterior, 0.84 y 0.01, dejó pasar "¿qué hora es en Tokio?" como horarios).
+export const UMBRAL_BANCO = 0.82;
+export const MARGEN_BANCO = 0.02;
 
 // Este modelo pesa ~113 MB: en un teléfono con poca memoria o con "ahorro
 // de datos" activado no se descarga — la app sigue con su motor de reglas.
@@ -159,6 +165,10 @@ export interface EstadoEmbeddings {
 }
 let estadoActual: EstadoEmbeddings = { fase: 'inactivo' };
 const oyentes = new Set<(e: EstadoEmbeddings) => void>();
+// Cuántas fichas usaron su vector precalculado (instantáneo) y cuántas hubo
+// que calcular en este dispositivo (lento en teléfonos de gama baja).
+export const conteoFichas = { precalculadas: 0, calculadasAqui: 0 };
+
 export function estadoEmbeddings(): EstadoEmbeddings {
   return estadoActual;
 }
@@ -210,7 +220,11 @@ function textoDeLugar(l: Lugar): string {
     l.ideal.join(' '),
   ]
     .filter(Boolean)
-    .join('. ');
+    .join('. ')
+    // Tope: las descripciones de algunos prestadores son larguísimas y en un
+    // teléfono de gama baja cada vector cuesta segundos. Lo que distingue a un
+    // lugar está al principio (nombre, categoría, municipio, descripción).
+    .slice(0, 500);
 }
 
 // ─────────────── INDEXADO / CACHÉ EN DEXIE ───────────────
@@ -331,13 +345,25 @@ export async function indexarConocimiento(
 ): Promise<void> {
   if (!extractor) throw new Error('EMBEDDINGS_NO_INICIALIZADO');
 
+  const precalculadas = (vectoresPrecalculados as { fichas: Record<string, { huella: string; vector: number[] }> }).fichas;
   for (const entrada of entradas) {
     const paraVectorizar = entrada.indexado ?? entrada.texto;
     const huella = `${VERSION_VECTORES}|${paraVectorizar}`;
     const existente = await db.vectoresConocimiento.get(entrada.clave);
     if (existente && existente.huella === huella && existente.texto === entrada.texto) continue; // sin cambios
 
-    const vector = await vectorizar(paraVectorizar, 'pasaje');
+    // Vector ya calculado al desplegar (npm run vectores): solo se usa si su
+    // huella coincide con ESTA ficha tal como está hoy; si alguien editó la
+    // ficha y no regeneró el archivo, se recalcula aquí (más lento, correcto).
+    const pre = precalculadas[entrada.clave];
+    let vector: number[];
+    if (pre && pre.huella === huella) {
+      vector = pre.vector;
+      conteoFichas.precalculadas++;
+    } else {
+      vector = await vectorizar(paraVectorizar, 'pasaje');
+      conteoFichas.calculadasAqui++;
+    }
     await db.vectoresConocimiento.put({
       clave: entrada.clave,
       texto: entrada.texto,

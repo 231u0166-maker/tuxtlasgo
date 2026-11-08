@@ -1,7 +1,7 @@
 import { Sparkles } from 'lucide-react';
 import PlaceCard from './PlaceCard';
 import type { Lugar } from '../data/lugares';
-import { getCatalogoActivo } from '../lib/chatbot';
+import { getCatalogoRegion } from '../lib/chatbot';
 import { useT } from '../lib/i18n';
 
 // ============================================================
@@ -25,7 +25,7 @@ interface Props {
 
 export default function SugerenciasChat({ onVerLugar }: Props) {
   const t = useT();
-  const destacados = getCatalogoActivo().filter((l) => l.destacado).slice(0, 6);
+  const destacados = getCatalogoRegion().filter((l) => l.destacado).slice(0, 6);
 
   return (
     <div className="p-5">

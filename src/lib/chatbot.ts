@@ -1,25 +1,44 @@
-import { LUGARES, Lugar, Categoria, Presupuesto } from '../data/lugares';
+import { LUGARES, Lugar, Categoria, Presupuesto, estaEnLaRegion } from '../data/lugares';
 
-// Catálogo activo del motor: empieza con los lugares estáticos y se puede
-// extender con prestadores aprobados (desde IndexedDB). Mantener este
-// estado al nivel del módulo permite que TODO el motor — recomendaciones,
-// rutas, búsquedas por texto libre — incluya a los prestadores sin tener
-// que pasar listas como parámetros por todos lados.
+// Catálogo activo: empieza con los lugares estáticos y se puede extender
+// con prestadores aprobados (desde IndexedDB). Mantener este estado al
+// nivel del módulo permite que TODO el motor — recomendaciones, rutas,
+// búsquedas por texto libre — incluya a los prestadores sin tener que
+// pasar listas como parámetros por todos lados.
+//
+// Incluye TAMBIÉN a los servicios de fuera de Los Tuxtlas (un negocio de
+// Villahermosa que se registró en la plataforma): se ven en Explorar y
+// se pueden abrir por nombre.
 let catalogoActivo: Lugar[] = [...LUGARES];
+
+// Subconjunto que usa el MOTOR (recomendaciones, rutas y respuestas del
+// chat sobre la región): solo lo que está dentro de Los Tuxtlas según sus
+// COORDENADAS. Una ruta que mezcla Catemaco con Villahermosa, o un
+// "hotel en Catemaco" que queda a 260 km, no le sirve a nadie. Se calcula
+// por ubicación y no por el texto del municipio, así que cada registro
+// nuevo queda clasificado solo, bien o mal etiquetado.
+let catalogoMotor: Lugar[] = [...LUGARES];
 
 // Llamar al iniciar la app (después de cargar prestadores aprobados) o
 // cada vez que cambie la lista de prestadores aprobados.
 export function setCatalogoExtendido(prestadoresAprobados: Lugar[]): void {
   catalogoActivo = [...LUGARES, ...prestadoresAprobados];
+  catalogoMotor = catalogoActivo.filter((l) => estaEnLaRegion(l.coords));
 }
 
-// Acceso de solo lectura al catálogo actual (lugares + prestadores).
+// Acceso de solo lectura al catálogo actual (lugares + prestadores),
+// incluidos los de fuera de la región.
 export function getCatalogoActivo(): Lugar[] {
   return catalogoActivo;
 }
 
+// Solo lo de Los Tuxtlas — para recomendar, armar rutas y sugerir.
+export function getCatalogoRegion(): Lugar[] {
+  return catalogoMotor;
+}
+
 import { buscarConocimiento } from './conocimiento';
-import { tokenizar, contieneClave, palabraCoincide } from './pln';
+import { tokenizar, contieneClave, palabraCoincide, normalizar, distanciaEdicion } from './pln';
 import { vectorizar, similitudCoseno, embeddingsListo } from './embeddings';
 import { distanciaHaversine } from './routing';
 import {
@@ -238,14 +257,63 @@ export function detectarIntent(texto: string): string {
   return 'desconocido';
 }
 
+// Palabras con las que se pide "algo que hacer" sin nombrar una
+// categoría concreta — equivalen a pedir naturaleza y/o aventura.
+const PALABRAS_ACTIVIDAD = [
+  'actividad', 'actividades', 'excursion', 'paseo', 'paseos', 'conocer',
+  'visitar', 'turistear', 'divertir', 'divertirme',
+];
+
+// A diferencia de detectarIntent (que devuelve UNA intención), esto
+// devuelve TODAS las categorías de lugar que menciona el texto — para
+// armar rutas con "actividades y comida", "hotel y cascada", etc.
+export function categoriasMencionadas(texto: string): Categoria[] {
+  const tokens = tokenizar(texto);
+  const categorias = new Set<Categoria>();
+  for (const { intent, words } of INTENT_KEYWORDS) {
+    const categoria = MAPA_INTENT_CATEGORIA[intent];
+    if (!categoria) continue;
+    if (words.some((w) => contieneClave(tokens, w))) categorias.add(categoria);
+  }
+  if (PALABRAS_ACTIVIDAD.some((w) => contieneClave(tokens, w))) {
+    categorias.add('Naturaleza');
+    categorias.add('Aventura');
+  }
+  return [...categorias];
+}
+
 // Detecta menciones de municipios en texto libre
+// Municipios que siempre se reconocen aunque todavía no tengan ningún
+// lugar registrado (hoy, Santiago Tuxtla). Cualquier otro municipio que
+// aparezca en el catálogo se reconoce solo — ver detectarMunicipio().
+const MUNICIPIOS_BASE = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
+
+// "San Andrés Tuxtla" -> "san andres", "Santiago Tuxtla" -> "santiago":
+// la gente casi nunca escribe el "Tuxtla" del final.
+function claveDeMunicipio(municipio: string): string {
+  // "Villahermosa, Tabasco" -> "villahermosa" (el estado no se escribe
+  // al preguntar por una ciudad).
+  return normalizar(municipio).split(',')[0].replace(/\s*tuxtla$/, '').trim();
+}
+
 export function detectarMunicipio(texto: string): string | null {
   // Detecta el municipio mencionado, tolerando errores de escritura
   // ("catemco" -> Catemaco) gracias al módulo PLN.
+  //
+  // Antes eran tres municipios escritos a mano: una zona nueva
+  // (ej. Montepío, Sontecomapan) con prestadores ya registrados nunca
+  // se reconocía en la pregunta, y el chat contestaba como si el
+  // turista no hubiera dicho dónde. Ahora la lista sale del propio
+  // catálogo, así que cada municipio que se registre se reconoce solo.
   const tokens = tokenizar(texto);
-  if (contieneClave(tokens, 'catemaco')) return 'Catemaco';
-  if (contieneClave(tokens, 'san andres')) return 'San Andrés Tuxtla';
-  if (contieneClave(tokens, 'santiago')) return 'Santiago Tuxtla';
+  const municipios = new Set<string>(MUNICIPIOS_BASE);
+  for (const l of catalogoActivo) {
+    if (l.municipio) municipios.add(l.municipio);
+  }
+  for (const m of municipios) {
+    const clave = claveDeMunicipio(m);
+    if (clave && contieneClave(tokens, clave)) return m;
+  }
   return null;
 }
 
@@ -453,6 +521,125 @@ export function buscarLugarPorNombre(
   return { tipo: 'unico', lugar: empatados[0].lugar };
 }
 
+// ─────────────── BÚSQUEDA POR TIPO DE SERVICIO ───────────────
+// Hallazgo real de campo (producción): "Lanchas Catemaco" y
+// "Artesanías y novedades Toxtlan" son prestadores REALES, pero al
+// preguntar "tour en lancha" o "dónde comprar artesanías" el chat
+// contestaba con un bar o una cafetería. Las etiquetas de los
+// prestadores solo traen la categoría y el municipio, y "lancha" o
+// "artesanía" no son categorías del sistema — así que nada los
+// conectaba con la pregunta.
+//
+// Esto los conecta SIN listas escritas a mano: un prestador coincide
+// cuando una palabra de la pregunta está en su NOMBRE y además en su
+// propia DESCRIPCIÓN (el negocio se describe a sí mismo con esa
+// palabra). Pedir las dos cosas evita confundir un nombre propio con
+// un tipo de servicio: "La Sirena Dorada del Volcán" (un restaurante
+// que NO existe) comparte "sirena" con "Sirena Olmeca", pero esa
+// palabra no aparece en la descripción de Sirena Olmeca, así que no
+// cuenta. Cada prestador nuevo que se registre queda cubierto por lo
+// que escriba en su nombre y descripción.
+const VACIAS_BUSQUEDA_TIPO = new Set([
+  'quiero', 'quisiera', 'busco', 'necesito', 'dime', 'dame', 'muestrame',
+  'recomiendame', 'recomienda', 'recomiendas', 'donde', 'cuanto', 'cuesta',
+  'precio', 'precios', 'hacer', 'tienen', 'tiene', 'para', 'como', 'mejor',
+  'mejores', 'cerca', 'lugar', 'lugares', 'algo', 'alguna', 'alguno',
+  'opciones', 'opcion', 'local', 'locales', 'comprar', 'venden', 'ruta',
+  'dias', 'personas', 'favor', 'puedo', 'puedes', 'podria', 'conocer',
+  'visitar', 'tour', 'tours', 'paseo', 'paseos', 'servicio', 'servicios',
+  'tuxtlas', 'region', 'zona', 'quien', 'cual', 'cuales', 'esta', 'este',
+  'estos', 'estas', 'sobre', 'entre', 'desde', 'hasta', 'ademas', 'tambien',
+]);
+
+// Palabras que ya manejan las categorías (comida, hospedaje…) o los
+// municipios — buscarlas aquí duplicaría o desviaría el resultado.
+function palabrasYaManejadas(): Set<string> {
+  const s = new Set<string>();
+  for (const { words } of INTENT_KEYWORDS) {
+    for (const w of words) for (const p of tokenizar(w)) s.add(raizSimple(p));
+  }
+  for (const m of MUNICIPIOS_BASE) for (const p of tokenizar(m)) s.add(raizSimple(p));
+  return s;
+}
+
+// Singular/plural simple ("lanchas" -> "lancha", "cocos" -> "coco").
+function raizSimple(p: string): string {
+  if (p.length > 4 && p.endsWith('es')) return p.slice(0, -2);
+  if (p.length > 3 && p.endsWith('s')) return p.slice(0, -1);
+  return p;
+}
+
+function mismaRaiz(a: string, b: string): boolean {
+  if (a === b) return true;
+  // Un error de dedo solo se tolera en palabras largas — en cortas
+  // ("playa"/"plaza") dos palabras distintas quedan a un paso.
+  return a.length >= 7 && b.length >= 7 && distanciaEdicion(a, b) <= 1;
+}
+
+export interface CoincidenciaPorTipo {
+  lugares: Lugar[];
+  // Las palabras de la pregunta que sí describen a esos lugares (ej.
+  // "lancha"), para decirle al turista de qué se trata la coincidencia.
+  terminos: string[];
+}
+
+export function buscarPorTipoDeServicio(
+  texto: string,
+  catalogo: Lugar[],
+  municipio?: string | null
+): CoincidenciaPorTipo {
+  const yaManejadas = palabrasYaManejadas();
+  // raíz -> palabra como la escribió el turista (para mostrarla tal cual)
+  const originalPorRaiz = new Map<string, string>();
+  // Un municipio mal escrito ("katemaco") tampoco describe un servicio.
+  const clavesMunicipio = [
+    ...new Set([...MUNICIPIOS_BASE, ...catalogo.map((l) => l.municipio)]),
+  ]
+    .filter(Boolean)
+    .flatMap((m) => tokenizar(claveDeMunicipio(m)));
+  for (const t of tokenizar(texto)) {
+    if (t.length < 5 || VACIAS_BUSQUEDA_TIPO.has(t)) continue;
+    if (clavesMunicipio.some((c) => palabraCoincide(t, c))) continue;
+    const r = raizSimple(t);
+    if (!yaManejadas.has(r) && !originalPorRaiz.has(r)) originalPorRaiz.set(r, t);
+  }
+  const terminosPregunta = [...originalPorRaiz.keys()];
+  if (terminosPregunta.length === 0) return { lugares: [], terminos: [] };
+
+  const encontrados: { lugar: Lugar; puntos: number }[] = [];
+  const terminosUsados = new Set<string>();
+
+  for (const lugar of catalogo) {
+    const enNombre = tokenizar(lugar.nombre).map(raizSimple);
+    const enDescripcion = new Set(
+      tokenizar(`${lugar.descripcionCorta ?? ''} ${lugar.descripcion ?? ''}`).map(raizSimple)
+    );
+    let puntos = 0;
+    for (const t of terminosPregunta) {
+      const nombreCoincide = enNombre.some((n) => mismaRaiz(t, n));
+      const descripcionCoincide = [...enDescripcion].some((d) => mismaRaiz(t, d));
+      if (nombreCoincide && descripcionCoincide) {
+        puntos++;
+        terminosUsados.add(t);
+      }
+    }
+    if (puntos > 0) encontrados.push({ lugar, puntos });
+  }
+
+  if (encontrados.length === 0) return { lugares: [], terminos: [] };
+
+  let lista = encontrados;
+  if (municipio) {
+    const delMunicipio = lista.filter((e) => e.lugar.municipio === municipio);
+    if (delMunicipio.length > 0) lista = delMunicipio;
+  }
+  lista.sort((a, b) => b.puntos - a.puntos || b.lugar.rating - a.lugar.rating);
+  return {
+    lugares: lista.map((e) => e.lugar),
+    terminos: [...terminosUsados].map((r) => originalPorRaiz.get(r) ?? r),
+  };
+}
+
 
 // ─────────────── MENSAJES DEL FLUJO GUIADO ───────────────
 export function mensajeBienvenida(): MensajeChat {
@@ -587,7 +774,7 @@ export function filtrarLugaresConRazones(
   const ordenPresup: Presupuesto[] = ['bajo', 'medio', 'alto'];
   const maxPresup = ordenPresup.indexOf(prefs.presupuesto);
 
-  const scored: LugarConScore[] = catalogoActivo.map((lugar) => {
+  const scored: LugarConScore[] = catalogoMotor.map((lugar) => {
     let score = 0;
     const razones: string[] = [];
 
@@ -1068,10 +1255,16 @@ export async function extraerPreferenciasLibres(
   // para esto — "hotel" está literalmente en su lista — así que se
   // usa PRIMERO, con prioridad, y los embeddings solo complementan
   // (nunca sobreescriben) si detectan algo más.
-  const intentDetectado = detectarIntent(texto);
-  const categoriaPorPalabraClave = MAPA_INTENT_CATEGORIA[intentDetectado];
-  if (categoriaPorPalabraClave) {
-    resultado.intereses = [categoriaPorPalabraClave];
+  //
+  // Hallazgo real de campo (prueba offline): "ruta de 1 día con 2
+  // actividades y comida" salía con puras paradas de comida.
+  // detectarIntent() devuelve SOLO la primera intención que encuentra
+  // ("comida"), así que "actividades" se perdía y la ruta se filtraba
+  // únicamente a Gastronomía. Para una ruta se toman TODAS las
+  // categorías que menciona la pregunta.
+  const categoriasPorPalabraClave = categoriasMencionadas(texto);
+  if (categoriasPorPalabraClave.length > 0) {
+    resultado.intereses = categoriasPorPalabraClave;
   }
 
   // Días y presupuesto literales — misma prioridad que la categoría
@@ -1370,6 +1563,10 @@ export function pareceSolicitudDeDistancia(texto: string): boolean {
   return tieneTiempo && tieneReferenciaAUbicacion;
 }
 
+function esCategoriaDeActividad(c: Categoria): boolean {
+  return c === 'Aventura' || c === 'Naturaleza';
+}
+
 export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   const recomendadosConScore = filtrarLugaresConRazones(prefs);
   if (recomendadosConScore.length === 0) return [];
@@ -1415,7 +1612,28 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
   }
 
   // Agrupar por municipio (para minimizar traslados)
-  const seleccion = recomendadosFiltrados.slice(0, prefs.dias * 5);
+  let seleccion = recomendadosFiltrados.slice(0, prefs.dias * 5);
+
+  // Si el turista pidió actividades (Naturaleza/Aventura) pero los
+  // mejor puntuados son casi todos para comer, el corte de arriba las
+  // dejaba fuera y la ruta salía sin una sola actividad aunque las
+  // hubiera registradas. Se les garantiza lugar: hasta 2 por día,
+  // sacando del final de la selección los lugares de comida que sobran.
+  if (prefs.intereses.some(esCategoriaDeActividad)) {
+    const actividadesDisponibles = recomendadosFiltrados.filter((l) => esCategoriaDeActividad(l.categoria));
+    const cupoActividades = Math.min(actividadesDisponibles.length, prefs.dias * 2);
+    const yaIncluidas = seleccion.filter((l) => esCategoriaDeActividad(l.categoria));
+    const faltan = actividadesDisponibles
+      .filter((l) => !seleccion.includes(l))
+      .slice(0, Math.max(0, cupoActividades - yaIncluidas.length));
+    if (faltan.length > 0) {
+      const sobrantes = [...seleccion]
+        .reverse()
+        .filter((l) => !esCategoriaDeActividad(l.categoria))
+        .slice(0, faltan.length);
+      seleccion = [...seleccion.filter((l) => !sobrantes.includes(l)), ...faltan];
+    }
+  }
 
   const porMunicipio: Record<string, Lugar[]> = {};
   seleccion.forEach((l) => {
@@ -1480,7 +1698,12 @@ export function generarRuta(prefs: PreferenciasUsuario): DiaRuta[] {
     const hayActividadesPendientes = seleccion.some(
       (l) => esActividad(l) && !yaSeleccionados.has(l.id)
     );
-    const maxGastronomiaDia = hayActividadesPendientes ? 2 : lugaresPorDia;
+    // Hallazgo real de campo (producción): sin actividades pendientes se
+    // permitían hasta `lugaresPorDia` (5) lugares para comer en un solo
+    // día — salían rutas con comida, "tarde" y tres cenas. Un día real
+    // tiene a lo más desayuno, comida y cena; si no hay más que ofrecer,
+    // el día queda más corto en vez de repetir comidas.
+    const maxGastronomiaDia = hayActividadesPendientes ? 2 : Math.min(3, lugaresPorDia);
     const cabeEnElDia = (l: Lugar) => {
       if (yaSeleccionados.has(l.id) || usados.has(l.id)) return false;
       if (l.categoria === 'Gastronomia') {
@@ -1903,6 +2126,50 @@ export function responderTextoLibre(
   // con una recomendación de lugares, sin importar qué otra categoría
   // se haya detectado también.
   const esConocimientoDeSeguridad = (conocimiento?.prioridad ?? 0) >= 10;
+
+  // Prestadores cuyo NOMBRE y DESCRIPCIÓN coinciden con lo que se pidió
+  // ("lancha", "artesanías"…) — ver buscarPorTipoDeServicio. Si la
+  // pregunta no cae en ninguna categoría del sistema, se responde
+  // directo con ellos; si sí cae en una, van primero más abajo.
+  const porTipoCrudo = esConocimientoDeSeguridad
+    ? { lugares: [] as Lugar[], terminos: [] as string[] }
+    : buscarPorTipoDeServicio(texto, catalogoMotor, municipioMencionado);
+  // Cuando la pregunta ya nombra una categoría, solo cuentan los que
+  // son del mismo tipo de plan: "hotel con alberca" no debe traer un
+  // balneario, pero "tour en lancha" (naturaleza) sí puede traer a un
+  // prestador de lanchas (aventura). Comercio/Otro/Cooperativa siempre
+  // sirven: no compiten con ninguna categoría de comer, dormir o ver.
+  const grupoDeCategoria = (c: Categoria) => (esCategoriaDeActividad(c) ? 'actividad' : c);
+  const porTipo = {
+    terminos: porTipoCrudo.terminos,
+    lugares: cat
+      ? porTipoCrudo.lugares.filter(
+          (l) =>
+            grupoDeCategoria(l.categoria) === grupoDeCategoria(cat) ||
+            l.categoria === 'Comercio' || l.categoria === 'Cooperativa' || l.categoria === 'Otro'
+        )
+      : porTipoCrudo.lugares,
+  };
+  const textoTipo = porTipo.terminos.map((t) => `«${t}»`).join(' y ');
+  // La ficha de conocimiento solo acompaña a esta respuesta si habla de
+  // lo mismo que se pidió (ej. la de monos y lanchas sí; la de licores
+  // artesanales NO para "artesanías").
+  const conocimientoRelevante =
+    porTipo.lugares.length === 0 ||
+    (conocimiento !== null &&
+      tokenizar(conocimiento.respuesta).some((p) =>
+        porTipo.terminos.some((t) => mismaRaiz(raizSimple(p), raizSimple(t)))
+      ));
+  if (porTipo.lugares.length > 0 && !cat) {
+    return {
+      id: crypto.randomUUID(),
+      role: 'bot',
+      texto: `Para ${textoTipo}, esto es lo que tengo registrado:`,
+      lugares: porTipo.lugares.slice(0, 3),
+      timestamp: Date.now(),
+    };
+  }
+
   if (conocimiento && (!cat || esConocimientoDeSeguridad) && intent !== 'monos') {
     const lugaresLigados = lugaresDeConocimiento(conocimiento);
     return {
@@ -1916,12 +2183,36 @@ export function responderTextoLibre(
 
   // PASO 2: intents que mapean a categoría de lugar
   if (cat) {
-    let candidatos = catalogoActivo.filter((l) => l.categoria === cat);
+    // El motor solo recomienda lo de Los Tuxtlas — salvo que el turista
+    // pregunte justamente por un lugar de fuera ("hotel en Villahermosa"):
+    // ahí sí se busca entre los servicios de esa ciudad.
+    const preguntaPorLugarExterno =
+      !!municipioMencionado &&
+      !catalogoMotor.some((l) => l.municipio === municipioMencionado) &&
+      catalogoActivo.some((l) => l.municipio === municipioMencionado);
+    let candidatos = (preguntaPorLugarExterno ? catalogoActivo : catalogoMotor).filter(
+      (l) => l.categoria === cat
+    );
+    // Hallazgo real de campo (producción): "hospedaje en San Andrés
+    // Tuxtla" no tiene ningún hospedaje registrado ahí, pero el filtro
+    // caía en silencio al catálogo completo y la respuesta seguía
+    // diciendo "hay buenas opciones de hospedaje en San Andrés Tuxtla"
+    // sobre tarjetas de Catemaco — algo falso. Ahora, si el municipio
+    // pedido no tiene nada de esa categoría, se dice y se muestra lo
+    // que sí hay en otros municipios. Funciona igual para cualquier
+    // municipio o categoría, presentes o futuros.
+    let municipioConCobertura: string | null = municipioMencionado;
+    let notaCobertura = '';
     if (municipioMencionado) {
       const enMunicipio = candidatos.filter(
         (l) => l.municipio === municipioMencionado
       );
-      if (enMunicipio.length > 0) candidatos = enMunicipio;
+      if (enMunicipio.length > 0) {
+        candidatos = enMunicipio;
+      } else if (candidatos.length > 0) {
+        municipioConCobertura = null;
+        notaCobertura = `Por ahora no tengo nada de ${cat.toLowerCase()} registrado en ${municipioMencionado} — esto es lo que sí tengo en otros municipios de Los Tuxtlas:`;
+      }
     }
 
     // Presupuesto EXPLÍCITO mencionado en la propia pregunta (ej. "que
@@ -1994,10 +2285,10 @@ export function responderTextoLibre(
       const conDato = candidatos.filter((l) => l.mascotas !== undefined);
       if (conDato.length > 0) {
         sugerencias = conDato.slice(0, 3);
-        notaFiltro = `Esto es lo que tengo registrado sobre mascotas en ${cat.toLowerCase()}${municipioMencionado ? ` en ${municipioMencionado}` : ''}:\n\n${conDato.map((l) => `${l.nombre}: ${l.mascotas}`).join('\n')}\n\n`;
+        notaFiltro = `Esto es lo que tengo registrado sobre mascotas en ${cat.toLowerCase()}${municipioConCobertura ? ` en ${municipioConCobertura}` : ''}:\n\n${conDato.map((l) => `${l.nombre}: ${l.mascotas}`).join('\n')}\n\n`;
       } else {
         sugerencias = seleccionarConVariedad(candidatos, 3);
-        notaFiltro = `Todavía no tengo registrada la política de mascotas de ningún lugar de ${cat.toLowerCase()}${municipioMencionado ? ` en ${municipioMencionado}` : ''} — te recomiendo confirmar directamente antes de ir. Mientras tanto, aquí tienes las mejores opciones:\n\n`;
+        notaFiltro = `Todavía no tengo registrada la política de mascotas de ningún lugar de ${cat.toLowerCase()}${municipioConCobertura ? ` en ${municipioConCobertura}` : ''} — te recomiendo confirmar directamente antes de ir. Mientras tanto, aquí tienes las mejores opciones:\n\n`;
       }
     } else if (grupoPregunta) {
       // Sin presupuesto explícito, pero SÍ se dijo con quién viaja
@@ -2033,13 +2324,23 @@ export function responderTextoLibre(
     // sobra espacio. Esto NO aplica si ya hay un filtro de presupuesto
     // explícito — ahí el presupuesto manda sobre la mención textual.
     if (!presupuestoPregunta) {
-      const lugaresLigados = lugaresDeConocimiento(conocimiento);
+      // Primero los prestadores que coinciden por tipo de servicio
+      // ("lancha"), luego los ligados a la ficha de conocimiento.
+      // Si se pidió un municipio que SÍ tiene lugares, las tarjetas
+      // ligadas a la ficha también deben ser de ahí: de otro modo el
+      // texto dice "en San Andrés Tuxtla" sobre tarjetas de Catemaco.
+      const ligadosDeFicha = (conocimientoRelevante && !preguntaPorLugarExterno ? lugaresDeConocimiento(conocimiento) : [])
+        .filter((l) => !porTipo.lugares.some((p) => p.id === l.id))
+        .filter((l) => !municipioConCobertura || l.municipio === municipioConCobertura);
+      const lugaresLigados = [...porTipo.lugares, ...ligadosDeFicha];
       if (lugaresLigados.length > 0) {
         const idsYaIncluidos = new Set(lugaresLigados.map((l) => l.id));
-        sugerencias = [
-          ...lugaresLigados,
-          ...sugerencias.filter((l) => !idsYaIncluidos.has(l.id)),
-        ].slice(0, 3);
+        // Con coincidencia exacta por tipo de servicio no se rellena con
+        // lugares de la categoría: serían ruido ("artesanías" + una cafetería).
+        sugerencias = (porTipo.lugares.length > 0
+          ? lugaresLigados
+          : [...lugaresLigados, ...sugerencias.filter((l) => !idsYaIncluidos.has(l.id))]
+        ).slice(0, 3);
       }
     }
 
@@ -2065,12 +2366,18 @@ export function responderTextoLibre(
       `Para ${cat.toLowerCase()} en la región te recomiendo:`,
       `Estas son mis sugerencias de ${cat.toLowerCase()}:`,
     ];
-    let textoIntro = municipioMencionado
+    let textoIntro = municipioConCobertura
       ? introsMunicipio[Math.floor(Math.random() * introsMunicipio.length)]
       : introsGeneral[Math.floor(Math.random() * introsGeneral.length)];
+    if (notaCobertura) textoIntro = notaCobertura;
+    if (porTipo.lugares.length > 0 && !presupuestoPregunta) {
+      textoIntro =
+        (notaCobertura ? `${notaCobertura}\n\n` : '') +
+        `Para ${textoTipo}, esto es lo que tengo registrado:`;
+    }
     if (notaFiltro) {
       textoIntro = notaFiltro + textoIntro;
-    } else if (conocimiento) {
+    } else if (conocimiento && conocimientoRelevante && !preguntaPorLugarExterno) {
       textoIntro = `${conocimiento.respuesta}\n\n${textoIntro}`;
     }
 
@@ -2089,17 +2396,23 @@ export function responderTextoLibre(
   // por default de "no entendí", ignorando por completo el dato real
   // que sí dio el turista).
   if (grupoPregunta) {
-    let candidatosGrupo = catalogoActivo.filter((l) => l.ideal.includes(grupoPregunta));
+    let candidatosGrupo = catalogoMotor.filter((l) => l.ideal.includes(grupoPregunta));
+    // Mismo criterio que arriba: si el municipio pedido no tiene nada,
+    // se dice en vez de rotular tarjetas de otro municipio como suyas.
+    let municipioGrupoConCobertura: string | null = municipioMencionado;
     if (municipioMencionado) {
       const enMunicipio = candidatosGrupo.filter((l) => l.municipio === municipioMencionado);
       if (enMunicipio.length > 0) candidatosGrupo = enMunicipio;
+      else if (candidatosGrupo.length > 0) municipioGrupoConCobertura = null;
     }
     if (candidatosGrupo.length > 0) {
       const sugerenciasGrupo = seleccionarConVariedad(candidatosGrupo, 3);
       return {
         id: crypto.randomUUID(),
         role: 'bot',
-        texto: `Para ${grupoTextoLegible(grupoPregunta)}${municipioMencionado ? ` en ${municipioMencionado}` : ''}, te recomiendo:`,
+        texto: municipioMencionado && !municipioGrupoConCobertura
+          ? `Por ahora no tengo nada registrado para ${grupoTextoLegible(grupoPregunta)} en ${municipioMencionado} — esto es lo que sí tengo en otros municipios de Los Tuxtlas:`
+          : `Para ${grupoTextoLegible(grupoPregunta)}${municipioMencionado ? ` en ${municipioMencionado}` : ''}, te recomiendo:`,
         lugares: sugerenciasGrupo,
         timestamp: Date.now(),
       };
@@ -2112,7 +2425,7 @@ export function responderTextoLibre(
   // que no lo sabe en vez de especular con el nombre o la categoría
   // del lugar (ver hallazgo real de campo arriba de la función).
   if (esPreguntaSobreMascotas(texto)) {
-    let candidatosMascotas = catalogoActivo.filter((l) => l.mascotas !== undefined);
+    let candidatosMascotas = catalogoMotor.filter((l) => l.mascotas !== undefined);
     if (municipioMencionado) {
       const enMunicipio = candidatosMascotas.filter((l) => l.municipio === municipioMencionado);
       if (enMunicipio.length > 0) candidatosMascotas = enMunicipio;
@@ -2140,7 +2453,7 @@ export function responderTextoLibre(
 
   // PASO 3: caso especial monos / fauna
   if (intent === 'monos') {
-    const fauna = catalogoActivo.filter(
+    const fauna = catalogoMotor.filter(
       (l) => l.tags.includes('fauna') || l.tags.includes('monos')
     ).slice(0, 3);
     return {
@@ -2148,7 +2461,7 @@ export function responderTextoLibre(
       role: 'bot',
       texto:
         'Si quieres ver monos y fauna, el clásico es el paseo en lancha por la laguna de Catemaco, que pasa por las islas de los monos:',
-      lugares: fauna.length > 0 ? fauna : [catalogoActivo[0]],
+      lugares: fauna.length > 0 ? fauna : [catalogoMotor[0]],
       timestamp: Date.now(),
     };
   }
@@ -2156,7 +2469,7 @@ export function responderTextoLibre(
   // PASO 4: solo un municipio mencionado, sin categoría clara
   if (municipioMencionado) {
     const delMunicipio = seleccionarConVariedad(
-      catalogoActivo.filter((l) => l.municipio === municipioMencionado),
+      catalogoMotor.filter((l) => l.municipio === municipioMencionado),
       3
     );
     const introsMuni = [

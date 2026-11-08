@@ -4,6 +4,38 @@ Todo compila limpio (`tsc -b --noEmit`) y el build de producción (`vite build`)
 
 ---
 
+# Sesión 2026-11-07 — Prueba de 30 consultas sin conexión y arreglos del asistente
+
+## Hallazgo: el modelo de embeddings nunca se descargaba (dev y producción)
+**Causa:** Transformers.js busca primero el modelo en `/models/...` de nuestro propio sitio; `vercel.json` (y Vite) responden `index.html` con código 200 a cualquier ruta desconocida, así que la librería leía HTML como JSON y fallaba en silencio. Verificado: en `go.tuxtlas.xyz` los vectores quedaban en 0 y no existía el `.onnx`.
+**Cambio:** `env.allowLocalModels = false` en `src/lib/embeddings.ts`. El modelo (23 MB + 1.8 MB de jsDelivr) ya baja de Hugging Face y queda en caché del navegador.
+**OJO — no subir este cambio solo:** con el modelo activo, MiniLM (entrenado sobre todo en inglés) da similitudes entre 0.4 y 0.7 para casi cualquier frase en español: el banco de respuestas (umbral 0.68) respondió una ficha equivocada ("mariscos en San Andrés" → cafeterías) y el umbral de 0.5 de `extraerPreferenciasLibres` inventó días/grupo, convirtiendo preguntas simples en rutas. Falta cambiar a un modelo multilingüe y recalibrar umbrales antes de activarlo.
+
+## Arreglos del motor de reglas (no dependen del modelo)
+- **Municipio sin cobertura:** "hospedaje en San Andrés Tuxtla" decía "hay buenas opciones en San Andrés" sobre tarjetas de Catemaco. Ahora, si el municipio pedido no tiene nada de esa categoría, lo dice y muestra lo que hay en otros; las tarjetas ligadas a una ficha también respetan el municipio pedido. `detectarMunicipio` ahora toma los municipios del catálogo (una zona nueva se reconoce sola). (`chatbot.ts`, `responderTextoLibre`, PASO 2 y 2.5)
+- **Prestadores por tipo de servicio:** `buscarPorTipoDeServicio` — un prestador coincide si una palabra de la pregunta está en su nombre Y en su descripción ("lancha" → Lanchas Catemaco, "artesanías" → los dos negocios de artesanías). Pedir ambas cosas evita confundir un nombre propio con un tipo ("Sirena Dorada" ≠ "Sirena Olmeca"). También se usa en `recuperarContexto` (nube) de `llm.ts`.
+- **Rutas con actividades:** `categoriasMencionadas` toma TODAS las categorías de la pregunta (antes solo la primera: "actividades y comida" se quedaba en comida) y "actividades" cuenta como naturaleza + aventura; se garantiza hasta 2 actividades por día; tope de 3 lugares para comer por día (salían 5).
+
+## Probado
+Prueba de 30 consultas con la red en Offline, catálogo real de producción copiado a la app local y el modelo bloqueado (mide solo reglas). Por mi criterio pasó de 12/30 a ~26/30 correctas; sin lugares ni precios inventados. Siguen mal: niños en Catemaco (sugiere bares), restaurante inexistente (no avisa), precio del helicóptero (responde con hospedaje) y "mejor época" (la ficha existe pero sus palabras clave no incluyen "época"). Una sola corrida y con rotación aleatoria de tarjetas: tomar el número como aproximado. No se corrió una regresión amplia del resto del chat.
+- Archivos: `src/lib/chatbot.ts`, `src/lib/llm.ts`, `src/lib/embeddings.ts`
+
+## Servicios de fuera de Los Tuxtlas (caso Mira Flores, opción A)
+**Hallazgo:** "Mira Flores" (servicio 26) está guardado con municipio `Catemaco` pero con coordenadas de Villahermosa, Tabasco (17.99, -92.92), y salía recomendado como hospedaje en Catemaco. El registro (`api/servicios/registro.ts`) sí valida municipio vs. coordenadas, pero la edición (`api/servicios/editar.ts`) solo validaba el formato del municipio; por ahí se coló (hipótesis, no confirmable con lo que guarda la BD).
+**Decisión (A):** los servicios de fuera de la región se ven en Explorar con su ubicación real y la etiqueta "Fuera de Los Tuxtlas", pero NO entran en recomendaciones, rutas ni chat de la región. Se pueden abrir por nombre o si el turista pregunta por esa ciudad.
+**Cómo:** `estaEnLaRegion(coords)` (`data/lugares.ts`, misma caja que el registro) decide por UBICACIÓN, no por el texto del municipio — un registro mal etiquetado queda clasificado igual. `chatbot.ts` separa `catalogoActivo` (todo, para Explorar/Favoritos/nombre) de `catalogoMotor` (`getCatalogoRegion()`, solo región, para recomendar/rutas/chat/contexto de la nube/destacados de Inicio). `editar.ts` ahora rechaza un municipio de Los Tuxtlas si las coordenadas guardadas están fuera. `PlaceCard` muestra la etiqueta (con traducción al inglés).
+**Probado:** con el catálogo real de producción: Mira Flores sigue en Explorar (con etiqueta), no aparece en "hospedaje en Catemaco", "cabañas económicas" ni en 6 rutas generadas, y se encuentra por nombre. Simulando el municipio corregido a "Villahermosa, Tabasco", "un hotel en Villahermosa" lo devuelve. Pendiente: corregir el municipio de Mira Flores en la BD (no se tocó la base). No se probó el mapa ni `editar.ts` contra la base real (las funciones `/api` no corren en local; solo `tsc`).
+- Archivos: `src/data/lugares.ts`, `src/lib/chatbot.ts`, `src/lib/llm.ts`, `src/components/{PlaceCard,InicioScreen,SugerenciasChat}.tsx`, `src/lib/i18n-en.ts`, `api/servicios/editar.ts`
+
+## "Te puede interesar": ofrecer otras zonas y liberar el mapa (visión de crecimiento)
+**Pedido:** TuxtlasGO impulsa una región pero debe escalar: alguien de Puebla puede querer ver también lo que haya en Tabasco. Si pregunta por Catemaco, solo Catemaco; los servicios de fuera no se recomiendan por defecto, pero se ofrecen como "breve comercial" y, si el turista acepta, aparecen en el mapa con su ubicación real. Si cancela, todo sigue por Los Tuxtlas.
+**Cómo:** nuevo `OtrasZonasOferta.tsx` — al abrir el asistente (una vez por sesión) lista los servicios de fuera agrupados por zona ("Villahermosa, Tabasco · 1 servicio"), con "Ver en el mapa" y "No, gracias — seguir en Los Tuxtlas". `AppShell` guarda `zonaLibre`; `MapScreen` recibe `zonaLibre`/`onSalirZonaLibre`: mientras haya zona elegida quita la caja de la región, vuela a esos servicios y muestra el botón "← Volver a Los Tuxtlas". Abrir "Ver en mapa" desde el detalle de un servicio de fuera también libera el mapa. La cámara espera ~450 ms a que el mapa sea visible (si no, se quedaba atrapada en el borde de la región). `mostrarMapaAlLado` ahora incluye `zonaLibre` para que en escritorio el mapa aparezca junto al chat.
+**Probado en vivo (escritorio, catálogo real de producción):** aparece el aviso, "Ver en el mapa" lleva a Villahermosa y se ve el pin de Mira Flores (31 marcadores, 1 en pantalla); "Volver" regresa a Los Tuxtlas; "No, gracias" cierra y no vuelve a salir en la sesión. Hubo que desregistrar el Service Worker de desarrollo para simular `/api/servicios/aprobados`.
+**No probado:** móvil (el flujo usa `cambiarTab('mapa')`), ruta/"Cómo llegar" hacia un servicio de fuera, y offline: los mapas fuera de Los Tuxtlas necesitan internet (solo se descarga la región). El aviso solo sale si hay servicios con coordenadas fuera de la región; hoy es solo Mira Flores, y en la BD su municipio sigue siendo "Catemaco" (el aviso lo agrupa como "Otra ubicación" hasta corregirlo).
+- Archivos: `src/components/OtrasZonasOferta.tsx` (nuevo), `AppShell.tsx`, `MapScreen.tsx`, `src/lib/i18n-en.ts`
+
+---
+
 # Sesión 2026-10-04 — Interfaz en inglés (ES/EN) para turistas extranjeros
 
 ## Botón de idioma + traducción básica de la interfaz

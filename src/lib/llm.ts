@@ -31,9 +31,11 @@
 import { Lugar } from '../data/lugares';
 import {
   getCatalogoActivo,
+  getCatalogoRegion,
   seleccionarConVariedad,
   detectarIntent,
   detectarMunicipio,
+  buscarPorTipoDeServicio,
   esSolicitudInapropiada,
   type MensajeChat,
   type PreferenciasUsuario,
@@ -68,7 +70,7 @@ export async function recuperarContexto(
   prefs?: Partial<PreferenciasUsuario>,
   k = 4
 ): Promise<ContextoRecuperado> {
-  const catalogo = getCatalogoActivo();
+  const catalogo = getCatalogoRegion(); // solo lo de Los Tuxtlas para recomendar
   const intent = detectarIntent(texto);
   const municipio = detectarMunicipio(texto);
   const cat = MAPA_INTENT_CAT[intent];
@@ -117,7 +119,18 @@ export async function recuperarContexto(
     candidatos = catalogo.filter((l) => l.destacado || l.rating >= 4.5);
   }
 
-  const lugares = seleccionarConVariedad(candidatos, k);
+  // Prestadores cuyo nombre y descripción coinciden con lo pedido
+  // ("lancha", "artesanías") van primero — mismo criterio que el motor
+  // de reglas, para que con y sin internet se encuentren igual.
+  const porTipo = buscarPorTipoDeServicio(texto, catalogo, municipio).lugares;
+  const idsPorTipo = new Set(porTipo.map((l) => l.id));
+  const lugares = [
+    ...porTipo,
+    ...seleccionarConVariedad(
+      candidatos.filter((l) => !idsPorTipo.has(l.id)),
+      k
+    ),
+  ].slice(0, k);
 
   const hit = buscarConocimiento(texto);
   const conocimiento = hit ? hit.respuesta : null;

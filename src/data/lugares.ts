@@ -309,6 +309,19 @@ export const LUGARES: Lugar[] = [
 ];
 
 // ─── Configuración geográfica ────────────────────────────────
+// ¿Este punto está dentro de Los Tuxtlas? Misma caja (con margen) que
+// valida el registro en api/servicios/registro.ts — si se cambia una,
+// cambiar la otra. La UBICACIÓN decide, no el texto del municipio: un
+// servicio registrado como "Catemaco" pero con coordenadas en
+// Villahermosa (caso real: Mira Flores) queda fuera de la región aunque
+// su etiqueta diga lo contrario.
+export function estaEnLaRegion(coords: [number, number] | undefined | null): boolean {
+  if (!coords || coords.length < 2) return true; // sin coordenadas no se descarta nada
+  const [lat, lng] = coords;
+  if (typeof lat !== 'number' || typeof lng !== 'number' || Number.isNaN(lat) || Number.isNaN(lng)) return true;
+  return lat >= 18.2 && lat <= 18.85 && lng >= -95.65 && lng <= -94.8;
+}
+
 export const LOS_TUXTLAS_CENTER: [number, number] = [18.45, -95.18];
 export const LOS_TUXTLAS_BOUNDS: [[number, number], [number, number]] = [
   [18.35, -95.5],

@@ -3,7 +3,7 @@ import { Send, Sparkles } from 'lucide-react';
 import PlaceCard from './PlaceCard';
 import { useT } from '../lib/i18n';
 import type { Lugar } from '../data/lugares';
-import { getCatalogoActivo } from '../lib/chatbot';
+import { getCatalogoRegion } from '../lib/chatbot';
 
 // ============================================================
 // INICIO — pantalla nueva (no existía)
@@ -40,8 +40,8 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
   // sin chocar ("Destacado" ámbar + "Patrocinado" morado). El badge de
   // cada uno es lo que deja claro cuál es curaduría y cuál es pauta
   // pagada.
-  const destacados = getCatalogoActivo().filter((l) => l.destacado);
-  const patrocinadosSinDestacar = getCatalogoActivo().filter((l) => l.premium && !l.destacado);
+  const destacados = getCatalogoRegion().filter((l) => l.destacado);
+  const patrocinadosSinDestacar = getCatalogoRegion().filter((l) => l.premium && !l.destacado);
   const paraTi = [...destacados, ...patrocinadosSinDestacar];
 
   // Mismo comportamiento que el textarea de la pestaña Asistente —

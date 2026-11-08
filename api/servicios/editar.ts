@@ -147,6 +147,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ESTADOS_VALIDOS.includes(municipio.slice(i + 2)) &&
             /[A-Za-zÀ-ÖØ-öø-ÿ]{2,}/.test(municipio.slice(0, i))));
       if (!valido) return res.status(400).json({ error: 'Municipio no válido' });
+      // Hallazgo real de campo: un negocio de Villahermosa (Mira Flores)
+      // quedó guardado como "Catemaco" porque aquí solo se revisaba el
+      // formato del municipio, no si coincidía con la ubicación marcada
+      // al registrarse — y el registro sí hace esa comprobación. Mismo
+      // criterio y misma caja que api/servicios/registro.ts.
+      if (MUNICIPIOS_TUXTLAS.includes(municipio)) {
+        const pos = await pool.query('SELECT lat, lng FROM servicios WHERE id = $1', [servicioId]);
+        const lat = pos.rows[0]?.lat;
+        const lng = pos.rows[0]?.lng;
+        if (lat != null && lng != null) {
+          const la = Number(lat);
+          const ln = Number(lng);
+          const dentro = la >= 18.2 && la <= 18.85 && ln >= -95.65 && ln <= -94.8;
+          if (!dentro) {
+            return res.status(400).json({
+              error: 'La ubicación de tu negocio está fuera de Los Tuxtlas — escribe el lugar real como "Municipio, Estado" (ej. "Villahermosa, Tabasco")',
+            });
+          }
+        }
+      }
       campos.push(`municipio = $${idx++}`);
       valores.push(municipio);
     }

@@ -313,6 +313,13 @@ interface Props {
   // (chocaban, hallazgo real de campo). En la vista completa se
   // sigue mostrando igual que siempre.
   vistaCompacta?: boolean;
+  // Servicios de FUERA de Los Tuxtlas que el turista eligió ver (aviso
+  // "Te puede interesar", o abrir uno desde Explorar). Mientras haya
+  // alguno, el mapa se libera de la caja de la región y se encuadra ahí;
+  // al salir vuelve a Los Tuxtlas. Sin esto el mapa sigue encerrado en
+  // la región, como siempre.
+  zonaLibre?: Lugar[];
+  onSalirZonaLibre?: () => void;
 }
 
 // Rendimiento en celulares (sobre todo la PWA instalada en Android, donde
@@ -345,6 +352,8 @@ export default function MapScreen({
   miUbicacion,
   onLimpiarRuta,
   vistaCompacta,
+  zonaLibre,
+  onSalirZonaLibre,
 }: Props) {
   const t = useT();
   const mapRef = useRef<MapRef>(null);
@@ -384,8 +393,11 @@ export default function MapScreen({
       miUbicacion[0] > LOS_TUXTLAS_BOUNDS[1][0] ||
       miUbicacion[1] < LOS_TUXTLAS_BOUNDS[0][1] ||
       miUbicacion[1] > LOS_TUXTLAS_BOUNDS[1][1]);
-  const origenFueraRef = useRef(origenFueraDeRegion);
-  origenFueraRef.current = origenFueraDeRegion;
+  // También se libera cuando el turista eligió ver servicios de otra zona.
+  const hayZonaLibre = !!zonaLibre && zonaLibre.length > 0;
+  const mapaLiberado = origenFueraDeRegion || hayZonaLibre;
+  const origenFueraRef = useRef(mapaLiberado);
+  origenFueraRef.current = mapaLiberado;
   // MapLibre revierte el límite a los pocos cientos de ms de aplicarlo
   // (copia estado entre transformaciones internas), así que además de
   // aplicarlo se verifica en idle/moveend y se corrige si no coincide.
@@ -399,7 +411,48 @@ export default function MapScreen({
   }, []);
   useEffect(() => {
     aplicarLimiteRegion();
-  }, [origenFueraDeRegion, aplicarLimiteRegion]);
+  }, [mapaLiberado, aplicarLimiteRegion]);
+
+  // Al elegir una zona de fuera: encuadra sus servicios. Al salir de
+  // ella: regresa a Los Tuxtlas (si no, la cámara quedaría fuera de la
+  // caja que se vuelve a aplicar).
+  const habiaZonaLibre = useRef(false);
+  useEffect(() => {
+    if (!hayZonaLibre && !habiaZonaLibre.current) return;
+    // Se espera un instante: al elegir una zona, el contenedor del mapa
+    // acaba de pasar de oculto a visible y la caja de la región todavía
+    // no se ha quitado — mover la cámara antes la dejaba atrapada en el
+    // borde de Los Tuxtlas (lo vimos en la prueba: el mapa se liberaba
+    // pero seguía mostrando la laguna de Catemaco).
+    const id = window.setTimeout(() => {
+      const mapa = mapRef.current?.getMap();
+      if (!mapa) return;
+      mapa.resize();
+      aplicarLimiteRegion(); // aplica o quita la caja ANTES de mover la cámara
+      if (hayZonaLibre && zonaLibre) {
+        habiaZonaLibre.current = true;
+        const puntos = zonaLibre.map((l) => [l.coords[1], l.coords[0]] as [number, number]);
+        if (puntos.length === 1) {
+          mapa.flyTo({ center: puntos[0], zoom: 13, pitch: 0, duration: 1600 });
+        } else {
+          const caja = puntos.reduce(
+            (b, p) => b.extend(p),
+            new maplibregl.LngLatBounds(puntos[0], puntos[0])
+          );
+          mapa.fitBounds(caja, { padding: 80, maxZoom: 14, duration: 1600, pitch: 0 });
+        }
+      } else if (habiaZonaLibre.current) {
+        habiaZonaLibre.current = false;
+        mapa.flyTo({
+          center: [LOS_TUXTLAS_CENTER[1], LOS_TUXTLAS_CENTER[0]],
+          zoom: 11,
+          pitch: 45,
+          duration: 1400,
+        });
+      }
+    }, 450);
+    return () => window.clearTimeout(id);
+  }, [zonaLibre, hayZonaLibre, aplicarLimiteRegion]);
   const [serviciosPrestadores, setServiciosPrestadores] = useState<Lugar[]>([]);
   const [descargando, setDescargando] = useState(false);
   const [progreso, setProgreso] = useState(0);
@@ -625,6 +678,14 @@ export default function MapScreen({
 
   return (
     <div ref={contenedorRef} className="relative h-full">
+      {hayZonaLibre && onSalirZonaLibre && (
+        <button
+          onClick={onSalirZonaLibre}
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full px-4 py-2 flex items-center gap-1.5 text-sm font-semibold"
+        >
+          ← {t('Volver a Los Tuxtlas')}
+        </button>
+      )}
       <Map
         ref={mapRef}
         initialViewState={{
@@ -635,7 +696,7 @@ export default function MapScreen({
         }}
         pixelRatio={PIXEL_RATIO_MAPA}
         fadeDuration={GAMA_BAJA ? 0 : 300}
-        minZoom={origenFueraDeRegion ? 4 : 9}
+        minZoom={mapaLiberado ? 4 : 9}
         maxZoom={18}
         // Turista de otro estado (Tabasco, CDMX, Jalisco...): si su
         // ubicación cae fuera de Los Tuxtlas, el recuadro encerraba la

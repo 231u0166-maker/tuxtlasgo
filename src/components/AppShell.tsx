@@ -27,10 +27,11 @@ import { useLLM } from '../hooks/useLLM';
 import FavoritesScreen from './FavoritesScreen';
 import SugerenciasChat from './SugerenciasChat';
 import PlaceDetail from './PlaceDetail';
+import OtrasZonasOferta from './OtrasZonasOferta';
 import OfflineIndicator from './OfflineIndicator';
 import SelectorIdioma from './SelectorIdioma';
 import { useT } from '../lib/i18n';
-import type { Lugar } from '../data/lugares';
+import { estaEnLaRegion, type Lugar } from '../data/lugares';
 import { obtenerRutaPorTramos, obtenerUbicacionGPS, type Coord } from '../lib/routing';
 import PerfilScreen from './PerfilScreen';
 
@@ -126,6 +127,12 @@ export default function AppShell() {
   // datos" — y de paso, aquí es donde aparece la pregunta real del
   // sistema, no escondida dentro de "Cómo llegar".
   const [mostrarExplicacionUbicacion, setMostrarExplicacionUbicacion] = useState(false);
+
+  // Servicios de fuera de Los Tuxtlas que el turista eligió ver. Mientras
+  // haya alguno, el mapa se libera de la región (ver MapScreen).
+  const [zonaLibre, setZonaLibre] = useState<Lugar[] | null>(null);
+  // Aviso "Te puede interesar" — una vez por sesión, al abrir el asistente.
+  const [ofertaZonas, setOfertaZonas] = useState<Lugar[] | null>(null);
 
   // Riel de escritorio — solo afecta el <aside> de lg+, el bottom nav
   // de celular no se toca. Siempre compacto (solo íconos); se expande
@@ -379,7 +386,7 @@ export default function AppShell() {
   // Derivado, no estado: el mapa se ve al lado en Explorar siempre, y
   // en Chat solo cuando ya hay una ruta que mostrar — antes de
   // preguntar algo, ese espacio lo ocupan las sugerencias.
-  const mostrarMapaAlLado = tab === 'explorar' || (tab === 'chat' && !!rutaVisible);
+  const mostrarMapaAlLado = tab === 'explorar' || (tab === 'chat' && (!!rutaVisible || !!zonaLibre));
 
   // Decide a qué contenedor apunta el portal del mapa. Corre DESPUÉS
   // de que el DOM ya se actualizó (useLayoutEffect, no useEffect) —
@@ -412,6 +419,8 @@ export default function AppShell() {
     if (!lugarSeleccionado) return;
     const destino = lugarSeleccionado;
     setLugarSeleccionado(null);
+    // Un servicio de otra zona libera el mapa para poder verlo.
+    if (!estaEnLaRegion(destino.coords)) setZonaLibre([destino]);
     setCargandoRuta(true);
     setErrorRuta(null);
 
@@ -476,6 +485,37 @@ export default function AppShell() {
     } finally {
       setCargandoRuta(false);
     }
+  };
+
+  // "Te puede interesar": al abrir el asistente, si hay servicios
+  // registrados fuera de Los Tuxtlas, se ofrece verlos (una sola vez por
+  // sesión). Si el turista dice que no, todo sigue igual.
+  useEffect(() => {
+    if (tab !== 'chat') return;
+    const revisar = () => {
+      try {
+        if (sessionStorage.getItem('oferta-zonas-vista') === 'true') return false;
+      } catch { /* sin sessionStorage: se ofrece igual */ }
+      const externos = getCatalogoActivo().filter((l) => !estaEnLaRegion(l.coords));
+      if (externos.length === 0) return false;
+      setOfertaZonas(externos);
+      return true;
+    };
+    if (revisar()) return;
+    // El catálogo puede terminar de cargar unos instantes después.
+    const id = window.setTimeout(revisar, 2500);
+    return () => window.clearTimeout(id);
+  }, [tab]);
+
+  const cerrarOfertaZonas = () => {
+    setOfertaZonas(null);
+    try { sessionStorage.setItem('oferta-zonas-vista', 'true'); } catch { /* ok */ }
+  };
+
+  const explorarZonaExterna = (_zona: string, lugares: Lugar[]) => {
+    cerrarOfertaZonas();
+    setZonaLibre(lugares);
+    mostrarMapaConRuta();
   };
 
   const cambiarTab = (nuevoTab: Tab) => {
@@ -673,6 +713,14 @@ export default function AppShell() {
               </div>
             </div>
           </div>
+        )}
+
+        {ofertaZonas && (
+          <OtrasZonasOferta
+            externos={ofertaZonas}
+            onExplorar={explorarZonaExterna}
+            onCerrar={cerrarOfertaZonas}
+          />
         )}
 
         {/* Overlay carga ruta */}
@@ -942,6 +990,8 @@ export default function AppShell() {
             miUbicacion={miUbicacion ?? undefined}
             onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); }}
             vistaCompacta={tab === 'explorar' && !esEscritorio}
+            zonaLibre={zonaLibre ?? undefined}
+            onSalirZonaLibre={() => setZonaLibre(null)}
           />,
           destinoMapa
         )}

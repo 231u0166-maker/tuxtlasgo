@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useT, useTd } from '../lib/i18n';
 import { optimizarImagen, ANCHO_TARJETA, ANCHO_MINIATURA } from '../lib/imagenOptimizada';
 import type { Lugar } from '../data/lugares';
-import { CATEGORIAS } from '../data/lugares';
+import { CATEGORIAS, estaEnLaRegion } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
 import { manejarErrorImagen } from '../lib/imagenLugar';
 
@@ -59,6 +59,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
               </>
             )}
             <span>{lugar.municipio}</span>
+            {!estaEnLaRegion(lugar.coords) && <span className="text-amber-700 font-medium">· {t('Fuera de Los Tuxtlas')}</span>}
           </div>
         </div>
       </button>
@@ -132,6 +133,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
           <span className="flex items-center gap-1">
             <MapPin size={12} />
             {lugar.municipio}
+            {!estaEnLaRegion(lugar.coords) && <span className="text-amber-700 font-medium">· {t('Fuera de Los Tuxtlas')}</span>}
           </span>
           <span className="flex items-center gap-1">
             <Clock size={12} />

@@ -576,6 +576,13 @@ function mismaRaiz(a: string, b: string): boolean {
   return a.length >= 7 && b.length >= 7 && distanciaEdicion(a, b) <= 1;
 }
 
+// ¿Hay prestadores registrados que coincidan por tipo de servicio con lo
+// que se preguntó ("lancha", "artesanías")? El chat lo usa para no dejar
+// que una ficha del banco de respuestas se adelante a esos prestadores.
+export function hayLugarPorTipoDeServicio(texto: string): boolean {
+  return buscarPorTipoDeServicio(texto, catalogoMotor, detectarMunicipio(texto)).lugares.length > 0;
+}
+
 export interface CoincidenciaPorTipo {
   lugares: Lugar[];
   // Las palabras de la pregunta que sí describen a esos lugares (ej.
@@ -965,6 +972,44 @@ async function prepararEjemplos() {
   return vectoresEjemplo;
 }
 
+// Reglas por tipo de dato para el extractor de preferencias, calibradas con
+// multilingual-e5-small (prueba de ~10 frases por tipo + 19 mensajes
+// neutros): un valor solo se acepta si su similitud supera el umbral Y le
+// gana por margen al segundo valor. Con e5 las similitudes van de ~0.8 a
+// ~0.95, por eso los umbrales son tan altos (el 0.5 de MiniLM aceptaba casi
+// cualquier frase y convertía preguntas simples en rutas inventadas).
+// "presupuesto" NO usa embeddings: salió poco confiable (confundió "baratito"
+// con "alto" y respondió "alto" a "recomiéndame algo") — solo lo detectan
+// extraerPresupuestoLiteral / extraerPresupuestoCualitativo.
+const REGLAS_PREFERENCIAS = {
+  dias: { umbral: 0.87, margen: 0.02 },
+  grupo: { umbral: 0.9, margen: 0.01 },
+  intereses: { umbral: 0.87, margen: 0.03 },
+};
+
+// Como mejoresPorValor, pero exige además margen contra el segundo valor.
+// Con `multi` (intereses) devuelve también los valores que quedan a menos
+// de 0.015 del mejor.
+function mejoresConRegla<T>(
+  vectorConsulta: number[],
+  ejemplos: { valor: T; vector: number[] }[],
+  regla: { umbral: number; margen: number },
+  multi = false
+): T[] {
+  const mejorPorValor = new Map<string, { valor: T; sim: number }>();
+  for (const e of ejemplos) {
+    const sim = similitudCoseno(vectorConsulta, e.vector);
+    const clave = String(e.valor);
+    const actual = mejorPorValor.get(clave);
+    if (!actual || sim > actual.sim) mejorPorValor.set(clave, { valor: e.valor, sim });
+  }
+  const orden = [...mejorPorValor.values()].sort((a, b) => b.sim - a.sim);
+  if (orden.length === 0 || orden[0].sim < regla.umbral) return [];
+  if (orden.length > 1 && orden[0].sim - orden[1].sim < regla.margen) return [];
+  if (!multi) return [orden[0].valor];
+  return orden.filter((v) => v.sim >= regla.umbral && orden[0].sim - v.sim < 0.015).map((v) => v.valor);
+}
+
 // Para cada VALOR posible, se queda con su mejor coincidencia (no la
 // mejor frase de ejemplo suelta) — así una categoría con 6 frases de
 // ejemplo no le "gana" injustamente a una con 3 solo por tener más
@@ -1293,22 +1338,17 @@ export async function extraerPreferenciasLibres(
 
   const ejemplos = await prepararEjemplos();
   const vectorConsulta = await vectorizar(texto);
-  const UMBRAL = 0.5;
 
-  // Días y presupuesto: los embeddings solo complementan si NO hubo
-  // señal literal arriba — un número explícito siempre gana.
+  // Días: los embeddings solo complementan si NO hubo señal literal
+  // arriba — un número explícito siempre gana. (Presupuesto ya no usa
+  // embeddings: ver REGLAS_PREFERENCIAS.)
   if (resultado.dias === undefined) {
-    const dias = mejoresPorValor(vectorConsulta, ejemplos.dias, UMBRAL);
+    const dias = mejoresConRegla(vectorConsulta, ejemplos.dias, REGLAS_PREFERENCIAS.dias);
     if (dias.length > 0) resultado.dias = dias[0];
   }
 
-  if (resultado.presupuesto === undefined) {
-    const presupuesto = mejoresPorValor(vectorConsulta, ejemplos.presupuesto, UMBRAL);
-    if (presupuesto.length > 0) resultado.presupuesto = presupuesto[0];
-  }
-
   if (resultado.grupo === undefined) {
-    const grupo = mejoresPorValor(vectorConsulta, ejemplos.grupo, UMBRAL);
+    const grupo = mejoresConRegla(vectorConsulta, ejemplos.grupo, REGLAS_PREFERENCIAS.grupo);
     if (grupo.length > 0) resultado.grupo = grupo[0];
   }
 
@@ -1317,7 +1357,7 @@ export async function extraerPreferenciasLibres(
   // TODAS las categorías que superen el umbral, no solo la mejor.
   // Si la palabra clave ya encontró una (arriba), esto se AGREGA, no
   // reemplaza — por si el turista mencionó más de un interés.
-  const interesesEmbeddings = mejoresPorValor(vectorConsulta, ejemplos.intereses, UMBRAL);
+  const interesesEmbeddings = mejoresConRegla(vectorConsulta, ejemplos.intereses, REGLAS_PREFERENCIAS.intereses, true);
   if (interesesEmbeddings.length > 0) {
     const combinado = new Set([...(resultado.intereses ?? []), ...interesesEmbeddings]);
     resultado.intereses = [...combinado];

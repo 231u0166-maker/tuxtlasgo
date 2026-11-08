@@ -19,6 +19,7 @@ import {
   extraerPreferenciasLibres,
   extraerDiasCrudo,
   pareceSolicitudDeRuta,
+  hayLugarPorTipoDeServicio,
   pareceSolicitudDeDistancia,
   esSolicitudInapropiada,
   detectarMunicipio,
@@ -964,7 +965,19 @@ export default function ChatAssistant({
 
       // 1) Banco de respuestas primero — sin generar nada, sin GPU,
       // sin internet, funciona en cualquier dispositivo.
-      const coincidencia = await buscarRespuestaVerificada(texto).catch(() => null);
+      //
+      // Salvo dos casos en los que una ficha NO es la mejor respuesta
+      // (hallazgo de la prueba con el modelo multilingüe, que sí
+      // encuentra parecidos):
+      //  - una solicitud de ruta ("ruta de 2 días con $3000" se quedaba
+      //    con la ficha de precios de Nanciyaga en vez de armar la ruta);
+      //  - cuando hay prestadores registrados que coinciden por tipo
+      //    ("artesanías" se quedaba con la ficha de licores en vez de
+      //    mostrar los negocios de artesanías).
+      const omitirBanco = pareceSolicitudDeRuta(texto) || hayLugarPorTipoDeServicio(texto);
+      const coincidencia = omitirBanco
+        ? null
+        : await buscarRespuestaVerificada(texto).catch(() => null);
       if (coincidencia) {
         responderBot(
           {

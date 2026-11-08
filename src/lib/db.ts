@@ -81,7 +81,7 @@ export interface RutaCacheada {
 export interface VectorLugar {
   id: string; // mismo id que Lugar.id
   texto: string; // snapshot del texto usado para generar el vector
-  vector: number[]; // 384 dimensiones (Xenova/all-MiniLM-L6-v2)
+  vector: number[]; // 384 dimensiones (Xenova/multilingual-e5-small)
   actualizadoEn: number;
 }
 
@@ -102,7 +102,10 @@ export interface ConocimientoCacheado {
 // conocimiento en vez de lugares del catálogo.
 export interface VectorConocimiento {
   clave: string; // título de la ficha — estable para estáticas y dinámicas
-  texto: string; // snapshot de la respuesta usada para generar el vector
+  texto: string; // la respuesta que se le muestra al turista
+  // Versión del modelo + texto que se vectorizó (título + claves +
+  // respuesta). Si cambia, el vector se recalcula (ver embeddings.ts).
+  huella?: string;
   vector: number[];
   actualizadoEn: number;
 }

@@ -12,7 +12,8 @@ import { seedDemoSiVacio, limpiarPrestadoresDemoRetirados, listarServiciosAproba
 import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
 import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
-import { embeddingsListo, indexarCatalogo, indexarConocimiento, inicializarEmbeddings } from './lib/embeddings';
+import { embeddingsListo, indexarCatalogo, indexarConocimiento, inicializarEmbeddings, fijarEstadoEmbeddings } from './lib/embeddings';
+import DiagnosticoIA from './components/DiagnosticoIA';
 import ActualizacionDisponible from './components/ActualizacionDisponible';
 import { optimizarImagen, ANCHO_TARJETA, ANCHO_DETALLE, ANCHO_MINIATURA } from './lib/imagenOptimizada';
 
@@ -147,18 +148,28 @@ export default function App() {
     // (incluido el banco de respuestas que responde sin generar nada)
     // nunca se activaba justo en los dispositivos donde más se
     // necesita. Ahora corre siempre, en cualquier dispositivo.
-    inicializarEmbeddings()
+    const inicioEmbeddings = Date.now();
+    fijarEstadoEmbeddings({ fase: 'descargando', progreso: 0 });
+    inicializarEmbeddings(({ progreso }) => fijarEstadoEmbeddings({ fase: 'descargando', progreso }))
       .then(async () => {
+        fijarEstadoEmbeddings({ fase: 'indexando' });
         await indexarCatalogo(getCatalogoActivo());
         await indexarConocimiento(obtenerFichasParaIndexar());
+        fijarEstadoEmbeddings({ fase: 'listo', ms: Date.now() - inicioEmbeddings });
       })
-      .catch((e) => console.warn('[TuxtlasGO] Embeddings no disponibles:', e));
+      .catch((e) => {
+        const mensaje = String(e?.message ?? e);
+        const omitido = mensaje.startsWith('EMBEDDINGS_MEMORIA') || mensaje.startsWith('EMBEDDINGS_AHORRO');
+        fijarEstadoEmbeddings({ fase: omitido ? 'omitido' : 'error', detalle: mensaje.slice(0, 160) });
+        console.warn('[TuxtlasGO] Embeddings no disponibles:', e);
+      });
   }, []);
 
   if (!listo) return null;
 
   return (
     <BrowserRouter>
+      <DiagnosticoIA />
       <Routes>
         <Route
           path="/"

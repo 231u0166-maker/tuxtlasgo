@@ -38,7 +38,7 @@ export interface EntradaConocimiento {
   // (matchea la ficha de emergencias), EMPATADOS en 1 coincidencia
   // cada uno. Sin prioridad, ganaba la entrada definida primero en
   // este archivo (precios), y la IA respondía "no tengo información
-  // de hospitales" en vez de dar el 911 — silenciosamente perdía el
+  // de hospitales" en veel 911 — silenciosamente perdía el
   // dato de seguridad. Con prioridad, la ficha de seguridad gana
   // siempre que matchee algo, sin importar el orden en el archivo.
   prioridad?: number;
@@ -183,28 +183,12 @@ export const BASE_CONOCIMIENTO: EntradaConocimiento[] = [
   },
 
   // ─── NATURALEZA Y AVENTURA ───────────────────────────────
-  // Antes era UNA sola ficha para ambas categorías, con los 3 lugares
-  // de Naturaleza listados ANTES que el único de Aventura — como el
-  // chat solo muestra los primeros 3 lugares vinculados, una pregunta
-  // de "aventura" recomendaba puros lugares de Naturaleza y el único
-  // que sí era Aventura (Cerro del Venado) quedaba fuera por completo
-  // (hallazgo real de campo, igual que el caso de Hospedaje: "aventura"
-  // y "naturaleza" activaban la misma ficha, así que la categoría que
-  // el turista pidió nunca ganaba sobre la otra). Separadas, cada
-  // categoría tiene su propia respuesta y sus propios lugares reales.
   {
-    claves: ['naturaleza', 'selva', 'ecoturismo'],
-    titulo: 'Naturaleza en Los Tuxtlas',
+    claves: ['naturaleza', 'selva', 'aventura', 'ecoturismo', 'senderismo', 'sendero'],
+    titulo: 'Naturaleza y aventura en Los Tuxtlas',
     respuesta:
-      'Para naturaleza tienes: La Cascada de Eyipantla (50 metros de caída, $50 entrada), Nanciyaga (4 hectáreas de selva, kayak, monos, $80 entrada) y La Jungla Balneario (albercas de manantial, tobogán en selva, $60 entrada). Todos están en los alrededores de Catemaco y San Andrés Tuxtla.',
-    lugares: ['eyipantla', 'nanciyaga', 'jungla-balneario'],
-  },
-  {
-    claves: ['aventura', 'extremo', 'adrenalina', 'senderismo', 'sendero'],
-    titulo: 'Aventura en Los Tuxtlas',
-    respuesta:
-      'Para aventura, el Cerro del Venado tiene caminatas y vistas panorámicas de San Andrés Tuxtla, con acceso libre — el ascenso toma aproximadamente 1 hora. La Cascada de Eyipantla y Nanciyaga también tienen senderos dentro de la selva si buscas más opciones de caminata.',
-    lugares: ['cerro-venado'],
+      'Para naturaleza y aventura tienes: La Cascada de Eyipantla (50 metros de caída, $50 entrada), Nanciyaga (4 hectáreas de selva, kayak, monos, $80 entrada), La Jungla Balneario (albercas de manantial, tobogán en selva, $60 entrada) y el Cerro del Venado (vistas panorámicas, acceso libre). Todos están en los alrededores de Catemaco y San Andrés Tuxtla.',
+    lugares: ['eyipantla', 'nanciyaga', 'jungla-balneario', 'cerro-venado'],
   },
   {
     claves: ['monos', 'macacos', 'kayak', 'lancha', 'laguna'],
@@ -425,10 +409,13 @@ export async function agregarConocimientoDinamico(
 // como clave estable, ya que es el mismo en ambas capas y no cambia
 // entre sesiones (a diferencia de un índice de arreglo, que sí puede
 // correrse cuando se agrega o quita una ficha).
-export function obtenerFichasParaIndexar(): { clave: string; texto: string }[] {
+export function obtenerFichasParaIndexar(): { clave: string; texto: string; indexado: string }[] {
   return [...BASE_CONOCIMIENTO, ...conocimientoDinamico].map((entrada) => ({
     clave: entrada.titulo,
     texto: entrada.respuesta,
+    // Lo que se vectoriza: título + palabras clave + respuesta (ver
+    // indexarConocimiento en embeddings.ts).
+    indexado: `${entrada.titulo}. ${entrada.claves.join(', ')}. ${entrada.respuesta}`,
   }));
 }
 

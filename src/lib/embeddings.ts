@@ -28,11 +28,50 @@
 //   npm i @xenova/transformers
 // ============================================================
 
-import { pipeline, type FeatureExtractionPipeline } from '@xenova/transformers';
+import { pipeline, env, type FeatureExtractionPipeline } from '@xenova/transformers';
 import { db } from './db';
 import type { Lugar } from '../data/lugares';
 
-const MODELO_EMBEDDINGS = 'Xenova/all-MiniLM-L6-v2';
+// Hallazgo de la prueba offline (2026-11-07): por defecto Transformers.js
+// busca PRIMERO el modelo en /models/... de nuestro propio sitio. Como
+// vercel.json (y Vite en local) responden index.html con código 200 a
+// cualquier ruta desconocida, la librería recibía HTML, fallaba al leerlo
+// como JSON, y el modelo real nunca se descargaba — dejando apagada la
+// búsqueda semántica y el banco de respuestas. No alojamos el modelo
+// nosotros, así que se desactiva la búsqueda local y se baja de su CDN.
+env.allowLocalModels = false;
+
+// Modelo MULTILINGÜE: multilingual-e5-small (384 dimensiones, ~113 MB
+// cuantizado). Se cambió desde all-MiniLM-L6-v2, entrenado casi solo en
+// inglés: en una prueba con 63 preguntas en español acertaba la ficha
+// correcta 19 de 52 veces (37 %); este acierta 42-46 de 52 (81-88 %), y al
+// exigir cero fichas equivocadas, 37 de 52 contra 7 de 52 (validación
+// cruzada). Costo: ~5 veces más pesado que el anterior (22 MB).
+// e5 pide un prefijo: "query: " para lo que escribe el turista y
+// "passage: " para los textos guardados (fichas y lugares).
+const MODELO_EMBEDDINGS = 'Xenova/multilingual-e5-small';
+
+// Súbela cada vez que cambie el modelo o la forma de armar el texto que
+// se vectoriza: así los vectores viejos guardados en Dexie (hechos con otro
+// modelo, incompatibles) se recalculan solos en vez de compararse mal.
+const VERSION_VECTORES = 'e5s-1';
+
+// Reglas del banco de respuestas (calibradas con la prueba de 63 preguntas):
+// la ficha se muestra TAL CUAL solo si es lo bastante parecida Y le gana
+// con claridad a la segunda mejor. Con e5 las similitudes van de ~0.75 a
+// ~0.95 (no de 0 a 1 como MiniLM), por eso el umbral es tan alto.
+export const UMBRAL_BANCO = 0.84;
+export const MARGEN_BANCO = 0.01;
+
+// Este modelo pesa ~113 MB: en un teléfono con poca memoria o con "ahorro
+// de datos" activado no se descarga — la app sigue con su motor de reglas.
+function motivoParaNoCargarModelo(): string | null {
+  if (typeof navigator === 'undefined') return null;
+  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
+  if (nav.deviceMemory !== undefined && nav.deviceMemory < 4) return 'EMBEDDINGS_MEMORIA_INSUFICIENTE';
+  if (nav.connection?.saveData) return 'EMBEDDINGS_AHORRO_DE_DATOS';
+  return null;
+}
 
 let extractor: FeatureExtractionPipeline | null = null;
 let cargando: Promise<FeatureExtractionPipeline> | null = null;
@@ -42,6 +81,8 @@ export async function inicializarEmbeddings(
   onProgress?: (info: { progreso: number; texto: string }) => void
 ): Promise<void> {
   if (extractor) return;
+  const motivo = motivoParaNoCargarModelo();
+  if (motivo) throw new Error(motivo);
   if (!cargando) {
     cargando = pipeline('feature-extraction', MODELO_EMBEDDINGS, {
       progress_callback: (p: any) => {
@@ -57,6 +98,30 @@ export async function inicializarEmbeddings(
   extractor = await cargando;
 }
 
+// ── Estado observable ──
+// Para el panel de diagnóstico (?diag=1, ver DiagnosticoIA.tsx): permite
+// saber en un celular real si el modelo se descargó, cuánto tardó o por qué
+// se omitió, sin necesitar la consola del navegador.
+export interface EstadoEmbeddings {
+  fase: 'inactivo' | 'descargando' | 'indexando' | 'listo' | 'omitido' | 'error';
+  detalle?: string;
+  progreso?: number; // 0..1, solo mientras descarga
+  ms?: number; // tiempo total hasta quedar listo
+}
+let estadoActual: EstadoEmbeddings = { fase: 'inactivo' };
+const oyentes = new Set<(e: EstadoEmbeddings) => void>();
+export function estadoEmbeddings(): EstadoEmbeddings {
+  return estadoActual;
+}
+export function fijarEstadoEmbeddings(e: EstadoEmbeddings): void {
+  estadoActual = e;
+  oyentes.forEach((fn) => fn(e));
+}
+export function suscribirEstadoEmbeddings(fn: (e: EstadoEmbeddings) => void): () => void {
+  oyentes.add(fn);
+  return () => { oyentes.delete(fn); };
+}
+
 export function embeddingsListo(): boolean {
   return extractor !== null;
 }
@@ -65,9 +130,13 @@ export function embeddingsListo(): boolean {
 // Exportada a propósito: conocimiento.ts la reutiliza para el "banco
 // de respuestas" (búsqueda semántica sobre fichas ya redactadas) —
 // mismo modelo, mismo costo (~30MB), sin duplicar nada.
-export async function vectorizar(texto: string): Promise<number[]> {
+export async function vectorizar(
+  texto: string,
+  tipo: 'consulta' | 'pasaje' = 'consulta'
+): Promise<number[]> {
   if (!extractor) throw new Error('EMBEDDINGS_NO_INICIALIZADO');
-  const salida = await extractor(texto, { pooling: 'mean', normalize: true });
+  const prefijo = tipo === 'pasaje' ? 'passage: ' : 'query: ';
+  const salida = await extractor(prefijo + texto, { pooling: 'mean', normalize: true });
   return Array.from(salida.data as Float32Array);
 }
 
@@ -109,11 +178,13 @@ export async function indexarCatalogo(
 
   let hechos = 0;
   for (const lugar of catalogo) {
-    const texto = textoDeLugar(lugar);
+    // La versión va pegada al texto guardado: si cambia el modelo, el
+    // texto "cambia" y el vector se recalcula.
+    const texto = `${VERSION_VECTORES}|${textoDeLugar(lugar)}`;
     const existente = await db.vectores.get(lugar.id);
 
     if (!existente || existente.texto !== texto) {
-      const vector = await vectorizar(texto);
+      const vector = await vectorizar(textoDeLugar(lugar), 'pasaje');
       await db.vectores.put({
         id: lugar.id,
         texto,
@@ -149,7 +220,11 @@ export async function buscarSemantico(
   query: string,
   catalogo: Lugar[],
   k = 6,
-  umbralMinimo = 0.25
+  // Con e5 las similitudes nunca bajan de ~0.75, así que el 0.25 de
+  // MiniLM ya no filtraba nada. 0.80 es un valor prudente, pero NO está
+  // calibrado con una prueba propia (solo el banco de respuestas y las
+  // preferencias lo están) — aquí solo arma candidatos para el generador.
+  umbralMinimo = 0.8
 ): Promise<ResultadoSemantico[]> {
   if (!extractor) return []; // degrada con gracia si el modelo no cargó
 
@@ -197,19 +272,27 @@ export interface RespuestaVerificada {
 // desde el panel de admin (ver agregarConocimientoDinamico en
 // conocimiento.ts, que ya recarga la copia local — falta encadenar
 // esta reindexación ahí).
+// `texto` es lo que se le MUESTRA al turista (la respuesta); `indexado` es lo
+// que se VECTORIZA (título + palabras clave + respuesta). Vectorizar solo la
+// respuesta acertaba bastante menos: con el modelo anterior 26 vs 19 de 52,
+// con el actual 46 vs 42 de 52 (las palabras clave ayudan a casar preguntas
+// escritas de otra forma). Sin `indexado` se vectoriza `texto`.
 export async function indexarConocimiento(
-  entradas: { clave: string; texto: string }[]
+  entradas: { clave: string; texto: string; indexado?: string }[]
 ): Promise<void> {
   if (!extractor) throw new Error('EMBEDDINGS_NO_INICIALIZADO');
 
   for (const entrada of entradas) {
+    const paraVectorizar = entrada.indexado ?? entrada.texto;
+    const huella = `${VERSION_VECTORES}|${paraVectorizar}`;
     const existente = await db.vectoresConocimiento.get(entrada.clave);
-    if (existente && existente.texto === entrada.texto) continue; // sin cambios, no recalcular
+    if (existente && existente.huella === huella && existente.texto === entrada.texto) continue; // sin cambios
 
-    const vector = await vectorizar(entrada.texto);
+    const vector = await vectorizar(paraVectorizar, 'pasaje');
     await db.vectoresConocimiento.put({
       clave: entrada.clave,
       texto: entrada.texto,
+      huella,
       vector,
       actualizadoEn: Date.now(),
     });
@@ -232,7 +315,8 @@ export async function indexarConocimiento(
 // nada aquí.
 export async function buscarRespuestaVerificada(
   query: string,
-  umbralMinimo = 0.68
+  umbralMinimo = UMBRAL_BANCO,
+  margenMinimo = MARGEN_BANCO
 ): Promise<RespuestaVerificada | null> {
   if (!extractor) return null; // degrada con gracia, igual que buscarSemantico
 
@@ -240,11 +324,18 @@ export async function buscarRespuestaVerificada(
   const vectores = await db.vectoresConocimiento.toArray();
 
   let mejor: RespuestaVerificada | null = null;
+  let segundaSim = -1;
   for (const v of vectores) {
     const sim = similitudCoseno(vectorConsulta, v.vector);
-    if (sim >= umbralMinimo && (!mejor || sim > mejor.similitud)) {
+    if (!mejor || sim > mejor.similitud) {
+      if (mejor) segundaSim = Math.max(segundaSim, mejor.similitud);
       mejor = { titulo: v.clave, texto: v.texto, similitud: sim };
+    } else {
+      segundaSim = Math.max(segundaSim, sim);
     }
   }
+  if (!mejor || mejor.similitud < umbralMinimo) return null;
+  // Si la segunda ficha casi empata, no hay confianza de cuál es la buena.
+  if (segundaSim >= 0 && mejor.similitud - segundaSim < margenMinimo) return null;
   return mejor;
 }

@@ -38,7 +38,7 @@ function diagnosticoActivo(): boolean {
 
 const TEXTO_FASE: Record<EstadoEmbeddings['fase'], string> = {
   inactivo: 'sin iniciar',
-  descargando: 'descargando modelo…',
+  descargando: 'cargando modelo (si ya estaba guardado, solo lo lee)…',
   indexando: 'indexando lugares y fichas…',
   listo: 'LISTO',
   omitido: 'OMITIDO (este dispositivo no lo carga)',

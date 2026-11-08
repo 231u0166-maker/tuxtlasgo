@@ -12,7 +12,7 @@ import { seedDemoSiVacio, limpiarPrestadoresDemoRetirados, listarServiciosAproba
 import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
 import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
 import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
-import { embeddingsListo, indexarCatalogo, indexarConocimiento, inicializarEmbeddings, fijarEstadoEmbeddings } from './lib/embeddings';
+import { anotarCarga, embeddingsListo, indexarCatalogo, indexarConocimiento, inicializarEmbeddings, fijarEstadoEmbeddings } from './lib/embeddings';
 import DiagnosticoIA from './components/DiagnosticoIA';
 import ActualizacionDisponible from './components/ActualizacionDisponible';
 import { optimizarImagen, ANCHO_TARJETA, ANCHO_DETALLE, ANCHO_MINIATURA } from './lib/imagenOptimizada';
@@ -151,7 +151,7 @@ export default function App() {
     // El arranque se retrasa unos segundos: al abrir o RECARGAR la app compiten
     // por memoria el mapa, el catálogo y el modelo (113 MB), y en un teléfono de
     // 4 GB la creación del modelo fallaba de forma intermitente justo al recargar.
-    // Si aun así falla, se reintenta UNA vez más a los 45 s, en silencio.
+    // Si aun así falla, se reintenta UNA vez más a los 90 s, en silencio.
     const arrancarEmbeddings = (reintentoTardio = false) => {
       const inicioEmbeddings = Date.now();
       fijarEstadoEmbeddings({ fase: 'descargando', progreso: 0 });
@@ -181,11 +181,23 @@ export default function App() {
           fijarEstadoEmbeddings({ fase: omitido ? 'omitido' : 'error', detalle: mensaje.slice(0, 300) });
           console.warn('[TuxtlasGO] Embeddings no disponibles:', e);
           if (!omitido && !reintentoTardio) {
-            window.setTimeout(() => arrancarEmbeddings(true), 45_000);
+            window.setTimeout(() => arrancarEmbeddings(true), 90_000);
           }
         });
     };
-    const temporizadorEmbeddings = window.setTimeout(() => arrancarEmbeddings(), 3000);
+    // Prueba en un Galaxy A13: el modelo falla casi siempre al RECARGAR la página
+    // (la página anterior aún no libera su memoria) y casi nunca al abrirla en
+    // una pestaña nueva. Si la navegación es una recarga o un regreso atrás, se
+    // espera más antes de pedir la memoria del modelo.
+    let esperaInicial = 3000;
+    try {
+      const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+      if (nav && (nav.type === 'reload' || nav.type === 'back_forward')) {
+        esperaInicial = 10_000;
+        anotarCarga('recarga detectada: el modelo arranca en 10 s para dejar que se libere la memoria');
+      }
+    } catch { /* sin Performance API: se usa la espera normal */ }
+    const temporizadorEmbeddings = window.setTimeout(() => arrancarEmbeddings(), esperaInicial);
     return () => window.clearTimeout(temporizadorEmbeddings);
   }, []);
 

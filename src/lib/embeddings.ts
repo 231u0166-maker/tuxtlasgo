@@ -141,6 +141,12 @@ function anotar(mensaje: string): void {
   fijarEstadoEmbeddings({ ...estadoActual }); // para que el panel se redibuje
 }
 
+// Para que App.tsx deje constancia en el panel de diagnóstico de decisiones suyas
+// (por ejemplo, haber diferido el arranque por ser una recarga).
+export function anotarCarga(mensaje: string): void {
+  anotar(mensaje);
+}
+
 const CLAVE_TAM_MODELO = 'tuxtlasgo-modelo-bytes';
 
 // Tamaño (bytes) del .onnx guardado, leído del encabezado — sin cargar los 113 MB.
@@ -232,10 +238,15 @@ async function crearExtractor(
   onProgress?: (info: { progreso: number; texto: string }) => void
 ): Promise<FeatureExtractionPipeline> {
   let ultimo: IntentoFallido | null = null;
-  for (let n = 1; n <= 2; n++) {
+  // Prueba en un Galaxy A13: el primer intento falló con "std::bad_alloc" (falta
+  // de memoria) y el segundo, 4 s después, con el mensaje genérico — la memoria
+  // aún no se había liberado. Se espera más entre intentos (10 s y 30 s) y hay un
+  // tercero: son segundos en segundo plano; el chat sigue con las reglas.
+  const ESPERA_ANTES_DEL_INTENTO = [0, 10_000, 30_000];
+  for (let n = 1; n <= ESPERA_ANTES_DEL_INTENTO.length; n++) {
     if (n > 1) {
-      fijarEstadoEmbeddings({ fase: 'descargando', detalle: `reintentando (intento ${n})…` });
-      await esperar(4000); // da tiempo a que la página anterior libere su memoria
+      fijarEstadoEmbeddings({ fase: 'descargando', detalle: `reintentando (intento ${n}) en ${ESPERA_ANTES_DEL_INTENTO[n - 1] / 1000} s…` });
+      await esperar(ESPERA_ANTES_DEL_INTENTO[n - 1]); // da tiempo a liberar memoria
     }
     const r = await intentarCrear(onProgress);
     if (r.ok) {

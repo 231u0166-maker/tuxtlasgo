@@ -28,6 +28,7 @@ import FavoritesScreen from './FavoritesScreen';
 import SugerenciasChat from './SugerenciasChat';
 import PlaceDetail from './PlaceDetail';
 import OtrasZonasOferta from './OtrasZonasOferta';
+import AvisoModoInteligente from './AvisoModoInteligente';
 import ComunidadPage from './ComunidadPage';
 import OfflineIndicator from './OfflineIndicator';
 import SelectorIdioma from './SelectorIdioma';
@@ -943,6 +944,7 @@ export default function AppShell() {
                 {t('Rutas personalizadas y respuestas al momento, aunque no tengas señal.')}
               </p>
             </div>
+            <AvisoModoInteligente />
             <div className="flex-1 min-h-0">
               <ChatAssistant
                 onVerLugar={verLugar}

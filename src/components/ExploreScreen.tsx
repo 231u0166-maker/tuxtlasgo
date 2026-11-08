@@ -173,7 +173,7 @@ function FilaHorizontal({
       <h2 className="font-display font-bold text-lg text-jungle-950 mb-3">{titulo}</h2>
       <div className="flex gap-3 overflow-x-auto -mx-4 px-4 pb-2 snap-x">
         {lugares.map((l) => (
-          <div key={l.id} className="snap-start flex-shrink-0 w-64">
+          <div key={l.id} className="snap-start flex-shrink-0 w-64 flex">
             <PlaceCard lugar={l} onClick={() => onVerLugar(l)} />
           </div>
         ))}

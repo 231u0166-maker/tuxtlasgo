@@ -34,6 +34,12 @@ Prueba de 30 consultas con la red en Offline, catálogo real de producción copi
 **No probado:** móvil (el flujo usa `cambiarTab('mapa')`), ruta/"Cómo llegar" hacia un servicio de fuera, y offline: los mapas fuera de Los Tuxtlas necesitan internet (solo se descarga la región). El aviso solo sale si hay servicios con coordenadas fuera de la región; hoy es solo Mira Flores, y en la BD su municipio sigue siendo "Catemaco" (el aviso lo agrupa como "Otra ubicación" hasta corregirlo).
 - Archivos: `src/components/OtrasZonasOferta.tsx` (nuevo), `AppShell.tsx`, `MapScreen.tsx`, `src/lib/i18n-en.ts`
 
+## Tarjeta de lugar: se desacomodaba con nombres/municipios largos (`PlaceCard`)
+**Hallazgo (captura del usuario):** con "Villahermosa, Tabasco" + la etiqueta "Fuera de Los Tuxtlas" + una duración larga, el pie de la tarjeta se partía en 3-4 líneas y las tarjetas del carrusel quedaban de distinto alto y ancho.
+**Arreglo:** estructura fija igual en todas (como las referencias del usuario): nombre + calificación (o "Prestador local") en la misma fila, descripción de 2 líneas, y UNA línea al pie con ubicación (recortada con "…", tiene prioridad) y duración (recortada, máx. 48 %). La etiqueta "Fuera de Los Tuxtlas" pasó a la foto, debajo de la categoría. La tarjeta ahora ocupa todo su contenedor (`w-full h-full min-w-0`; el contenedor del carrusel es `flex`) para que todas las de una fila midan igual. En la versión compacta (listas) la ubicación se recorta y la etiqueta va en su propia línea.
+**Probado en vivo (escritorio, 1280 px):** fila "Alojamientos" con Mira Flores ("Villahermosa, Tabasco"), Sirena Olmeca (duración larga) y Hotel Fonseca: mismo ancho y alto, pie de una línea. No probado en un celular real ni en la vista compacta.
+- Archivos: `src/components/PlaceCard.tsx`, `src/components/ExploreScreen.tsx`
+
 ---
 
 # Sesión 2026-10-04 — Interfaz en inglés (ES/EN) para turistas extranjeros

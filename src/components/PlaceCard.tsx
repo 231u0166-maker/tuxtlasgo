@@ -58,9 +58,13 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
                 <span>·</span>
               </>
             )}
-            <span>{lugar.municipio}</span>
-            {!estaEnLaRegion(lugar.coords) && <span className="text-amber-700 font-medium">· {t('Fuera de Los Tuxtlas')}</span>}
+            <span className="truncate min-w-0">{lugar.municipio}</span>
           </div>
+          {!estaEnLaRegion(lugar.coords) && (
+            <div className="text-[11px] text-amber-700 font-medium mt-0.5 truncate">
+              {t('Fuera de Los Tuxtlas')}
+            </div>
+          )}
         </div>
       </button>
     );
@@ -69,7 +73,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
   return (
     <button
       onClick={onClick}
-      className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all text-left border border-jungle-100 hover:border-jungle-300 flex flex-col"
+      className="group w-full h-full min-w-0 bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all text-left border border-jungle-100 hover:border-jungle-300 flex flex-col"
     >
       <div className="relative aspect-[4/3] bg-jungle-100 overflow-hidden">
         <img
@@ -89,12 +93,17 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
             className={fav ? 'fill-red-500 text-red-500' : 'text-jungle-700'}
           />
         </button>
-        <div className="absolute top-3 left-3">
+        <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5 max-w-[calc(100%-4.5rem)]">
           <span
             className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cat?.color || 'bg-white text-jungle-800'}`}
           >
             {cat?.emoji} {t(lugar.categoria)}
           </span>
+          {!estaEnLaRegion(lugar.coords) && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 shadow-sm">
+              {t('Fuera de Los Tuxtlas')}
+            </span>
+          )}
         </div>
         {lugar.destacado && (
           <div className="absolute bottom-3 left-3 bg-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">
@@ -112,32 +121,39 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
           </div>
         )}
       </div>
-      <div className="p-4 flex-1 flex flex-col">
-        <h3 className="font-display font-bold text-jungle-950 leading-tight line-clamp-1">
-          {lugar.nombre}
-        </h3>
-        <p className="text-sm text-jungle-700 mt-1 line-clamp-2 flex-1">
-          {lugar.descripcionCorta}
-        </p>
-        <div className="flex items-center justify-between mt-3 text-xs text-jungle-600">
+      {/* Estructura fija, igual en todas las tarjetas (así las filas de un
+          carrusel quedan parejas aunque un nombre o un municipio sea
+          largo): nombre + calificación arriba, descripción, y UNA sola
+          línea al pie con ubicación y duración — la ubicación se recorta
+          con "…" en vez de partirse en varias líneas. La etiqueta de
+          "Fuera de Los Tuxtlas" va sobre la foto, no en esta línea. */}
+      <div className="p-4 flex-1 flex flex-col min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-display font-bold text-jungle-950 leading-tight line-clamp-1 min-w-0">
+            {lugar.nombre}
+          </h3>
           {lugar.rating > 0 ? (
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 text-xs flex-shrink-0 pt-0.5">
               <Star size={13} className="fill-amber-400 text-amber-400" />
               <span className="font-semibold text-jungle-900">{lugar.rating}</span>
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-jungle-500">
+            <span className="text-[11px] text-jungle-500 flex-shrink-0 pt-0.5 whitespace-nowrap">
               {t('Prestador local')}
             </span>
           )}
-          <span className="flex items-center gap-1">
-            <MapPin size={12} />
-            {lugar.municipio}
-            {!estaEnLaRegion(lugar.coords) && <span className="text-amber-700 font-medium">· {t('Fuera de Los Tuxtlas')}</span>}
+        </div>
+        <p className="text-sm text-jungle-700 mt-1 line-clamp-2 flex-1">
+          {lugar.descripcionCorta}
+        </p>
+        <div className="flex items-center justify-between gap-3 mt-3 text-xs text-jungle-600">
+          <span className="flex items-center gap-1 min-w-0 flex-1">
+            <MapPin size={12} className="flex-shrink-0" />
+            <span className="truncate">{lugar.municipio}</span>
           </span>
-          <span className="flex items-center gap-1">
-            <Clock size={12} />
-            {td(lugar.duracionSugerida)}
+          <span className="flex items-center gap-1 min-w-0 max-w-[48%] flex-shrink-0">
+            <Clock size={12} className="flex-shrink-0" />
+            <span className="truncate">{td(lugar.duracionSugerida)}</span>
           </span>
         </div>
       </div>

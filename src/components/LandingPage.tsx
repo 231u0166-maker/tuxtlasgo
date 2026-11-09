@@ -21,6 +21,7 @@ import NavbarLanding, { type ModoLanding } from './NavbarLanding';
 import AuthModal from './AuthModal';
 import HeroScroll from './HeroScroll';
 import RecorridoCartas from './RecorridoCartas';
+import FooterDinamico from './FooterDinamico';
 import { useT } from '../lib/i18n';
 
 interface LandingProps {
@@ -64,97 +65,7 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
         <SeccionesPrestador />
       )}
 
-      <footer className="bg-jungle-950 text-jungle-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
-          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="lg:col-span-2 space-y-4">
-              <img
-                src="/logo-tuxtlasgo.png"
-                alt="TuxtlasGO"
-                className="h-8 w-auto object-contain brightness-0 invert"
-              />
-              <p className="text-sm text-jungle-100/60 leading-relaxed max-w-xs">
-                {t('Plataforma turística inteligente de Los Tuxtlas, Veracruz. Rutas con IA, mapa offline y prestadores locales verificados.')}
-              </p>
-              <div className="flex items-center gap-3 pt-1">
-                <a
-                  href="https://www.facebook.com/share/1RRL1HJ5jS/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={t('Facebook de TuxtlasGO')}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1877F2] text-white transition-transform hover:scale-110"
-                >
-                  <Facebook size={18} />
-                </a>
-                <a
-                  href="https://www.instagram.com/tuxtlasgo?stkn=NnN6cTNicDI4bHFv"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={t('Instagram de TuxtlasGO')}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-[#FEDA75] via-[#D62976] to-[#4F5BD5] text-white transition-transform hover:scale-110"
-                >
-                  <Instagram size={18} />
-                </a>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-display font-semibold text-xs text-white uppercase tracking-wider mb-4">
-                {t('Explora')}
-              </h3>
-              <ul className="space-y-2.5 text-sm text-jungle-100/60">
-                <li>
-                  <Link to="/app" className="hover:text-white transition-colors">
-                    {t('Empezar a explorar')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/prestador" className="hover:text-white transition-colors">
-                    {t('Para prestadores')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/comunidad" className="hover:text-white transition-colors">
-                    {t('Comunidad')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/galeria" className="hover:text-white transition-colors">
-                    {t('Galería')}
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="font-display font-semibold text-xs text-white uppercase tracking-wider mb-4">
-                {t('Legal')}
-              </h3>
-              <ul className="space-y-2.5 text-sm text-jungle-100/60">
-                <li>
-                  <Link to="/terminos" className="hover:text-white transition-colors">
-                    {t('Términos y condiciones')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/privacidad" className="hover:text-white transition-colors">
-                    {t('Aviso de privacidad')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/copyright" className="hover:text-white transition-colors">
-                    © Copyright
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-12 pt-6 border-t border-white/10 text-xs text-jungle-100/40 text-center sm:text-left">
-            © {new Date().getFullYear()} TuxtlasGO · {t('Los Tuxtlas, Veracruz. Todos los derechos reservados. Prohibida su reproducción total o parcial sin autorización.')}
-          </div>
-        </div>
-      </footer>
+      <FooterDinamico modo={modo} />
 
       {mostrarAuth && (
         <AuthModal
@@ -188,136 +99,11 @@ function SeccionesTurista() {
 // CTA) para no introducir un segundo layout, solo cambia el contenido:
 // aquí se habla de alcance/comisiones/verificación, no de rutas.
 function SeccionesPrestador() {
-  const t = useT();
   return (
     <>
-      <section className="relative overflow-hidden">
-        <div
-          className="pointer-events-none absolute -top-40 right-0 w-[36rem] h-[36rem] rounded-full opacity-70 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #67e8f9 0%, transparent 70%)' }}
-        />
-        <div
-          className="pointer-events-none absolute top-40 -right-32 w-96 h-96 rounded-full opacity-60 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #fcd34d 0%, transparent 70%)' }}
-        />
-
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-14 pb-20 sm:pt-20 sm:pb-28">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 bg-white text-obsidiana-800 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-sm border border-obsidiana-900/5">
-                <Percent size={13} className="text-sun-600" />
-                {t('Sin comisiones abusivas')}
-              </div>
-              <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.5rem] text-obsidiana-900 leading-[1.05] tracking-tight">
-                {t('Tu servicio,')}
-                <br />
-                {t('frente a quien')}
-                <br />
-                <span className="text-jungle-700">{t('ya viene para acá.')}</span>
-              </h1>
-              <p className="text-lg text-obsidiana-800/70 max-w-md leading-relaxed">
-                {t('Regístrate en minutos y aparece ante turistas que están planeando su viaje a Los Tuxtlas en este momento — con o sin contenido previo en redes sociales.')}
-              </p>
-              <div className="flex flex-wrap gap-3 pt-1">
-                <Link
-                  to="/prestador"
-                  className="bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 shadow-lg shadow-jungle-700/25 transition-colors"
-                >
-                  {t('Únete ahora')}
-                  <ChevronRight size={18} />
-                </Link>
-              </div>
-            </div>
-
-            <PhotoCollage />
-          </div>
-        </div>
-      </section>
-
-      <section id="features" className="bg-white py-16 sm:py-24">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="max-w-2xl mb-12">
-            <p className="text-sun-700 text-sm font-semibold uppercase tracking-wide mb-2">
-              {t('Por qué registrarte en TuxtlasGO')}
-            </p>
-            <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
-              {t('Hecho para prestadores locales')}
-            </h2>
-            <p className="text-obsidiana-800/60 text-[15px] leading-relaxed">
-              {t('Sin intermediarios, sin depender de tener ya una presencia armada en redes — empiezas con lo que tengas.')}
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              {
-                icon: Percent,
-                title: 'Comisiones justas',
-                desc: 'A diferencia de otras plataformas, no te descontamos un porcentaje desproporcionado por cada reserva.',
-              },
-              {
-                icon: TrendingUp,
-                title: 'Visibilidad real',
-                desc: 'Apareces en las rutas que arma el asistente de IA cuando un turista busca algo que tú ofreces.',
-              },
-              {
-                icon: Camera,
-                title: 'Empieza con lo que ya tienes',
-                desc: 'Desde cero, vinculando tu Facebook o Instagram, o subiendo la foto de tu volante — tú eliges.',
-              },
-              {
-                icon: WifiOff,
-                title: 'Tu perfil, también offline',
-                desc: 'Una vez cargado, tu servicio sigue disponible para turistas sin señal, igual que el resto de la app.',
-              },
-              {
-                icon: Users,
-                title: 'Comunidad local',
-                desc: 'Formas parte del catálogo de prestadores verificados de Los Tuxtlas, no de un directorio genérico.',
-              },
-              {
-                icon: ShieldCheck,
-                title: 'Verificación simple',
-                desc: 'Confirmamos que tu servicio es real sin un formulario largo — lo justo para dar confianza al turista.',
-              },
-            ].map((f) => (
-              <div
-                key={f.title}
-                className="group rounded-2xl p-6 border border-obsidiana-900/8 hover:border-jungle-300 hover:shadow-[0_12px_32px_-16px_rgba(20,25,20,0.15)] transition-all bg-white"
-              >
-                <div className="w-11 h-11 rounded-xl bg-jungle-50 group-hover:bg-jungle-700 flex items-center justify-center mb-4 transition-colors">
-                  <f.icon className="w-5 h-5 text-jungle-700 group-hover:text-white transition-colors" />
-                </div>
-                <h3 className="font-display font-bold text-base text-obsidiana-900 mb-1.5">
-                  {t(f.title)}
-                </h3>
-                <p className="text-sm text-obsidiana-800/60 leading-relaxed">{t(f.desc)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-16 sm:py-24 bg-jungle-50">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
-          <div className="w-12 h-12 mx-auto mb-5 rounded-2xl bg-jungle-700 flex items-center justify-center">
-            <Percent className="text-white" size={22} />
-          </div>
-          <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
-            {t('Súmate a los prestadores de Los Tuxtlas')}
-          </h2>
-          <p className="text-obsidiana-800/60 mb-8">
-            {t('Registrar tu servicio es gratis. Tú decides qué información compartes.')}
-          </p>
-          <Link
-            to="/prestador"
-            className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl shadow-jungle-700/25 transition-colors"
-          >
-            {t('Únete ahora')}
-            <ChevronRight size={20} />
-          </Link>
-        </div>
-      </section>
+      {/* Misma historia que el modo turista, enfocada en el prestador */}
+      <HeroScroll modo="prestador" />
+      <RecorridoCartas modo="prestador" />
     </>
   );
 }

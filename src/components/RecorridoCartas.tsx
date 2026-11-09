@@ -1,7 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, WifiOff, Sparkles, Compass, Users, MapPin, Download } from 'lucide-react';
+import {
+  ChevronRight, WifiOff, Sparkles, Compass, Users, MapPin, Download, Percent, TrendingUp, Camera, ShieldCheck,
+} from 'lucide-react';
 import { useT } from '../lib/i18n';
+import type { Lugar } from '../data/lugares';
 
 // ============================================================
 // RECORRIDO DE FOTOS — segunda parte de la historia de la landing
@@ -16,16 +19,22 @@ import { useT } from '../lib/i18n';
 // corre con la sección en pantalla, estilos escritos directo al DOM, sin
 // librerías. Todas las fotos ya viven en el proyecto (nada externo).
 
-const FOTOS = [
-  '/img/slide_01.jpg',
-  '/lugares/eyipantla_1.jpg',
-  '/img/slide_09.jpg',
-  '/lugares/nanciyaga_1.jpg',
-  '/img/slide_05.jpg',
-  '/lugares/hechizo-amor_1.jpg',
-  '/img/slide_13.jpg',
-  '/lugares/jungla-balneario_1.jpg',
-  '/lugares/cerro-venado_1.jpg',
+interface Foto {
+  src: string;
+  // Nombre del prestador (solo en las fotos de prestadores reales).
+  nombre?: string;
+}
+
+const FOTOS_BASE: Foto[] = [
+  { src: '/img/slide_01.jpg' },
+  { src: '/lugares/eyipantla_1.jpg' },
+  { src: '/img/slide_09.jpg' },
+  { src: '/lugares/nanciyaga_1.jpg' },
+  { src: '/img/slide_05.jpg' },
+  { src: '/lugares/hechizo-amor_1.jpg' },
+  { src: '/img/slide_13.jpg' },
+  { src: '/lugares/jungla-balneario_1.jpg' },
+  { src: '/lugares/cerro-venado_1.jpg' },
 ];
 
 const FEATURES = [
@@ -61,21 +70,75 @@ const FEATURES = [
   },
 ];
 
-const N = FOTOS.length;
+const FEATURES_PRESTADOR = [
+  {
+    icon: Percent,
+    title: 'Comisiones justas',
+    desc: 'A diferencia de otras plataformas, no te descontamos un porcentaje desproporcionado por cada reserva.',
+  },
+  {
+    icon: TrendingUp,
+    title: 'Visibilidad real',
+    desc: 'Apareces en las rutas que arma el asistente de IA cuando un turista busca algo que tú ofreces.',
+  },
+  {
+    icon: Camera,
+    title: 'Empieza con lo que ya tienes',
+    desc: 'Desde cero, vinculando tu Facebook o Instagram, o subiendo la foto de tu volante — tú eliges.',
+  },
+  {
+    icon: WifiOff,
+    title: 'Tu perfil, también offline',
+    desc: 'Una vez cargado, tu servicio sigue disponible para turistas sin señal, igual que el resto de la app.',
+  },
+  {
+    icon: Users,
+    title: 'Comunidad local',
+    desc: 'Formas parte del catálogo de prestadores verificados de Los Tuxtlas, no de un directorio genérico.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Verificación simple',
+    desc: 'Confirmamos que tu servicio es real sin un formulario largo — lo justo para dar confianza al turista.',
+  },
+];
+
 const COLA = 2 + 3.5; // pasos extra para que las fotos salgan
-const TOTAL = N + COLA;
+const MIN_FOTOS = 6;
+const MAX_FOTOS = 9;
 
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const seg = (p: number, a: number, b: number) => clamp((p - a) / (b - a));
 
-// Cada foto tiene su propia curva y giro, alternando de lado.
-const RUTAS = FOTOS.map((_, i) => ({
-  lado: i % 2 === 0 ? 1 : -1,
-  curva: 45 + (i % 3) * 15,
-  giro: (i % 2 === 0 ? 1 : -1) * (8 + (i % 4) * 3),
-}));
+type Ruta = { lado: number; curva: number; giro: number };
 
-function movimiento(p0: number, ruta: (typeof RUTAS)[number]) {
+// Cada foto tiene su propia curva y giro, alternando de lado.
+const rutasPara = (n: number): Ruta[] =>
+  Array.from({ length: n }, (_, i) => ({
+    lado: i % 2 === 0 ? 1 : -1,
+    curva: 45 + (i % 3) * 15,
+    giro: (i % 2 === 0 ? 1 : -1) * (8 + (i % 4) * 3),
+  }));
+
+// ¿La foto carga y tiene tamaño suficiente para verse bien en grande?
+// (las fotos de baja resolución de los prestadores se descartan)
+function fotoConCalidad(src: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const fin = setTimeout(() => resolve(false), 7000);
+    img.onload = () => {
+      clearTimeout(fin);
+      resolve(Math.min(img.naturalWidth, img.naturalHeight) >= 480);
+    };
+    img.onerror = () => {
+      clearTimeout(fin);
+      resolve(false);
+    };
+    img.src = src;
+  });
+}
+
+function movimiento(p0: number, ruta: Ruta) {
   const p = clamp(p0);
   const escala = 0.22 + Math.pow(p, 0.8) * 0.78;
   const amp = Math.pow(1 - p, 0.85);
@@ -89,8 +152,71 @@ function movimiento(p0: number, ruta: (typeof RUTAS)[number]) {
   };
 }
 
-export default function RecorridoCartas() {
+export default function RecorridoCartas({ modo = 'turista' }: { modo?: 'turista' | 'prestador' }) {
   const t = useT();
+  const prestador = modo === 'prestador';
+  const FEATS = prestador ? FEATURES_PRESTADOR : FEATURES;
+
+  // Turistas: las fotos de siempre. Prestadores: fotos reales de los
+  // prestadores registrados (solo las que cargan y tienen buena
+  // resolución); si faltan, se completa con las fotos de la región.
+  const [fotos, setFotos] = useState<Foto[]>(FOTOS_BASE);
+  useEffect(() => {
+    if (!prestador) {
+      setFotos(FOTOS_BASE);
+      return;
+    }
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/servicios/aprobados');
+        const d = r.ok ? await r.json() : null;
+        if (!vivo || !d || !Array.isArray(d.lugares)) return;
+        const prestadores = (d.lugares as Lugar[])
+          .filter((l) => l.imagen)
+          .sort(
+            (x, y) =>
+              (y.imagenesExtra?.length ?? 0) - (x.imagenesExtra?.length ?? 0) ||
+              Number(!!y.premium) - Number(!!x.premium) ||
+              y.rating - x.rating
+          );
+        const candidatas: Foto[] = [];
+        const vistas = new Set<string>();
+        for (const l of prestadores) {
+          for (const src of [l.imagen, ...(l.imagenesExtra ?? [])].slice(0, 2)) {
+            if (src && !vistas.has(src)) {
+              vistas.add(src);
+              candidatas.push({ src, nombre: l.nombre });
+            }
+          }
+        }
+        const pruebas = await Promise.all(candidatas.slice(0, 24).map((f) => fotoConCalidad(f.src)));
+        const buenas = candidatas.slice(0, 24).filter((_, i) => pruebas[i]);
+        if (!vivo || buenas.length === 0) return;
+        // Una foto por prestador primero, para que haya variedad.
+        const porNombre = new Map<string, Foto>();
+        buenas.forEach((f) => {
+          if (f.nombre && !porNombre.has(f.nombre)) porNombre.set(f.nombre, f);
+        });
+        const lista = [...porNombre.values(), ...buenas.filter((f) => ![...porNombre.values()].includes(f))].slice(
+          0,
+          MAX_FOTOS
+        );
+        const relleno = FOTOS_BASE.filter((b) => !lista.some((f) => f.src === b.src));
+        while (lista.length < MIN_FOTOS && relleno.length) lista.push(relleno.shift() as Foto);
+        setFotos(lista);
+      } catch {
+        /* sin conexión: se quedan las fotos de la región */
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [prestador]);
+
+  const N = fotos.length;
+  const TOTAL = N + COLA;
+  const RUTAS = useMemo(() => rutasPara(N), [N]);
   const refSec = useRef<HTMLElement>(null);
   const refEscena = useRef<HTMLDivElement>(null);
   const refCartas = useRef<(HTMLDivElement | null)[]>([]);
@@ -156,9 +282,9 @@ export default function RecorridoCartas() {
         refPanel.current.style.visibility = pIn * (1 - pOut) > 0 ? 'visible' : 'hidden';
       }
       // Una característica por cada tramo de fotos.
-      const pos = Math.min(FEATURES.length - 1, Math.max(0, (paso / N) * FEATURES.length - 0.5));
+      const pos = Math.min(FEATS.length - 1, Math.max(0, (paso / N) * FEATS.length - 0.5));
       let activa = 0;
-      FEATURES.forEach((_, i) => {
+      FEATS.forEach((_, i) => {
         const d = Math.abs(pos - i);
         const k = clamp(1 - d * 1.5);
         const el = refFeats.current[i];
@@ -174,7 +300,7 @@ export default function RecorridoCartas() {
           p.style.width = i === activa ? '22px' : '8px';
         }
       });
-      if (refNum.current) refNum.current.textContent = `0${activa + 1} / 0${FEATURES.length}`;
+      if (refNum.current) refNum.current.textContent = `0${activa + 1} / 0${FEATS.length}`;
 
       // Cierre
       const c = seg(paso, N + 2.2, N + 3.6);
@@ -207,14 +333,15 @@ export default function RecorridoCartas() {
       io.disconnect();
       window.removeEventListener('resize', medir);
     };
-  }, []);
+  }, [FEATS.length, N, TOTAL, RUTAS]);
 
   return (
     <section
       id="features"
       ref={refSec}
-      className="relative h-[1100vh]"
-      aria-label={t('Por qué TuxtlasGO')}
+      className="relative"
+      style={{ height: `${Math.round(TOTAL * 75)}vh` }}
+      aria-label={t(prestador ? 'Por qué registrarte en TuxtlasGO' : 'Por qué TuxtlasGO')}
     >
       <div className="sticky top-16 h-[calc(100svh-4rem)] overflow-hidden bg-jungle-950 isolate">
         {/* Fondo: verde profundo con luces suaves */}
@@ -234,9 +361,9 @@ export default function RecorridoCartas() {
           className="absolute left-0 top-0 flex h-[52%] w-full items-center justify-center lg:h-full lg:w-[56%]"
           style={{ perspective: '1200px' }}
         >
-          {FOTOS.map((src, i) => (
+          {fotos.map((foto, i) => (
             <div
-              key={src}
+              key={foto.src}
               ref={(el) => {
                 refCartas.current[i] = el;
               }}
@@ -244,12 +371,17 @@ export default function RecorridoCartas() {
               style={{ zIndex: i + 1, opacity: 0 }}
             >
               <img
-                src={src}
-                alt=""
+                src={foto.src}
+                alt={foto.nombre ?? ''}
                 loading="lazy"
                 draggable={false}
                 className="h-full w-full select-none rounded-xl object-cover"
               />
+              {foto.nombre && (
+                <span className="absolute inset-x-2.5 bottom-2.5 truncate rounded-b-xl bg-gradient-to-t from-black/70 to-transparent px-3 pb-2.5 pt-8 font-display text-xs font-bold text-white sm:text-sm">
+                  {foto.nombre}
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -261,13 +393,13 @@ export default function RecorridoCartas() {
           style={{ opacity: 0 }}
         >
           <span className="inline-flex h-6 items-center rounded bg-jungle-300 px-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-jungle-950">
-            {t('Por qué TuxtlasGO')}
+            {t(prestador ? 'Por qué registrarte en TuxtlasGO' : 'Por qué TuxtlasGO')}
           </span>
           <h2 className="mt-3 font-display text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
-            {t('Pensada para Los Tuxtlas')}
+            {t(prestador ? 'Hecho para prestadores locales' : 'Pensada para Los Tuxtlas')}
           </h2>
           <div className="relative mt-4 h-48 lg:mt-6 lg:h-52">
-            {FEATURES.map((f, i) => (
+            {FEATS.map((f, i) => (
               <div
                 key={f.title}
                 ref={(el) => {
@@ -285,7 +417,7 @@ export default function RecorridoCartas() {
             ))}
           </div>
           <div className="mt-4 flex items-center gap-2">
-            {FEATURES.map((_, i) => (
+            {FEATS.map((_, i) => (
               <span
                 key={i}
                 ref={(el) => {
@@ -309,16 +441,20 @@ export default function RecorridoCartas() {
         >
           <div className="rounded-3xl border border-white/25 bg-jungle-950/55 px-6 py-10 backdrop-blur-xl sm:px-12 sm:py-14">
             <h2 className="font-display text-3xl font-extrabold tracking-tight sm:text-5xl">
-              {t('Listo para descubrir Los Tuxtlas')}
+              {t(prestador ? 'Súmate a los prestadores de Los Tuxtlas' : 'Listo para descubrir Los Tuxtlas')}
             </h2>
             <p className="mx-auto mt-3 max-w-md text-white/80">
-              {t('La aplicación es gratuita. Tus datos no salen de tu dispositivo.')}
+              {t(
+                prestador
+                  ? 'Registrar tu servicio es gratis. Tú decides qué información compartes.'
+                  : 'La aplicación es gratuita. Tus datos no salen de tu dispositivo.'
+              )}
             </p>
             <Link
-              to="/app"
+              to={prestador ? '/prestador' : '/app'}
               className="pointer-events-auto mt-7 inline-flex items-center gap-2 rounded-full bg-jungle-300 px-8 py-4 text-lg font-semibold text-jungle-950 shadow-xl transition-colors hover:bg-jungle-200"
             >
-              {t('Empezar ahora')}
+              {t(prestador ? 'Únete ahora' : 'Empezar ahora')}
               <ChevronRight size={20} />
             </Link>
           </div>

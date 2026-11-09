@@ -363,3 +363,11 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 - Nuevo src/components/RecorridoCartas.tsx: segunda parte de la historia. 9 fotos reales entran desde abajo con curva, crecen, se apilan y salen (técnica de scroll tipo "cartas"), mientras al lado un panel cambia entre las 6 características de "Por qué TuxtlasGO"; al final, cierre con "Empezar ahora". Reemplaza las secciones sueltas de Features y CTA final: toda la landing turista es ahora una sola historia (HeroScroll -> RecorridoCartas -> footer).
 - Acentos amarillos del inicio cambiados a verde (jungle-300).
 - Nota de desarrollo: el service worker puede servir una landing vieja en localhost; si no ves cambios, desregistrarlo y limpiar caches.
+
+## Landing modo prestador con la misma historia
+- HeroScroll y RecorridoCartas reciben `modo` (turista | prestador). SeccionesPrestador ahora es solo <HeroScroll modo="prestador" /> + <RecorridoCartas modo="prestador" />.
+- Textos de prestador tomados de los que ya existían (comisiones justas, visibilidad real, empieza con lo que tienes, perfil offline, comunidad local, verificación simple); botones apuntan a /prestador. Tarjetas de la fase "Ya están aquí" usan servicios reales de prestadores (API) y, sin conexión, los destacados.
+
+## Prestadores con fotos reales + pie de página dinámico
+- RecorridoCartas (modo prestador): las fotos que vuelan son de prestadores registrados (API /api/servicios/aprobados), ordenadas por más fotos/premium/calificación, una por prestador primero, con el nombre en la tarjeta. Filtro de calidad: solo pasan las que cargan y miden al menos 480px de lado menor; si faltan (mínimo 6) se completa con fotos de la región. La altura de la sección se ajusta al número de fotos.
+- Nuevo FooterDinamico.tsx: cinta grande de palabras que corre en dos sentidos, columnas que entran escalonadas, palabra gigante TuxtlasGO que sube y se aclara con el scroll, botón según modo. Reemplaza el pie estático de LandingPage.

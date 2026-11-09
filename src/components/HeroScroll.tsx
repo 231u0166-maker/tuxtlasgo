@@ -29,8 +29,11 @@ const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const seg = (p: number, a: number, b: number) => clamp((p - a) / (b - a));
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-export default function HeroScroll() {
+type Modo = 'turista' | 'prestador';
+
+export default function HeroScroll({ modo = 'turista' }: { modo?: Modo }) {
   const t = useT();
+  const prestador = modo === 'prestador';
 
   // Datos reales del catálogo — nada inventado.
   const destacados = useMemo(() => LUGARES.filter((l) => l.destacado).slice(0, 4), []);
@@ -52,6 +55,13 @@ export default function HeroScroll() {
       vivo = false;
     };
   }, []);
+  // Tarjetas: en modo prestador, servicios reales de prestadores (los que
+  // trae la API) y, si no hay conexión, los destacados del catálogo.
+  const tarjetas = useMemo(() => {
+    if (!prestador) return destacados;
+    const reales = todos.filter((l) => !LUGARES.some((x) => x.id === l.id)).slice(0, 4);
+    return reales.length >= 2 ? reales : destacados;
+  }, [prestador, todos, destacados]);
   const cifras = useMemo(
     () => [
       { n: todos.length, etiqueta: 'Lugares en el mapa' },
@@ -73,7 +83,15 @@ export default function HeroScroll() {
   const refProg = useRef<HTMLDivElement>(null);
   const refCifras = useRef<(HTMLSpanElement | null)[]>([]);
 
-  const palabrasVision = t('De información dispersa a rutas claras, locales y sin internet').split(' ');
+  const palabrasVision = t(
+    prestador
+      ? 'De un negocio que nadie encuentra a uno que aparece en la ruta del turista'
+      : 'De información dispersa a rutas claras, locales y sin internet'
+  ).split(' ');
+  const etiquetasFinal = prestador
+    ? ['Comisiones justas', 'Visibilidad real', 'Empieza con lo que tienes', 'Perfil también offline', 'Verificación simple']
+    : ['Funciona sin internet', 'Asistente con IA', 'Mapa interactivo', 'Prestadores locales', 'Datos validados'];
+  const destino = prestador ? '/prestador' : '/app';
 
   useEffect(() => {
     const story = refStory.current;
@@ -218,7 +236,7 @@ export default function HeroScroll() {
   const sombra = { textShadow: '0 2px 30px rgba(2,30,15,0.55), 0 1px 3px rgba(2,30,15,0.35)' };
 
   return (
-    <section ref={refStory} className="relative h-[420vh] sm:h-[460vh]" aria-label={t('Tu guía de Los Tuxtlas')}>
+    <section ref={refStory} className="relative h-[420vh] sm:h-[460vh]" aria-label={t(prestador ? 'Tu servicio frente a quien ya viene' : 'Tu guía de Los Tuxtlas')}>
       <div className="sticky top-16 h-[calc(100svh-4rem)] overflow-hidden bg-jungle-950 isolate">
         {/* Escenas */}
         <div ref={refCam} className="absolute -inset-[4%] will-change-transform">
@@ -242,27 +260,42 @@ export default function HeroScroll() {
         {/* 1) Portada */}
         <div ref={refHero} className="absolute inset-x-0 top-[13vh] z-10 px-5 text-center">
           <span className="inline-flex h-6 items-center rounded bg-jungle-300 px-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-jungle-950">
-            {t('Guía turística offline')}
+            {t(prestador ? 'Sin comisiones abusivas' : 'Guía turística offline')}
           </span>
           <h1
             className="mx-auto mt-5 max-w-4xl font-display text-[2.6rem] font-extrabold leading-[0.98] tracking-tight text-white sm:text-6xl lg:text-7xl"
             style={sombra}
           >
-            {t('Tu guía de')} {t('Los Tuxtlas,')}
-            <br />
-            <span className="text-jungle-300">{t('sin límites.')}</span>
+            {prestador ? (
+              <>
+                {t('Tu servicio,')} {t('frente a quien')}
+                <br />
+                <span className="text-jungle-300">{t('ya viene para acá.')}</span>
+              </>
+            ) : (
+              <>
+                {t('Tu guía de')} {t('Los Tuxtlas,')}
+                <br />
+                <span className="text-jungle-300">{t('sin límites.')}</span>
+              </>
+            )}
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base text-white/90 sm:text-lg" style={sombra}>
-            {t('Rutas personalizadas con IA, mapa offline y prestadores locales verificados. Sin cuenta, sin anuncios, sin depender de señal.')}
+            {t(
+              prestador
+                ? 'Regístrate en minutos y aparece ante turistas que están planeando su viaje a Los Tuxtlas en este momento — con o sin contenido previo en redes sociales.'
+                : 'Rutas personalizadas con IA, mapa offline y prestadores locales verificados. Sin cuenta, sin anuncios, sin depender de señal.'
+            )}
           </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link
-              to="/app"
+              to={destino}
               className="pointer-events-auto flex items-center gap-2 rounded-full bg-jungle-300 px-6 py-3.5 font-semibold text-jungle-950 shadow-lg transition-colors hover:bg-jungle-200"
             >
-              {t('Empezar a explorar')}
+              {t(prestador ? 'Únete ahora' : 'Empezar a explorar')}
               <ChevronRight size={18} />
             </Link>
+            {!prestador && (
             <button
               onClick={() =>
                 alert(t('Para instalar en tu celular: ábrela en Chrome o Safari y elige "Agregar a pantalla de inicio".'))
@@ -272,6 +305,7 @@ export default function HeroScroll() {
               <Download size={18} />
               {t('Instalar en mi celular')}
             </button>
+            )}
           </div>
         </div>
 
@@ -316,7 +350,11 @@ export default function HeroScroll() {
             ))}
           </h2>
           <p data-sub className="mx-auto mt-5 max-w-lg text-base sm:text-lg" style={sombra}>
-            {t('Un solo lugar con todo lo que ofrecen los prestadores de la región.')}
+            {t(
+              prestador
+                ? 'Tu servicio dentro del catálogo de prestadores verificados de Los Tuxtlas.'
+                : 'Un solo lugar con todo lo que ofrecen los prestadores de la región.'
+            )}
           </p>
         </div>
 
@@ -324,14 +362,18 @@ export default function HeroScroll() {
         <div ref={refLugares} className="invisible absolute inset-0 z-10">
           <div data-tit className="absolute left-5 top-[11vh] max-w-xl text-white sm:left-8" style={sombra}>
             <span className="inline-flex h-6 items-center rounded bg-jungle-300 px-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-jungle-950">
-              {t('Lugares reales')}
+              {t(prestador ? 'Ya están aquí' : 'Lugares reales')}
             </span>
             <p className="mt-4 font-display text-2xl font-bold leading-tight sm:text-4xl">
-              {t('Cada lugar con horario, costo y cómo llegar, validado con visitas de campo.')}
+              {t(
+                prestador
+                  ? 'Así aparece tu servicio: foto, calificación, municipio, horario y cómo llegar.'
+                  : 'Cada lugar con horario, costo y cómo llegar, validado con visitas de campo.'
+              )}
             </p>
           </div>
           <div className="absolute inset-x-4 bottom-[9vh] mx-auto grid max-w-5xl grid-cols-2 gap-3 lg:grid-cols-4">
-            {destacados.map((l) => (
+            {tarjetas.map((l) => (
               <Link
                 key={l.id}
                 data-card
@@ -358,7 +400,7 @@ export default function HeroScroll() {
           className="invisible absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 px-4 text-center text-white"
         >
           <h2 className="max-w-3xl font-display text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl" style={sombra}>
-            {t('Pensada para Los Tuxtlas')}
+            {t(prestador ? 'Hecho para prestadores locales' : 'Pensada para Los Tuxtlas')}
           </h2>
           <div className="grid w-full max-w-2xl grid-cols-3 gap-2 rounded-2xl border border-white/30 bg-jungle-950/35 p-4 backdrop-blur-xl sm:gap-4 sm:p-6">
             {cifras.map((c, i) => (
@@ -378,17 +420,17 @@ export default function HeroScroll() {
             ))}
           </div>
           <div className="flex max-w-2xl flex-wrap justify-center gap-2 text-xs font-semibold sm:text-sm">
-            {['Funciona sin internet', 'Asistente con IA', 'Mapa interactivo', 'Prestadores locales', 'Datos validados'].map((f) => (
+            {etiquetasFinal.map((f) => (
               <span key={f} className="rounded-full border border-white/35 bg-white/15 px-3.5 py-1.5 backdrop-blur-md">
                 {t(f)}
               </span>
             ))}
           </div>
           <Link
-            to="/app"
+            to={destino}
             className="pointer-events-auto flex items-center gap-2 rounded-full bg-jungle-300 px-7 py-4 text-lg font-semibold text-jungle-950 shadow-xl transition-colors hover:bg-jungle-200"
           >
-            {t('Empezar ahora')}
+            {t(prestador ? 'Únete ahora' : 'Empezar ahora')}
             <ChevronRight size={20} />
           </Link>
         </div>

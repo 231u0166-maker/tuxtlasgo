@@ -138,6 +138,23 @@ export default function ExploreScreen({
         </div>
       </div>
 
+      {/* Todos los servicios — para que se vea TODO lo que hay, no solo
+          los primeros de cada carrusel. */}
+      {sinFiltro && todosLugares.length > 0 && (
+        <section className="mx-3 lg:mx-8 mt-5 rounded-3xl bg-white/70 border border-jungle-200 shadow-[0_2px_16px_rgba(5,46,22,0.07)] p-4 lg:p-6">
+          <h2 className="font-display font-extrabold text-xl text-jungle-950">{t('Todos los servicios')}</h2>
+          <p className="text-sm text-jungle-600 mt-0.5 mb-5">
+            {todosLugares.length === 1 ? t('{n} lugar', { n: 1 }) : t('{n} lugares', { n: todosLugares.length })}
+            {' · '}{t('Todo lo que hay en la plataforma')}
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-4 gap-y-7">
+            {todosLugares.map((l) => (
+              <TarjetaLugar key={l.id} lugar={l} onClick={() => onVerLugar(l)} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {sinFiltro && destacados.length > 0 && (
         <FilaHorizontal
           titulo={t('Destacados')}
@@ -168,23 +185,6 @@ export default function ExploreScreen({
             />
           );
         })}
-
-      {/* Todos los servicios — para que se vea TODO lo que hay, no solo
-          los primeros de cada carrusel. */}
-      {sinFiltro && todosLugares.length > 0 && (
-        <section className="mx-3 lg:mx-8 mt-5 rounded-3xl bg-white/70 border border-jungle-200 shadow-[0_2px_16px_rgba(5,46,22,0.07)] p-4 lg:p-6">
-          <h2 className="font-display font-extrabold text-xl text-jungle-950">{t('Todos los servicios')}</h2>
-          <p className="text-sm text-jungle-600 mt-0.5 mb-5">
-            {todosLugares.length === 1 ? t('{n} lugar', { n: 1 }) : t('{n} lugares', { n: todosLugares.length })}
-            {' · '}{t('Todo lo que hay en la plataforma')}
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-4 gap-y-7">
-            {todosLugares.map((l) => (
-              <TarjetaLugar key={l.id} lugar={l} onClick={() => onVerLugar(l)} />
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Resultados — lo único que se ve con búsqueda o categoría activa. */}
       {!sinFiltro && (
@@ -236,7 +236,7 @@ export function BarraPregunta({
     onPreguntar(q);
   };
   return (
-    <div className="sticky bottom-4 z-20 px-4 lg:px-8 mt-6 pointer-events-none">
+    <div className="sticky bottom-4 z-20 px-4 lg:px-8 mt-auto pt-6 pointer-events-none">
       <form
         onSubmit={(e) => { e.preventDefault(); enviar(); }}
         className="pointer-events-auto mx-auto max-w-3xl flex items-center gap-2 rounded-3xl p-2 pl-5 bg-white/30 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 shadow-[0_8px_32px_rgba(2,44,22,0.22)] supports-[not(backdrop-filter:blur(1px))]:bg-white/90"

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import PlaceCard from './PlaceCard';
+import { BarraPregunta } from './ExploreScreen';
 import { useT } from '../lib/i18n';
 import type { Lugar } from '../data/lugares';
 import { getCatalogoRegion } from '../lib/chatbot';
@@ -30,7 +30,6 @@ interface Props {
 
 export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Props) {
   const t = useT();
-  const [texto, setTexto] = useState('');
   // "Para ti" mezcla dos cosas a propósito, siempre en este orden:
   // primero la curaduría nuestra (destacado: rating/calidad, sin
   // dinero de por medio), y DESPUÉS los prestadores Premium ($89
@@ -44,28 +43,9 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
   const patrocinadosSinDestacar = getCatalogoRegion().filter((l) => l.premium && !l.destacado);
   const paraTi = [...destacados, ...patrocinadosSinDestacar];
 
-  // Mismo comportamiento que el textarea de la pestaña Asistente —
-  // crece con el texto hasta un tope, y no pierde de vista el cursor
-  // al pasar ese tope. Ver la nota completa en ChatAssistant.tsx.
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-    el.scrollTop = el.scrollHeight;
-  }, [texto]);
-
-  const enviar = () => {
-    const limpio = texto.trim();
-    if (!limpio) return;
-    onPreguntar(limpio);
-    setTexto('');
-  };
-
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto flex flex-col">
         <div className="px-4 lg:px-8 pt-6 pb-2">
           <h1 className="font-display font-extrabold text-2xl text-obsidiana-900">
             {t('¿A dónde vamos hoy?')}
@@ -113,39 +93,9 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
             ))}
           </div>
         </section>
-      </div>
 
-      {/* El chat, directo aquí — mismo estilo de entrada que el de la
-          pestaña Asistente, pero enviar te lleva allá con la
-          pregunta ya en camino. */}
-      <div
-        className="flex-shrink-0 border-t border-jungle-100 px-3 pt-3 bg-white"
-        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
-      >
-        <div className="flex items-end gap-2">
-          <textarea
-            ref={inputRef}
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                enviar();
-              }
-            }}
-            placeholder={t('Escribir un mensaje...')}
-            rows={1}
-            className="flex-1 min-w-0 bg-white border border-jungle-200 rounded-2xl px-4 py-3 text-base text-jungle-950 leading-snug resize-none overflow-y-auto max-h-[160px] focus:outline-none focus:ring-2 focus:ring-jungle-300 focus:border-jungle-400 placeholder:text-jungle-400 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          />
-          <button
-            onClick={enviar}
-            disabled={!texto.trim()}
-            className="w-11 h-11 rounded-full bg-jungle-700 disabled:bg-jungle-200 text-white flex items-center justify-center flex-shrink-0 transition-colors"
-            aria-label={t('Enviar')}
-          >
-            <Send size={16} />
-          </button>
-        </div>
+        {/* Barra flotante de cristal (la misma de Explorar). */}
+        <BarraPregunta onPreguntar={onPreguntar} />
       </div>
     </div>
   );

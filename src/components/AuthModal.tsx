@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import { useT } from '../lib/i18n';
 import SelectorIdioma from './SelectorIdioma';
-import { apiLogin, apiRegistro, apiRecuperar, type UsuarioSesion } from '../lib/auth';
+import { apiLogin, apiRegistro, apiRecuperar, apiLoginGoogle, type UsuarioSesion } from '../lib/auth';
+import BotonGoogle, { GOOGLE_CLIENT_ID } from './BotonGoogle';
 
 type Vista = 'login' | 'registro' | 'recuperar' | 'codigo';
 
@@ -50,6 +51,30 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
   const [codigoRec, setCodigoRec] = useState('');
   const [passNueva, setPassNueva] = useState('');
   const [recuperado, setRecuperado] = useState(false);
+
+  async function handleGoogle(credential: string) {
+    setError('');
+    setCargando(true);
+    const res = await apiLoginGoogle(credential);
+    setCargando(false);
+    if (res.ok && res.usuario) onSuccess(res.usuario);
+    else setError(t(res.error ?? 'No pudimos iniciar sesión con Google'));
+  }
+
+  const bloqueGoogle = GOOGLE_CLIENT_ID ? (
+    <div className="mb-5">
+      <BotonGoogle onCredential={handleGoogle} />
+      <p className="mt-2 text-center text-[11px] text-jungle-500">
+        {t('Al continuar aceptas los')}{' '}
+        <a href="/terminos" target="_blank" rel="noopener noreferrer" className="underline">
+          {t('términos y condiciones')}
+        </a>
+      </p>
+      <div className="mt-4 flex items-center gap-3 text-xs text-jungle-400">
+        <span className="h-px flex-1 bg-jungle-100" /> {t('o con tu correo')} <span className="h-px flex-1 bg-jungle-100" />
+      </div>
+    </div>
+  ) : null;
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -218,6 +243,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
               <h2 className="font-display font-extrabold text-2xl text-jungle-950 mb-1">{t('Iniciar sesión')}</h2>
               <p className="text-sm text-jungle-600 mb-6">{t('Ingresa tus datos para continuar')}</p>
               {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
+              {bloqueGoogle}
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">{t('Correo electrónico')}</label>
@@ -263,6 +289,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
               <p className="text-sm text-jungle-600 mb-6">{t('Completa los datos para registrarte')}</p>
               {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">{error}</div>}
 
+              {bloqueGoogle}
               <form onSubmit={handleRegistro} className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">{t('Nombre completo')} <span className="text-red-500">*</span></label>

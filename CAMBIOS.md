@@ -396,3 +396,9 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 - Frontend: src/components/ResenasLugar.tsx dentro del detalle (sección Reseñas): promedio y barras por estrellas, formulario de estrellas+texto, hilos de comentarios con "Responder", marca "Autor de la reseña", borrar lo propio. Sin sesión se ve todo pero se pide iniciar sesión (PlaceDetail recibe onIniciarSesion).
 - Probado: flujo A reseña -> B comenta -> A responde -> C responde/marca útil, validaciones y avisos, contra Postgres real en un esquema temporal ya borrado. UI revisada con datos simulados.
 - Las estrellas de usuarios son aparte del rating del catálogo; no se mezclan.
+
+## Iniciar sesión con Google
+- Servidor: api/auth/login.ts ?accion=google (sin función nueva). Verifica el ID token con Google (tokeninfo), exige aud = nuestro Client ID, emisor Google y correo verificado. Si el correo existe entra a esa misma cuenta (turista o prestador); si no, crea una de turista (contraseña = hash aleatorio, solo entra con Google). Ser prestador sigue igual: formulario + visto bueno del admin.
+- Cliente: src/components/BotonGoogle.tsx (Google Identity Services, botón oficial), apiLoginGoogle en lib/auth.ts, y el AuthModal lo muestra arriba en Iniciar sesión y Crear cuenta ("o con tu correo" debajo). Sin VITE_GOOGLE_CLIENT_ID el botón no aparece y todo sigue como antes.
+- PENDIENTE: crear el ID de cliente OAuth en Google Cloud y ponerlo en VITE_GOOGLE_CLIENT_ID (Vercel y .env.local).
+- Incidente: una prueba mía dejó search_path pegado en el pooler de Neon y rompió login/registro/aprobados un rato; corregido (RESET) y sin pérdida de datos. No volver a probar con SET/esquemas temporales sobre el pooler.

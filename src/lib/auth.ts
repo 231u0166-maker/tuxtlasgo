@@ -92,6 +92,28 @@ export async function apiLogin(datos: {
   }
 }
 
+// Inicio de sesión con Google: recibe el "credential" (ID token) que da el
+// botón de Google; el servidor lo verifica y devuelve la sesión de siempre.
+export async function apiLoginGoogle(
+  credential: string
+): Promise<{ ok: boolean; error?: string; usuario?: UsuarioSesion; token?: string; nuevo?: boolean }> {
+  try {
+    const res = await fetch('/api/auth/login?accion=google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    });
+    const data = await res.json();
+    if (data.ok && data.token) {
+      setToken(data.token);
+      setUsuarioLocal(data.usuario);
+    }
+    return data;
+  } catch {
+    return { ok: false, error: 'Error de conexión. Verifica tu internet.' };
+  }
+}
+
 export async function apiLogout(): Promise<void> {
   const token = getToken();
   if (token) {

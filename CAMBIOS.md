@@ -406,3 +406,4 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 ## SEO básico
 - index.html: descripción y título con palabras clave reales (Los Tuxtlas, Catemaco, San Andrés Tuxtla), canonical, Open Graph/Twitter, JSON-LD (WebSite, Organization, TouristInformationCenter) y <noscript> con texto. public/robots.txt (bloquea /admin, /api, /prestador) y public/sitemap.xml.
 - Límite: es una SPA; los lugares no tienen URL propia, así que Google no los indexa uno por uno. Siguiente paso: páginas /lugar/<id> prerenderizadas con su propio título, descripción y datos estructurados.
+- Search Console: public/google32721e05fd1a5601.html (archivo de verificación de propiedad; NO borrar).

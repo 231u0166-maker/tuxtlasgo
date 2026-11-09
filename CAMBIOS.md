@@ -313,3 +313,13 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 
 - **Barra lateral:** vuelve a ser dinámica en todos los anchos. Siempre compacta (solo íconos) y se abre con los nombres al pasar el cursor o enfocar con teclado. Se quitó la versión fija y abierta de ≥1280px (`esAncho` en `AppShell.tsx`).
 - **Logo:** se reemplazó el pino de lucide por el emblema real de TuxtlasGO (pin con montaña y hoja), recortado de `logo-tuxtlasgo.png` a un PNG transparente: `public/logo-emblema.png`. Va sobre una insignia blanca redonda porque el verde del emblema se perdía sobre el fondo verde oscuro. Aplica a la barra lateral y a la barra superior de celular.
+
+---
+
+# Sesión 2026-11-08 (noche) — Rediseño estilo Mindtrip (rama local `diseno-mindtrip`, SIN subir a main)
+
+- **Explorar:** ya no muestra el mapa al entrar (ni al lado en escritorio, ni de fondo con hoja arrastrable en celular). Ahora es una página a todo el ancho con carruseles por servicio (Destacados, Restaurantes, Actividades, Alojamientos, Naturaleza, Comercio) y una tarjeta final "Ver todos …" con collage. El botón **Mapa** (cabecera y barra de filtros) abre el mapa a pantalla completa con "Cerrar mapa" (antes solo existía en celular). Se quitó el bloque verde "Descubre Los Tuxtlas".
+- **Cabecera nueva:** emblema de TuxtlasGO + titular + mosaico de tarjetas. Las tarjetas son fotos/nombres reales de lugares destacados; para que sean **video**, copiar el .mp4 a `public/videos/` y registrarlo en `src/data/heroMedia.ts` (`VIDEOS_HERO`). Si el video falla, cae a la foto.
+- **Detalle de servicio** (`PlaceDetail.tsx`): hoja grande con mosaico de fotos, pestañas fijas Resumen / Reseñas / Ubicación, mapa embebido con "Cómo llegar", y "Lugares similares" (misma categoría). **Reseñas:** aún no existe sistema de reseñas; se dice tal cual, sin inventar opiniones.
+- **Chat:** el campo de texto flota, translúcido y con desenfoque sobre los mensajes (en vez de barra blanca pegada abajo).
+- Pendiente a decidir: tema oscuro como la referencia (hoy se mantiene la paleta verde clara de la marca).

@@ -1,39 +1,44 @@
 import { useMemo, useState } from 'react';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal, Heart, Star, Map as MapIcon, Sparkles } from 'lucide-react';
 import { LUGARES, CATEGORIAS, type Categoria, type Lugar } from '../data/lugares';
-import PlaceCard from './PlaceCard';
+import { VIDEOS_HERO, type TarjetaHero } from '../data/heroMedia';
 import { useT } from '../lib/i18n';
 import { OfflineReadyBadge } from './OfflineIndicator';
+import { toggleFavorito, esFavorito } from '../lib/db';
+import { manejarErrorImagen } from '../lib/imagenLugar';
+import { optimizarImagen, ANCHO_TARJETA } from '../lib/imagenOptimizada';
+import { useEffect } from 'react';
 
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   lugares?: Lugar[];
-  // Controlado desde AppShell en móvil (la caja de búsqueda vive
-  // flotando sobre la vista previa del mapa, no aquí dentro — ver
-  // AppShell.tsx). Si no llega el prop (nadie más usa este
-  // componente todavía, pero por si acaso), se cae a estado propio
-  // para no romper nada.
   busqueda?: string;
   onBusquedaChange?: (v: string) => void;
+  // "Mapa": el mapa ya no se ve al entrar, se abre a pedido.
+  onAbrirMapa?: () => void;
+  onIrAlChat?: () => void;
 }
 
-// Secciones por categoría — antes solo existían "Destacados" +
-// una sola cuadrícula plana ("se ve muy simple"). Mismas categorías
-// reales del catálogo, con la etiqueta que pidió el usuario
-// (Restaurantes/Actividades/Alojamientos), no los rótulos de
-// mindtrip que no coinciden con lo que de verdad tenemos.
-const SECCIONES: { titulo: string; categoria: Categoria }[] = [
-  { titulo: 'Restaurantes', categoria: 'Gastronomia' },
-  { titulo: 'Actividades', categoria: 'Aventura' },
-  { titulo: 'Alojamientos', categoria: 'Hospedaje' },
-  { titulo: 'Naturaleza', categoria: 'Naturaleza' },
+// Secciones por servicio — cada una es un carrusel con su tarjeta final
+// "Ver todos …" (como en la referencia). Mismas categorías reales del
+// catálogo; la sección se salta si no hay ningún lugar de esa categoría.
+const SECCIONES: { titulo: string; sub: string; categoria: Categoria }[] = [
+  { titulo: 'Restaurantes', sub: 'Dónde comer en Los Tuxtlas, de lo local a lo más pedido.', categoria: 'Gastronomia' },
+  { titulo: 'Actividades', sub: 'Aventura y recorridos para salir a moverse.', categoria: 'Aventura' },
+  { titulo: 'Alojamientos', sub: 'Hoteles, cabañas y lugares para quedarte.', categoria: 'Hospedaje' },
+  { titulo: 'Naturaleza', sub: 'Cascadas, selva, lagunas y miradores.', categoria: 'Naturaleza' },
+  { titulo: 'Comercio y cooperativas', sub: 'Artesanías y productos hechos aquí.', categoria: 'Comercio' },
 ];
+
+const SIGNOS_PRECIO: Record<Lugar['precio'], string> = { bajo: '$', medio: '$$', alto: '$$$' };
 
 export default function ExploreScreen({
   onVerLugar,
   lugares: lugaresProps,
   busqueda: busquedaProp,
   onBusquedaChange,
+  onAbrirMapa,
+  onIrAlChat,
 }: Props) {
   const [busquedaLocal, setBusquedaLocal] = useState('');
   const busqueda = busquedaProp ?? busquedaLocal;
@@ -45,7 +50,7 @@ export default function ExploreScreen({
   const todosLugares = lugaresProps ?? LUGARES;
 
   const normalizar = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
   const filtrados = useMemo(() => {
     const q = normalizar(busqueda);
@@ -55,38 +60,84 @@ export default function ExploreScreen({
       const haystack = normalizar(`${l.nombre} ${l.descripcionCorta} ${l.municipio} ${l.tags.join(' ')}`);
       return haystack.includes(q);
     });
-  }, [busqueda, catActiva]);
+  }, [busqueda, catActiva, todosLugares]);
 
   const destacados = todosLugares.filter((l) => l.destacado);
-  // Solo se muestran las secciones cuando de verdad no hay nada
-  // filtrado — si ya buscaste o elegiste categoría, tiene más sentido
-  // ver directo el resultado (el grid de abajo) que siete carruseles.
   const sinFiltro = !busqueda && catActiva === 'todas';
+  const tarjetasHero: TarjetaHero[] = destacados.slice(0, 5).map((l) => ({
+    id: l.id,
+    titulo: l.nombre,
+    imagen: l.imagen,
+    video: VIDEOS_HERO[l.id],
+  }));
 
   return (
-    <div className="pb-24 lg:pb-8">
-      {/* Hero grande — SOLO escritorio. En móvil el mapa de arriba ya
-          cumple ese rol de "encabezado", y el buscador ahí vive
-          flotando sobre el mapa (AppShell.tsx), no aquí. */}
-      <div className="hidden lg:block bg-gradient-to-br from-jungle-700 to-jungle-900 text-white px-4 lg:px-8 pt-6 lg:pt-8 pb-8 rounded-b-3xl">
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="font-display font-extrabold text-2xl lg:text-3xl">
-            {t('Descubre Los Tuxtlas')}
+    <div className="pb-28 lg:pb-10">
+      {/* Cabecera: emblema + saludo + mosaico de videos/fotos. Sustituye
+          al bloque verde "Descubre Los Tuxtlas". */}
+      {sinFiltro && (
+        <section className="px-4 lg:px-8 pt-6 lg:pt-8">
+          <div className="flex items-start justify-between gap-3">
+            <span className="h-14 w-14 rounded-full bg-white shadow-sm border border-jungle-100 flex items-center justify-center flex-shrink-0">
+              <img src="/logo-emblema.png" alt="TuxtlasGO" className="h-10 w-10 object-contain" />
+            </span>
+            <OfflineReadyBadge />
+          </div>
+          <h1 className="font-display font-extrabold text-2xl lg:text-4xl text-jungle-950 mt-4 leading-tight max-w-3xl">
+            {t('Conoce Los Tuxtlas: cascadas, selva, lago y sabor local.')}
           </h1>
-          <OfflineReadyBadge />
-        </div>
-        <Buscador value={busqueda} onChange={setBusqueda} claro />
-      </div>
+          <p className="text-jungle-700 mt-1.5 max-w-2xl">
+            {t('Todo lo que ofrecen los prestadores de la región, en un solo lugar y disponible sin internet.')}
+          </p>
+          <div className="flex flex-wrap gap-2 mt-4">
+            {onAbrirMapa && (
+              <button
+                onClick={onAbrirMapa}
+                className="inline-flex items-center gap-2 rounded-full bg-jungle-900 text-white text-sm font-semibold px-4 py-2.5 hover:bg-jungle-800 transition-colors"
+              >
+                <MapIcon size={16} /> {t('Ver el mapa')}
+              </button>
+            )}
+            {onIrAlChat && (
+              <button
+                onClick={onIrAlChat}
+                className="inline-flex items-center gap-2 rounded-full border border-jungle-300 bg-white text-jungle-900 text-sm font-semibold px-4 py-2.5 hover:bg-jungle-50 transition-colors"
+              >
+                <Sparkles size={16} /> {t('Preguntar al asistente')}
+              </button>
+            )}
+          </div>
+          <HeroMedia tarjetas={tarjetasHero} />
+        </section>
+      )}
 
-      {/* Categorías */}
-      <div className="px-4 lg:px-8 mt-4 lg:mt-5">
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scroll-smooth snap-x">
-          <CategoryChip
-            label={t('Todos')}
-            emoji="✨"
-            activo={catActiva === 'todas'}
-            onClick={() => setCatActiva('todas')}
-          />
+      {/* Barra de búsqueda y filtros */}
+      <div className="px-4 lg:px-8 mt-7">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h2 className="font-display font-extrabold text-xl lg:text-2xl text-jungle-950 mr-auto">
+            {t('Para ti en Los Tuxtlas')}
+          </h2>
+          <div className="relative w-full sm:w-72 order-3 sm:order-none">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-500" />
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder={t('Buscar lugares, comida, hoteles...')}
+              className="w-full rounded-full bg-white border border-jungle-200 pl-10 pr-4 py-2.5 text-sm text-jungle-950 placeholder:text-jungle-500 focus:outline-none focus:ring-2 focus:ring-jungle-400"
+            />
+          </div>
+          {onAbrirMapa && (
+            <button
+              onClick={onAbrirMapa}
+              className="inline-flex items-center gap-2 rounded-full border border-jungle-300 bg-white text-jungle-900 text-sm font-semibold px-4 py-2.5 hover:bg-jungle-50 transition-colors"
+            >
+              <MapIcon size={16} /> {t('Mapa')}
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mt-4 scroll-smooth snap-x scroll-pl-4 lg:scroll-pl-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <CategoryChip label={t('Todos')} emoji="✨" activo={catActiva === 'todas'} onClick={() => setCatActiva('todas')} />
           {CATEGORIAS.map((c) => (
             <CategoryChip
               key={c.id}
@@ -99,15 +150,15 @@ export default function ExploreScreen({
         </div>
       </div>
 
-      {/* Destacados */}
       {sinFiltro && destacados.length > 0 && (
-        <FilaHorizontal titulo={t('Destacados')} lugares={destacados} onVerLugar={onVerLugar} />
+        <FilaHorizontal
+          titulo={t('Destacados')}
+          subtitulo={t('Lo mejor valorado y lo que más recomendamos.')}
+          lugares={destacados}
+          onVerLugar={onVerLugar}
+        />
       )}
 
-      {/* Una sección por categoría — Restaurantes/Actividades/
-          Alojamientos/Naturaleza, cada una con sus propios lugares.
-          Se salta la sección si no hay ningún lugar de esa categoría
-          todavía, en vez de mostrar un carrusel vacío. */}
       {sinFiltro &&
         SECCIONES.map((s) => {
           const lugaresSeccion = todosLugares.filter((l) => l.categoria === s.categoria);
@@ -116,98 +167,208 @@ export default function ExploreScreen({
             <FilaHorizontal
               key={s.categoria}
               titulo={t(s.titulo)}
+              subtitulo={t(s.sub)}
               lugares={lugaresSeccion}
               onVerLugar={onVerLugar}
+              verTodos={{
+                etiqueta: t('Ver todos {x}', { x: t(s.titulo) }),
+                onClick: () => {
+                  setCatActiva(s.categoria);
+                  document.getElementById('explorar-resultados')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                },
+              }}
             />
           );
         })}
 
-      {/* Grid — catch-all con TODO (incluye Comercio/Cooperativa/Otro,
-          que no tienen su propia sección arriba), y es lo único que se
-          ve cuando hay búsqueda o categoría activa. */}
-      <section className="px-4 lg:px-8 mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display font-bold text-lg text-jungle-950">
-            {sinFiltro
-              ? t('Todos los lugares')
-              : catActiva === 'todas'
-                ? t('Resultados')
-                : t(CATEGORIAS.find((c) => c.id === catActiva)?.id ?? '')}
-          </h2>
-          <span className="text-xs text-jungle-600">
-            {filtrados.length === 1 ? t('{n} resultado', { n: 1 }) : t('{n} resultados', { n: filtrados.length })}
-          </span>
-        </div>
-
-        {filtrados.length === 0 ? (
-          <div className="text-center py-12 text-jungle-700">
-            <SlidersHorizontal className="mx-auto mb-3 opacity-40" size={40} />
-            <p className="font-semibold">{t('Sin resultados')}</p>
-            <p className="text-sm opacity-70 mt-1">
-              {t('Prueba con otra palabra o cambia la categoría.')}
-            </p>
+      {/* Resultados — lo único que se ve con búsqueda o categoría activa. */}
+      {!sinFiltro && (
+        <section id="explorar-resultados" className="px-4 lg:px-8 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display font-bold text-lg text-jungle-950">
+              {catActiva === 'todas' ? t('Resultados') : t(CATEGORIAS.find((c) => c.id === catActiva)?.id ?? '')}
+            </h2>
+            <span className="text-xs text-jungle-600">
+              {filtrados.length === 1 ? t('{n} resultado', { n: 1 }) : t('{n} resultados', { n: filtrados.length })}
+            </span>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtrados.map((l) => (
-              <PlaceCard key={l.id} lugar={l} onClick={() => onVerLugar(l)} />
-            ))}
-          </div>
-        )}
-      </section>
+          {filtrados.length === 0 ? (
+            <div className="text-center py-12 text-jungle-700">
+              <SlidersHorizontal className="mx-auto mb-3 opacity-40" size={40} />
+              <p className="font-semibold">{t('Sin resultados')}</p>
+              <p className="text-sm opacity-70 mt-1">{t('Prueba con otra palabra o cambia la categoría.')}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-4 gap-y-7">
+              {filtrados.map((l) => (
+                <TarjetaLugar key={l.id} lugar={l} onClick={() => onVerLugar(l)} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
 
+// ── Mosaico de la cabecera ─────────────────────────────────────────
+function HeroMedia({ tarjetas }: { tarjetas: TarjetaHero[] }) {
+  return (
+    <div className="flex gap-3 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 mt-6 snap-x scroll-pl-4 lg:scroll-pl-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {tarjetas.map((c) => (
+        <TarjetaMedia key={c.id} tarjeta={c} />
+      ))}
+    </div>
+  );
+}
+
+function TarjetaMedia({ tarjeta }: { tarjeta: TarjetaHero }) {
+  const [videoRoto, setVideoRoto] = useState(false);
+  const usaVideo = !!tarjeta.video && !videoRoto;
+  return (
+    <div className="relative snap-start flex-shrink-0 w-44 sm:w-52 lg:w-56 h-52 lg:h-60 rounded-2xl overflow-hidden bg-jungle-200">
+      {usaVideo ? (
+        <video
+          src={tarjeta.video}
+          poster={tarjeta.imagen}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          onError={() => setVideoRoto(true)}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <img
+          src={optimizarImagen(tarjeta.imagen, ANCHO_TARJETA)}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 w-full h-full object-cover animate-zoom-lento"
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+      <span className="absolute bottom-3 left-3 right-3 text-white font-display font-bold text-sm leading-tight drop-shadow">
+        {tarjeta.titulo}
+      </span>
+    </div>
+  );
+}
+
+// ── Carrusel por servicio ──────────────────────────────────────────
 function FilaHorizontal({
   titulo,
+  subtitulo,
   lugares,
   onVerLugar,
+  verTodos,
 }: {
   titulo: string;
+  subtitulo?: string;
   lugares: Lugar[];
   onVerLugar: (l: Lugar) => void;
+  verTodos?: { etiqueta: string; onClick: () => void };
 }) {
   return (
-    <section className="px-4 lg:px-8 mt-6">
-      <h2 className="font-display font-bold text-lg text-jungle-950 mb-3">{titulo}</h2>
-      <div className="flex gap-3 overflow-x-auto -mx-4 px-4 pb-2 snap-x">
+    <section className="px-4 lg:px-8 mt-9">
+      <h2 className="font-display font-extrabold text-xl text-jungle-950">{titulo}</h2>
+      {subtitulo && <p className="text-sm text-jungle-600 mt-0.5 mb-4">{subtitulo}</p>}
+      <div className="flex gap-4 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 pb-2 snap-x scroll-pl-4 lg:scroll-pl-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {lugares.map((l) => (
-          <div key={l.id} className="snap-start flex-shrink-0 w-64 flex">
-            <PlaceCard lugar={l} onClick={() => onVerLugar(l)} />
+          <div key={l.id} className="snap-start flex-shrink-0 w-[15.5rem] sm:w-64">
+            <TarjetaLugar lugar={l} onClick={() => onVerLugar(l)} />
           </div>
         ))}
+        {verTodos && (
+          <button
+            onClick={verTodos.onClick}
+            className="snap-start flex-shrink-0 w-[15.5rem] sm:w-64 aspect-square rounded-2xl border border-jungle-200 bg-white hover:bg-jungle-50 transition-colors flex flex-col items-center justify-center gap-4 px-4"
+          >
+            <Collage lugares={lugares.slice(0, 3)} />
+            <span className="font-display font-bold text-sm text-jungle-950 text-center">{verTodos.etiqueta}</span>
+          </button>
+        )}
       </div>
     </section>
   );
 }
 
-function Buscador({
-  value,
-  onChange,
-  claro,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  claro?: boolean;
-}) {
-  const t = useT();
+function Collage({ lugares }: { lugares: Lugar[] }) {
+  const giros = ['-rotate-6 -translate-x-8', 'rotate-3 translate-x-8 translate-y-3', 'rotate-0 -translate-y-6'];
   return (
-    <div className="relative">
-      <Search
-        size={18}
-        className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${claro ? 'text-jungle-600' : 'text-jungle-500'}`}
-      />
-      <input
-        type="search"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={t('Buscar lugares, comida, hoteles...')}
-        className={`w-full rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${claro
-          ? 'bg-white text-jungle-950 placeholder:text-jungle-500'
-          : 'bg-jungle-50 text-jungle-950 border border-jungle-100 placeholder:text-jungle-500'
-          }`}
-      />
+    <div className="relative w-28 h-24">
+      {lugares.map((l, i) => (
+        <img
+          key={l.id}
+          src={optimizarImagen(l.imagen, 200)}
+          alt=""
+          onError={manejarErrorImagen(l.categoria, l.nombre)}
+          className={`absolute left-1/2 top-1/2 -ml-8 -mt-8 w-16 h-16 rounded-xl object-cover border-2 border-white shadow-md ${giros[i]}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Tarjeta de lugar (estilo Mindtrip: foto grande, datos debajo) ───
+export function TarjetaLugar({ lugar, onClick }: { lugar: Lugar; onClick: () => void }) {
+  const t = useT();
+  const [fav, setFav] = useState(false);
+  useEffect(() => {
+    esFavorito(lugar.id).then(setFav);
+  }, [lugar.id]);
+  const cat = CATEGORIAS.find((c) => c.id === lugar.categoria);
+
+  const alternarFav = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFav(await toggleFavorito(lugar.id));
+  };
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      className="group cursor-pointer text-left min-w-0 focus:outline-none"
+    >
+      <div className="relative aspect-square rounded-2xl overflow-hidden bg-jungle-100">
+        <img
+          src={optimizarImagen(lugar.imagen, ANCHO_TARJETA)}
+          alt={lugar.nombre}
+          loading="lazy"
+          onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+        <button
+          onClick={alternarFav}
+          aria-label={t('Favorito')}
+          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur flex items-center justify-center hover:bg-white transition"
+        >
+          <Heart size={18} className={fav ? 'fill-red-500 text-red-500' : 'text-jungle-800'} />
+        </button>
+        {lugar.premium && (
+          <span className="absolute bottom-3 left-3 bg-violet-600 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">
+            {t('Patrocinado')}
+          </span>
+        )}
+      </div>
+      <div className="mt-2.5 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-display font-bold text-jungle-950 leading-snug line-clamp-2 min-w-0">{lugar.nombre}</h3>
+          {lugar.rating > 0 && (
+            <span className="flex items-center gap-1 text-sm flex-shrink-0">
+              <Star size={13} className="fill-amber-400 text-amber-400" />
+              <span className="font-semibold text-jungle-900">{lugar.rating}</span>
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-jungle-600 mt-0.5 truncate">
+          {cat?.emoji} {t(lugar.categoria)}
+        </p>
+        <p className="text-sm text-jungle-600 truncate">{lugar.municipio}</p>
+        <p className="text-sm text-jungle-500">{SIGNOS_PRECIO[lugar.precio]}</p>
+      </div>
     </div>
   );
 }
@@ -228,7 +389,7 @@ function CategoryChip({
       onClick={onClick}
       className={`flex-shrink-0 snap-start px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
         activo
-          ? 'bg-jungle-800 text-white shadow-md'
+          ? 'bg-jungle-900 text-white shadow-md'
           : 'bg-white text-jungle-800 border border-jungle-200 hover:border-jungle-400'
       }`}
     >

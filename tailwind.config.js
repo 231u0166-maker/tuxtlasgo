@@ -81,6 +81,7 @@ export default {
         'float': 'float 3.2s ease-in-out infinite',
         'float-delayed': 'float 3.6s ease-in-out infinite 0.6s',
         'float-slow': 'float 4s ease-in-out infinite 1.2s',
+        'zoom-lento': 'zoomLento 14s ease-in-out infinite alternate',
         'crossfade-a': 'crossfade 7s ease-in-out infinite',
         'crossfade-b': 'crossfade 7s ease-in-out infinite -3.5s',
       },
@@ -100,6 +101,10 @@ export default {
         slideUp: {
           '0%': { transform: 'translateY(20px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        zoomLento: {
+          '0%': { transform: 'scale(1)' },
+          '100%': { transform: 'scale(1.12)' },
         },
         float: {
           '0%, 100%': { transform: 'translateY(0)' },

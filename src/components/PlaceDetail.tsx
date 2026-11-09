@@ -1,150 +1,174 @@
 import {
-  X,
-  Star,
-  MapPin,
-  Clock,
-  DollarSign,
-  Calendar,
-  Navigation,
-  Heart,
-  Route,
-  Lightbulb,
-  BadgeCheck,
-  PawPrint,
-  Instagram,
-  Facebook,
-  MessageCircle,
-  Phone,
-  Globe,
-  CalendarCheck,
-  Images,
+  X, Star, MapPin, Clock, DollarSign, Calendar, Navigation, Heart, Route, Lightbulb, BadgeCheck,
+  PawPrint, Instagram, Facebook, MessageCircle, Phone, Globe, CalendarCheck, Share2, ChevronDown,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
 import { manejarErrorImagen } from '../lib/imagenLugar';
 import type { TipoEnlace } from '../lib/enlaces';
 import { registrarEventoServicio } from '../lib/eventos';
+import { getCatalogoActivo } from '../lib/chatbot';
 import ModalReservacion from './ModalReservacion';
+import MiniMapaChat from './MiniMapaChat';
+import { TarjetaLugar } from './ExploreScreen';
 import { useT, useTd } from '../lib/i18n';
-import { optimizarImagen, ANCHO_DETALLE } from '../lib/imagenOptimizada';
+import { optimizarImagen, ANCHO_DETALLE, ANCHO_TARJETA } from '../lib/imagenOptimizada';
 
 interface Props {
   lugar: Lugar;
   onClose: () => void;
   onVerEnMapa: () => void;
+  // Para saltar a un lugar similar sin cerrar la hoja.
+  onVerLugar?: (lugar: Lugar) => void;
 }
 
-export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
+type Pestana = 'resumen' | 'resenas' | 'ubicacion';
+const PESTANAS: Pestana[] = ['resumen', 'resenas', 'ubicacion'];
+
+export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }: Props) {
   const t = useT();
   const td = useTd();
   const [fav, setFav] = useState(false);
   const [mostrarReservacion, setMostrarReservacion] = useState(false);
+  const [leerMas, setLeerMas] = useState(false);
+  const [pestana, setPestana] = useState<Pestana>('resumen');
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const refResumen = useRef<HTMLElement>(null);
+  const refResenas = useRef<HTMLElement>(null);
+  const refUbicacion = useRef<HTMLElement>(null);
+  const refSecciones = { resumen: refResumen, resenas: refResenas, ubicacion: refUbicacion };
   const cat = CATEGORIAS.find((c) => c.id === lugar.categoria);
-  // Mismo patrón que GaleriaPage.tsx: la foto principal + lo que el
-  // prestador haya subido de más en su perfil (tab "Fotos"). Antes
-  // solo se mostraba lugar.imagen aquí — el resto de las fotos ya
-  // llegaba en el objeto Lugar pero nunca se usaba en esta hoja.
+  // La foto principal + lo que el prestador haya subido de más.
   const fotos = [lugar.imagen, ...(lugar.imagenesExtra ?? [])];
+  const similares = useMemo(
+    () => getCatalogoActivo().filter((l) => l.id !== lugar.id && l.categoria === lugar.categoria).slice(0, 6),
+    [lugar.id, lugar.categoria]
+  );
 
   useEffect(() => {
     esFavorito(lugar.id).then(setFav);
     document.body.style.overflow = 'hidden';
+    setLeerMas(false);
+    setPestana('resumen');
+    scrollRef.current?.scrollTo({ top: 0 });
     // Cuenta como "vista" para las estadísticas del prestador — solo
-    // servicios reales (con servicioId), no los lugares curados
-    // estáticos que no tienen panel de prestador que las muestre.
+    // servicios reales (con servicioId).
     registrarEventoServicio(lugar.servicioId, 'vista');
     return () => {
       document.body.style.overflow = '';
     };
   }, [lugar.id]);
 
-  const handleFav = async () => {
-    const nuevoEstado = await toggleFavorito(lugar.id);
-    setFav(nuevoEstado);
+  const handleFav = async () => setFav(await toggleFavorito(lugar.id));
+
+  const compartir = async () => {
+    const datos = { title: lugar.nombre, text: lugar.descripcionCorta, url: window.location.origin };
+    try {
+      if (navigator.share) await navigator.share(datos);
+      else await navigator.clipboard.writeText(`${lugar.nombre} — ${datos.url}`);
+    } catch {
+      /* el turista canceló */
+    }
+  };
+
+  const irA = (p: Pestana) => {
+    setPestana(p);
+    const cont = scrollRef.current;
+    const sec = refSecciones[p].current;
+    if (!cont || !sec) return;
+    // 56px = alto de la barra de pestañas pegada arriba.
+    cont.scrollTo({ top: sec.offsetTop - 56, behavior: 'smooth' });
+  };
+
+  // La pestaña activa sigue al scroll.
+  const alDeslizar = () => {
+    const cont = scrollRef.current;
+    if (!cont) return;
+    const y = cont.scrollTop + 90;
+    let activa: Pestana = 'resumen';
+    PESTANAS.forEach((p) => {
+      const sec = refSecciones[p].current;
+      if (sec && sec.offsetTop <= y) activa = p;
+    });
+    // Al llegar al final del todo, la última pestaña no alcanza a pasar
+    // de la línea de arriba: se marca a mano.
+    if (cont.scrollTop + cont.clientHeight >= cont.scrollHeight - 4) activa = 'ubicacion';
+    setPestana(activa);
+  };
+
+  const descLarga = lugar.descripcion.length > 260;
+  const etiquetaPestana: Record<Pestana, string> = {
+    resumen: t('Resumen'),
+    resenas: t('Reseñas'),
+    ubicacion: t('Ubicación'),
   };
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 9999,
-        backgroundColor: 'rgba(2, 44, 22, 0.97)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-        overflow: 'hidden',
-      }}
+      className="fixed inset-0 z-[9999] bg-black/55 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6"
+      onClick={onClose}
     >
       <div
-        style={{
-          width: '100%',
-          maxWidth: '520px',      // En desktop: tarjeta centrada
-          maxHeight: '92vh',
-          backgroundColor: 'white',
-          borderRadius: '24px 24px 0 0',
-          display: 'flex',
-          flexDirection: 'column',
-          overflowY: 'scroll',
-          WebkitOverflowScrolling: 'touch',
-          overscrollBehavior: 'contain',
-          touchAction: 'pan-y',
-        }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full sm:max-w-4xl h-[96dvh] sm:h-[92vh] bg-white rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl"
       >
-        <div className="relative aspect-[16/10] bg-jungle-200">
-          <img
-            src={optimizarImagen(lugar.imagen, ANCHO_DETALLE)}
-            alt={lugar.nombre}
-            onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
-            className="w-full h-full object-cover"
-          />
+        {/* Barra de acciones — fija arriba */}
+        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-jungle-100 bg-white">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/95 backdrop-blur flex items-center justify-center hover:bg-white shadow-md"
             aria-label={t('Cerrar')}
+            className="w-10 h-10 rounded-full hover:bg-jungle-50 flex items-center justify-center text-jungle-900"
           >
-            <X size={20} className="text-jungle-900" />
+            <X size={20} />
           </button>
-          <button
-            onClick={handleFav}
-            className="absolute top-4 left-4 w-10 h-10 rounded-full bg-white/95 backdrop-blur flex items-center justify-center hover:bg-white shadow-md"
-            aria-label={t('Favorito')}
-          >
-            <Heart
-              size={20}
-              className={fav ? 'fill-red-500 text-red-500' : 'text-jungle-900'}
-            />
-          </button>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              onClick={handleFav}
+              className="inline-flex items-center gap-1.5 rounded-full border border-jungle-300 px-3.5 py-2 text-sm font-semibold text-jungle-900 hover:bg-jungle-50"
+            >
+              <Heart size={16} className={fav ? 'fill-red-500 text-red-500' : ''} />
+              <span className="hidden sm:inline">{fav ? t('Guardado') : t('Guardar')}</span>
+            </button>
+            {lugar.aceptaReservaciones && (
+              <button
+                onClick={() => setMostrarReservacion(true)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-sun-500 hover:bg-sun-400 text-obsidiana-950 px-3.5 py-2 text-sm font-semibold"
+              >
+                <CalendarCheck size={16} /> {t('Reservar')}
+              </button>
+            )}
+            <button
+              onClick={onVerEnMapa}
+              aria-label={t('Ver en el mapa')}
+              title={t('Ver en el mapa')}
+              className="w-10 h-10 rounded-full border border-jungle-300 flex items-center justify-center text-jungle-900 hover:bg-jungle-50"
+            >
+              <Route size={17} />
+            </button>
+            <button
+              onClick={compartir}
+              aria-label={t('Compartir')}
+              className="w-10 h-10 rounded-full border border-jungle-300 flex items-center justify-center text-jungle-900 hover:bg-jungle-50"
+            >
+              <Share2 size={17} />
+            </button>
+          </div>
         </div>
 
-        <div className="p-5 sm:p-6 space-y-5">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span
-                className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${cat?.color}`}
-              >
-                {cat?.emoji} {t(lugar.categoria)}
-              </span>
-              {lugar.verificado && (
-                <span className="inline-flex items-center gap-1 text-xs bg-jungle-100 text-jungle-800 px-2.5 py-1 rounded-full font-medium">
-                  <BadgeCheck size={12} />
-                  {t('Info verificada')}
-                </span>
-              )}
-            </div>
-            <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-jungle-950 mt-2">
-              {lugar.nombre}
-            </h2>
-            <div className="flex items-center gap-3 text-sm text-jungle-700 mt-1">
+        <div
+          ref={scrollRef}
+          onScroll={alDeslizar}
+          className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain"
+        >
+          {/* Título */}
+          <div className="px-5 sm:px-8 pt-6">
+            <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-jungle-950">{lugar.nombre}</h2>
+            <div className="flex items-center gap-2 flex-wrap text-sm text-jungle-700 mt-1.5">
               {lugar.rating > 0 && (
                 <>
-                  <span className="flex items-center gap-1 font-semibold">
+                  <span className="flex items-center gap-1 font-semibold text-jungle-950">
                     <Star size={15} className="fill-amber-400 text-amber-400" />
                     {lugar.rating}
                   </span>
@@ -155,144 +179,164 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
                 <MapPin size={14} /> {lugar.municipio}
               </span>
             </div>
-          </div>
-
-          <p className="text-jungle-800 leading-relaxed">{lugar.descripcion}</p>
-
-          <div className="grid grid-cols-2 gap-3">
-            <InfoChip
-              icon={Clock}
-              label={t('Duración')}
-              value={td(lugar.duracionSugerida)}
-            />
-            <InfoChip icon={DollarSign} label={t('Costo')} value={td(lugar.precioMxn)} />
-            <InfoChip
-              icon={Calendar}
-              label={t('Días')}
-              value={td(lugar.abierto.dias)}
-            />
-            <InfoChip
-              icon={Clock}
-              label={t('Horario')}
-              value={td(lugar.abierto.horario)}
-            />
-          </div>
-
-          {/* Contacto — arriba de "Cómo llegar" a propósito: es el
-              primer dato que busca el turista para comunicarse con el
-              prestador. */}
-          {lugar.contacto && (
-            <div className="bg-jungle-50 rounded-xl p-4">
-              <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
-                <Phone size={12} />
-                {t('Contacto')}
-              </div>
-              <p className="text-sm text-jungle-900">{lugar.contacto}</p>
-            </div>
-          )}
-
-          {/* Cómo llegar */}
-          <div className="bg-jungle-50 rounded-xl p-4">
-            <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
-              <Navigation size={12} />
-              {t('Cómo llegar')}
-            </div>
-            <p className="text-sm text-jungle-900">{lugar.comoLlegar}</p>
-          </div>
-
-          {/* Tip del lugar */}
-          {lugar.tip && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <div className="flex items-center gap-1.5 text-xs text-amber-700 mb-1 uppercase tracking-wide font-semibold">
-                <Lightbulb size={12} />
-                {t('Consejo')}
-              </div>
-              <p className="text-sm text-amber-900">{lugar.tip}</p>
-            </div>
-          )}
-
-          {/* Política de mascotas — solo se muestra si el prestador la
-              declaró. Sin dato, no se dice nada aquí (nunca se
-              inventa ni se supone "seguramente sí/no permite"). */}
-          {lugar.mascotas && (
-            <div className="bg-jungle-50 rounded-xl p-4">
-              <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1 uppercase tracking-wide font-semibold">
-                <PawPrint size={12} />
-                {t('Mascotas')}
-              </div>
-              <p className="text-sm text-jungle-900">{lugar.mascotas}</p>
-            </div>
-          )}
-
-          {/* Ideal para */}
-          <div>
-            <div className="text-xs font-semibold text-jungle-600 uppercase tracking-wide mb-2">
-              {t('Ideal para')}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {lugar.ideal.map((g) => (
-                <span
-                  key={g}
-                  className="bg-jungle-100 text-jungle-800 px-3 py-1 rounded-full text-xs font-medium"
-                >
-                  {g === 'solo'
-                    ? t('🧍 viajeros solos')
-                    : g === 'pareja'
-                    ? t('💕 parejas')
-                    : g === 'familia'
-                    ? t('👨‍👩‍👧 familias')
-                    : t('🎉 grupos')}
+            <div className="flex items-center gap-2 flex-wrap mt-2.5">
+              <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${cat?.color}`}>
+                {cat?.emoji} {t(lugar.categoria)}
+              </span>
+              {lugar.verificado && (
+                <span className="inline-flex items-center gap-1 text-xs bg-jungle-100 text-jungle-800 px-2.5 py-1 rounded-full font-medium">
+                  <BadgeCheck size={12} /> {t('Info verificada')}
                 </span>
-              ))}
+              )}
             </div>
           </div>
 
-          {/* Más fotos — antes la hoja solo mostraba lugar.imagen (la
-              portada), aunque el prestador pudiera haber subido varias
-              desde su perfil (tab "Fotos"). Va antes de los botones a
-              propósito: la idea es que estas fotos terminen de
-              convencer justo antes del "Ver en el mapa"/"Reservar",
-              no después de que el turista ya decidió. Con una sola
-              foto disponible no hay nada que deslizar, así que la
-              sección completa se oculta en ese caso. */}
-          {fotos.length > 1 && <CarruselFotos fotos={fotos} nombre={lugar.nombre} categoria={lugar.categoria} />}
+          {/* Mosaico de fotos: una grande + hasta cuatro chicas */}
+          <div className="px-5 sm:px-8 mt-5">
+            <MosaicoFotos fotos={fotos} nombre={lugar.nombre} categoria={lugar.categoria} />
+          </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={onVerEnMapa}
-              className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-            >
-              <Route size={18} />
-              {t('Ver en el mapa')}
-            </button>
-            {lugar.aceptaReservaciones && (
+          {/* Pestañas — se quedan pegadas arriba al deslizar */}
+          <div className="sticky top-0 z-10 bg-white mt-5 px-5 sm:px-8 border-b border-jungle-100 flex gap-6">
+            {PESTANAS.map((id) => (
               <button
-                onClick={() => setMostrarReservacion(true)}
-                className="flex-1 bg-sun-500 hover:bg-sun-400 text-obsidiana-950 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                key={id}
+                onClick={() => irA(id)}
+                className={`py-3.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                  pestana === id
+                    ? 'border-jungle-900 text-jungle-950'
+                    : 'border-transparent text-jungle-500 hover:text-jungle-800'
+                }`}
               >
-                <CalendarCheck size={18} />
-                {t('Reservar')}
+                {etiquetaPestana[id]}
               </button>
+            ))}
+          </div>
+
+          <div className="px-5 sm:px-8 pb-10">
+            {/* Resumen */}
+            <section ref={refResumen} className="pt-6 space-y-6">
+              <div>
+                <p className={`text-jungle-900 leading-relaxed ${leerMas ? '' : 'line-clamp-5'}`}>
+                  {lugar.descripcion}
+                </p>
+                {descLarga && (
+                  <button
+                    onClick={() => setLeerMas((v) => !v)}
+                    className="mt-3 inline-flex items-center gap-1 rounded-full border border-jungle-300 px-4 py-2 text-sm font-semibold text-jungle-900 hover:bg-jungle-50"
+                  >
+                    {leerMas ? t('Leer menos') : t('Leer más')}
+                    <ChevronDown size={14} className={leerMas ? 'rotate-180' : ''} />
+                  </button>
+                )}
+              </div>
+
+              <div className="border-t border-jungle-100 pt-6 grid sm:grid-cols-2 gap-x-8 gap-y-5">
+                {lugar.comoLlegar && (
+                  <Dato icono={Navigation} titulo={t('Cómo llegar')}>{lugar.comoLlegar}</Dato>
+                )}
+                <Dato icono={Clock} titulo={t('Horario')}>
+                  {td(lugar.abierto.dias)} · {td(lugar.abierto.horario)}
+                </Dato>
+                <Dato icono={DollarSign} titulo={t('Costo')}>{td(lugar.precioMxn)}</Dato>
+                <Dato icono={Calendar} titulo={t('Duración')}>{td(lugar.duracionSugerida)}</Dato>
+                {lugar.contacto && <Dato icono={Phone} titulo={t('Contacto')}>{lugar.contacto}</Dato>}
+                {/* Mascotas: solo si el prestador la declaró; sin dato, no
+                    se dice nada (nunca se supone). */}
+                {lugar.mascotas && <Dato icono={PawPrint} titulo={t('Mascotas')}>{lugar.mascotas}</Dato>}
+              </div>
+
+              {lugar.tip && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-700 mb-1 uppercase tracking-wide font-semibold">
+                    <Lightbulb size={12} /> {t('Consejo')}
+                  </div>
+                  <p className="text-sm text-amber-900">{lugar.tip}</p>
+                </div>
+              )}
+
+              <div>
+                <div className="text-xs font-semibold text-jungle-600 uppercase tracking-wide mb-2">
+                  {t('Ideal para')}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {lugar.ideal.map((g) => (
+                    <span key={g} className="bg-jungle-100 text-jungle-800 px-3 py-1 rounded-full text-xs font-medium">
+                      {g === 'solo'
+                        ? t('🧍 viajeros solos')
+                        : g === 'pareja'
+                          ? t('💕 parejas')
+                          : g === 'familia'
+                            ? t('👨‍👩‍👧 familias')
+                            : t('🎉 grupos')}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {lugar.enlaces && lugar.enlaces.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {lugar.enlaces.map((en) => (
+                    <a
+                      key={en.id}
+                      href={en.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 bg-jungle-50 hover:bg-jungle-100 text-jungle-800 text-xs font-semibold px-3 py-2 rounded-full"
+                    >
+                      <IconoEnlaceLugar tipo={en.tipo} />
+                      {en.tipo === 'sitio' ? t('Sitio web') : en.tipo === 'otro' ? t('Enlace') : ETIQUETA_ENLACE[en.tipo]}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Reseñas — todavía no existe un sistema de reseñas, así que se
+                dice tal cual: nunca se inventan opiniones. */}
+            <section ref={refResenas} className="pt-10 border-t border-jungle-100 mt-10">
+              <h3 className="font-display font-bold text-xl text-jungle-950">{t('Reseñas')}</h3>
+              {lugar.rating > 0 && (
+                <p className="flex items-center gap-1.5 mt-2 text-jungle-900">
+                  <Star size={18} className="fill-amber-400 text-amber-400" />
+                  <span className="font-bold text-lg">{lugar.rating}</span>
+                  <span className="text-sm text-jungle-600">{t('calificación del lugar')}</span>
+                </p>
+              )}
+              <p className="text-sm text-jungle-600 mt-2">
+                {t('Todavía no hay reseñas de turistas para este lugar.')}
+              </p>
+            </section>
+
+            {/* Ubicación */}
+            <section ref={refUbicacion} className="pt-10 border-t border-jungle-100 mt-10">
+              <h3 className="font-display font-bold text-xl text-jungle-950">{t('Ubicación')}</h3>
+              <p className="flex items-center gap-1.5 text-sm text-jungle-700 mt-2">
+                <MapPin size={15} /> {lugar.municipio}, Veracruz
+              </p>
+              <div className="relative mt-4 h-72 sm:h-80 rounded-2xl overflow-hidden border border-jungle-100">
+                <MiniMapaChat lugares={[lugar]} />
+                <button
+                  onClick={onVerEnMapa}
+                  className="absolute top-3 left-3 z-10 inline-flex items-center gap-2 rounded-full bg-jungle-900 text-white text-sm font-semibold px-4 py-2.5 shadow-lg hover:bg-jungle-800"
+                >
+                  {t('Cómo llegar')} <Route size={15} />
+                </button>
+              </div>
+            </section>
+
+            {/* Similares */}
+            {similares.length > 0 && (
+              <section className="pt-10 border-t border-jungle-100 mt-10">
+                <h3 className="font-display font-bold text-xl text-jungle-950 mb-5">{t('Lugares similares')}</h3>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-7">
+                  {similares.map((l) => (
+                    <TarjetaLugar key={l.id} lugar={l} onClick={() => onVerLugar?.(l)} />
+                  ))}
+                </div>
+              </section>
             )}
           </div>
-
-          {/* Enlaces del prestador (Centro de Prestador — Enlaces) */}
-          {lugar.enlaces && lugar.enlaces.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-1">
-              {lugar.enlaces.map((en) => (
-                <a
-                  key={en.id}
-                  href={en.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 bg-jungle-50 hover:bg-jungle-100 text-jungle-800 text-xs font-semibold px-3 py-2 rounded-full"
-                >
-                  <IconoEnlaceLugar tipo={en.tipo} />
-                  {en.tipo === 'sitio' ? t('Sitio web') : en.tipo === 'otro' ? t('Enlace') : ETIQUETA_ENLACE[en.tipo]}
-                </a>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -301,6 +345,77 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa }: Props) {
       )}
     </div>
   );
+}
+
+function Dato({
+  icono: Icono,
+  titulo,
+  children,
+}: {
+  icono: typeof Clock;
+  titulo: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex gap-3 min-w-0">
+      <Icono size={18} className="text-jungle-700 flex-shrink-0 mt-0.5" />
+      <div className="min-w-0">
+        <div className="font-bold text-jungle-950 text-sm">{titulo}</div>
+        <div className="text-sm text-jungle-800 mt-0.5 break-words">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// Una foto grande a la izquierda y hasta cuatro chicas en cuadrícula, como
+// en la referencia. Con una sola foto, ocupa todo el ancho.
+function MosaicoFotos({
+  fotos,
+  nombre,
+  categoria,
+}: {
+  fotos: string[];
+  nombre: string;
+  categoria: Lugar['categoria'];
+}) {
+  const t = useT();
+  const chicas = fotos.slice(1, 5);
+  const img = (url: string, ancho: number) => (
+    <img
+      src={optimizarImagen(url, ancho)}
+      alt={nombre}
+      loading="lazy"
+      onError={manejarErrorImagen(categoria, nombre)}
+      className="w-full h-full object-cover"
+    />
+  );
+  if (chicas.length === 0) {
+    return <div className="aspect-[16/9] rounded-2xl overflow-hidden bg-jungle-100">{img(fotos[0], ANCHO_DETALLE)}</div>;
+  }
+  return (
+    <div className="grid grid-cols-4 grid-rows-2 gap-2 aspect-[16/9] sm:aspect-[2/1] rounded-2xl overflow-hidden">
+      <div className="col-span-2 row-span-2 bg-jungle-100">{img(fotos[0], ANCHO_DETALLE)}</div>
+      {chicas.map((url, i) => (
+        <div key={url + i} className={`relative bg-jungle-100 ${claseChica(chicas.length, i)}`}>
+          {img(url, ANCHO_TARJETA)}
+          {i === chicas.length - 1 && fotos.length > 5 && (
+            <span className="absolute inset-0 bg-black/45 text-white font-semibold text-sm flex items-center justify-center">
+              {t('+{n} fotos', { n: fotos.length - 5 })}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Cómo se reparte el lado derecho según cuántas fotos chicas haya, para no
+// dejar huecos vacíos en la cuadrícula de 4 columnas x 2 filas.
+function claseChica(n: number, i: number): string {
+  if (n === 1) return 'col-span-2 row-span-2';
+  if (n === 2) return 'col-span-2';
+  if (n === 3) return i === 0 ? 'col-span-2' : '';
+  return '';
 }
 
 const ETIQUETA_ENLACE: Record<TipoEnlace, string> = {
@@ -316,104 +431,8 @@ function IconoEnlaceLugar({ tipo }: { tipo: TipoEnlace }) {
   const props = { size: 13 };
   switch (tipo) {
     case 'instagram': return <Instagram {...props} />;
-    case 'facebook':  return <Facebook {...props} />;
-    case 'whatsapp':  return <MessageCircle {...props} />;
-    default:          return <Globe {...props} />;
+    case 'facebook': return <Facebook {...props} />;
+    case 'whatsapp': return <MessageCircle {...props} />;
+    default: return <Globe {...props} />;
   }
-}
-
-// Carrusel deslizable con scroll-snap — mismo patrón CSS que ya usan
-// los chips de categoría en ExploreScreen.tsx (snap-x + overflow-x-
-// auto), sin agregar ninguna librería nueva al proyecto. Una foto a
-// la vez ocupa todo el ancho (en vez de una tira de miniaturas) para
-// que cada imagen se vea grande y llamativa, igual que la portada de
-// arriba.
-function CarruselFotos({
-  fotos,
-  nombre,
-  categoria,
-}: {
-  fotos: string[];
-  nombre: string;
-  categoria: Lugar['categoria'];
-}) {
-  const t = useT();
-  const [indice, setIndice] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  function irA(i: number) {
-    const cont = scrollRef.current;
-    if (!cont) return;
-    cont.scrollTo({ left: i * cont.clientWidth, behavior: 'smooth' });
-  }
-
-  // Recalcula el punto activo a partir de dónde quedó el scroll —
-  // así los puntos siguen en sincronía tanto si navegas con el dedo
-  // (swipe) como si tocas un punto directamente.
-  function onScroll() {
-    const cont = scrollRef.current;
-    if (!cont || cont.clientWidth === 0) return;
-    setIndice(Math.round(cont.scrollLeft / cont.clientWidth));
-  }
-
-  return (
-    <div>
-      <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-2 uppercase tracking-wide font-semibold">
-        <Images size={12} />
-        {t('Más fotos')}
-      </div>
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        role="region"
-        aria-label={t('Fotos de {nombre}', { nombre })}
-        className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth rounded-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {fotos.map((url, i) => (
-          <div key={`${url}-${i}`} className="w-full flex-shrink-0 snap-center aspect-[4/3] bg-jungle-100">
-            <img
-              src={optimizarImagen(url, ANCHO_DETALLE)}
-              alt={t('{nombre} — foto {i} de {n}', { nombre, i: i + 1, n: fotos.length })}
-              loading="lazy"
-              onError={manejarErrorImagen(categoria, nombre)}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ))}
-      </div>
-      <div className="flex items-center justify-center gap-1.5 mt-2.5">
-        {fotos.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => irA(i)}
-            aria-label={t('Ir a la foto {i} de {n}', { i: i + 1, n: fotos.length })}
-            aria-current={i === indice}
-            className={`h-1.5 rounded-full transition-all ${
-              i === indice ? 'w-5 bg-jungle-700' : 'w-1.5 bg-jungle-200'
-            }`}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function InfoChip({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Clock;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="bg-jungle-50 rounded-xl p-3">
-      <div className="flex items-center gap-1.5 text-xs text-jungle-600 mb-1">
-        <Icon size={12} />
-        {label}
-      </div>
-      <div className="text-sm font-semibold text-jungle-950">{value}</div>
-    </div>
-  );
 }

@@ -402,3 +402,7 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 - Cliente: src/components/BotonGoogle.tsx (Google Identity Services, botón oficial), apiLoginGoogle en lib/auth.ts, y el AuthModal lo muestra arriba en Iniciar sesión y Crear cuenta ("o con tu correo" debajo). Sin VITE_GOOGLE_CLIENT_ID el botón no aparece y todo sigue como antes.
 - PENDIENTE: crear el ID de cliente OAuth en Google Cloud y ponerlo en VITE_GOOGLE_CLIENT_ID (Vercel y .env.local).
 - Incidente: una prueba mía dejó search_path pegado en el pooler de Neon y rompió login/registro/aprobados un rato; corregido (RESET) y sin pérdida de datos. No volver a probar con SET/esquemas temporales sobre el pooler.
+
+## SEO básico
+- index.html: descripción y título con palabras clave reales (Los Tuxtlas, Catemaco, San Andrés Tuxtla), canonical, Open Graph/Twitter, JSON-LD (WebSite, Organization, TouristInformationCenter) y <noscript> con texto. public/robots.txt (bloquea /admin, /api, /prestador) y public/sitemap.xml.
+- Límite: es una SPA; los lugares no tienen URL propia, así que Google no los indexa uno por uno. Siguiente paso: páginas /lugar/<id> prerenderizadas con su propio título, descripción y datos estructurados.

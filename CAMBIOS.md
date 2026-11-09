@@ -323,3 +323,19 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 - **Detalle de servicio** (`PlaceDetail.tsx`): hoja grande con mosaico de fotos, pestañas fijas Resumen / Reseñas / Ubicación, mapa embebido con "Cómo llegar", y "Lugares similares" (misma categoría). **Reseñas:** aún no existe sistema de reseñas; se dice tal cual, sin inventar opiniones.
 - **Chat:** el campo de texto flota, translúcido y con desenfoque sobre los mensajes (en vez de barra blanca pegada abajo).
 - Pendiente a decidir: tema oscuro como la referencia (hoy se mantiene la paleta verde clara de la marca).
+
+## Explorar: secciones en paneles + barra flotante de cristal
+- Cada carrusel de servicio va dentro de un panel blanco translúcido con borde y sombra (divisores entre servicios).
+- Barra "Pregunta a TuxtlasGO…" flotante (sticky, backdrop-blur) sobre Explorar; envía la pregunta al chat.
+- Se revirtieron los bordes verdes gruesos de tarjetas/chips.
+
+## Detalle de lugar: panel + expandir + galería
+- El detalle ya no es un modal centrado: ocupa el área de contenido (barra lateral visible). Botón expandir/contraer (solo escritorio) lo pasa a pantalla completa, más ancho (mosaico más grande, 3 columnas de datos, 4 de similares, mapa más alto).
+- Clic en cualquier foto del mosaico abre la galería a pantalla completa (fondo oscuro, columnas).
+- Barra flotante de cristal "Pregunta sobre …" dentro del detalle; manda la pregunta al chat.
+- Se quitaron del encabezado de Explorar los botones repetidos "Ver el mapa" y "Preguntar al asistente".
+
+## Explorar: que se vea TODO el catálogo
+- Antes Cooperativa y Otro no tenían sección, y "Comercio" solo mostraba una parte: esos servicios solo salían al filtrar.
+- Ahora hay sección para Comercio, Cooperativas y Otros servicios (se omite si está vacía).
+- Chips con conteo (p. ej. "Gastronomía · 10"), cada sección dice cuántos lugares tiene, y al final un panel "Todos los servicios" con la cuadrícula completa.

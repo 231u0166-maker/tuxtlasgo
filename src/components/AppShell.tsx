@@ -834,6 +834,7 @@ export default function AppShell() {
                 onBusquedaChange={setBusquedaExplorar}
                 onAbrirMapa={() => cambiarTab('mapa')}
                 onIrAlChat={() => cambiarTab('chat')}
+                onPreguntar={preguntarDesdeInicio}
               />
             </div>
           )}
@@ -1008,6 +1009,7 @@ export default function AppShell() {
             onClose={() => setLugarSeleccionado(null)}
             onVerEnMapa={verEnMapa}
             onVerLugar={verLugar}
+            onPreguntar={preguntarDesdeInicio}
           />
         </>
       )}

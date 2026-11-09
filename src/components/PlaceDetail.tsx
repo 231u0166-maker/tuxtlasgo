@@ -1,6 +1,6 @@
 import {
   X, Star, MapPin, Clock, DollarSign, Calendar, Navigation, Heart, Route, Lightbulb, BadgeCheck,
-  PawPrint, Instagram, Facebook, MessageCircle, Phone, Globe, CalendarCheck, Share2, ChevronDown,
+  PawPrint, Instagram, Facebook, MessageCircle, Phone, Globe, CalendarCheck, Share2, ChevronDown, Maximize2, Minimize2,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Lugar } from '../data/lugares';
@@ -12,7 +12,7 @@ import { registrarEventoServicio } from '../lib/eventos';
 import { getCatalogoActivo } from '../lib/chatbot';
 import ModalReservacion from './ModalReservacion';
 import MiniMapaChat from './MiniMapaChat';
-import { TarjetaLugar } from './ExploreScreen';
+import { TarjetaLugar, BarraPregunta } from './ExploreScreen';
 import { useT, useTd } from '../lib/i18n';
 import { optimizarImagen, ANCHO_DETALLE, ANCHO_TARJETA } from '../lib/imagenOptimizada';
 
@@ -22,18 +22,24 @@ interface Props {
   onVerEnMapa: () => void;
   // Para saltar a un lugar similar sin cerrar la hoja.
   onVerLugar?: (lugar: Lugar) => void;
+  // Barra flotante "Pregunta…": manda la pregunta al asistente.
+  onPreguntar?: (texto: string) => void;
 }
 
 type Pestana = 'resumen' | 'resenas' | 'ubicacion';
 const PESTANAS: Pestana[] = ['resumen', 'resenas', 'ubicacion'];
 
-export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }: Props) {
+export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar, onPreguntar }: Props) {
   const t = useT();
   const td = useTd();
   const [fav, setFav] = useState(false);
   const [mostrarReservacion, setMostrarReservacion] = useState(false);
   const [leerMas, setLeerMas] = useState(false);
   const [pestana, setPestana] = useState<Pestana>('resumen');
+  // "panel": ocupa el área de contenido (la barra lateral sigue a la vista).
+  // "expandido": pantalla completa y más ancho, para repartir mejor todo.
+  const [expandido, setExpandido] = useState(false);
+  const [galeriaAbierta, setGaleriaAbierta] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const refResumen = useRef<HTMLElement>(null);
   const refResenas = useRef<HTMLElement>(null);
@@ -60,6 +66,16 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }:
       document.body.style.overflow = '';
     };
   }, [lugar.id]);
+
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (galeriaAbierta) setGaleriaAbierta(false);
+      else onClose();
+    };
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, [galeriaAbierta, onClose]);
 
   const handleFav = async () => setFav(await toggleFavorito(lugar.id));
 
@@ -107,13 +123,9 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }:
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-black/55 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6"
-      onClick={onClose}
+      className={`fixed inset-y-0 right-0 z-[9999] bg-white animate-fade-in ${expandido ? 'left-0' : 'left-0 lg:left-[72px] lg:border-l lg:border-jungle-200'}`}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full sm:max-w-4xl h-[96dvh] sm:h-[92vh] bg-white rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl"
-      >
+      <div className="relative w-full h-full overflow-hidden flex flex-col">
         {/* Barra de acciones — fija arriba */}
         <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-jungle-100 bg-white">
           <button
@@ -122,6 +134,14 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }:
             className="w-10 h-10 rounded-full hover:bg-jungle-50 flex items-center justify-center text-jungle-900"
           >
             <X size={20} />
+          </button>
+          <button
+            onClick={() => setExpandido((v) => !v)}
+            aria-label={expandido ? t('Contraer') : t('Expandir')}
+            title={expandido ? t('Contraer') : t('Expandir')}
+            className="hidden lg:flex w-10 h-10 rounded-full hover:bg-jungle-50 items-center justify-center text-jungle-900"
+          >
+            {expandido ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
           </button>
           <div className="flex items-center gap-2 ml-auto">
             <button
@@ -162,6 +182,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }:
           onScroll={alDeslizar}
           className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain"
         >
+          <div className={`mx-auto w-full ${expandido ? 'max-w-[1400px]' : 'max-w-5xl'}`}>
           {/* Título */}
           <div className="px-5 sm:px-8 pt-6">
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-jungle-950">{lugar.nombre}</h2>
@@ -193,7 +214,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }:
 
           {/* Mosaico de fotos: una grande + hasta cuatro chicas */}
           <div className="px-5 sm:px-8 mt-5">
-            <MosaicoFotos fotos={fotos} nombre={lugar.nombre} categoria={lugar.categoria} />
+            <MosaicoFotos fotos={fotos} nombre={lugar.nombre} categoria={lugar.categoria} grande={expandido} onAbrir={() => setGaleriaAbierta(true)} />
           </div>
 
           {/* Pestañas — se quedan pegadas arriba al deslizar */}
@@ -231,7 +252,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }:
                 )}
               </div>
 
-              <div className="border-t border-jungle-100 pt-6 grid sm:grid-cols-2 gap-x-8 gap-y-5">
+              <div className={`border-t border-jungle-100 pt-6 grid sm:grid-cols-2 gap-x-8 gap-y-5 ${expandido ? 'xl:grid-cols-3' : ''}`}>
                 {lugar.comoLlegar && (
                   <Dato icono={Navigation} titulo={t('Cómo llegar')}>{lugar.comoLlegar}</Dato>
                 )}
@@ -314,7 +335,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }:
               <p className="flex items-center gap-1.5 text-sm text-jungle-700 mt-2">
                 <MapPin size={15} /> {lugar.municipio}, Veracruz
               </p>
-              <div className="relative mt-4 h-72 sm:h-80 rounded-2xl overflow-hidden border border-jungle-100">
+              <div className={`relative mt-4 ${expandido ? 'h-96 sm:h-[30rem]' : 'h-72 sm:h-80'} rounded-2xl overflow-hidden border border-jungle-100`}>
                 <MiniMapaChat lugares={[lugar]} />
                 <button
                   onClick={onVerEnMapa}
@@ -329,7 +350,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }:
             {similares.length > 0 && (
               <section className="pt-10 border-t border-jungle-100 mt-10">
                 <h3 className="font-display font-bold text-xl text-jungle-950 mb-5">{t('Lugares similares')}</h3>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-7">
+                <div className={`grid grid-cols-2 gap-x-4 gap-y-7 ${expandido ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
                   {similares.map((l) => (
                     <TarjetaLugar key={l.id} lugar={l} onClick={() => onVerLugar?.(l)} />
                   ))}
@@ -337,8 +358,30 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar }:
               </section>
             )}
           </div>
+          </div>
+
+          {onPreguntar && (
+            <BarraPregunta
+              placeholder={t('Pregunta sobre {nombre}…', { nombre: lugar.nombre })}
+              onPreguntar={(q) => {
+                onClose();
+                onPreguntar(`${lugar.nombre}: ${q}`);
+              }}
+            />
+          )}
         </div>
       </div>
+
+      {galeriaAbierta && (
+        <GaleriaFotos
+          fotos={fotos}
+          lugar={lugar}
+          fav={fav}
+          onFav={handleFav}
+          onCompartir={compartir}
+          onCerrar={() => setGaleriaAbierta(false)}
+        />
+      )}
 
       {mostrarReservacion && (
         <ModalReservacion lugar={lugar} onCerrar={() => setMostrarReservacion(false)} />
@@ -373,10 +416,14 @@ function MosaicoFotos({
   fotos,
   nombre,
   categoria,
+  grande,
+  onAbrir,
 }: {
   fotos: string[];
   nombre: string;
   categoria: Lugar['categoria'];
+  grande?: boolean;
+  onAbrir: () => void;
 }) {
   const t = useT();
   const chicas = fotos.slice(1, 5);
@@ -390,20 +437,24 @@ function MosaicoFotos({
     />
   );
   if (chicas.length === 0) {
-    return <div className="aspect-[16/9] rounded-2xl overflow-hidden bg-jungle-100">{img(fotos[0], ANCHO_DETALLE)}</div>;
+    return (
+      <button onClick={onAbrir} className="block w-full aspect-[16/9] rounded-2xl overflow-hidden bg-jungle-100">
+        {img(fotos[0], ANCHO_DETALLE)}
+      </button>
+    );
   }
   return (
-    <div className="grid grid-cols-4 grid-rows-2 gap-2 aspect-[16/9] sm:aspect-[2/1] rounded-2xl overflow-hidden">
-      <div className="col-span-2 row-span-2 bg-jungle-100">{img(fotos[0], ANCHO_DETALLE)}</div>
+    <div className={`grid grid-cols-4 grid-rows-2 gap-2 aspect-[16/9] ${grande ? 'sm:aspect-[5/2]' : 'sm:aspect-[2/1]'} rounded-2xl overflow-hidden`}>
+      <button onClick={onAbrir} className="col-span-2 row-span-2 bg-jungle-100 overflow-hidden">{img(fotos[0], ANCHO_DETALLE)}</button>
       {chicas.map((url, i) => (
-        <div key={url + i} className={`relative bg-jungle-100 ${claseChica(chicas.length, i)}`}>
+        <button key={url + i} onClick={onAbrir} className={`relative bg-jungle-100 overflow-hidden ${claseChica(chicas.length, i)}`}>
           {img(url, ANCHO_TARJETA)}
           {i === chicas.length - 1 && fotos.length > 5 && (
             <span className="absolute inset-0 bg-black/45 text-white font-semibold text-sm flex items-center justify-center">
               {t('+{n} fotos', { n: fotos.length - 5 })}
             </span>
           )}
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -435,4 +486,68 @@ function IconoEnlaceLugar({ tipo }: { tipo: TipoEnlace }) {
     case 'whatsapp': return <MessageCircle {...props} />;
     default: return <Globe {...props} />;
   }
+}
+
+// Galería a pantalla completa: todas las fotos del lugar en columnas,
+// como en la referencia. Esc o la X la cierran.
+function GaleriaFotos({
+  fotos,
+  lugar,
+  fav,
+  onFav,
+  onCompartir,
+  onCerrar,
+}: {
+  fotos: string[];
+  lugar: Lugar;
+  fav: boolean;
+  onFav: () => void;
+  onCompartir: () => void;
+  onCerrar: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="fixed inset-0 z-[10000] bg-obsidiana-950 text-white flex flex-col animate-fade-in">
+      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-white/10">
+        <button
+          onClick={onCerrar}
+          aria-label={t('Cerrar')}
+          className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center"
+        >
+          <X size={20} />
+        </button>
+        <h3 className="font-display font-bold truncate">{lugar.nombre}</h3>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={onFav}
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/30 px-3.5 py-2 text-sm font-semibold hover:bg-white/10"
+          >
+            <Heart size={16} className={fav ? 'fill-red-500 text-red-500' : ''} />
+            <span className="hidden sm:inline">{fav ? t('Guardado') : t('Guardar')}</span>
+          </button>
+          <button
+            onClick={onCompartir}
+            aria-label={t('Compartir')}
+            className="w-10 h-10 rounded-full border border-white/30 flex items-center justify-center hover:bg-white/10"
+          >
+            <Share2 size={17} />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-6">
+        <div className={`mx-auto columns-1 sm:columns-2 gap-3 sm:gap-4 ${fotos.length >= 5 ? 'lg:columns-3 max-w-[1500px]' : 'max-w-5xl'}`}>
+          {fotos.map((url, i) => (
+            <img
+              key={url + i}
+              src={optimizarImagen(url, ANCHO_DETALLE)}
+              alt={lugar.nombre}
+              loading="lazy"
+              onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
+              className="w-full mb-3 sm:mb-4 rounded-lg break-inside-avoid"
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }

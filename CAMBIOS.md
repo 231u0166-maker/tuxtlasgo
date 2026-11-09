@@ -358,3 +358,8 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 - Nuevo src/components/HeroScroll.tsx reemplaza el hero con collage de la landing (modo turista): escenario fijo con 4 fotos reales que se encadenan, cámara con parallax, palabras que entran desenfocadas, tarjetas de lugares reales y cifras que cuentan (catálogo + servicios aprobados vía /api/servicios/aprobados; sin internet solo el catálogo fijo). Idea de un demo de scroll-storytelling, pero sin assets ni marca de terceros.
 - Features sube con borde redondeado sobre el escenario. Respeta prefers-reduced-motion y el loop solo corre con la sección en pantalla.
 - Se quitó el contorno blanco del caracol (vuelve a como estaba).
+
+## Landing: recorrido de fotos que vuelan + todo fusionado
+- Nuevo src/components/RecorridoCartas.tsx: segunda parte de la historia. 9 fotos reales entran desde abajo con curva, crecen, se apilan y salen (técnica de scroll tipo "cartas"), mientras al lado un panel cambia entre las 6 características de "Por qué TuxtlasGO"; al final, cierre con "Empezar ahora". Reemplaza las secciones sueltas de Features y CTA final: toda la landing turista es ahora una sola historia (HeroScroll -> RecorridoCartas -> footer).
+- Acentos amarillos del inicio cambiados a verde (jungle-300).
+- Nota de desarrollo: el service worker puede servir una landing vieja en localhost; si no ves cambios, desregistrarlo y limpiar caches.

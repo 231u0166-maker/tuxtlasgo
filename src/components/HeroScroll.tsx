@@ -241,7 +241,7 @@ export default function HeroScroll() {
 
         {/* 1) Portada */}
         <div ref={refHero} className="absolute inset-x-0 top-[13vh] z-10 px-5 text-center">
-          <span className="inline-flex h-6 items-center rounded bg-sun-300 px-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-obsidiana-900">
+          <span className="inline-flex h-6 items-center rounded bg-jungle-300 px-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-jungle-950">
             {t('Guía turística offline')}
           </span>
           <h1
@@ -250,7 +250,7 @@ export default function HeroScroll() {
           >
             {t('Tu guía de')} {t('Los Tuxtlas,')}
             <br />
-            <span className="text-sun-300">{t('sin límites.')}</span>
+            <span className="text-jungle-300">{t('sin límites.')}</span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base text-white/90 sm:text-lg" style={sombra}>
             {t('Rutas personalizadas con IA, mapa offline y prestadores locales verificados. Sin cuenta, sin anuncios, sin depender de señal.')}
@@ -258,7 +258,7 @@ export default function HeroScroll() {
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link
               to="/app"
-              className="pointer-events-auto flex items-center gap-2 rounded-full bg-sun-300 px-6 py-3.5 font-semibold text-obsidiana-900 shadow-lg transition-colors hover:bg-sun-200"
+              className="pointer-events-auto flex items-center gap-2 rounded-full bg-jungle-300 px-6 py-3.5 font-semibold text-jungle-950 shadow-lg transition-colors hover:bg-jungle-200"
             >
               {t('Empezar a explorar')}
               <ChevronRight size={18} />
@@ -278,7 +278,7 @@ export default function HeroScroll() {
         {/* Coordenadas reales de Catemaco */}
         <div
           ref={refHud}
-          className="absolute bottom-6 left-5 z-10 hidden border-l-2 border-sun-300 pl-3 font-mono text-[11px] uppercase leading-relaxed tracking-[0.13em] text-white/90 sm:left-8 sm:block"
+          className="absolute bottom-6 left-5 z-10 hidden border-l-2 border-jungle-300 pl-3 font-mono text-[11px] uppercase leading-relaxed tracking-[0.13em] text-white/90 sm:left-8 sm:block"
           style={sombra}
         >
           Catemaco · Veracruz
@@ -301,7 +301,7 @@ export default function HeroScroll() {
           ref={refVision}
           className="invisible absolute left-1/2 top-1/2 z-10 w-[min(860px,90vw)] -translate-x-1/2 -translate-y-1/2 text-center text-white"
         >
-          <span className="inline-flex h-6 items-center rounded bg-sun-300 px-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-obsidiana-900">
+          <span className="inline-flex h-6 items-center rounded bg-jungle-300 px-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-jungle-950">
             {t('Nuestra idea')}
           </span>
           <h2
@@ -323,7 +323,7 @@ export default function HeroScroll() {
         {/* 3) Lugares reales del catálogo */}
         <div ref={refLugares} className="invisible absolute inset-0 z-10">
           <div data-tit className="absolute left-5 top-[11vh] max-w-xl text-white sm:left-8" style={sombra}>
-            <span className="inline-flex h-6 items-center rounded bg-sun-300 px-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-obsidiana-900">
+            <span className="inline-flex h-6 items-center rounded bg-jungle-300 px-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-jungle-950">
               {t('Lugares reales')}
             </span>
             <p className="mt-4 font-display text-2xl font-bold leading-tight sm:text-4xl">
@@ -338,8 +338,8 @@ export default function HeroScroll() {
                 to="/app"
                 className="pointer-events-auto rounded-2xl border border-white/30 bg-white/20 p-3 text-white backdrop-blur-xl transition-colors hover:bg-white/30 sm:p-4"
               >
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-sun-200">
-                  <Star size={13} className="fill-sun-300 text-sun-300" />
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-jungle-200">
+                  <Star size={13} className="fill-jungle-300 text-jungle-300" />
                   {l.rating}
                 </div>
                 <div className="mt-1.5 font-display text-sm font-bold leading-tight sm:text-base">{l.nombre}</div>
@@ -386,7 +386,7 @@ export default function HeroScroll() {
           </div>
           <Link
             to="/app"
-            className="pointer-events-auto flex items-center gap-2 rounded-full bg-sun-300 px-7 py-4 text-lg font-semibold text-obsidiana-900 shadow-xl transition-colors hover:bg-sun-200"
+            className="pointer-events-auto flex items-center gap-2 rounded-full bg-jungle-300 px-7 py-4 text-lg font-semibold text-jungle-950 shadow-xl transition-colors hover:bg-jungle-200"
           >
             {t('Empezar ahora')}
             <ChevronRight size={20} />
@@ -395,7 +395,7 @@ export default function HeroScroll() {
 
         {/* Progreso */}
         <div className="absolute bottom-2 left-1/2 z-20 h-0.5 w-28 -translate-x-1/2 rounded bg-white/25">
-          <div ref={refProg} className="h-full origin-left scale-x-0 rounded bg-sun-300" />
+          <div ref={refProg} className="h-full origin-left scale-x-0 rounded bg-jungle-300" />
         </div>
       </div>
     </section>

@@ -20,6 +20,7 @@ import OfflineIndicator from './OfflineIndicator';
 import NavbarLanding, { type ModoLanding } from './NavbarLanding';
 import AuthModal from './AuthModal';
 import HeroScroll from './HeroScroll';
+import RecorridoCartas from './RecorridoCartas';
 import { useT } from '../lib/i18n';
 
 interface LandingProps {
@@ -176,92 +177,8 @@ function SeccionesTurista() {
       {/* INICIO — historia que avanza con el scroll (HeroScroll.tsx) */}
       <HeroScroll />
 
-      {/* FEATURES */}
-      <section id="features" className="relative z-10 -mt-6 rounded-t-3xl bg-white py-16 shadow-[0_-30px_60px_rgba(5,46,22,0.15)] sm:py-24">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="max-w-2xl mb-12">
-            <p className="text-sun-700 text-sm font-semibold uppercase tracking-wide mb-2">
-              {t('Por qué TuxtlasGO')}
-            </p>
-            <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
-              {t('Pensada para Los Tuxtlas')}
-            </h2>
-            <p className="text-obsidiana-800/60 text-[15px] leading-relaxed">
-              {t('Resolvemos los tres problemas que enfrenta el turismo en la región: conectividad, información dispersa y baja visibilidad de los prestadores locales.')}
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              {
-                icon: WifiOff,
-                title: 'Funciona sin internet',
-                desc: 'Service Worker + IndexedDB cachea el mapa, los lugares y el asistente. Una vez cargada, sigue funcionando aunque pierdas señal.',
-              },
-              {
-                icon: Sparkles,
-                title: 'Asistente con IA',
-                desc: 'Te pregunta tus gustos, días disponibles y presupuesto. Te arma una ruta personalizada en segundos.',
-              },
-              {
-                icon: Compass,
-                title: 'Mapa interactivo',
-                desc: 'Visualiza los lugares principales de Catemaco y San Andrés Tuxtla. Coordenadas reales, sin depender de Google.',
-              },
-              {
-                icon: Users,
-                title: 'Prestadores locales',
-                desc: 'Cualquier prestador puede registrar su negocio en segundos. Sin intermediarios ni comisiones desproporcionadas.',
-              },
-              {
-                icon: MapPin,
-                title: 'Datos validados',
-                desc: 'Los lugares y rutas se construyeron con base en visitas de campo, entrevistas con guías locales y datos oficiales.',
-              },
-              {
-                icon: Download,
-                title: 'Instalable como app',
-                desc: 'PWA real: agregas un ícono a tu celular y se abre como una app nativa. Sin tienda de apps, sin actualizaciones manuales.',
-              },
-            ].map((f) => (
-              <div
-                key={f.title}
-                className="group rounded-2xl p-6 border border-obsidiana-900/8 hover:border-jungle-300 hover:shadow-[0_12px_32px_-16px_rgba(20,25,20,0.15)] transition-all bg-white"
-              >
-                <div className="w-11 h-11 rounded-xl bg-jungle-50 group-hover:bg-jungle-700 flex items-center justify-center mb-4 transition-colors">
-                  <f.icon className="w-5 h-5 text-jungle-700 group-hover:text-white transition-colors" />
-                </div>
-                <h3 className="font-display font-bold text-base text-obsidiana-900 mb-1.5">
-                  {t(f.title)}
-                </h3>
-                <p className="text-sm text-obsidiana-800/60 leading-relaxed">{t(f.desc)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA FINAL */}
-      <section className="py-16 sm:py-24 bg-jungle-50">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
-          <div className="w-12 h-12 mx-auto mb-5 rounded-2xl bg-jungle-700 flex items-center justify-center">
-            <ShieldCheck className="text-white" size={22} />
-          </div>
-          <h2 className="font-display font-bold text-3xl sm:text-4xl text-obsidiana-900 mb-3 tracking-tight">
-            {t('Listo para descubrir Los Tuxtlas')}
-          </h2>
-          <p className="text-obsidiana-800/60 mb-8">
-            {t('La aplicación es gratuita. Tus datos no salen de tu dispositivo.')}
-          </p>
-          <Link
-            to="/app"
-            className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl shadow-jungle-700/25 transition-colors"
-          >
-            {t('Empezar ahora')}
-            <ChevronRight size={20} />
-          </Link>
-        </div>
-      </section>
+      {/* RECORRIDO — fotos que vuelan + por qué TuxtlasGO + cierre (RecorridoCartas.tsx) */}
+      <RecorridoCartas />
     </>
   );
 }

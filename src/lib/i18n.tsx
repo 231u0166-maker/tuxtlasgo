@@ -25,6 +25,10 @@ function idiomaInicial(): Idioma {
   } catch { /* localStorage puede no estar disponible */ }
   // Primera visita: respetar el idioma del dispositivo. Un extranjero
   // con el teléfono en inglés ve la app en inglés sin tocar nada.
+  // Los buscadores (Googlebot, Bing…) se identifican en inglés, pero el sitio
+  // es de Veracruz y sus metaetiquetas están en español: a ellos siempre se
+  // les sirve el español para que indexen el texto correcto.
+  if (typeof navigator !== 'undefined' && /bot|crawl|spider|slurp|lighthouse|facebookexternalhit/i.test(navigator.userAgent)) return 'es';
   const nav = typeof navigator !== 'undefined' ? navigator.language : 'es';
   return nav.toLowerCase().startsWith('es') ? 'es' : 'en';
 }

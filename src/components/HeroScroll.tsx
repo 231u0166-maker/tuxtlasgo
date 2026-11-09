@@ -411,7 +411,7 @@ export default function HeroScroll({ modo = 'turista' }: { modo?: Modo }) {
                   }}
                   className="block font-display text-4xl font-extrabold tabular-nums sm:text-6xl"
                 >
-                  0
+                  {c.n}
                 </span>
                 <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.12em] text-white/80 sm:text-xs">
                   {t(c.etiqueta)}

@@ -1390,7 +1390,7 @@ export default function ChatAssistant({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-jungle-50">
+    <div className="relative flex flex-col h-full min-h-0 overflow-hidden bg-jungle-50">
       {/* Aviso: descarga el mapa antes de seguir la ruta */}
       {mostrarAvisoMapa && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-50 border border-amber-300 rounded-2xl shadow-xl px-4 py-3 max-w-xs w-[90vw] text-center animate-fade-in">
@@ -1424,7 +1424,7 @@ export default function ChatAssistant({
       )}
 
       {/* Mensajes */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-3">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-40 space-y-3">
         {mensajes.map((msg) => (
           <Burbuja
             key={msg.id}
@@ -1476,14 +1476,16 @@ export default function ChatAssistant({
         )}
       </div>
 
-      {accionSobreInput}
-
-      {/* Input de texto libre */}
+      {/* Input de texto libre — flota sobre los mensajes, translúcido y
+          con desenfoque del contenido de atrás (vidrio esmerilado), en
+          vez de una barra blanca pegada abajo. Los mensajes llevan
+          padding inferior para que lo último nunca quede tapado. */}
       <div
-        className="px-3 pt-3 bg-white border-t border-jungle-100 flex-shrink-0 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]"
+        className="absolute inset-x-0 bottom-0 z-10 px-3 pointer-events-none"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
       >
-        <div className="flex items-end gap-2">
+        <div className="pointer-events-auto">{accionSobreInput}</div>
+        <div className="pointer-events-auto mx-auto max-w-3xl flex items-end gap-2 rounded-3xl p-2 bg-white/45 backdrop-blur-xl backdrop-saturate-150 border border-white/60 shadow-[0_8px_32px_rgba(2,44,22,0.18)] supports-[not(backdrop-filter:blur(1px))]:bg-white/90">
           <textarea
             ref={inputRef}
             value={input}
@@ -1505,7 +1507,7 @@ export default function ChatAssistant({
             autoComplete="off"
             autoCorrect="on"
             autoCapitalize="sentences"
-            className="flex-1 min-w-0 bg-white border border-jungle-200 rounded-2xl px-4 py-3 text-base text-jungle-950 leading-snug resize-none overflow-y-auto max-h-[160px] focus:outline-none focus:ring-2 focus:ring-jungle-400 focus:border-jungle-400 placeholder:text-jungle-400 disabled:opacity-60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex-1 min-w-0 bg-transparent border-0 rounded-2xl px-3 py-2.5 text-base text-jungle-950 leading-snug resize-none overflow-y-auto max-h-[160px] focus:outline-none placeholder:text-jungle-700/60 disabled:opacity-60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           />
           <button
             onClick={() => enviarTexto()}

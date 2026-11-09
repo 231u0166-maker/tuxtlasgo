@@ -395,18 +395,15 @@ export default function AppShell() {
   // Derivado, no estado: el mapa se ve al lado en Explorar siempre, y
   // en Chat solo cuando ya hay una ruta que mostrar — antes de
   // preguntar algo, ese espacio lo ocupan las sugerencias.
-  const mostrarMapaAlLado = tab === 'explorar' || (tab === 'chat' && (!!rutaVisible || !!zonaLibre));
+  // Explorar ya NO muestra el mapa al entrar: se abre con el botón "Mapa".
+  const mostrarMapaAlLado = tab === 'chat' && (!!rutaVisible || !!zonaLibre);
 
   // Decide a qué contenedor apunta el portal del mapa. Corre DESPUÉS
   // de que el DOM ya se actualizó (useLayoutEffect, no useEffect) —
   // así los refs de los contenedores ya existen cuando se leen, sin
   // parpadeo de un frame sin mapa.
   useLayoutEffect(() => {
-    const destino =
-      tab === 'explorar' && !esEscritorio
-        ? refMapaInlineExplorar.current
-        : refMapaPrincipal.current;
-    setDestinoMapa(destino);
+    setDestinoMapa(refMapaPrincipal.current);
   }, [tab, esEscritorio]);
 
 
@@ -419,7 +416,7 @@ export default function AppShell() {
   // "al lado" posible, es pantalla completa o nada).
   const mostrarMapaConRuta = () => {
     const mapaYaVisibleAlLado =
-      (tab === 'explorar' || tab === 'chat') &&
+      tab === 'chat' &&
       window.matchMedia('(min-width: 1024px)').matches;
     if (!mapaYaVisibleAlLado) cambiarTab('mapa');
   };
@@ -829,89 +826,15 @@ export default function AppShell() {
           )}
 
           {tab === 'explorar' && (
-            <div
-              ref={refPanelExplorar}
-              style={esEscritorio ? { width: anchoPanel } : undefined}
-              className={`relative flex-1 lg:flex-none lg:border-r lg:border-jungle-100 h-full overflow-hidden lg:overflow-y-auto ${mapaExpandido ? 'lg:hidden' : ''
-                } ${arrastrandoPanel ? '' : 'transition-[width] duration-100'}`}
-            >
-              {/* MÓVIL: el mapa es el fondo, a pantalla completa
-                  dentro de este panel — ya no una cajita de 224px.
-                  Es el MISMO mapa de siempre movido aquí por portal.
-                  Tocar el mapa (no el buscador, no la hoja) lleva a
-                  la vista completa. */}
-              <div
-                ref={refMapaInlineExplorar}
-                onClick={() => cambiarTab('mapa')}
-                className="lg:hidden absolute inset-0 bg-jungle-100 cursor-pointer"
-              >
-                <div
-                  className="absolute top-3 left-3 right-3 z-10 flex items-center gap-2"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="relative flex-1">
-                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-jungle-500" />
-                    <input
-                      type="search"
-                      value={busquedaExplorar}
-                      onChange={(e) => setBusquedaExplorar(e.target.value)}
-                      placeholder={t('Buscar lugares, comida, hoteles...')}
-                      className="w-full bg-white text-jungle-950 placeholder:text-jungle-500 rounded-full pl-10 pr-4 py-3 text-sm shadow-lg focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="w-11 h-11 flex-shrink-0 rounded-full bg-white text-jungle-700 shadow-lg flex items-center justify-center"
-                    aria-label={t('Filtros del mapa')}
-                  >
-                    <SlidersHorizontal size={16} />
-                  </button>
-                </div>
-              </div>
-
-              {/* MÓVIL: hoja arrastrable con los servicios, ENCIMA del
-                  mapa. Arrastra el asa (o tócala) para subirla y ver
-                  Explorar; suéltala abajo para volver a ver el mapa
-                  casi completo — dos estados con imán al soltar, no
-                  cualquier alto intermedio. */}
-              <div
-                ref={refHoja}
-                className="lg:hidden absolute inset-x-0 bottom-0 z-[45] bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(12,10,9,0.18)] flex flex-col"
-                style={alturaHojaEstilo}
-              >
-                <div
-                  onPointerDown={iniciarArrastreHoja}
-                  onPointerMove={moverArrastreHoja}
-                  onPointerUp={terminarArrastreHoja}
-                  onPointerCancel={terminarArrastreHoja}
-                  onClick={manejarClickAsaHoja}
-                  className="flex-shrink-0 pt-2.5 pb-2 flex flex-col items-center gap-1.5 cursor-grab active:cursor-grabbing touch-none select-none"
-                >
-                  <div className="w-10 h-1.5 rounded-full bg-obsidiana-900/15" />
-                  <span className="text-[11px] font-semibold text-obsidiana-800/50">
-                    {hojaExplorarAbierta ? t('Volver al mapa') : t('Ver servicios')}
-                  </span>
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-                  <ExploreScreen
-                    onVerLugar={verLugar}
-                    lugares={getCatalogoActivo()}
-                    busqueda={busquedaExplorar}
-                    onBusquedaChange={setBusquedaExplorar}
-                  />
-                </div>
-              </div>
-
-              {/* ESCRITORIO: sin mapa aquí (va en su propia columna al
-                  lado) — scroll normal de toda la vida, sin hoja. */}
-              <div className="hidden lg:block h-full overflow-y-auto">
-                <ExploreScreen
-                  onVerLugar={verLugar}
-                  lugares={getCatalogoActivo()}
-                  busqueda={busquedaExplorar}
-                  onBusquedaChange={setBusquedaExplorar}
-                />
-              </div>
+            <div ref={refPanelExplorar} className="flex-1 h-full overflow-y-auto overscroll-contain">
+              <ExploreScreen
+                onVerLugar={verLugar}
+                lugares={getCatalogoActivo()}
+                busqueda={busquedaExplorar}
+                onBusquedaChange={setBusquedaExplorar}
+                onAbrirMapa={() => cambiarTab('mapa')}
+                onIrAlChat={() => cambiarTab('chat')}
+              />
             </div>
           )}
 
@@ -970,7 +893,7 @@ export default function AppShell() {
               al lado del panel (mapa o sugerencias). Un solo control
               para Explorar y Chat, ya que comparten el mismo ancho
               (anchoPanel), así no salta al cambiar de pestaña. */}
-          {esEscritorio && !mapaExpandido && (tab === 'explorar' || tab === 'chat') && (
+          {esEscritorio && !mapaExpandido && tab === 'chat' && (
             <div
               onPointerDown={iniciarArrastrePanel}
               role="separator"
@@ -1018,7 +941,7 @@ export default function AppShell() {
             {tab === 'mapa' && (
               <button
                 onClick={() => { setRutaVisible(null); setMiUbicacion(null); cambiarTab(tabAntesDeMapa); }}
-                className="lg:hidden absolute top-3 left-3 z-30 bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
+                className="absolute top-3 left-3 z-30 bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
                 aria-label={t('Cerrar mapa')}
               >
                 <X size={14} /> {t('Cerrar mapa')}
@@ -1084,6 +1007,7 @@ export default function AppShell() {
             lugar={lugarSeleccionado}
             onClose={() => setLugarSeleccionado(null)}
             onVerEnMapa={verEnMapa}
+            onVerLugar={verLugar}
           />
         </>
       )}

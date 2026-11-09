@@ -15,19 +15,6 @@ import { useT } from '../lib/i18n';
 // El único JS es un IntersectionObserver + un rAF que solo corre con el
 // pie a la vista. Respeta prefers-reduced-motion.
 
-const CINTA = [
-  'Catemaco',
-  'San Andrés Tuxtla',
-  'Cascadas',
-  'Selva',
-  'Lago',
-  'Gastronomía',
-  'Aventura',
-  'Hospedaje',
-  'Artesanías',
-  'Cooperativas',
-];
-
 export default function FooterDinamico({ modo = 'turista' }: { modo?: 'turista' | 'prestador' }) {
   const t = useT();
   const prestador = modo === 'prestador';
@@ -85,22 +72,6 @@ export default function FooterDinamico({ modo = 'turista' }: { modo?: 'turista' 
     };
   }, []);
 
-  const fila = (clase: string) => (
-    <div className="overflow-hidden">
-      <div className={`flex w-max ${clase} motion-reduce:animate-none`}>
-        {[...CINTA, ...CINTA].map((p, i) => (
-          <span
-            key={i}
-            className="flex items-center whitespace-nowrap font-display text-5xl font-extrabold uppercase tracking-tight text-transparent [-webkit-text-stroke:1px_rgba(134,239,172,0.45)] sm:text-7xl"
-          >
-            {p}
-            <span className="mx-6 text-jungle-300/60 [-webkit-text-stroke:0]">✦</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-
   const entra = { opacity: 0, transform: 'translateY(28px)', transition: 'opacity 0.8s ease, transform 0.8s ease' };
 
   return (
@@ -115,16 +86,10 @@ export default function FooterDinamico({ modo = 'turista' }: { modo?: 'turista' 
         }}
       />
 
-      {/* Cinta que corre sola */}
-      <div className="relative space-y-2 border-b border-white/10 py-8" aria-hidden>
-        {fila('animate-marquee-izq')}
-        {fila('animate-marquee-der')}
-      </div>
-
-      <div className="relative mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+      <div className="relative mx-auto max-w-6xl px-4 pt-16 pb-10 sm:px-6 sm:pt-20">
         <div ref={refCols} className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-4 lg:col-span-2" style={entra}>
-            <img src="/logo-tuxtlasgo.png" alt="TuxtlasGO" className="h-9 w-auto object-contain brightness-0 invert" />
+            <img src="/logo-tuxtlasgo-recorte.png" alt="TuxtlasGO" className="h-16 w-auto object-contain brightness-0 invert" />
             <p className="max-w-xs text-sm leading-relaxed text-jungle-100/70">
               {t('Plataforma turística inteligente de Los Tuxtlas, Veracruz. Rutas con IA, mapa offline y prestadores locales verificados.')}
             </p>
@@ -194,15 +159,26 @@ export default function FooterDinamico({ modo = 'turista' }: { modo?: 'turista' 
         </div>
       </div>
 
-      {/* Palabra gigante que sube con el scroll */}
-      <div className="relative -mb-[0.18em] select-none overflow-hidden text-center" aria-hidden>
+      {/* Las letras del logo, gigantes, que suben con el scroll. Se pintan con
+          la silueta real del logo (public/logo-letras.png) como máscara:
+          "Tuxtlas" en verde claro y "Go" en el verde brillante de la marca. */}
+      <div className="relative select-none overflow-hidden px-4" aria-hidden>
         <div
           ref={refMarca}
-          className="bg-gradient-to-b from-jungle-300 via-jungle-500/60 to-transparent bg-clip-text font-display font-extrabold leading-none tracking-tighter text-transparent will-change-transform"
-          style={{ fontSize: 'clamp(4rem, 19vw, 17rem)', opacity: 0.15 }}
-        >
-          TuxtlasGO
-        </div>
+          className="mx-auto w-[min(94vw,1150px)] will-change-transform"
+          style={{
+            aspectRatio: '1505 / 295',
+            opacity: 0.15,
+            background:
+              'linear-gradient(90deg, #f0fdf4 0%, #bbf7d0 71%, #4ade80 71.6%, #22c55e 100%)',
+            WebkitMaskImage: 'url(/logo-letras.png)',
+            maskImage: 'url(/logo-letras.png)',
+            WebkitMaskSize: '100% 100%',
+            maskSize: '100% 100%',
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat',
+          }}
+        />
       </div>
 
       <div className="relative border-t border-white/10 px-4 py-5 text-center text-xs text-jungle-100/50 sm:px-6">

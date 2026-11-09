@@ -44,9 +44,9 @@ export default function NavbarLanding({
             aria-label={t('Ir al inicio')}
           >
             <img
-              src="/logo-tuxtlasgo.png"
+              src="/logo-tuxtlasgo-recorte.png"
               alt="TuxtlasGO"
-              className="h-9 w-auto object-contain"
+              className="h-12 w-auto object-contain"
             />
           </button>
 

@@ -371,3 +371,8 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 ## Prestadores con fotos reales + pie de página dinámico
 - RecorridoCartas (modo prestador): las fotos que vuelan son de prestadores registrados (API /api/servicios/aprobados), ordenadas por más fotos/premium/calificación, una por prestador primero, con el nombre en la tarjeta. Filtro de calidad: solo pasan las que cargan y miden al menos 480px de lado menor; si faltan (mínimo 6) se completa con fotos de la región. La altura de la sección se ajusta al número de fotos.
 - Nuevo FooterDinamico.tsx: cinta grande de palabras que corre en dos sentidos, columnas que entran escalonadas, palabra gigante TuxtlasGO que sube y se aclara con el scroll, botón según modo. Reemplaza el pie estático de LandingPage.
+
+## Logo visible en el menú + letras del logo en el pie
+- Nuevo public/logo-tuxtlasgo-recorte.png (logo sin el margen transparente): el menú de la landing, la barra pública y el modal de sesión lo usan a h-12, así ya se ve bien (antes el logo ocupaba ~un tercio del recuadro).
+- Pie: se quitó la cinta de palabras. La palabra gigante ahora usa la silueta real de las letras del logo (public/logo-letras.png, máscara) con "Tuxtlas" en verde claro y "Go" en verde brillante, subiendo con el scroll.
+- Límite: el logo original mide 612px; para letras gigantes nítidas conviene un SVG/PNG grande.

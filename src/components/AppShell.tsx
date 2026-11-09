@@ -820,6 +820,8 @@ export default function AppShell() {
               <InicioScreen
                 onVerLugar={verLugar}
                 onPreguntar={preguntarDesdeInicio}
+                onAbrirMapa={() => cambiarTab('mapa')}
+                onIrAlChat={() => cambiarTab('chat')}
                 ubicacion={filtros?.donde}
               />
             </div>

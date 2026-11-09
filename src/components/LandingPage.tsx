@@ -19,6 +19,7 @@ import {
 import OfflineIndicator from './OfflineIndicator';
 import NavbarLanding, { type ModoLanding } from './NavbarLanding';
 import AuthModal from './AuthModal';
+import HeroScroll from './HeroScroll';
 import { useT } from '../lib/i18n';
 
 interface LandingProps {
@@ -172,59 +173,11 @@ function SeccionesTurista() {
   const t = useT();
   return (
     <>
-      {/* HERO — collage tipo mood-board, gradiente suave detrás */}
-      <section className="relative overflow-hidden">
-        <div
-          className="pointer-events-none absolute -top-40 right-0 w-[36rem] h-[36rem] rounded-full opacity-70 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #fcd34d 0%, transparent 70%)' }}
-        />
-        <div
-          className="pointer-events-none absolute top-40 -right-32 w-96 h-96 rounded-full opacity-60 blur-3xl"
-          style={{ background: 'radial-gradient(circle, #67e8f9 0%, transparent 70%)' }}
-        />
-
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-14 pb-20 sm:pt-20 sm:pb-28">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6">
-              <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.5rem] text-obsidiana-900 leading-[1.05] tracking-tight">
-                {t('Tu guía de')}
-                <br />
-                {t('Los Tuxtlas,')}
-                <br />
-                <span className="text-jungle-700">{t('sin límites.')}</span>
-              </h1>
-              <p className="text-lg text-obsidiana-800/70 max-w-md leading-relaxed">
-                {t('Rutas personalizadas con IA, mapa offline y prestadores locales verificados. Sin cuenta, sin anuncios, sin depender de señal.')}
-              </p>
-              <div className="flex flex-wrap gap-3 pt-1">
-                <Link
-                  to="/app"
-                  className="bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 shadow-lg shadow-jungle-700/25 transition-colors"
-                >
-                  {t('Empezar a explorar')}
-                  <ChevronRight size={18} />
-                </Link>
-                <button
-                  onClick={() => {
-                    alert(
-                      t('Para instalar en tu celular: ábrela en Chrome o Safari y elige "Agregar a pantalla de inicio".')
-                    );
-                  }}
-                  className="bg-white border border-jungle-200 text-jungle-800 px-6 py-3.5 rounded-full font-semibold flex items-center gap-2 hover:border-jungle-400 transition-colors"
-                >
-                  <Download size={18} />
-                  {t('Instalar en mi celular')}
-                </button>
-              </div>
-            </div>
-
-            <PhotoCollage />
-          </div>
-        </div>
-      </section>
+      {/* INICIO — historia que avanza con el scroll (HeroScroll.tsx) */}
+      <HeroScroll />
 
       {/* FEATURES */}
-      <section id="features" className="bg-white py-16 sm:py-24">
+      <section id="features" className="relative z-10 -mt-6 rounded-t-3xl bg-white py-16 shadow-[0_-30px_60px_rgba(5,46,22,0.15)] sm:py-24">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-2xl mb-12">
             <p className="text-sun-700 text-sm font-semibold uppercase tracking-wide mb-2">

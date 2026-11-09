@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Search, SlidersHorizontal, Heart, Star, Map as MapIcon, Sparkles } from 'lucide-react';
+import {
+  SlidersHorizontal, Heart, Star, Map as MapIcon, Sparkles, Trees, Mountain, UtensilsCrossed,
+  BedDouble, ShoppingBag, Handshake, type LucideIcon,
+} from 'lucide-react';
 import { LUGARES, CATEGORIAS, type Categoria, type Lugar } from '../data/lugares';
-import { VIDEOS_HERO, type TarjetaHero } from '../data/heroMedia';
 import { useT } from '../lib/i18n';
 import { OfflineReadyBadge } from './OfflineIndicator';
 import { toggleFavorito, esFavorito } from '../lib/db';
@@ -69,33 +71,54 @@ export default function ExploreScreen({
 
   const destacados = todosLugares.filter((l) => l.destacado);
   const sinFiltro = !busqueda && catActiva === 'todas';
-  const tarjetasHero: TarjetaHero[] = destacados.slice(0, 5).map((l) => ({
-    id: l.id,
-    titulo: l.nombre,
-    imagen: l.imagen,
-    video: VIDEOS_HERO[l.id],
-  }));
 
   return (
     <div className="pb-6">
+      {/* Categorías: fila de iconos con color, pegada arriba al deslizar. */}
+      <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-jungle-100">
+        <div className="flex gap-2 overflow-x-auto px-4 lg:px-8 py-3 lg:justify-center snap-x scroll-pl-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <CategoryChip
+            label={t('Todos')}
+            cuenta={todosLugares.length}
+            icono={Sparkles}
+            color="bg-jungle-900 text-jungle-100"
+            activo={catActiva === 'todas'}
+            onClick={() => setCatActiva('todas')}
+          />
+          {CATEGORIAS.map((c) => (
+            <CategoryChip
+              key={c.id}
+              label={t(c.id)}
+              cuenta={todosLugares.filter((l) => l.categoria === c.id).length}
+              icono={ICONO_CATEGORIA[c.id].icono}
+              color={ICONO_CATEGORIA[c.id].color}
+              activo={catActiva === c.id}
+              onClick={() => setCatActiva(c.id)}
+            />
+          ))}
+        </div>
+      </div>
       {/* Cabecera: emblema + saludo + mosaico de videos/fotos. Sustituye
           al bloque verde "Descubre Los Tuxtlas". */}
       {sinFiltro && (
-        <section className="px-4 lg:px-8 pt-6 lg:pt-8">
-          <div className="flex items-start justify-between gap-3">
-            <span className="h-14 w-14 rounded-full bg-white shadow-sm border border-jungle-100 flex items-center justify-center flex-shrink-0">
-              <img src="/logo-emblema.png" alt="TuxtlasGO" className="h-10 w-10 object-contain" />
-            </span>
-            <OfflineReadyBadge />
+        <section className="relative mx-3 lg:mx-8 mt-4 rounded-3xl overflow-hidden bg-jungle-100 border border-jungle-200 min-h-[22rem]">
+          <FondoFotos fotos={[...new Set(todosLugares.map((l) => l.imagen).filter(Boolean))].slice(0, 16)} />
+          {/* Velo: fuerte donde va el texto, deja ver las fotos a la derecha. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-jungle-50 from-40% via-jungle-50/85 via-65% to-transparent" />
+          <div className="relative z-10 px-5 lg:px-10 py-8 lg:py-10">
+            <div className="flex items-start justify-between gap-3">
+              <span className="h-20 w-20 rounded-full bg-white shadow-lg border border-jungle-100 flex items-center justify-center flex-shrink-0">
+                <img src="/logo-emblema.png" alt="TuxtlasGO" className="h-14 w-14 object-contain" />
+              </span>
+              <OfflineReadyBadge />
+            </div>
+            <h1 className="font-display font-extrabold text-3xl lg:text-5xl text-jungle-950 mt-5 leading-tight max-w-2xl">
+              {t('Conoce Los Tuxtlas: cascadas, selva, lago y sabor local.')}
+            </h1>
+            <p className="text-jungle-800 mt-3 max-w-xl text-base lg:text-lg">
+              {t('Todo lo que ofrecen los prestadores de la región, en un solo lugar y disponible sin internet.')}
+            </p>
           </div>
-          <h1 className="font-display font-extrabold text-2xl lg:text-4xl text-jungle-950 mt-4 leading-tight max-w-3xl">
-            {t('Conoce Los Tuxtlas: cascadas, selva, lago y sabor local.')}
-          </h1>
-          <p className="text-jungle-700 mt-1.5 max-w-2xl">
-            {t('Todo lo que ofrecen los prestadores de la región, en un solo lugar y disponible sin internet.')}
-          </p>
-          <div className="mt-5" />
-          <HeroMedia tarjetas={tarjetasHero} />
         </section>
       )}
 
@@ -105,36 +128,6 @@ export default function ExploreScreen({
           <h2 className="font-display font-extrabold text-xl lg:text-2xl text-jungle-950 mr-auto">
             {t('Para ti en Los Tuxtlas')}
           </h2>
-          <div className="relative w-full sm:w-72 order-3 sm:order-none">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-500" />
-            <input
-              type="search"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder={t('Buscar lugares, comida, hoteles...')}
-              className="w-full rounded-full bg-white border border-jungle-200 pl-10 pr-4 py-2.5 text-sm text-jungle-950 placeholder:text-jungle-500 focus:outline-none focus:ring-2 focus:ring-jungle-400"
-            />
-          </div>
-          {onAbrirMapa && (
-            <button
-              onClick={onAbrirMapa}
-              className="inline-flex items-center gap-2 rounded-full border border-jungle-300 bg-white text-jungle-900 text-sm font-semibold px-4 py-2.5 hover:bg-jungle-50 transition-colors"
-            >
-              <MapIcon size={16} /> {t('Mapa')}
-            </button>
-          )}
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mt-4 scroll-smooth snap-x scroll-pl-4 lg:scroll-pl-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <CategoryChip label={`${t('Todos')} · ${todosLugares.length}`} emoji="✨" activo={catActiva === 'todas'} onClick={() => setCatActiva('todas')} />
-          {CATEGORIAS.map((c) => (
-            <CategoryChip
-              key={c.id}
-              label={`${t(c.id)} · ${todosLugares.filter((l) => l.categoria === c.id).length}`}
-              emoji={c.emoji}
-              activo={catActiva === c.id}
-              onClick={() => setCatActiva(c.id)}
-            />
-          ))}
         </div>
       </div>
 
@@ -213,7 +206,9 @@ export default function ExploreScreen({
         </section>
       )}
 
-      {onPreguntar && <BarraPregunta onPreguntar={onPreguntar} />}
+      {onPreguntar && (
+        <BarraPregunta onPreguntar={onPreguntar} onAbrirMapa={onAbrirMapa} onAbrirChat={onIrAlChat} />
+      )}
     </div>
   );
 }
@@ -223,15 +218,24 @@ export default function ExploreScreen({
 export function BarraPregunta({
   onPreguntar,
   placeholder,
+  onAbrirMapa,
+  onAbrirChat,
 }: {
   onPreguntar: (t: string) => void;
   placeholder?: string;
+  // Desplegar el mapa desde el asistente.
+  onAbrirMapa?: () => void;
+  // Con la barra vacía, el caracol abre el chat.
+  onAbrirChat?: () => void;
 }) {
   const t = useT();
   const [texto, setTexto] = useState("");
   const enviar = () => {
     const q = texto.trim();
-    if (!q) return;
+    if (!q) {
+      onAbrirChat?.();
+      return;
+    }
     setTexto("");
     onPreguntar(q);
   };
@@ -239,7 +243,7 @@ export function BarraPregunta({
     <div className="sticky bottom-4 z-20 px-4 lg:px-8 mt-auto pt-6 pointer-events-none">
       <form
         onSubmit={(e) => { e.preventDefault(); enviar(); }}
-        className="pointer-events-auto mx-auto max-w-3xl flex items-center gap-2 rounded-3xl p-2 pl-5 bg-white/30 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 shadow-[0_8px_32px_rgba(2,44,22,0.22)] supports-[not(backdrop-filter:blur(1px))]:bg-white/90"
+        className="pointer-events-auto mx-auto max-w-5xl flex items-center gap-2 rounded-3xl p-2 pl-5 bg-white/30 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 shadow-[0_8px_32px_rgba(2,44,22,0.22)] supports-[not(backdrop-filter:blur(1px))]:bg-white/90"
       >
         <input
           value={texto}
@@ -247,58 +251,59 @@ export function BarraPregunta({
           placeholder={placeholder ?? t("Pregunta a TuxtlasGO…")}
           className="flex-1 min-w-0 bg-transparent text-base text-jungle-950 placeholder:text-jungle-800/70 py-2.5 focus:outline-none"
         />
+        {onAbrirMapa && (
+          <button
+            type="button"
+            onClick={onAbrirMapa}
+            aria-label={t('Ver el mapa')}
+            title={t('Ver el mapa')}
+            className="h-10 w-10 rounded-full flex items-center justify-center text-jungle-900 hover:bg-white/60 transition-colors flex-shrink-0"
+          >
+            <MapIcon size={20} />
+          </button>
+        )}
+        {/* El asistente: un tegogolo (caracol de Catemaco), solo el caracol. */}
         <button
           type="submit"
-          aria-label={t("Enviar")}
-          className="h-10 w-10 rounded-full bg-jungle-900 text-white flex items-center justify-center hover:bg-jungle-800 transition-colors flex-shrink-0"
+          aria-label={t('Preguntar al asistente')}
+          title={t('Preguntar al asistente')}
+          className="h-12 w-12 flex items-center justify-center hover:scale-110 transition-transform flex-shrink-0"
         >
-          <Sparkles size={18} />
+          <img src="/tegogolo.png" alt="" className="h-full w-full object-contain drop-shadow-sm" />
         </button>
       </form>
     </div>
   );
 }
 
-// ── Mosaico de la cabecera ─────────────────────────────────────────
-function HeroMedia({ tarjetas }: { tarjetas: TarjetaHero[] }) {
-  return (
-    <div className="flex gap-3 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 mt-6 snap-x scroll-pl-4 lg:scroll-pl-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {tarjetas.map((c) => (
-        <TarjetaMedia key={c.id} tarjeta={c} />
-      ))}
+// ── Cabecera con fotos corriendo de fondo ─────────────────────────
+// Dos filas de fotos que se desplazan en sentidos contrarios, muy lento,
+// con un velo claro encima para que el texto se lea. Se pausa si la
+// persona pidió menos movimiento.
+function FondoFotos({ fotos }: { fotos: string[] }) {
+  if (fotos.length === 0) return null;
+  const fila = (lista: string[], clase: string) => (
+    <div className="flex-1 min-h-0 overflow-hidden">
+      <div className={`flex gap-3 h-full w-max ${clase} motion-reduce:animate-none`}>
+        {[...lista, ...lista].map((url, i) => (
+          <img
+            key={url + i}
+            src={optimizarImagen(url, ANCHO_TARJETA)}
+            alt=""
+            loading="lazy"
+            className="h-full w-44 sm:w-56 object-cover rounded-2xl flex-shrink-0"
+          />
+        ))}
+      </div>
     </div>
   );
-}
-
-function TarjetaMedia({ tarjeta }: { tarjeta: TarjetaHero }) {
-  const [videoRoto, setVideoRoto] = useState(false);
-  const usaVideo = !!tarjeta.video && !videoRoto;
+  const mitad = Math.ceil(fotos.length / 2);
+  const arriba = fotos.slice(0, mitad);
+  const abajo = fotos.slice(mitad).length ? fotos.slice(mitad) : fotos;
   return (
-    <div className="relative snap-start flex-shrink-0 w-44 sm:w-52 lg:w-56 h-52 lg:h-60 rounded-2xl overflow-hidden bg-jungle-200">
-      {usaVideo ? (
-        <video
-          src={tarjeta.video}
-          poster={tarjeta.imagen}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          onError={() => setVideoRoto(true)}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-      ) : (
-        <img
-          src={optimizarImagen(tarjeta.imagen, ANCHO_TARJETA)}
-          alt=""
-          loading="lazy"
-          className="absolute inset-0 w-full h-full object-cover animate-zoom-lento"
-        />
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-      <span className="absolute bottom-3 left-3 right-3 text-white font-display font-bold text-sm leading-tight drop-shadow">
-        {tarjeta.titulo}
-      </span>
+    <div aria-hidden className="absolute inset-0 flex flex-col gap-3 p-3">
+      {fila(arriba, 'animate-marquee-izq')}
+      {fila(abajo, 'animate-marquee-der')}
     </div>
   );
 }
@@ -421,27 +426,46 @@ export function TarjetaLugar({ lugar, onClick }: { lugar: Lugar; onClick: () => 
   );
 }
 
+// Icono y color de cada categoría (círculo con icono, como en la referencia).
+const ICONO_CATEGORIA: Record<Categoria, { icono: LucideIcon; color: string }> = {
+  Naturaleza: { icono: Trees, color: 'bg-emerald-100 text-emerald-700' },
+  Aventura: { icono: Mountain, color: 'bg-amber-100 text-amber-700' },
+  Gastronomia: { icono: UtensilsCrossed, color: 'bg-rose-100 text-rose-700' },
+  Hospedaje: { icono: BedDouble, color: 'bg-violet-100 text-violet-700' },
+  Comercio: { icono: ShoppingBag, color: 'bg-orange-100 text-orange-700' },
+  Cooperativa: { icono: Handshake, color: 'bg-teal-100 text-teal-700' },
+  Otro: { icono: Star, color: 'bg-sky-100 text-sky-700' },
+};
+
 function CategoryChip({
   label,
-  emoji,
+  cuenta,
+  icono: Icono,
+  color,
   activo,
   onClick,
 }: {
   label: string;
-  emoji: string;
+  cuenta: number;
+  icono: LucideIcon;
+  color: string;
   activo: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`flex-shrink-0 snap-start px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+      className={`flex-shrink-0 snap-start inline-flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
         activo
-          ? 'bg-jungle-900 text-white shadow-md'
-          : 'bg-white text-jungle-800 border border-jungle-200 hover:border-jungle-400'
+          ? 'bg-white border-jungle-700 shadow-md text-jungle-950 ring-1 ring-jungle-700'
+          : 'bg-white/80 border-jungle-200 text-jungle-900 hover:border-jungle-400 hover:bg-white'
       }`}
     >
-      {emoji} {label}
+      <span className={`h-9 w-9 rounded-full flex items-center justify-center ${color}`}>
+        <Icono size={18} />
+      </span>
+      {label}
+      <span className="text-xs font-medium text-jungle-500 -ml-1">{cuenta}</span>
     </button>
   );
 }

@@ -362,6 +362,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar, o
 
           {onPreguntar && (
             <BarraPregunta
+              onAbrirMapa={onVerEnMapa}
               placeholder={t('Pregunta sobre {nombre}…', { nombre: lugar.nombre })}
               onPreguntar={(q) => {
                 onClose();

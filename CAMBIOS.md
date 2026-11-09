@@ -339,3 +339,22 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 - Antes Cooperativa y Otro no tenían sección, y "Comercio" solo mostraba una parte: esos servicios solo salían al filtrar.
 - Ahora hay sección para Comercio, Cooperativas y Otros servicios (se omite si está vacía).
 - Chips con conteo (p. ej. "Gastronomía · 10"), cada sección dice cuántos lugares tiene, y al final un panel "Todos los servicios" con la cuadrícula completa.
+
+## Explorar: categorías con icono y barra más ancha
+- Los chips planos con emoji se reemplazaron por una fila arriba de todo (pegada al deslizar) con círculo de color + icono lucide por categoría y su conteo.
+- Barra flotante "Pregunta…" más ancha (max-w-5xl).
+
+## Asistente = tegogolo; buscador/mapa salen de Explorar
+- Se quitó el buscador y el botón "Mapa" de la fila "Para ti en Los Tuxtlas".
+- La barra flotante ahora trae el botón de mapa (desplegarlo desde el asistente) y, en lugar de la chispa, un tegogolo (public/tegogolo.png); con la barra vacía el tegogolo abre el chat.
+- Misma barra en Destacados, Explorar y detalle del lugar.
+
+## Cabecera de Explorar con fotos en movimiento + caracol verde
+- Cabecera: emblema grande + dos filas de fotos del catálogo corriendo en sentidos contrarios de fondo (animate-marquee-izq/der, respeta prefers-reduced-motion) con velo claro para leer el texto. Se quitó el mosaico de tarjetas (duplicaba Destacados). src/data/heroMedia.ts ya no se usa.
+- Tegogolo recoloreado a verde con fondo transparente (public/tegogolo.png); el botón es solo el caracol, sin círculo.
+- Caracol del asistente con contorno blanco (estilo sticker, como las letras del logo) vía drop-shadow.
+
+## Landing: inicio con historia que avanza con el scroll
+- Nuevo src/components/HeroScroll.tsx reemplaza el hero con collage de la landing (modo turista): escenario fijo con 4 fotos reales que se encadenan, cámara con parallax, palabras que entran desenfocadas, tarjetas de lugares reales y cifras que cuentan (catálogo + servicios aprobados vía /api/servicios/aprobados; sin internet solo el catálogo fijo). Idea de un demo de scroll-storytelling, pero sin assets ni marca de terceros.
+- Features sube con borde redondeado sobre el escenario. Respeta prefers-reduced-motion y el loop solo corre con la sección en pantalla.
+- Se quitó el contorno blanco del caracol (vuelve a como estaba).

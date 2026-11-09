@@ -25,10 +25,12 @@ const SUGERENCIAS_RAPIDAS = [
 interface Props {
   onVerLugar: (lugar: Lugar) => void;
   onPreguntar: (texto: string) => void;
+  onAbrirMapa?: () => void;
+  onIrAlChat?: () => void;
   ubicacion?: string;
 }
 
-export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Props) {
+export default function InicioScreen({ onVerLugar, onPreguntar, onAbrirMapa, onIrAlChat, ubicacion }: Props) {
   const t = useT();
   // "Para ti" mezcla dos cosas a propósito, siempre en este orden:
   // primero la curaduría nuestra (destacado: rating/calidad, sin
@@ -95,7 +97,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, ubicacion }: Pro
         </section>
 
         {/* Barra flotante de cristal (la misma de Explorar). */}
-        <BarraPregunta onPreguntar={onPreguntar} />
+        <BarraPregunta onPreguntar={onPreguntar} onAbrirMapa={onAbrirMapa} onAbrirChat={onIrAlChat} />
       </div>
     </div>
   );

@@ -11,6 +11,7 @@
 // POST   /api/comunidad/publicaciones?recurso=like          → dar/quitar like (requiere sesión)
 // GET    /api/comunidad/publicaciones?recurso=comentarios&post_id=X → comentarios de un post (público)
 // POST   /api/comunidad/publicaciones?recurso=comentarios   → comentar o responder (requiere sesión)
+// GET/POST/DELETE /api/comunidad/publicaciones?recurso=resenas → reseñas de lugares: calificar, comentar, responder, "útil" (ver más abajo)
 // PATCH  /api/comunidad/publicaciones                       → admin: restaurar publicación oculta
 // DELETE /api/comunidad/publicaciones                       → borrar propia, o cualquiera con admin
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -37,6 +38,58 @@ async function usuarioDeSesion(pool: Pool, token: string): Promise<number | null
     [token]
   );
   return sess.rows.length > 0 ? sess.rows[0].id : null;
+}
+
+// ── Reseñas: tablas auto-provisionadas (igual que el resto del proyecto) ──
+async function asegurarTablasResenas(pool: Pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS resenas (
+      id SERIAL PRIMARY KEY,
+      lugar_id TEXT NOT NULL,
+      lugar_nombre TEXT NOT NULL DEFAULT '',
+      usuario_id INT NOT NULL,
+      calificacion INT NOT NULL CHECK (calificacion BETWEEN 1 AND 5),
+      texto TEXT NOT NULL,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (lugar_id, usuario_id)
+    )`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS resenas_comentarios (
+      id SERIAL PRIMARY KEY,
+      resena_id INT NOT NULL REFERENCES resenas(id) ON DELETE CASCADE,
+      usuario_id INT NOT NULL,
+      respuesta_a INT,
+      texto TEXT NOT NULL,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS resenas_utiles (
+      resena_id INT NOT NULL REFERENCES resenas(id) ON DELETE CASCADE,
+      usuario_id INT NOT NULL,
+      PRIMARY KEY (resena_id, usuario_id)
+    )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS resenas_lugar ON resenas (lugar_id, creado_en DESC)`);
+  // La campana lee de esta misma tabla (ver api/reservaciones.ts)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notificaciones (
+      id SERIAL PRIMARY KEY,
+      usuario_id INT NOT NULL,
+      reservacion_id INT,
+      tipo TEXT NOT NULL DEFAULT 'info',
+      titulo TEXT NOT NULL,
+      mensaje TEXT NOT NULL,
+      leida BOOLEAN NOT NULL DEFAULT FALSE,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+}
+
+// Aviso en la campana; nunca a uno mismo.
+async function avisar(pool: Pool, destino: number | null | undefined, origen: number, tipo: string, titulo: string, mensaje: string) {
+  if (!destino || destino === origen) return;
+  await pool.query(
+    'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje) VALUES ($1, $2, $3, $4)',
+    [destino, tipo, titulo, mensaje]
+  );
 }
 
 const LIMITE_MB_SUBIDOS = Number(process.env.LIMITE_VIDEO_MB_MES ?? 500);
@@ -136,6 +189,150 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ok: true,
         comentario: { ...insertado.rows[0], autor_nombre: u.rows[0].nombre, autor_foto: u.rows[0].foto_url },
       });
+    }
+
+    // ══ RESEÑAS DE LUGARES (?recurso=resenas) ═══════════════════════
+    // Flujo: A publica una reseña (calificación + texto) → B la comenta →
+    // A (o cualquiera) responde → los demás marcan "útil". Solo con sesión
+    // se escribe; leer es público. Cada aviso llega a la campana.
+    if (recurso === 'resenas') {
+      await asegurarTablasResenas(pool);
+      const token = getToken(req);
+      const yo = token ? await usuarioDeSesion(pool, token) : null;
+
+      // GET ?lugar_id=X — reseñas + comentarios + resumen
+      if (req.method === 'GET') {
+        const lugarId = typeof req.query.lugar_id === 'string' ? req.query.lugar_id.slice(0, 80) : '';
+        if (!lugarId) return res.status(400).json({ error: 'Falta lugar_id' });
+        const filas = await pool.query(
+          `SELECT r.id, r.usuario_id, r.calificacion, r.texto, r.creado_en,
+                  u.nombre AS autor_nombre, u.foto_url AS autor_foto,
+                  (SELECT COUNT(*)::int FROM resenas_utiles x WHERE x.resena_id = r.id) AS utiles,
+                  EXISTS (SELECT 1 FROM resenas_utiles x WHERE x.resena_id = r.id AND x.usuario_id = $2) AS le_di_util
+           FROM resenas r JOIN usuarios u ON u.id = r.usuario_id
+           WHERE r.lugar_id = $1
+           ORDER BY r.creado_en DESC LIMIT 100`,
+          [lugarId, yo ?? 0]
+        );
+        const ids = filas.rows.map((r: any) => r.id);
+        const coms = ids.length
+          ? await pool.query(
+              `SELECT c.id, c.resena_id, c.usuario_id, c.respuesta_a, c.texto, c.creado_en,
+                      u.nombre AS autor_nombre, u.foto_url AS autor_foto
+               FROM resenas_comentarios c JOIN usuarios u ON u.id = c.usuario_id
+               WHERE c.resena_id = ANY($1::int[])
+               ORDER BY c.creado_en ASC`,
+              [ids]
+            )
+          : { rows: [] as any[] };
+        const resenas = filas.rows.map((r: any) => ({
+          ...r,
+          comentarios: coms.rows.filter((c: any) => c.resena_id === r.id),
+        }));
+        const total = resenas.length;
+        const promedio = total ? resenas.reduce((a: number, r: any) => a + r.calificacion, 0) / total : 0;
+        const distribucion = [5, 4, 3, 2, 1].map((n) => resenas.filter((r: any) => r.calificacion === n).length);
+        return res.status(200).json({
+          ok: true,
+          resumen: { total, promedio: Math.round(promedio * 10) / 10, distribucion },
+          resenas,
+        });
+      }
+
+      // DELETE ?tipo=resena|comentario&id=N — solo lo propio
+      if (req.method === 'DELETE') {
+        if (!yo) return res.status(401).json({ error: 'Inicia sesión' });
+        const id = Number(req.query.id);
+        if (!id) return res.status(400).json({ error: 'Falta id' });
+        const tabla = req.query.tipo === 'comentario' ? 'resenas_comentarios' : 'resenas';
+        const r = await pool.query(`DELETE FROM ${tabla} WHERE id = $1 AND usuario_id = $2`, [id, yo]);
+        if (r.rowCount === 0) return res.status(403).json({ error: 'Solo puedes borrar lo tuyo' });
+        return res.status(200).json({ ok: true });
+      }
+
+      if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
+      if (!yo) return res.status(401).json({ error: 'Inicia sesión para participar' });
+      const quien = await pool.query('SELECT nombre FROM usuarios WHERE id = $1', [yo]);
+      const miNombre: string = quien.rows[0]?.nombre ?? 'Alguien';
+      const b = req.body ?? {};
+
+      // POST accion=resena — crea o actualiza MI reseña de un lugar
+      if (b.accion === 'resena') {
+        const lugarId = typeof b.lugar_id === 'string' ? b.lugar_id.slice(0, 80) : '';
+        const lugarNombre = typeof b.lugar_nombre === 'string' ? b.lugar_nombre.slice(0, 120) : 'un lugar';
+        const cal = Math.round(Number(b.calificacion));
+        const texto = typeof b.texto === 'string' ? b.texto.trim().slice(0, 1000) : '';
+        if (!lugarId || !(cal >= 1 && cal <= 5)) return res.status(400).json({ error: 'Elige de 1 a 5 estrellas' });
+        if (texto.length < 3) return res.status(400).json({ error: 'Cuéntanos tu experiencia (mínimo unas palabras)' });
+        const previa = await pool.query('SELECT id FROM resenas WHERE lugar_id = $1 AND usuario_id = $2', [lugarId, yo]);
+        const r = await pool.query(
+          `INSERT INTO resenas (lugar_id, lugar_nombre, usuario_id, calificacion, texto)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (lugar_id, usuario_id)
+           DO UPDATE SET calificacion = EXCLUDED.calificacion, texto = EXCLUDED.texto, lugar_nombre = EXCLUDED.lugar_nombre
+           RETURNING id`,
+          [lugarId, lugarNombre, yo, cal, texto]
+        );
+        // Aviso al dueño del servicio (solo si es un servicio de prestador y es reseña nueva)
+        const m = /^prestador-(\d+)$/.exec(lugarId);
+        if (m && previa.rows.length === 0) {
+          const dueno = await pool.query('SELECT usuario_id FROM servicios WHERE id = $1', [Number(m[1])]);
+          await avisar(pool, dueno.rows[0]?.usuario_id, yo, 'resena', `Nueva reseña en ${lugarNombre}`, `${miNombre} calificó con ${cal} ★: "${texto.slice(0, 80)}"`);
+        }
+        return res.status(200).json({ ok: true, id: r.rows[0].id });
+      }
+
+      // POST accion=comentar — comenta una reseña o responde a un comentario
+      if (b.accion === 'comentar') {
+        const resenaId = Number(b.resena_id);
+        const texto = typeof b.texto === 'string' ? b.texto.trim().slice(0, 500) : '';
+        const respuestaA = b.respuesta_a ? Number(b.respuesta_a) : null;
+        if (!resenaId || !texto) return res.status(400).json({ error: 'Falta el texto' });
+        const rs = await pool.query('SELECT usuario_id, lugar_nombre FROM resenas WHERE id = $1', [resenaId]);
+        if (rs.rows.length === 0) return res.status(404).json({ error: 'La reseña ya no existe' });
+        const ins = await pool.query(
+          `INSERT INTO resenas_comentarios (resena_id, usuario_id, respuesta_a, texto)
+           VALUES ($1, $2, $3, $4) RETURNING id`,
+          [resenaId, yo, respuestaA, texto]
+        );
+        const lugar = rs.rows[0].lugar_nombre;
+        const resumen = `${miNombre}: "${texto.slice(0, 80)}"`;
+        if (respuestaA) {
+          const cm = await pool.query('SELECT usuario_id FROM resenas_comentarios WHERE id = $1 AND resena_id = $2', [respuestaA, resenaId]);
+          const destino = cm.rows[0]?.usuario_id;
+          await avisar(pool, destino, yo, 'resena_respuesta', `Respondieron tu comentario en ${lugar}`, resumen);
+          // Si quien recibe la respuesta no es el autor de la reseña, este también se entera
+          if (rs.rows[0].usuario_id !== destino) {
+            await avisar(pool, rs.rows[0].usuario_id, yo, 'resena_comentario', `Nueva respuesta en tu reseña de ${lugar}`, resumen);
+          }
+        } else {
+          await avisar(pool, rs.rows[0].usuario_id, yo, 'resena_comentario', `Comentaron tu reseña de ${lugar}`, resumen);
+        }
+        return res.status(200).json({ ok: true, id: ins.rows[0].id });
+      }
+
+      // POST accion=util — marca/quita "útil" en una reseña ajena
+      if (b.accion === 'util') {
+        const resenaId = Number(b.resena_id);
+        if (!resenaId) return res.status(400).json({ error: 'Falta resena_id' });
+        const rs = await pool.query('SELECT usuario_id, lugar_nombre FROM resenas WHERE id = $1', [resenaId]);
+        if (rs.rows.length === 0) return res.status(404).json({ error: 'La reseña ya no existe' });
+        if (rs.rows[0].usuario_id === yo) return res.status(400).json({ error: 'No puedes votar tu propia reseña' });
+        const ya = await pool.query('SELECT 1 FROM resenas_utiles WHERE resena_id = $1 AND usuario_id = $2', [resenaId, yo]);
+        let leDiUtil: boolean;
+        if (ya.rows.length) {
+          await pool.query('DELETE FROM resenas_utiles WHERE resena_id = $1 AND usuario_id = $2', [resenaId, yo]);
+          leDiUtil = false;
+        } else {
+          await pool.query('INSERT INTO resenas_utiles (resena_id, usuario_id) VALUES ($1, $2)', [resenaId, yo]);
+          leDiUtil = true;
+          await avisar(pool, rs.rows[0].usuario_id, yo, 'resena_util', 'Tu reseña le sirvió a alguien', `${miNombre} marcó útil tu reseña de ${rs.rows[0].lugar_nombre}`);
+        }
+        const c = await pool.query('SELECT COUNT(*)::int AS n FROM resenas_utiles WHERE resena_id = $1', [resenaId]);
+        return res.status(200).json({ ok: true, leDiUtil, utiles: c.rows[0].n });
+      }
+
+      return res.status(400).json({ error: 'Acción no válida' });
     }
 
     if (req.method === 'GET') {

@@ -13,6 +13,7 @@ import { getCatalogoActivo } from '../lib/chatbot';
 import ModalReservacion from './ModalReservacion';
 import MiniMapaChat from './MiniMapaChat';
 import { TarjetaLugar, BarraPregunta } from './ExploreScreen';
+import ResenasLugar from './ResenasLugar';
 import { useT, useTd } from '../lib/i18n';
 import { optimizarImagen, ANCHO_DETALLE, ANCHO_TARJETA } from '../lib/imagenOptimizada';
 
@@ -24,12 +25,14 @@ interface Props {
   onVerLugar?: (lugar: Lugar) => void;
   // Barra flotante "Pregunta…": manda la pregunta al asistente.
   onPreguntar?: (texto: string) => void;
+  // Abre el inicio de sesión (reseñas y comentarios son solo para registrados).
+  onIniciarSesion?: () => void;
 }
 
 type Pestana = 'resumen' | 'resenas' | 'ubicacion';
 const PESTANAS: Pestana[] = ['resumen', 'resenas', 'ubicacion'];
 
-export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar, onPreguntar }: Props) {
+export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar, onPreguntar, onIniciarSesion }: Props) {
   const t = useT();
   const td = useTd();
   const [fav, setFav] = useState(false);
@@ -313,8 +316,9 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar, o
               )}
             </section>
 
-            {/* Reseñas — todavía no existe un sistema de reseñas, así que se
-                dice tal cual: nunca se inventan opiniones. */}
+            {/* Reseñas — calificar, comentar y responder (solo registrados).
+                La nota de arriba (rating) es la del catálogo; las estrellas de
+                los usuarios se calculan con las reseñas reales de abajo. */}
             <section ref={refResenas} className="pt-10 border-t border-jungle-100 mt-10">
               <h3 className="font-display font-bold text-xl text-jungle-950">{t('Reseñas')}</h3>
               {lugar.rating > 0 && (
@@ -324,9 +328,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar, o
                   <span className="text-sm text-jungle-600">{t('calificación del lugar')}</span>
                 </p>
               )}
-              <p className="text-sm text-jungle-600 mt-2">
-                {t('Todavía no hay reseñas de turistas para este lugar.')}
-              </p>
+              <ResenasLugar lugarId={lugar.id} lugarNombre={lugar.nombre} onIniciarSesion={onIniciarSesion} />
             </section>
 
             {/* Ubicación */}

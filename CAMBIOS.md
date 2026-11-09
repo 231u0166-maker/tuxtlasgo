@@ -390,3 +390,9 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 ## Satélite con Mapbox
 - ESTILO_SATELITE usa Mapbox Satellite (API de mosaicos raster, @2x jpg90) cuando existe VITE_MAPBOX_TOKEN (token público pk., en .env.local, ignorado por git); sin token cae a Esri como antes. Con Mapbox: fuente hasta z17, zoom máximo 18. Probado en selva (Cerro del Venado) sin mosaicos en blanco.
 - PENDIENTE para producción: agregar VITE_MAPBOX_TOKEN en las variables de entorno de Vercel (Production y Preview) y redesplegar; y en Mapbox restringir el token por URL (go.tuxtlas.xyz, localhost). Revisar los términos de Mapbox (uso con MapLibre, app con comisiones).
+
+## Reseñas de lugares: calificar, comentar, responder, "útil" + avisos
+- Backend: api/comunidad/publicaciones.ts ?recurso=resenas (GET público; POST/DELETE solo con sesión). Va en ese archivo porque Vercel Hobby limita a 12 funciones y ya hay 12. Tablas auto-provisionadas: resenas (una por usuario y lugar, se puede editar), resenas_comentarios (con respuesta_a), resenas_utiles. Avisos en la tabla notificaciones (la campana ya la lee): reseña nueva -> dueño del servicio; comentario -> autor de la reseña; respuesta -> autor del comentario (y de la reseña); "útil" -> autor. Nunca se avisa a uno mismo.
+- Frontend: src/components/ResenasLugar.tsx dentro del detalle (sección Reseñas): promedio y barras por estrellas, formulario de estrellas+texto, hilos de comentarios con "Responder", marca "Autor de la reseña", borrar lo propio. Sin sesión se ve todo pero se pide iniciar sesión (PlaceDetail recibe onIniciarSesion).
+- Probado: flujo A reseña -> B comenta -> A responde -> C responde/marca útil, validaciones y avisos, contra Postgres real en un esquema temporal ya borrado. UI revisada con datos simulados.
+- Las estrellas de usuarios son aparte del rating del catálogo; no se mezclan.

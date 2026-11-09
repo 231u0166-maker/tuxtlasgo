@@ -1012,6 +1012,7 @@ export default function AppShell() {
             onVerEnMapa={verEnMapa}
             onVerLugar={verLugar}
             onPreguntar={preguntarDesdeInicio}
+            onIniciarSesion={() => setMostrarAuth(true)}
           />
         </>
       )}

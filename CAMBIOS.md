@@ -376,3 +376,9 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 - Nuevo public/logo-tuxtlasgo-recorte.png (logo sin el margen transparente): el menú de la landing, la barra pública y el modal de sesión lo usan a h-12, así ya se ve bien (antes el logo ocupaba ~un tercio del recuadro).
 - Pie: se quitó la cinta de palabras. La palabra gigante ahora usa la silueta real de las letras del logo (public/logo-letras.png, máscara) con "Tuxtlas" en verde claro y "Go" en verde brillante, subiendo con el scroll.
 - Límite: el logo original mide 612px; para letras gigantes nítidas conviene un SVG/PNG grande.
+
+## Menú lateral más holgado + encabezado de Explorar sin fotos en movimiento
+- Barra lateral expandida: w-64 -> w-72; más aire (cabecera py-5/px-5, nav py-6 con space-y-2, items py-3 px-4 gap-4, "Nuevo chat" con más margen, bloque inferior py-5 space-y-3). Modo compacto sin cambios.
+- Encabezado de Explorar: se quitaron las fotos que corrían de fondo (FondoFotos) y el velo; queda emblema + título + texto sobre degradado verde suave.
+- Pie: se revirtió la palabra gigante a texto (gradiente verde, tipografía de la app); se eliminó public/logo-letras.png. El logo recortado del menú y del pie se queda.
+- Pie: se quitó el logo chico de arriba a la izquierda (repetía la palabra gigante).

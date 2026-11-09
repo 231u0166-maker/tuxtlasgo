@@ -101,11 +101,8 @@ export default function ExploreScreen({
       {/* Cabecera: emblema + saludo + mosaico de videos/fotos. Sustituye
           al bloque verde "Descubre Los Tuxtlas". */}
       {sinFiltro && (
-        <section className="relative mx-3 lg:mx-8 mt-4 rounded-3xl overflow-hidden bg-jungle-100 border border-jungle-200 min-h-[22rem]">
-          <FondoFotos fotos={[...new Set(todosLugares.map((l) => l.imagen).filter(Boolean))].slice(0, 16)} />
-          {/* Velo: fuerte donde va el texto, deja ver las fotos a la derecha. */}
-          <div className="absolute inset-0 bg-gradient-to-r from-jungle-50 from-40% via-jungle-50/85 via-65% to-transparent" />
-          <div className="relative z-10 px-5 lg:px-10 py-8 lg:py-10">
+        <section className="relative mx-3 lg:mx-8 mt-4 rounded-3xl overflow-hidden bg-gradient-to-br from-jungle-50 via-white to-jungle-100 border border-jungle-200">
+          <div className="relative z-10 px-5 lg:px-10 py-8 lg:py-12">
             <div className="flex items-start justify-between gap-3">
               <span className="h-20 w-20 rounded-full bg-white shadow-lg border border-jungle-100 flex items-center justify-center flex-shrink-0">
                 <img src="/logo-emblema.png" alt="TuxtlasGO" className="h-14 w-14 object-contain" />
@@ -272,38 +269,6 @@ export function BarraPregunta({
           <img src="/tegogolo.png" alt="" className="h-full w-full object-contain drop-shadow-sm" />
         </button>
       </form>
-    </div>
-  );
-}
-
-// ── Cabecera con fotos corriendo de fondo ─────────────────────────
-// Dos filas de fotos que se desplazan en sentidos contrarios, muy lento,
-// con un velo claro encima para que el texto se lea. Se pausa si la
-// persona pidió menos movimiento.
-function FondoFotos({ fotos }: { fotos: string[] }) {
-  if (fotos.length === 0) return null;
-  const fila = (lista: string[], clase: string) => (
-    <div className="flex-1 min-h-0 overflow-hidden">
-      <div className={`flex gap-3 h-full w-max ${clase} motion-reduce:animate-none`}>
-        {[...lista, ...lista].map((url, i) => (
-          <img
-            key={url + i}
-            src={optimizarImagen(url, ANCHO_TARJETA)}
-            alt=""
-            loading="lazy"
-            className="h-full w-44 sm:w-56 object-cover rounded-2xl flex-shrink-0"
-          />
-        ))}
-      </div>
-    </div>
-  );
-  const mitad = Math.ceil(fotos.length / 2);
-  const arriba = fotos.slice(0, mitad);
-  const abajo = fotos.slice(mitad).length ? fotos.slice(mitad) : fotos;
-  return (
-    <div aria-hidden className="absolute inset-0 flex flex-col gap-3 p-3">
-      {fila(arriba, 'animate-marquee-izq')}
-      {fila(abajo, 'animate-marquee-der')}
     </div>
   );
 }

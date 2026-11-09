@@ -576,16 +576,16 @@ export default function AppShell() {
         onMouseLeave={() => setSidebarExpandido(false)}
         onFocus={() => setSidebarExpandido(true)}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSidebarExpandido(false); }}
-        className={`absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden whitespace-nowrap bg-jungle-900 text-white transition-[width,box-shadow] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : 'w-64 shadow-2xl shadow-black/30'
+        className={`absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden whitespace-nowrap bg-jungle-900 text-white transition-[width,box-shadow] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : 'w-72 shadow-2xl shadow-black/30'
           }`}
       >
         {/* Arriba: ícono + wordmark juntos como siempre — sueltos se
             veían mal, ver captura. */}
         <div
-          className={`border-b border-jungle-700/50 py-4 flex items-center ${sidebarColapsado ? 'justify-center' : 'px-4'
+          className={`border-b border-jungle-700/50 py-5 flex items-center ${sidebarColapsado ? 'justify-center' : 'px-5'
             }`}
         >
-          <Link to="/" title={sidebarColapsado ? 'TuxtlasGO' : undefined} className="flex items-center gap-2 flex-shrink-0 min-w-0">
+          <Link to="/" title={sidebarColapsado ? 'TuxtlasGO' : undefined} className="flex items-center gap-3 flex-shrink-0 min-w-0">
             <span className="h-10 w-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
               <img src="/logo-emblema.png" alt="" className="h-8 w-8 object-contain" />
             </span>
@@ -602,7 +602,7 @@ export default function AppShell() {
             abajo): en escritorio ya se ve el chat con solo un clic,
             así que un ícono aparte solo para el historial hubiera
             sido redundante con el botón de colapsar de arriba. */}
-        <nav className={`flex-1 py-4 space-y-1 overflow-y-auto ${sidebarColapsado ? 'px-2' : 'px-3'}`}>
+        <nav className={`flex-1 py-6 space-y-2 overflow-y-auto ${sidebarColapsado ? 'px-2' : 'px-4'}`}>
           {TABS.map((tb) => {
             const Icon = tb.icon;
             const activo = tb.id === tab;
@@ -617,7 +617,7 @@ export default function AppShell() {
                   onClick={() => cambiarTab(tb.id)}
                   onDoubleClick={() => { if (tb.id === 'chat') setDispararHistorial((v) => v + 1); }}
                   title={sidebarColapsado ? t(tb.label) : undefined}
-                  className={`w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
+                  className={`w-full flex items-center gap-4 py-3 rounded-xl text-sm font-semibold transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-4'
                     } ${activo
                       ? 'bg-jungle-700 text-white shadow-sm'
                       : 'text-jungle-300 hover:bg-jungle-800 hover:text-white'
@@ -630,12 +630,12 @@ export default function AppShell() {
             );
           })}
 
-          <div className={sidebarColapsado ? 'pt-4 flex justify-center' : 'pt-4'}>
+          <div className={sidebarColapsado ? 'pt-4 flex justify-center' : 'pt-6'}>
             <button
               onClick={() => { cambiarTab('chat'); setNuevoChatSenal((v) => v + 1); }}
               title={sidebarColapsado ? t('Nuevo chat') : undefined}
               className={`flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-600 text-white font-semibold text-sm transition-colors ${
-                sidebarColapsado ? 'w-10 h-10 rounded-full' : 'w-full py-2.5 rounded-full'
+                sidebarColapsado ? 'w-10 h-10 rounded-full' : 'w-full py-3 rounded-full'
               }`}
             >
               <Plus size={sidebarColapsado ? 18 : 16} className="flex-shrink-0" />
@@ -645,14 +645,14 @@ export default function AppShell() {
         </nav>
 
         {/* Acciones de usuario */}
-        <div className={`py-4 border-t border-jungle-700/50 space-y-2 ${sidebarColapsado ? 'px-2' : 'px-3'}`}>
-          <div className={sidebarColapsado ? 'flex justify-center' : 'px-3'}>
+        <div className={`py-5 border-t border-jungle-700/50 space-y-3 ${sidebarColapsado ? 'px-2' : 'px-4'}`}>
+          <div className={sidebarColapsado ? 'flex justify-center' : 'px-4'}>
             <SelectorIdioma variante="claro" />
           </div>
           <Link
             to="/prestador"
             title={sidebarColapsado ? t('Portal prestadores') : undefined}
-            className={`flex items-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
+            className={`flex items-center gap-4 py-3 rounded-xl text-sm font-semibold text-jungle-300 hover:bg-jungle-800 hover:text-white transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-4'
               }`}
           >
             <Briefcase size={16} className="flex-shrink-0" />
@@ -660,7 +660,7 @@ export default function AppShell() {
           </Link>
 
           {usuario ? (
-            <div className={`flex items-center gap-2 py-2 ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'}`}>
+            <div className={`flex items-center gap-3 py-2.5 ${sidebarColapsado ? 'px-0 justify-center' : 'px-4'}`}>
               {usuario.foto_url ? (
                 <img
                   src={usuario.foto_url}
@@ -696,7 +696,7 @@ export default function AppShell() {
             <button
               onClick={() => setMostrarAuth(true)}
               title={sidebarColapsado ? t('Iniciar sesión') : undefined}
-              className={`w-full flex items-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-jungle-950 transition-colors ${sidebarColapsado ? 'px-0 justify-center' : 'px-3'
+              className={`w-full flex items-center gap-4 py-3 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-jungle-950 transition-colors ${sidebarColapsado ? 'px-0 justify-center' : 'px-4'
                 }`}
             >
               <User size={16} className="flex-shrink-0" />

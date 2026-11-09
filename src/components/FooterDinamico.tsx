@@ -89,7 +89,6 @@ export default function FooterDinamico({ modo = 'turista' }: { modo?: 'turista' 
       <div className="relative mx-auto max-w-6xl px-4 pt-16 pb-10 sm:px-6 sm:pt-20">
         <div ref={refCols} className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-4 lg:col-span-2" style={entra}>
-            <img src="/logo-tuxtlasgo-recorte.png" alt="TuxtlasGO" className="h-16 w-auto object-contain brightness-0 invert" />
             <p className="max-w-xs text-sm leading-relaxed text-jungle-100/70">
               {t('Plataforma turística inteligente de Los Tuxtlas, Veracruz. Rutas con IA, mapa offline y prestadores locales verificados.')}
             </p>
@@ -159,26 +158,15 @@ export default function FooterDinamico({ modo = 'turista' }: { modo?: 'turista' 
         </div>
       </div>
 
-      {/* Las letras del logo, gigantes, que suben con el scroll. Se pintan con
-          la silueta real del logo (public/logo-letras.png) como máscara:
-          "Tuxtlas" en verde claro y "Go" en el verde brillante de la marca. */}
-      <div className="relative select-none overflow-hidden px-4" aria-hidden>
+      {/* Palabra gigante que sube con el scroll */}
+      <div className="relative -mb-[0.18em] select-none overflow-hidden text-center" aria-hidden>
         <div
           ref={refMarca}
-          className="mx-auto w-[min(94vw,1150px)] will-change-transform"
-          style={{
-            aspectRatio: '1505 / 295',
-            opacity: 0.15,
-            background:
-              'linear-gradient(90deg, #f0fdf4 0%, #bbf7d0 71%, #4ade80 71.6%, #22c55e 100%)',
-            WebkitMaskImage: 'url(/logo-letras.png)',
-            maskImage: 'url(/logo-letras.png)',
-            WebkitMaskSize: '100% 100%',
-            maskSize: '100% 100%',
-            WebkitMaskRepeat: 'no-repeat',
-            maskRepeat: 'no-repeat',
-          }}
-        />
+          className="bg-gradient-to-b from-jungle-300 via-jungle-500/60 to-transparent bg-clip-text font-display font-extrabold leading-none tracking-tighter text-transparent will-change-transform"
+          style={{ fontSize: 'clamp(4rem, 19vw, 17rem)', opacity: 0.15 }}
+        >
+          TuxtlasGO
+        </div>
       </div>
 
       <div className="relative border-t border-white/10 px-4 py-5 text-center text-xs text-jungle-100/50 sm:px-6">

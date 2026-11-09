@@ -197,7 +197,11 @@ export default function App() {
         anotarCarga('recarga detectada: el modelo arranca en 10 s para dejar que se libere la memoria');
       }
     } catch { /* sin Performance API: se usa la espera normal */ }
-    const temporizadorEmbeddings = window.setTimeout(() => arrancarEmbeddings(), esperaInicial);
+    // Los buscadores (Googlebot…) no necesitan el modelo de IA: bajarlo
+    // (~113 MB desde Hugging Face) solo les gasta presupuesto de rastreo y
+    // les llena el informe de recursos con errores. A ellos no se les arranca.
+    const esRobot = /bot|crawl|spider|slurp|lighthouse|facebookexternalhit/i.test(navigator.userAgent);
+    const temporizadorEmbeddings = esRobot ? 0 : window.setTimeout(() => arrancarEmbeddings(), esperaInicial);
     return () => window.clearTimeout(temporizadorEmbeddings);
   }, []);
 

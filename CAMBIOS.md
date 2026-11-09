@@ -408,3 +408,4 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 - Límite: es una SPA; los lugares no tienen URL propia, así que Google no los indexa uno por uno. Siguiente paso: páginas /lugar/<id> prerenderizadas con su propio título, descripción y datos estructurados.
 - Search Console: public/google32721e05fd1a5601.html (archivo de verificación de propiedad; NO borrar).
 - SEO: a los buscadores (Googlebot, Bing, etc., por userAgent) siempre se les sirve español aunque se identifiquen en inglés; antes Google veía la landing en inglés (se detectó con "Ver página probada"). Los turistas con el teléfono en inglés siguen viendo inglés. Las cifras de la landing arrancan con el número real en vez de 0.
+- SEO: a los robots no se les arranca el modelo de IA (e5-small de Hugging Face, ~113 MB); Search Console mostraba esos 4 archivos como errores de redirección. Los 2 de /api bloqueados por robots.txt son normales.

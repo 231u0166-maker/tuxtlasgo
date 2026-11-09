@@ -306,3 +306,10 @@ Esto no se tocó todavía. Es un trabajo grande y subjetivo (todo `PerfilScreen.
 
 ## Nota sobre la base de datos
 Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisionan solas la primera vez que se usan (`CREATE TABLE IF NOT EXISTS`), igual que ya hacían otras partes de este proyecto (`ia_uso_diario`, `conocimiento_dinamico`). **No hace falta correr ninguna migración manual** — con desplegar el código a Vercel es suficiente.
+
+---
+
+# Sesión 2026-11-08 — Barra lateral dinámica y logo nuevo
+
+- **Barra lateral:** vuelve a ser dinámica en todos los anchos. Siempre compacta (solo íconos) y se abre con los nombres al pasar el cursor o enfocar con teclado. Se quitó la versión fija y abierta de ≥1280px (`esAncho` en `AppShell.tsx`).
+- **Logo:** se reemplazó el pino de lucide por el emblema real de TuxtlasGO (pin con montaña y hoja), recortado de `logo-tuxtlasgo.png` a un PNG transparente: `public/logo-emblema.png`. Va sobre una insignia blanca redonda porque el verde del emblema se perdía sobre el fondo verde oscuro. Aplica a la barra lateral y a la barra superior de celular.

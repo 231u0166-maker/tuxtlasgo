@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, LogOut, X, History,
-  Sparkles, Compass, Map, MessageCircle, Heart, TreePine, User, Navigation,
+  Sparkles, Compass, Map, MessageCircle, Heart, User, Navigation,
   PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, Users, Plus
 } from 'lucide-react';
 import { Fragment, useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
@@ -145,20 +145,10 @@ export default function AppShell() {
   // contenido (ver el <aside> abajo), así el mapa y las tarjetas no
   // se reacomodan cada vez que el cursor pasa por el borde.
   const [sidebarExpandido, setSidebarExpandido] = useState(false);
-  // En pantallas anchas (≥1280px) la barra va SIEMPRE abierta, con los
-  // nombres de cada sección (como la referencia que nos compartieron);
-  // en pantallas medianas se queda como riel de íconos que se abre al
-  // acercar el cursor, para no quitarle espacio al mapa y al chat.
-  const [esAncho, setEsAncho] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1280px)');
-    const actualizar = () => setEsAncho(mq.matches);
-    mq.addEventListener('change', actualizar);
-    return () => mq.removeEventListener('change', actualizar);
-  }, []);
-  const sidebarColapsado = !esAncho && !sidebarExpandido;
+  // La barra es dinámica en todos los anchos: riel de íconos que se abre
+  // con los nombres al pasar el cursor (antes, ≥1280px quedaba fija y
+  // abierta; se volvió a la versión que se mueve).
+  const sidebarColapsado = !sidebarExpandido;
   // Botón "Nuevo chat" de la barra: cada clic sube el número y el
   // asistente empieza una conversación nueva.
   const [nuevoChatSenal, setNuevoChatSenal] = useState(0);
@@ -583,13 +573,13 @@ export default function AppShell() {
       {/* ══════════════ SIDEBAR (solo desktop) ══════════════ */}
       {/* El hueco en el layout es siempre de 72px; el <aside> se
           expande hacia la derecha por encima del contenido. */}
-      <div className="hidden lg:block relative flex-shrink-0 w-[72px] xl:w-64">
+      <div className="hidden lg:block relative flex-shrink-0 w-[72px]">
       <aside
         onMouseEnter={() => setSidebarExpandido(true)}
         onMouseLeave={() => setSidebarExpandido(false)}
         onFocus={() => setSidebarExpandido(true)}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSidebarExpandido(false); }}
-        className={`absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden whitespace-nowrap bg-jungle-900 text-white transition-[width,box-shadow] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : esAncho ? 'w-64' : 'w-64 shadow-2xl shadow-black/30'
+        className={`absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden whitespace-nowrap bg-jungle-900 text-white transition-[width,box-shadow] duration-200 ease-in-out ${sidebarColapsado ? 'w-[72px]' : 'w-64 shadow-2xl shadow-black/30'
           }`}
       >
         {/* Arriba: ícono + wordmark juntos como siempre — sueltos se
@@ -599,7 +589,9 @@ export default function AppShell() {
             }`}
         >
           <Link to="/" title={sidebarColapsado ? 'TuxtlasGO' : undefined} className="flex items-center gap-2 flex-shrink-0 min-w-0">
-            <TreePine size={22} className="text-amber-400 flex-shrink-0" />
+            <span className="h-10 w-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+              <img src="/logo-emblema.png" alt="" className="h-8 w-8 object-contain" />
+            </span>
             {!sidebarColapsado && (
               <span className="font-display font-extrabold text-lg tracking-tight truncate">
                 TuxtlasGO
@@ -727,7 +719,9 @@ export default function AppShell() {
         {tab !== 'mapa' && (
           <header className="lg:hidden flex-shrink-0 flex items-center justify-between bg-jungle-900 text-white pl-4 pr-2 h-12">
             <Link to="/" className="flex items-center gap-2 min-w-0">
-              <TreePine size={20} className="text-amber-400 flex-shrink-0" />
+              <span className="h-9 w-9 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                <img src="/logo-emblema.png" alt="" className="h-7 w-7 object-contain" />
+              </span>
               <span className="font-display font-extrabold text-base tracking-tight truncate">TuxtlasGO</span>
             </Link>
             <NotificacionesBurbuja variante="barra-movil" onIrATab={cambiarTab} />

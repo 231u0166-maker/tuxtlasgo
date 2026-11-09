@@ -258,6 +258,7 @@ export const EN: Record<string, string> = {
   'Cambiar tipo de mapa': 'Change map type',
   'Calles': 'Streets',
   'Terreno': 'Terrain',
+  'Satélite': 'Satellite',
   'Acercar': 'Zoom in',
   'Alejar': 'Zoom out',
   'Regresar a Los Tuxtlas': 'Back to Los Tuxtlas',

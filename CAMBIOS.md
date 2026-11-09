@@ -382,3 +382,11 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 - Encabezado de Explorar: se quitaron las fotos que corrían de fondo (FondoFotos) y el velo; queda emblema + título + texto sobre degradado verde suave.
 - Pie: se revirtió la palabra gigante a texto (gradiente verde, tipografía de la app); se eliminó public/logo-letras.png. El logo recortado del menú y del pie se queda.
 - Pie: se quitó el logo chico de arriba a la izquierda (repetía la palabra gigante).
+
+## Mapa: capa Satélite (Esri) solo de referencia
+- Tercer botón en el selector de capas (Calles / Terreno / Satélite). Fuente: Esri World Imagery. Para que no salgan mosaicos en blanco en la selva: la fuente deja de pedir mosaicos nuevos desde z15 (MapLibre estira el último) y en esta vista el mapa no deja acercar más de z16 (si estaba más cerca, se aleja solo). Se descartó Azure Maps. Atribución de Esri visible.
+- Mapa: se quitó la capa Terreno (OpenTopoMap); el selector queda en Calles / Satélite.
+
+## Satélite con Mapbox
+- ESTILO_SATELITE usa Mapbox Satellite (API de mosaicos raster, @2x jpg90) cuando existe VITE_MAPBOX_TOKEN (token público pk., en .env.local, ignorado por git); sin token cae a Esri como antes. Con Mapbox: fuente hasta z17, zoom máximo 18. Probado en selva (Cerro del Venado) sin mosaicos en blanco.
+- PENDIENTE para producción: agregar VITE_MAPBOX_TOKEN en las variables de entorno de Vercel (Production y Preview) y redesplegar; y en Mapbox restringir el token por URL (go.tuxtlas.xyz, localhost). Revisar los términos de Mapbox (uso con MapLibre, app con comisiones).

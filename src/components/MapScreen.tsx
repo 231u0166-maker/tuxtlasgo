@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Download, CheckCircle2, Loader2, X, Compass, Layers, Plus, Minus, Map as MapIcon, Mountain, SlidersHorizontal } from 'lucide-react';
+import { Download, CheckCircle2, Loader2, X, Compass, Layers, Plus, Minus, Map as MapIcon, Satellite, SlidersHorizontal } from 'lucide-react';
 import {
   LUGARES,
   LOS_TUXTLAS_BOUNDS,
@@ -57,37 +57,38 @@ const LIMITES_REGION: [[number, number], [number, number]] = [
 export const ESTILO_MAPA = 'https://tiles.openfreemap.org/styles/liberty';
 
 // ============================================================
-// CAPA DE TERRENO — alternativa a "Calles", pensada para senderismo
+// CAPA SATÉLITE — para ubicarse en el mapa
 // ============================================================
-// Se probó primero con satélite (Esri World Imagery), pero esa
-// fuente solo tiene fotografía de alta resolución en zonas urbanas;
-// en la selva/zona rural de Los Tuxtlas la imagen real se acaba muy
-// pronto y el resto se ve en blanco ("Map data not yet available").
-// Terreno resuelve esto de raíz porque NO es una foto: se dibuja a
-// partir de datos de elevación (SRTM) + OpenStreetMap, así que
-// cubre el mundo entero sin huecos, sin importar qué tan rural sea
-// la zona — y de paso es más útil para una app de aventura/senderismo
-// (se ven curvas de nivel, qué tan empinado es el camino, volcanes).
-// Fuente: OpenTopoMap (opentopomap.org) — tiles gratis sin llave de
-// API, bajo política de uso justo (uso moderado, con atribución).
-const ESTILO_TERRENO = {
+// Con token de Mapbox (VITE_MAPBOX_TOKEN): imágenes de Mapbox Satellite
+// por la API de mosaicos raster (se piden como mosaicos HTTPS normales,
+// MapLibre no entiende "mapbox://"). El token es público ("pk.") y se
+// restringe por dominio en el panel de Mapbox. Mapbox rellena las zonas
+// sin foto fina con una versión estirada, así que no salen huecos.
+// Sin token (o si no está configurado en el servidor): Esri World Imagery,
+// que en la selva a veces deja mosaicos en blanco ("Map data not yet
+// available"); por eso con Esri la fuente deja de pedir mosaicos nuevos
+// desde z15 y el mapa no deja acercar más de z16.
+const TOKEN_MAPBOX = (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined)?.trim();
+const ZOOM_SATELITE_FUENTE = TOKEN_MAPBOX ? 17 : 15;
+const ZOOM_SATELITE_MAX = TOKEN_MAPBOX ? 18 : 16;
+const ESTILO_SATELITE = {
   version: 8 as const,
   sources: {
-    'opentopo-terreno': {
+    'satelite': {
       type: 'raster' as const,
       tiles: [
-        'https://a.tile.opentopomap.org/{z}/{x}/{y}.png',
-        'https://b.tile.opentopomap.org/{z}/{x}/{y}.png',
-        'https://c.tile.opentopomap.org/{z}/{x}/{y}.png',
+        TOKEN_MAPBOX
+          ? `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=${TOKEN_MAPBOX}`
+          : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       ],
       tileSize: 256,
-      maxzoom: 17,
-      attribution: 'OpenTopoMap (CC-BY-SA), datos de OpenStreetMap y SRTM',
+      maxzoom: ZOOM_SATELITE_FUENTE,
+      attribution: TOKEN_MAPBOX
+        ? '© Mapbox © Maxar © OpenStreetMap'
+        : 'Imágenes © Esri, Maxar, Earthstar Geographics',
     },
   },
-  layers: [
-    { id: 'opentopo-terreno-capa', type: 'raster' as const, source: 'opentopo-terreno' },
-  ],
+  layers: [{ id: 'satelite-capa', type: 'raster' as const, source: 'satelite' }],
 };
 
 // Mismos 7 colores que CATEGORIAS en data/lugares.ts (ahí están en
@@ -458,11 +459,16 @@ export default function MapScreen({
   const [progreso, setProgreso] = useState(0);
   const [tilesListos, setTilesListos] = useState(false);
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
-  // Vista de terreno/relieve (OpenTopoMap) en vez de calles vectoriales
-  // (OpenFreeMap) — ver ESTILO_TERRENO arriba. El panel de capas es el
-  // mismo patrón visual que el selector de Google Maps (icono de capas
-  // → opciones).
-  const [vistaTerreno, setVistaTerreno] = useState(false);
+  // Vista satélite (Esri) en vez de calles vectoriales (OpenFreeMap) — ver
+  // ESTILO_SATELITE arriba. El panel de capas es el mismo patrón visual que
+  // el selector de Google Maps (icono de capas → opciones).
+  const [vistaSatelite, setVistaSatelite] = useState(false);
+  // Al pasar a satélite, si la cámara está más cerca de lo permitido, se aleja.
+  useEffect(() => {
+    if (!vistaSatelite) return;
+    const m = mapRef.current?.getMap();
+    if (m && m.getZoom() > ZOOM_SATELITE_MAX) m.easeTo({ zoom: ZOOM_SATELITE_MAX, duration: 600 });
+  }, [vistaSatelite]);
   const [mostrarCapas, setMostrarCapas] = useState(false);
 
   useEffect(() => {
@@ -697,7 +703,7 @@ export default function MapScreen({
         pixelRatio={PIXEL_RATIO_MAPA}
         fadeDuration={GAMA_BAJA ? 0 : 300}
         minZoom={mapaLiberado ? 4 : 9}
-        maxZoom={18}
+        maxZoom={vistaSatelite ? ZOOM_SATELITE_MAX : 18}
         // Turista de otro estado (Tabasco, CDMX, Jalisco...): si su
         // ubicación cae fuera de Los Tuxtlas, el recuadro encerraba la
         // cámara y no podía ver su ruta ni su seguimiento. Sin origen
@@ -708,7 +714,7 @@ export default function MapScreen({
         onLoad={aplicarLimiteRegion}
         onIdle={aplicarLimiteRegion}
         onMoveEnd={aplicarLimiteRegion}
-        mapStyle={vistaTerreno ? (ESTILO_TERRENO as any) : ESTILO_MAPA}
+        mapStyle={vistaSatelite ? (ESTILO_SATELITE as any) : ESTILO_MAPA}
         style={{ width: '100%', height: '100%' }}
       >
         {edificiosGeoJSON.features.length > 0 && (
@@ -828,7 +834,7 @@ export default function MapScreen({
           )}
         </div>
 
-        {/* Capas: Calles / Terreno */}
+        {/* Capas: Calles / Satélite */}
         <div className="relative">
           <button
             onClick={() => setMostrarCapas((v) => !v)}
@@ -843,20 +849,20 @@ export default function MapScreen({
           {mostrarCapas && (
             <div className="absolute right-12 top-0 bg-white rounded-2xl shadow-xl border border-jungle-100 p-2 flex gap-2">
               <button
-                onClick={() => { setVistaTerreno(false); setMostrarCapas(false); }}
-                className={`w-16 flex flex-col items-center gap-1 rounded-xl px-1.5 py-2 text-[11px] font-semibold ${!vistaTerreno ? 'bg-jungle-700 text-white' : 'text-jungle-800 hover:bg-jungle-50'
+                onClick={() => { setVistaSatelite(false); setMostrarCapas(false); }}
+                className={`w-16 flex flex-col items-center gap-1 rounded-xl px-1.5 py-2 text-[11px] font-semibold ${!vistaSatelite ? 'bg-jungle-700 text-white' : 'text-jungle-800 hover:bg-jungle-50'
                   }`}
               >
                 <MapIcon size={18} />
                 {t('Calles')}
               </button>
               <button
-                onClick={() => { setVistaTerreno(true); setMostrarCapas(false); }}
-                className={`w-16 flex flex-col items-center gap-1 rounded-xl px-1.5 py-2 text-[11px] font-semibold ${vistaTerreno ? 'bg-jungle-700 text-white' : 'text-jungle-800 hover:bg-jungle-50'
+                onClick={() => { setVistaSatelite(true); setMostrarCapas(false); }}
+                className={`w-16 flex flex-col items-center gap-1 rounded-xl px-1.5 py-2 text-[11px] font-semibold ${vistaSatelite ? 'bg-jungle-700 text-white' : 'text-jungle-800 hover:bg-jungle-50'
                   }`}
               >
-                <Mountain size={18} />
-                {t('Terreno')}
+                <Satellite size={18} />
+                {t('Satélite')}
               </button>
             </div>
           )}

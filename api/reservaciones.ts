@@ -18,7 +18,7 @@ import { getPool } from './_lib/db.js';
 // ── notificaciones — se auto-provisiona igual que otras tablas del
 // proyecto (ver api/ia/chat.ts, api/conocimiento/admin.ts) para no
 // depender de una migración manual aparte. Un aviso por evento
-// relevante (por ahora: cancelaciones) — lo ve el OTRO participante
+// relevante (cancelaciones, y que el prestador acepte o rechace una solicitud) — lo ve el OTRO participante
 // de la reservación, no quien hizo la acción.
 async function asegurarTablaNotificaciones(pool: Pool) {
   await pool.query(`
@@ -33,6 +33,15 @@ async function asegurarTablaNotificaciones(pool: Pool) {
       creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+}
+
+// Aviso para el TURISTA cuando el prestador acepta o rechaza su solicitud.
+// Sin prometer cosas que no sabemos (pagos, plazos): solo dice qué pasó y a dónde ir.
+function mensajeRespuesta(opts: { confirmada: boolean; servicioNombre: string; fechaISO: string }): { titulo: string; mensaje: string } {
+  const fecha = new Date(opts.fechaISO + 'T00:00:00Z').toLocaleDateString('es-MX', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  return opts.confirmada
+    ? { titulo: 'Tu reservación fue confirmada', mensaje: `"${opts.servicioNombre}" confirmó tu reservación para el ${fecha}. Revisa los detalles en Mis lugares.` }
+    : { titulo: 'Tu solicitud no fue aceptada', mensaje: `"${opts.servicioNombre}" no pudo aceptar tu solicitud para el ${fecha}. Puedes intentar con otra fecha u otro lugar.` };
 }
 
 // Mensaje que le llega al otro participante cuando se cancela una
@@ -359,6 +368,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            ) WHERE id = $2`,
           [fechaStr, r.servicio_id]
         );
+      }
+
+      // El turista se entera de que su solicitud fue aceptada o rechazada. Si el aviso falla,
+      // no se tumba la acción: el estado de la reservación ya quedó guardado.
+      if (accion === 'confirmar' || accion === 'rechazar') {
+        try {
+          await asegurarTablaNotificaciones(pool);
+          const { titulo, mensaje } = mensajeRespuesta({ confirmada: accion === 'confirmar', servicioNombre: r.servicio_nombre, fechaISO: fechaStr });
+          await pool.query(
+            `INSERT INTO notificaciones (usuario_id, reservacion_id, tipo, titulo, mensaje)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [r.turista_id, r.id, accion === 'confirmar' ? 'reservacion_confirmada' : 'reservacion_rechazada', titulo, mensaje]
+          );
+        } catch (e) {
+          console.warn('No se pudo avisar al turista:', e);
+        }
       }
 
       // Avisar al OTRO participante — esto es lo que antes no

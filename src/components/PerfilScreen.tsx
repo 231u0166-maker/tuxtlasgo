@@ -16,13 +16,12 @@ import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
   Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
-  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users, Eye, CalendarDays, Utensils, Leaf, Mountain, BedDouble, ShoppingBag, Handshake, Star, MapPin, FileText, Mail, Timer, Route, Lightbulb, PawPrint, Heart, PartyPopper, Compass, type LucideIcon } from 'lucide-react';
+  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users, Eye, CalendarDays, Utensils, Leaf, Mountain, BedDouble, ShoppingBag, Handshake, Star, MapPin, FileText, Mail, Timer, Route, Lightbulb, PawPrint, Heart, PartyPopper, Compass, Pencil, Check, ShieldCheck, History, Coins, Lock, type LucideIcon } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
 import GestorFotos from './GestorFotos';
 import GraficaMini from './GraficaMini';
-import CalendarioReservacionesPrestador from './CalendarioReservacionesPrestador';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { recargarCatalogo } from '../App';
@@ -39,6 +38,7 @@ import ResumenHorario from './ResumenHorario';
 const EditorDescripcion = lazy(() => import('./EditorDescripcion'));
 const SelectorRangoPrecio = lazy(() => import('./SelectorRangoPrecio'));
 const EditorHorarioSemanal = lazy(() => import('./EditorHorarioSemanal'));
+const CalendarioReservas = lazy(() => import('./CalendarioReservas'));
 // Bloc de notas en versión baja: cómo llegar, consejo, mascotas.
 function NotaCompacta({ titulo, value, onChange, max, placeholder }: { titulo: string; value: string; onChange: (v: string) => void; max: number; placeholder: string }) {
   return (
@@ -1420,8 +1420,6 @@ function PerfilPrestador({
                 reservaciones={reservacionesEntrantes}
                 cargando={cargandoReservaciones}
                 guardandoConfig={guardandoReservConfig}
-                nuevaFechaBloqueada={nuevaFechaBloqueada}
-                setNuevaFechaBloqueada={setNuevaFechaBloqueada}
                 onGuardarConfig={(cfg) => actualizarConfigReservaciones({
                   acepta_reservaciones: cfg.activar,
                   politica_cancelacion: cfg.politica_cancelacion,
@@ -1429,8 +1427,7 @@ function PerfilPrestador({
                   mostrar_usd_reservacion: cfg.mostrar_usd_reservacion,
                 })}
                 onEliminar={() => actualizarConfigReservaciones({ eliminar_reservaciones: true })}
-                onAgregarFechaBloqueada={agregarFechaBloqueada}
-                onQuitarFechaBloqueada={quitarFechaBloqueada}
+                onGuardarFechas={(fechas) => actualizarConfigReservaciones({ fechas_bloqueadas: fechas })}
                 onResponder={responderReservacion}
                 onAbrirChat={(id, nombre) => setChatAbierto({ id, nombre })}
               />
@@ -1776,8 +1773,7 @@ function formatearMes(iso: string): string {
 // bloquea; y responde a las solicitudes que le lleguen.
 function PanelReservacionesPrestador({
   servicio, mpConectado, conectandoMp, onConectarMp, reservaciones, cargando, guardandoConfig,
-  nuevaFechaBloqueada, setNuevaFechaBloqueada,
-  onGuardarConfig, onEliminar, onAgregarFechaBloqueada, onQuitarFechaBloqueada, onResponder, onAbrirChat,
+  onGuardarConfig, onEliminar, onGuardarFechas, onResponder, onAbrirChat,
 }: {
   servicio: ServicioAPI;
   mpConectado: boolean;
@@ -1786,12 +1782,9 @@ function PanelReservacionesPrestador({
   reservaciones: ReservacionPrestador[] | null;
   cargando: boolean;
   guardandoConfig: boolean;
-  nuevaFechaBloqueada: string;
-  setNuevaFechaBloqueada: (v: string) => void;
   onGuardarConfig: (cfg: { politica_cancelacion: 'flexible' | 'no_reembolsable'; monto_minimo: number | null; mostrar_usd_reservacion: boolean; activar: boolean }) => Promise<boolean>;
   onEliminar: () => void;
-  onAgregarFechaBloqueada: (fecha?: string) => void;
-  onQuitarFechaBloqueada: (fecha: string) => void;
+  onGuardarFechas: (fechas: string[]) => Promise<boolean>;
   onResponder: (id: number, accion: 'confirmar' | 'rechazar') => void;
   onAbrirChat: (id: number, nombreViajero: string) => void;
 }) {
@@ -1830,19 +1823,6 @@ function PanelReservacionesPrestador({
   const montoNum = parseFloat(montoDraft);
   const montoUsd = Number.isFinite(montoNum) && montoNum > 0 ? Math.round(montoNum / TASA_USD_REFERENCIA) : null;
 
-  // Ventana de edición para política/anticipo — antes vivían siempre
-  // visibles en la pantalla (junto con calendario y solicitudes,
-  // saturando igual que pasaba en "Mi Servicio"). Ahora es un resumen
-  // de solo lectura + su propio modal, mismo patrón ya aprobado ahí.
-  const [modalConfigAbierto, setModalConfigAbierto] = useState(false);
-
-  function abrirModalConfig() {
-    setPoliticaDraft(servicio.politica_cancelacion ?? 'flexible');
-    setMontoDraft(servicio.monto_minimo != null ? String(servicio.monto_minimo) : '');
-    setMostrarUsdDraft(!!servicio.mostrar_usd_reservacion);
-    setModalConfigAbierto(true);
-  }
-
   async function publicar() {
     if (!mpConectado) return;
     // "Lo único que tiene que aceptar" antes de activar: el reparto
@@ -1857,7 +1837,7 @@ function PanelReservacionesPrestador({
       mostrar_usd_reservacion: mostrarUsdDraft,
       activar: true,
     });
-    if (ok) setModalConfigAbierto(false);
+    if (ok) setAbierta({ pol: false, ant: false, usd: false });
   }
 
   async function guardarCambios() {
@@ -1867,7 +1847,7 @@ function PanelReservacionesPrestador({
       mostrar_usd_reservacion: mostrarUsdDraft,
       activar: true,
     });
-    if (ok) setModalConfigAbierto(false);
+    if (ok) setAbierta({ pol: false, ant: false, usd: false });
   }
 
   function eliminar() {
@@ -1875,78 +1855,75 @@ function PanelReservacionesPrestador({
     onEliminar();
   }
 
-  const FormularioConfig = (
-    <>
-      <div>
-        <p className="text-sm font-semibold text-jungle-900 mb-3">Política de cancelación</p>
-        <div className="space-y-2">
-          <button
-            onClick={() => setPoliticaDraft('flexible')}
-            className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${politicaDraft === 'flexible' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100'}`}
-          >
-            <p className="text-sm font-semibold text-jungle-900">Flexible</p>
-            <p className="text-xs text-jungle-500 mt-0.5">Cancelación gratuita hasta 24–48h antes.</p>
-          </button>
-          <button
-            onClick={() => setPoliticaDraft('no_reembolsable')}
-            className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${politicaDraft === 'no_reembolsable' ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100'}`}
-          >
-            <p className="text-sm font-semibold text-jungle-900">No reembolsable</p>
-            <p className="text-xs text-jungle-500 mt-0.5">Más económica para el turista, sin cancelación.</p>
-          </button>
-        </div>
-      </div>
-
-      <div>
-        <p className="text-sm font-semibold text-jungle-900 mb-1">Anticipo mínimo para confirmar</p>
-        <p className="text-xs text-jungle-500 mb-3">Lo que se retiene para cerrar la reservación (10–20% es lo usual) — opcional.</p>
-        <div className="relative">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400 text-sm">$</span>
-          <input
-            type="number"
-            min={0}
-            value={montoDraft}
-            onChange={(e) => setMontoDraft(e.target.value)}
-            placeholder="ej: 150"
-            className="w-full bg-jungle-50 rounded-xl pl-7 pr-16 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-          />
-          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-jungle-400 text-xs font-semibold">MXN</span>
-        </div>
-        <label className="flex items-center gap-2 mt-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={mostrarUsdDraft}
-            onChange={(e) => setMostrarUsdDraft(e.target.checked)}
-            className="w-4 h-4 rounded accent-jungle-700"
-          />
-          <span className="text-xs text-jungle-600">Mostrar también en USD (para turistas extranjeros)</span>
-        </label>
-        {mostrarUsdDraft && montoUsd !== null && (
-          <p className="text-xs text-jungle-400 mt-1.5">≈ ${montoUsd} USD (tasa de referencia, no en vivo)</p>
-        )}
-      </div>
-    </>
+  // ── Reglas: cada sección muestra su resumen y se edita con su lápiz ──
+  const [abierta, setAbierta] = useState({ pol: false, ant: false, usd: false });
+  const alternar = (k: 'pol' | 'ant' | 'usd') => setAbierta((a) => ({ ...a, [k]: !a[k] }));
+  const ANTICIPOS = [100, 150, 200, 300];
+  const guardadaPol = servicio.politica_cancelacion ?? 'flexible';
+  const guardadoMonto = servicio.monto_minimo != null ? Number(servicio.monto_minimo) : null;
+  const montoDraftNum = montoDraft.trim() ? montoNum : null;
+  const [otroMonto, setOtroMonto] = useState(guardadoMonto != null && guardadoMonto > 0 && !ANTICIPOS.includes(guardadoMonto));
+  const sucio = acepta && (
+    politicaDraft !== guardadaPol ||
+    (montoDraftNum ?? null) !== guardadoMonto ||
+    mostrarUsdDraft !== !!servicio.mostrar_usd_reservacion
   );
+  const horarioSemana = useMemo(
+    () => semanaValida(servicio.horario_semanal) ?? semanaDesdeTextos(servicio.horario, servicio.dias_abierto),
+    [servicio.horario_semanal, servicio.horario, servicio.dias_abierto]
+  );
+
+  function descartar() {
+    setPoliticaDraft(guardadaPol);
+    setMontoDraft(guardadoMonto != null ? String(guardadoMonto) : '');
+    setMostrarUsdDraft(!!servicio.mostrar_usd_reservacion);
+    setOtroMonto(guardadoMonto != null && guardadoMonto > 0 && !ANTICIPOS.includes(guardadoMonto));
+  }
+
+  // Pausar = dejar de recibir reservaciones SIN borrar nada (a diferencia de "Eliminar").
+  async function pausar() {
+    await onGuardarConfig({
+      politica_cancelacion: guardadaPol,
+      monto_minimo: guardadoMonto,
+      mostrar_usd_reservacion: !!servicio.mostrar_usd_reservacion,
+      activar: false,
+    });
+  }
+
+  const resumenPol = politicaDraft === 'flexible' ? 'Flexible · gratis hasta 24–48 h antes' : 'No reembolsable · sin cancelación';
+  const resumenAnt = montoDraftNum && montoDraftNum > 0 ? `$${montoDraftNum.toLocaleString('es-MX')} MXN al reservar` : 'Sin anticipo · se paga todo al llegar';
+  const resumenUsd = mostrarUsdDraft ? (montoUsd !== null ? `Sí · se verá ≈ $${montoUsd} USD` : 'Sí · en dólares') : 'No · solo en pesos';
+  const chipMonto = (activo: boolean) => `min-h-[42px] px-4 rounded-full border-[1.5px] text-[13.5px] font-bold transition-colors ${activo ? 'bg-jungle-700 border-jungle-700 text-white' : 'bg-white border-jungle-100 text-jungle-800 hover:border-jungle-300'}`;
+  const opcionPol = (v: 'flexible' | 'no_reembolsable', Icono: LucideIcon, titulo: string, texto: string) => {
+    const activa = politicaDraft === v;
+    return (
+      <button key={v} type="button" onClick={() => setPoliticaDraft(v)} aria-pressed={activa}
+        className={`relative text-left p-3.5 rounded-2xl border-[1.5px] flex flex-col gap-0.5 transition-all ${activa ? 'border-jungle-600 bg-jungle-50 ring-[3px] ring-jungle-600/10' : 'border-jungle-100 bg-white hover:border-jungle-300'}`}>
+        <span className={`absolute top-2.5 right-2.5 h-[22px] w-[22px] rounded-full bg-jungle-600 text-white flex items-center justify-center transition-transform ${activa ? 'scale-100' : 'scale-0'}`}><Check size={13} /></span>
+        <Icono size={22} strokeWidth={1.75} className="text-jungle-600 mb-1.5" />
+        <b className="text-sm text-jungle-950">{titulo}</b>
+        <small className="text-xs text-jungle-500 leading-snug">{texto}</small>
+      </button>
+    );
+  };
 
   return (
     <div className="px-4 space-y-3">
       {/* Reservaciones es independiente de Premium; lo único que hace
           falta es tener Mercado Pago conectado, para saber a dónde
           depositarle su parte. */}
-      <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-semibold text-jungle-900">Reservaciones</p>
-          {acepta && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">Publicado</span>
-          )}
-        </div>
+      <TarjetaFormulario Icono={CalendarDays} titulo="Recibir reservaciones" orden={0}
+        ayuda={!mpConectado ? 'Conecta Mercado Pago para empezar' : acepta ? 'Tus clientes reservan desde la app' : 'Pausado: nadie puede reservar'}
+        derecha={mpConectado ? (
+          <button type="button" role="switch" aria-checked={acepta} aria-label="Recibir reservaciones" disabled={guardandoConfig}
+            onClick={() => (acepta ? pausar() : publicar())}
+            className={`relative h-[28px] w-[50px] rounded-full transition-colors disabled:opacity-60 ${acepta ? 'bg-jungle-600' : 'bg-jungle-200'}`}>
+            <span className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow transition-all duration-200 ${acepta ? 'left-[25px]' : 'left-[3px]'}`} />
+          </button>
+        ) : undefined}>
         {!mpConectado ? (
-          // Antes esto era solo un texto mandando al prestador a la
-          // pestaña "Información externa" a mitad de este flujo — dos
-          // saltos de pestaña para una sola tarea. Ahora se conecta
-          // sin salir de Reservaciones (la cuenta conectada se sigue
-          // pudiendo ver/desconectar desde Enlaces y pagos).
-          <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl p-3">
+          // La cuenta conectada se sigue pudiendo ver/desconectar desde Enlaces y pagos.
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
             <p className="text-xs text-amber-700 mb-2">
               Conecta tu cuenta de Mercado Pago — es a donde te va a llegar tu parte de cada reservación.
             </p>
@@ -1960,100 +1937,62 @@ function PanelReservacionesPrestador({
             </button>
           </div>
         ) : (
-          <p className="text-xs text-jungle-500">
-            El turista podrá reservar tu servicio directo desde la app. TuxtlasGO retiene 6% por reservación pagada, tú recibes el 94% directo a tu cuenta.
+          <p className="text-xs text-jungle-500 leading-relaxed">
+            Mercado Pago conectado · TuxtlasGO retiene 6 % por reservación pagada; tú recibes el 94 % directo a tu cuenta.
           </p>
         )}
-      </div>
+      </TarjetaFormulario>
 
       {mpConectado && (
-        <SeccionServicio titulo="Configuración de reservaciones" onEditar={abrirModalConfig}>
-          {acepta ? (
-            <>
-              <InfoFila icono={null} label="Política de cancelación"
-                valor={servicio.politica_cancelacion === 'no_reembolsable' ? 'No reembolsable' : 'Flexible'} />
-              <InfoFila icono={null} label="Anticipo mínimo"
-                valor={servicio.monto_minimo != null ? `$${servicio.monto_minimo} MXN` : 'Sin anticipo'} />
-              <InfoFila icono={null} label="Mostrar en USD" valor={servicio.mostrar_usd_reservacion ? 'Sí' : 'No'} />
-              <button onClick={eliminar} disabled={guardandoConfig}
-                className="text-xs font-semibold text-red-600 hover:text-red-800 disabled:opacity-60">
-                Eliminar reservaciones
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="text-xs text-jungle-500">Configura tu política de cancelación y anticipo antes de publicar.</p>
-              <button onClick={abrirModalConfig}
-                className="w-full bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl text-sm font-semibold">
-                Configurar y publicar
-              </button>
-            </>
-          )}
-        </SeccionServicio>
-      )}
+        <TarjetaFormulario Icono={ShieldCheck} titulo="Reglas" ayuda="Cómo funcionan tus reservaciones" orden={1}>
+          <SeccionRegla Icono={History} titulo="Si el cliente cancela" resumen={resumenPol} abierta={abierta.pol} onAlternar={() => alternar('pol')}>
+            <div className="grid grid-cols-2 gap-2.5">
+              {opcionPol('flexible', CheckCircle2, 'Flexible', 'Gratis hasta 24–48 h antes')}
+              {opcionPol('no_reembolsable', Lock, 'No reembolsable', 'Sin cancelación ni reembolso')}
+            </div>
+            <p className="text-xs text-jungle-500 mt-2.5 leading-snug">
+              {politicaDraft === 'flexible' ? 'El cliente se siente más seguro y suele reservar más.' : 'Más barata para el cliente y proteges tu agenda de huecos.'}
+            </p>
+          </SeccionRegla>
 
-      {modalConfigAbierto && (
-        <ModalEditarSeccion
-          titulo="Configuración de reservaciones"
-          onClose={() => setModalConfigAbierto(false)}
-          onGuardar={acepta ? guardarCambios : publicar}
-          guardando={guardandoConfig}
-          textoGuardar={acepta ? 'Guardar cambios' : 'Publicar reservaciones'}
-        >
-          {FormularioConfig}
-        </ModalEditarSeccion>
-      )}
-
-      {acepta && mpConectado && (
-        // Calendario + fechas bloqueadas fusionados en una sola
-        // tarjeta — antes eran dos, pero hacían básicamente lo mismo
-        // (bloquear/desbloquear fechas): el calendario ya deja tocar
-        // un día para bloquearlo, y la lista de chips de abajo es
-        // para verlas todas de un vistazo sin importar el mes, o
-        // agregar una fecha lejana sin navegar mes por mes con las
-        // flechas. Se quedan las dos formas de bloquear (ninguna
-        // funcionalidad se quitó), solo dejaron de ser dos tarjetas
-        // separadas que hacían sentir la pantalla más larga de lo
-        // necesario.
-        <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-          <p className="text-sm font-semibold text-jungle-900 mb-1">Tu calendario</p>
-          <p className="text-xs text-jungle-500 mb-3">Reservaciones y fechas bloqueadas, de un vistazo.</p>
-          <CalendarioReservacionesPrestador
-            reservaciones={reservaciones ?? []}
-            fechasBloqueadas={bloqueadas}
-            onBloquear={onAgregarFechaBloqueada}
-            onDesbloquear={onQuitarFechaBloqueada}
-            onAbrirChat={onAbrirChat}
-          />
-
-          <div className="mt-4 pt-4 border-t border-jungle-100">
-            <p className="text-sm font-semibold text-jungle-900 mb-1">Fechas no disponibles</p>
-            <p className="text-xs text-jungle-500 mb-3">O agrega una fecha lejana directo, sin navegar mes por mes.</p>
-            {bloqueadas.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {bloqueadas.map(f => (
-                  <span key={f} className="flex items-center gap-1.5 bg-jungle-50 text-jungle-700 text-xs font-semibold px-2.5 py-1.5 rounded-full">
-                    {new Date(f + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
-                    <button onClick={() => onQuitarFechaBloqueada(f)} className="text-jungle-400 hover:text-red-600"><X size={12} /></button>
-                  </span>
-                ))}
+          <SeccionRegla Icono={Coins} titulo="Anticipo para confirmar" resumen={resumenAnt} abierta={abierta.ant} onAlternar={() => alternar('ant')}>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={chipMonto(!otroMonto && !montoDraft.trim())} onClick={() => { setOtroMonto(false); setMontoDraft(''); }}>Sin anticipo</button>
+              {ANTICIPOS.map((v) => (
+                <button key={v} type="button" className={chipMonto(!otroMonto && montoDraftNum === v)} onClick={() => { setOtroMonto(false); setMontoDraft(String(v)); }}>${v}</button>
+              ))}
+              <button type="button" className={chipMonto(otroMonto)} onClick={() => setOtroMonto(true)}>Otro monto</button>
+            </div>
+            {otroMonto && (
+              <div className="relative mt-3">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-jungle-400 font-bold">$</span>
+                <input type="number" min={0} inputMode="numeric" value={montoDraft} onChange={(e) => setMontoDraft(e.target.value)} placeholder="Monto en MXN" autoFocus
+                  className="w-full h-12 rounded-xl border-[1.5px] border-jungle-100 bg-white pl-8 pr-16 text-lg font-bold text-jungle-950 focus:outline-none focus:border-jungle-600 focus:ring-4 focus:ring-jungle-600/10" />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-jungle-400 text-xs font-bold">MXN</span>
               </div>
             )}
-            <div className="flex gap-2">
-              <input
-                type="date"
-                min={hoy}
-                value={nuevaFechaBloqueada}
-                onChange={(e) => setNuevaFechaBloqueada(e.target.value)}
-                className="flex-1 bg-jungle-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-              />
-              <button onClick={() => onAgregarFechaBloqueada()} disabled={!nuevaFechaBloqueada}
-                className="bg-jungle-100 disabled:opacity-40 text-jungle-700 px-3 rounded-xl">
-                <Plus size={16} />
+            <p className="text-xs text-jungle-500 mt-2.5 leading-snug">Es lo que el cliente paga al reservar para asegurar su lugar (10–20 % es lo usual). Es opcional.</p>
+          </SeccionRegla>
+
+          <SeccionRegla Icono={Globe} titulo="Turistas extranjeros" resumen={resumenUsd} abierta={abierta.usd} onAlternar={() => alternar('usd')}>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-jungle-950">Mostrar el anticipo también en dólares</p>
+                {mostrarUsdDraft && montoUsd !== null && <p className="text-xs text-jungle-500 mt-0.5">≈ ${montoUsd} USD (tasa de referencia, no en vivo)</p>}
+              </div>
+              <button type="button" role="switch" aria-checked={mostrarUsdDraft} aria-label="Mostrar en dólares" onClick={() => setMostrarUsdDraft((v) => !v)}
+                className={`relative h-[28px] w-[50px] rounded-full flex-shrink-0 transition-colors ${mostrarUsdDraft ? 'bg-jungle-600' : 'bg-jungle-200'}`}>
+                <span className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow transition-all duration-200 ${mostrarUsdDraft ? 'left-[25px]' : 'left-[3px]'}`} />
               </button>
             </div>
-          </div>
-        </div>
+          </SeccionRegla>
+
+          {!acepta && (
+            <p className="text-xs text-jungle-500 pt-3 border-t border-jungle-100 leading-snug">
+              Cuando estén a tu gusto, activa “Recibir reservaciones” arriba para publicarlas.
+            </p>
+          )}
+        </TarjetaFormulario>
       )}
 
       {/* Solicitudes entrantes */}
@@ -2178,6 +2117,41 @@ function PanelReservacionesPrestador({
           </div>
         )}
       </div>
+      {acepta && mpConectado && (
+        <TarjetaFormulario Icono={CalendarDays} titulo="Tu calendario" ayuda="Reservas, días bloqueados y tu horario en un solo lugar" orden={3}>
+          <Suspense fallback={<CargandoCampo alto={380} />}>
+            <CalendarioReservas
+              reservaciones={reservaciones ?? []}
+              fechasBloqueadas={bloqueadas}
+              horario={horarioSemana}
+              onGuardarFechas={onGuardarFechas}
+              onResponder={onResponder}
+              onAbrirChat={onAbrirChat}
+            />
+          </Suspense>
+        </TarjetaFormulario>
+      )}
+
+      {/* Zona discreta: borrar toda la configuración de reservaciones */}
+      {mpConectado && (acepta || guardadoMonto != null || !!servicio.politica_cancelacion) && (
+        <div className="pt-3 pb-1 text-center">
+          <button type="button" onClick={eliminar} disabled={guardandoConfig}
+            className="text-xs text-jungle-400 hover:text-red-600 underline underline-offset-2 decoration-jungle-200 hover:decoration-red-300 disabled:opacity-50">
+            Eliminar reservaciones de este servicio
+          </button>
+        </div>
+      )}
+
+      {sucio && (
+        <div className="sticky bottom-[84px] lg:bottom-4 z-30 flex items-center gap-2.5 rounded-2xl bg-jungle-950 text-white pl-4 pr-2.5 py-2.5 shadow-2xl animate-fade-in" role="status">
+          <span className="flex-1 text-[13.5px] font-semibold">Tienes cambios sin guardar</span>
+          <button type="button" onClick={descartar} className="h-10 px-3 text-sm font-bold text-jungle-200">Descartar</button>
+          <button type="button" onClick={guardarCambios} disabled={guardandoConfig}
+            className="h-10 px-5 rounded-xl bg-jungle-400 text-jungle-950 text-sm font-bold flex items-center gap-1.5 disabled:opacity-60">
+            {guardandoConfig && <Loader2 size={15} className="animate-spin" />} Guardar
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -2463,12 +2437,38 @@ function SeccionServicio({ titulo, onEditar, children }: { titulo: string; onEdi
 // que AuthModal (hoja desde abajo en móvil, centrado en escritorio),
 // para que editar el negocio se sienta igual de simple que iniciar
 // sesión, en vez de la pared de campos de antes.
+// Una regla con su resumen y su lápiz: al tocarlo se despliega para editarla.
+function SeccionRegla({ Icono, titulo, resumen, abierta, onAlternar, children }: {
+  Icono: LucideIcon; titulo: string; resumen: string; abierta: boolean; onAlternar: () => void; children: React.ReactNode;
+}) {
+  return (
+    <section className="py-4 border-t border-jungle-100 first-of-type:border-t-0 first-of-type:pt-0">
+      <div className="flex items-center gap-3">
+        <span className="h-9 w-9 rounded-xl bg-jungle-50 ring-1 ring-jungle-100 text-jungle-700 flex items-center justify-center flex-shrink-0">
+          <Icono size={17} strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-display font-bold text-[14.5px] text-jungle-950 leading-tight">{titulo}</p>
+          <p className="text-[13.5px] font-bold text-jungle-700 mt-0.5 leading-snug">{resumen}</p>
+        </div>
+        <button type="button" onClick={onAlternar} aria-expanded={abierta} aria-label={`${abierta ? 'Cerrar' : 'Editar'} ${titulo}`}
+          className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${abierta ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-700 ring-1 ring-jungle-100 hover:bg-jungle-100'}`}>
+          {abierta ? <Check size={17} /> : <Pencil size={16} />}
+        </button>
+      </div>
+      <div className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out ${abierta ? 'grid-rows-[1fr] opacity-100 mt-3.5' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
+        <div className="overflow-hidden min-h-0">{children}</div>
+      </div>
+    </section>
+  );
+}
+
 // Tarjeta de vidrio para separar los bloques de un formulario: título con icono,
 // fondo translúcido y entrada escalonada (orden = posición para el retraso).
 function TarjetaFormulario({
-  Icono, titulo, ayuda, orden = 0, className = '', children,
+  Icono, titulo, ayuda, orden = 0, className = '', derecha, children,
 }: {
-  Icono: LucideIcon; titulo: string; ayuda?: string; orden?: number; className?: string; children: React.ReactNode;
+  Icono: LucideIcon; titulo: string; ayuda?: string; orden?: number; className?: string; derecha?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <motion.section
@@ -2484,6 +2484,7 @@ function TarjetaFormulario({
           <h3 className="font-display font-bold text-[15px] text-jungle-950 leading-tight">{titulo}</h3>
           {ayuda && <p className="text-xs text-jungle-500 mt-0.5 leading-snug">{ayuda}</p>}
         </div>
+        {derecha && <div className="ml-auto flex-shrink-0">{derecha}</div>}
       </header>
       {children}
     </motion.section>

@@ -11,9 +11,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageCircle, X, Clock, ChevronRight, Users, Bell } from 'lucide-react';
+import { MessageCircle, X, Clock, ChevronRight, Users, Bell, Check, Loader2 } from 'lucide-react';
 import { getToken, getUsuarioLocal } from '../lib/auth';
 import { useT } from '../lib/i18n';
+import { recargarCatalogo } from '../App';
 
 const CLAVE_POSICION = 'tuxtlasgo-burbuja-pos';
 const TAMANO_BOTON = 56;
@@ -24,6 +25,7 @@ interface ResumenReserva {
   estado: string;
   mensajes_no_leidos?: number;
   titulo: string;
+  personas?: number;
 }
 
 interface Notificacion {
@@ -45,6 +47,13 @@ interface Props {
   onIrATab?: (tab: 'perfil' | 'favoritos' | 'comunidad') => void;
 }
 
+// "2026-11-14" → "14 nov" (sin desfase de zona horaria).
+function fechaCorta(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }).replace('.', '');
+}
+
 export default function NotificacionesBurbuja({ variante = 'flotante', colapsado = false, onIrATab }: Props) {
   const t = useT();
   const botonRef = useRef<HTMLButtonElement>(null);
@@ -57,6 +66,9 @@ export default function NotificacionesBurbuja({ variante = 'flotante', colapsado
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [arrastrando, setArrastrando] = useState(false);
   const movioRef = useRef(false);
+  // Responder una solicitud desde la campana (aceptar / rechazar).
+  const [respondiendo, setRespondiendo] = useState<number | null>(null);
+  const [resultado, setResultado] = useState<{ texto: string; error?: boolean } | null>(null);
 
   // Posición guardada — si nunca se arrastró, usa la esquina
   // inferior derecha por default (vía className, no vía pos).
@@ -78,6 +90,7 @@ export default function NotificacionesBurbuja({ variante = 'flotante', colapsado
         fecha: r.fecha,
         estado: r.estado,
         mensajes_no_leidos: r.mensajes_no_leidos,
+        personas: r.numero_personas,
         titulo: usuario.tipo === 'prestador' ? r.nombre_viajero : r.servicio_nombre,
       }));
       setResumen(filas);
@@ -114,6 +127,34 @@ export default function NotificacionesBurbuja({ variante = 'flotante', colapsado
     try {
       await fetch('/api/reservaciones?recurso=notificaciones', { headers: { Authorization: `Bearer ${getToken()}` } });
     } catch { /* se reintenta en el próximo ciclo */ }
+  }
+
+  // El prestador acepta o rechaza la solicitud ahí mismo, sin entrar a Mi Perfil.
+  // Es la misma llamada que usa la tarjeta "Solicitudes" de Reservaciones.
+  async function responder(id: number, accion: 'confirmar' | 'rechazar') {
+    setRespondiendo(id);
+    setResultado(null);
+    try {
+      const res = await fetch('/api/reservaciones', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ id, accion }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setResumen((prev) => prev.map((r) => (r.id === id ? { ...r, estado: data.estado } : r)));
+        setResultado({ texto: accion === 'confirmar' ? 'Reservación aceptada' : 'Solicitud rechazada' });
+        // Al confirmar se bloquea la fecha: el catálogo debe reflejarlo.
+        if (accion === 'confirmar') recargarCatalogo().catch(() => {});
+      } else {
+        setResultado({ texto: data.error ?? 'No se pudo procesar. Intenta de nuevo.', error: true });
+      }
+    } catch {
+      setResultado({ texto: 'Sin conexión. Verifica tu internet.', error: true });
+    } finally {
+      setRespondiendo(null);
+      setTimeout(() => setResultado(null), 4000);
+    }
   }
 
   function irAReservas() {
@@ -215,6 +256,11 @@ export default function NotificacionesBurbuja({ variante = 'flotante', colapsado
             <p className="font-display font-bold text-sm">{t('Notificaciones')}</p>
             <button onClick={() => setAbierta(false)} className="text-jungle-200 hover:text-white"><X size={16} /></button>
           </div>
+          {resultado && (
+            <p role="status" className={`px-4 py-2 text-xs font-semibold ${resultado.error ? 'bg-red-50 text-red-700' : 'bg-jungle-50 text-jungle-800'}`}>
+              {resultado.error ? '' : '✓ '}{t(resultado.texto)}
+            </p>
+          )}
           <div className="max-h-80 overflow-y-auto">
             {total === 0 && avisos.length === 0 ? (
               <p className="text-xs text-jungle-400 text-center py-8">{t('Todo al día 🎉')}</p>
@@ -234,18 +280,39 @@ export default function NotificacionesBurbuja({ variante = 'flotante', colapsado
                   </button>
                 ))}
                 {pendientes.map((r) => (
-                  <button
-                    key={`p-${r.id}`}
-                    onClick={() => { setAbierta(false); irAReservas(); }}
-                    className="w-full text-left px-4 py-3 border-b border-jungle-50 hover:bg-jungle-50 flex items-center gap-2.5"
-                  >
-                    <Clock size={15} className="text-amber-500 flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-jungle-900 truncate">{r.titulo}</p>
-                      <p className="text-[11px] text-jungle-400">{t('Nueva solicitud de reservación')}</p>
+                  <div key={`p-${r.id}`} className="px-4 py-3 border-b border-jungle-50">
+                    <button
+                      onClick={() => { setAbierta(false); irAReservas(); }}
+                      className="w-full text-left flex items-center gap-2.5"
+                    >
+                      <Clock size={15} className="text-amber-500 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-jungle-900 truncate">{r.titulo}</p>
+                        <p className="text-[11px] text-jungle-500">
+                          {t('Nueva solicitud de reservación')} · {fechaCorta(r.fecha)}
+                          {r.personas ? ` · ${r.personas} ${t(r.personas === 1 ? 'persona' : 'personas')}` : ''}
+                        </p>
+                      </div>
+                      <ChevronRight size={14} className="text-jungle-300 flex-shrink-0" />
+                    </button>
+                    <div className="flex gap-2 mt-2.5 pl-[25px]">
+                      <button
+                        onClick={() => responder(r.id, 'rechazar')}
+                        disabled={respondiendo !== null}
+                        className="flex-1 h-9 rounded-lg border-[1.5px] border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {t('Rechazar')}
+                      </button>
+                      <button
+                        onClick={() => responder(r.id, 'confirmar')}
+                        disabled={respondiendo !== null}
+                        className="flex-1 h-9 rounded-lg bg-jungle-700 hover:bg-jungle-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        {respondiendo === r.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                        {t('Aceptar')}
+                      </button>
                     </div>
-                    <ChevronRight size={14} className="text-jungle-300 flex-shrink-0" />
-                  </button>
+                  </div>
                 ))}
                 {conMensajes.map((r) => (
                   <button

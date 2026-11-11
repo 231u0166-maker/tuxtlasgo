@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maqueta · Reservaciones</title>
+<style>
+  :root{--j50:#f0fdf4;--j100:#dcfce7;--j200:#bbf7d0;--j300:#86efac;--j500:#22c55e;--j600:#16a34a;--j700:#15803d;--j800:#166534;--j900:#14532d;
+    --ink:#1c1917;--mute:#6b7280;--line:#e3ede6;--amb:#f59e0b;--red:#dc2626;--sky:#0ea5e9}
+  *{box-sizing:border-box;margin:0}
+  body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:#e7efe9;color:var(--ink);min-height:100vh;padding:16px}
+  h2,h3,.disp{font-family:"Plus Jakarta Sans",Inter,system-ui,sans-serif}
+  button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+  svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .ctl{display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .ctl span{font-size:13px;color:var(--mute)}
+  .ctl button{padding:9px 16px;border-radius:999px;background:#fff;border:2px solid var(--j200);font-weight:700;font-size:13px;color:var(--j800)}
+  .ctl button.on{background:var(--j700);border-color:var(--j700);color:#fff}
+
+  .dev{margin:0 auto;position:relative;overflow:hidden;border-radius:24px;background:var(--j50);box-shadow:0 20px 60px rgba(5,46,22,.25);display:flex;flex-direction:column;transition:max-width .3s,height .3s}
+  .dev.mobile{max-width:390px;height:800px}
+  .dev.desktop{max-width:1180px;height:780px}
+  .bar{padding:12px 16px;background:#fff;border-bottom:1px solid var(--line);flex:none}
+  .bar b{font-size:16px}
+  .scroll{flex:1;overflow-y:auto;padding:14px;background:linear-gradient(to bottom,#f0fdf4,#f7fdf9 70%,#fff);min-height:0}
+  .desktop .scroll{display:grid;grid-template-columns:350px minmax(0,1fr);gap:16px;padding:16px;align-items:start}
+  .col{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .desktop .col.izq{max-height:100%;overflow-y:auto;padding:2px}
+
+  .card{border-radius:18px;background:rgba(255,255,255,.85);border:1px solid rgba(255,255,255,.9);box-shadow:0 8px 28px rgba(20,83,45,.08);outline:1px solid rgba(187,247,208,.5);padding:16px}
+  .chead{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .ico{width:36px;height:36px;border-radius:12px;background:var(--j50);outline:1px solid var(--j100);color:var(--j700);display:grid;place-items:center;font-size:18px}
+  .chead h3{font-size:15px}.chead p{font-size:12px;color:var(--mute);margin-top:1px}
+  .chead .der{margin-left:auto}
+  .pill{font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px;background:var(--j100);color:var(--j800)}
+  .pill.am{background:#fef3c7;color:#92400e}
+  .sw{position:relative;width:50px;height:28px;border-radius:99px;background:#d4e4d9;transition:background .2s;flex:none}
+  .sw::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+  .sw.on{background:var(--j600)}.sw.on::after{transform:translateX(22px)}
+
+  .sub{padding:16px 0;border-top:1px solid var(--line)}
+  .sub:first-of-type{border-top:0;padding-top:4px}
+  .sub:last-child{padding-bottom:2px}
+  .subh{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+  .subh>i{width:34px;height:34px;border-radius:11px;background:var(--j50);outline:1px solid var(--j100);color:var(--j700);display:grid;place-items:center;font-size:17px;font-style:normal;flex:none}
+  .subh b{display:block;font-size:14.5px;font-family:"Plus Jakarta Sans",Inter,sans-serif}
+  .subh small{display:block;font-size:12px;color:var(--mute);margin-top:1px}
+  .subh .der{margin-left:auto}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .opt{position:relative;text-align:left;padding:14px 12px 13px;border-radius:15px;border:1.5px solid var(--line);background:#fff;display:flex;flex-direction:column;gap:3px;transition:all .18s}
+  .opt:hover{border-color:var(--j300)}
+  .opt .oi{font-size:22px;color:var(--j600);margin-bottom:6px}
+  .opt b{font-size:14px}.opt small{font-size:12px;color:var(--mute);line-height:1.3}
+  .opt .chk{position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;background:var(--j600);color:#fff;display:grid;place-items:center;font-size:13px;transform:scale(0);transition:transform .18s}
+  .opt.on{border-color:var(--j600);background:var(--j50);box-shadow:0 0 0 3px rgba(22,163,74,.1)}
+  .opt.on .chk{transform:scale(1)}
+  .nota{font-size:12.5px;color:var(--mute);margin:10px 2px 0;line-height:1.4}
+  .res{display:block;font-size:13.5px;font-weight:700;color:var(--j700);margin-top:2px}
+  .lapiz{margin-left:auto;width:42px;height:42px;border-radius:13px;background:var(--j50);outline:1px solid var(--j100);color:var(--j700);display:grid;place-items:center;font-size:18px;transition:all .2s;flex:none}
+  .lapiz:hover{background:var(--j100)}
+  .lapiz .ck{display:none}
+  .sub.open .lapiz{background:var(--j700);color:#fff;outline-color:var(--j700)}
+  .sub.open .lapiz .pn{display:none}.sub.open .lapiz .ck{display:block}
+  .edita{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .32s ease,opacity .25s ease}
+  .edita>div{overflow:hidden;min-height:0}
+  .sub.open .edita{grid-template-rows:1fr;opacity:1}
+  .sub.open .subh{margin-bottom:14px}
+  .sub .subh{margin-bottom:0;transition:margin .3s}
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:var(--j50);outline:1px solid var(--j100)}
+  .seg button{padding:11px 8px;border-radius:11px;font-weight:700;font-size:14px;color:var(--j800);transition:all .2s}
+  .seg button.on{background:#fff;box-shadow:0 2px 8px rgba(20,83,45,.15);color:var(--j900)}
+  .desc{font-size:13px;color:var(--mute);margin:8px 2px 0;min-height:36px}
+  .lbl{font-size:13px;font-weight:700;color:var(--j800);margin:16px 0 8px;display:flex;justify-content:space-between;align-items:baseline}
+  .lbl small{font-weight:500;color:var(--mute)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{min-height:42px;padding:0 15px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-weight:700;font-size:13.5px;color:var(--j800)}
+  .chip.on{background:var(--j700);border-color:var(--j700);color:#fff}
+  .monto{width:100%;margin-top:10px;height:50px;border-radius:14px;border:1.5px solid var(--line);background:#fff;padding:0 14px;font:700 18px "Plus Jakarta Sans",Inter,sans-serif;color:var(--ink)}
+  .monto:focus{outline:0;border-color:var(--j600);box-shadow:0 0 0 4px rgba(22,163,74,.12)}
+  .fila{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:14px}
+  .fila span{flex:1}.fila small{display:block;color:var(--mute);font-size:12px;margin-top:2px}
+  .mini{font-size:12.5px;color:var(--mute);margin-top:6px}
+
+  /* ===== calendario ===== */
+  .chd{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .chd h3{font-size:17px;margin-right:auto}
+  .chd h3::first-letter,.dpanel h4::first-letter{text-transform:uppercase}
+  .nav{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:18px;color:var(--j700);background:var(--j50)}
+  .hoy{height:40px;padding:0 14px;border-radius:12px;background:var(--j50);color:var(--j800);font-weight:700;font-size:13px}
+  .vista{display:flex;padding:3px;border-radius:12px;background:var(--j50);outline:1px solid var(--j100)}
+  .vista button{height:34px;padding:0 13px;border-radius:9px;font-weight:700;font-size:13px;color:var(--j800)}
+  .vista button.on{background:#fff;box-shadow:0 2px 6px rgba(20,83,45,.15)}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin-top:10px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+  .mes{display:grid;grid-template-columns:repeat(7,1fr);gap:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff;touch-action:none;user-select:none}
+  .dow{padding:8px 0;text-align:center;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);background:#fbfefb;border-bottom:1px solid var(--line)}
+  .dia{position:relative;min-height:64px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 4px;cursor:pointer;background:#fff;transition:background .12s}
+  .desktop .dia{min-height:84px}
+  .dia:nth-child(7n+14){border-right:0}
+  .dia.fuera{background:#fafcfa;color:#b5bdb8}
+  .dia:hover{background:var(--j50)}
+  .dia .n{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700}
+  .dia.hoy .n{background:var(--j700);color:#fff}
+  .dia.sel{background:var(--j100)}
+  .dia.rango{background:var(--j100);box-shadow:inset 0 0 0 1.5px var(--j500)}
+  .dia.bloq{background:repeating-linear-gradient(135deg,#fff,#fff 6px,#fde8e8 6px,#fde8e8 12px)}
+  .dia.cerrado{background:#f4f6f5}
+  .dia .ev{margin-top:3px;display:flex;flex-direction:column;gap:2px}
+  .ev span{font-size:10.5px;font-weight:700;border-radius:5px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+  .ev .c{background:var(--j600)}.ev .p{background:var(--amb)}
+  .mobile .ev{flex-direction:row;gap:3px;flex-wrap:wrap}
+  .mobile .ev span{width:8px;height:8px;padding:0;border-radius:50%;font-size:0}
+  .cand{position:absolute;right:4px;top:6px;font-size:11px;color:var(--red)}
+
+  /* semana (tipo Google Calendar) */
+  .sem{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+  .shead,.sbody{display:grid}
+  .shead{border-bottom:1px solid var(--line);background:#fbfefb;padding-right:0}
+  .shead div{padding:7px 2px;text-align:center;font-size:12px;font-weight:700;color:var(--j800)}
+  .shead div small{display:block;font-size:11px;color:var(--mute);font-weight:500}
+  .shead .hoyc small{color:#fff;background:var(--j700);width:22px;height:22px;border-radius:50%;line-height:22px;margin:2px auto 0}
+  .sscroll{max-height:380px;overflow-y:auto}
+  .desktop .sscroll{max-height:430px}
+  .horas div{height:44px;font-size:10.5px;color:var(--mute);text-align:right;padding-right:6px;transform:translateY(-7px)}
+  .scol{position:relative;border-left:1px solid var(--line);height:calc(44px*18);
+    background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 43px,rgba(22,101,52,.09) 43px,rgba(22,101,52,.09) 44px)}
+  .scol .abre{position:absolute;left:0;right:0;background:rgba(220,252,231,.55)}
+  .scol.bloq{background-color:#fde8e8}
+  .scol .rsv{position:absolute;left:3px;right:3px;border-radius:8px;color:#fff;font-size:11px;font-weight:700;padding:4px 6px;overflow:hidden;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.18)}
+  .rsv.c{background:linear-gradient(160deg,#22a559,#15803d)}.rsv.p{background:linear-gradient(160deg,#fbbf24,#d97706)}
+  .rsv small{display:block;font-weight:500;opacity:.9}
+
+  /* panel del día */
+  .dpanel{margin-top:14px;border-radius:14px;background:var(--j50);outline:1px solid var(--j100);padding:14px}
+  .desktop .detalle{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:14px;align-items:start}
+  .desktop .dpanel{margin-top:0}
+  .dpanel h4{font-size:15px}
+  .estado{display:inline-block;margin:6px 0 10px;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:99px}
+  .estado.ab{background:var(--j100);color:var(--j800)}.estado.ce{background:#e5e7eb;color:#4b5563}.estado.bl{background:#fde8e8;color:#991b1b}
+  .item{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:13.5px}
+  .item:first-of-type{border-top:0}
+  .item .pt{width:8px;height:36px;border-radius:4px}
+  .item b{display:block}.item small{color:var(--mute)}
+  .acc{margin-left:auto;display:flex;gap:6px}
+  .acc button{height:36px;padding:0 12px;border-radius:10px;font-size:12.5px;font-weight:800}
+  .ok{background:var(--j700);color:#fff}.no{background:#fff;color:var(--red);border:1.5px solid #fecaca}
+  .btn2{width:100%;margin-top:12px;height:46px;border-radius:13px;font-weight:800;font-size:14px}
+  .bloquear{background:#fff;border:1.5px solid #fecaca;color:var(--red)}
+  .desbloq{background:var(--j700);color:#fff}
+  .vacio{font-size:13px;color:var(--mute);padding:6px 0}
+
+  /* barra de guardado */
+  .guardar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 16px;border-radius:16px;background:#052e16;color:#fff;box-shadow:0 14px 40px rgba(0,0,0,.35);transform:translateY(120px);opacity:0;transition:all .3s;z-index:5}
+  .guardar.vis{transform:none;opacity:1}
+  .guardar span{flex:1;font-size:13.5px;font-weight:600}
+  .guardar button{height:42px;padding:0 18px;border-radius:12px;font-weight:800;font-size:14px}
+  .guardar .g{background:var(--j500);color:#052e16}.guardar .d{color:#bbf7d0}
+  .rbar{position:sticky;bottom:0;display:none}
+  .toast{position:absolute;left:50%;bottom:84px;transform:translateX(-50%) translateY(10px);background:#052e16;color:#fff;font-size:13px;font-weight:600;padding:11px 18px;border-radius:999px;opacity:0;pointer-events:none;transition:all .3s;z-index:9}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+  .hide{display:none!important}
+  .note{max-width:640px;margin:14px auto 0;text-align:center;font-size:12.5px;color:var(--mute);line-height:1.5}
+</style>
+</head>
+<body>
+<div class="ctl"><span>Ver como:</span>
+  <button id="bm" class="on" onclick="vista('mobile')">📱 Celular</button>
+  <button id="bd" onclick="vista('desktop')">💻 PC</button></div>
+
+<div class="dev mobile" id="dev">
+  <div class="bar"><b class="disp">Reservaciones</b></div>
+  <div class="scroll" id="scroll">
+    <div class="col izq" id="izq">
+
+      <!-- activación -->
+      <div class="card">
+        <div class="chead"><span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+          <div><h3 class="disp">Recibir reservaciones</h3><p id="subAct">Tus clientes reservan desde la app</p></div>
+          <button class="sw on der" id="swAct" role="switch" aria-checked="true" onclick="togAct()" aria-label="Recibir reservaciones"></button></div>
+        <p class="mini" style="margin-top:0">Mercado Pago conectado · TuxtlasGO retiene 6 % por reserva pagada; tú recibes el 94 %.</p>
+      </div>
+
+      <!-- reglas -->
+      <div class="card" id="reglas">
+        <div class="chead"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg></span>
+          <div><h3 class="disp">Reglas</h3><p>Cómo funcionan tus reservaciones</p></div></div>
+
+        <!-- 1 · Cancelación -->
+        <section class="sub" id="sub-pol">
+          <div class="subh"><i><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></i>
+            <div><b>Si el cliente cancela</b><span class="res" id="resPol"></span></div>
+            <button class="lapiz" onclick="abre('pol')" aria-label="Editar cancelación"><svg class="pn" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><svg class="ck" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></button></div>
+          <div class="edita"><div>
+            <div class="opts" id="opts">
+              <button class="opt on" data-v="flexible" onclick="setPol('flexible')" aria-pressed="true">
+                <span class="chk"><svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></span>
+                <svg class="oi" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/><circle cx="12" cy="12" r="10"/></svg>
+                <b>Flexible</b><small>Gratis hasta 24–48 h antes</small>
+              </button>
+              <button class="opt" data-v="no" onclick="setPol('no')" aria-pressed="false">
+                <span class="chk"><svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></span>
+                <svg class="oi" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                <b>No reembolsable</b><small>Sin cancelación ni reembolso</small>
+              </button>
+            </div>
+            <p class="nota" id="polDesc"></p>
+          </div></div>
+        </section>
+
+        <!-- 2 · Anticipo -->
+        <section class="sub" id="sub-ant">
+          <div class="subh"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5C9.5 8.4 10.6 8 12 8s2.5.6 2.5 1.6c0 2.4-5 1.2-5 3.8 0 1 1.1 1.6 2.5 1.6s2.5-.5 2.5-1.6"/></svg></i>
+            <div><b>Anticipo para confirmar</b><span class="res" id="resAnt"></span></div>
+            <button class="lapiz" onclick="abre('ant')" aria-label="Editar anticipo"><svg class="pn" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><svg class="ck" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></button></div>
+          <div class="edita"><div>
+            <div class="chips" id="chipsAnt"></div>
+            <input class="monto hide" id="montoOtro" type="number" inputmode="numeric" placeholder="Monto en MXN" oninput="otroMonto(this.value)">
+            <p class="nota">Es lo que el cliente paga al reservar para asegurar su lugar.</p>
+          </div></div>
+        </section>
+
+        <!-- 3 · Dólares -->
+        <section class="sub" id="sub-usd">
+          <div class="subh"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg></i>
+            <div><b>Turistas extranjeros</b><span class="res" id="resUsd"></span></div>
+            <button class="lapiz" onclick="abre('usd')" aria-label="Editar dólares"><svg class="pn" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><svg class="ck" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></button></div>
+          <div class="edita"><div>
+            <div class="fila" style="margin-top:0"><span>Mostrar el anticipo también en dólares<small id="usdTxt"></small></span>
+              <button class="sw" id="swUsd" role="switch" aria-checked="false" onclick="togUsd()" aria-label="Mostrar en USD"></button></div>
+          </div></div>
+        </section>
+      </div>
+
+      <!-- solicitudes -->
+      <div class="card" id="solic">
+        <div class="chead"><span class="ico"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></span>
+          <div><h3 class="disp">Solicitudes</h3><p>Por responder</p></div><span class="pill am der" id="nSol"></span></div>
+        <div id="listaSol"></div>
+      </div>
+    </div>
+
+    <div class="col" id="der">
+      <div class="card">
+        <div class="chead"><span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+          <div><h3 class="disp">Tu calendario</h3><p>Reservas, fechas bloqueadas y tu horario en un solo lugar</p></div></div>
+
+        <div class="chd">
+          <h3 class="disp" id="titulo"></h3>
+          <button class="nav" onclick="mover(-1)" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+          <button class="hoy" onclick="irHoy()">Hoy</button>
+          <button class="nav" onclick="mover(1)" aria-label="Siguiente"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+          <div class="vista"><button id="vMes" class="on" onclick="setVista('mes')">Mes</button><button id="vSem" onclick="setVista('sem')">Semana</button></div>
+        </div>
+
+        <div id="vistaMes"><div class="mes" id="mes"></div></div>
+        <div id="vistaSem" class="hide"><div class="sem"><div class="shead" id="shead"></div><div class="sscroll" id="sscroll"><div class="sbody" id="sbody"></div></div></div></div>
+
+        <div class="legend"><span><i style="background:var(--j600)"></i>Confirmada</span><span><i style="background:var(--amb)"></i>Pendiente</span><span><i style="background:#fde8e8;outline:1px solid #f5b5b5"></i>Bloqueado</span><span><i style="background:var(--j100)"></i>Abierto</span></div>
+        <p class="mini" id="ayuda"></p>
+
+        <div class="detalle" id="detalle"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="guardar" id="guardar"><span>Tienes cambios sin guardar</span><button class="d" onclick="descartar()">Descartar</button><button class="g" onclick="guardar()">Guardar</button></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<p class="note">Maqueta de <b>Reservaciones</b>. Las reglas se cambian ahí mismo (sin ventana) y aparece la barra para guardar. El calendario es uno solo, estilo Google Calendar: <b>Mes</b> y <b>Semana</b>, con tu horario de apertura sombreado, las reservas como bloques y los días bloqueados rayados. Toca un día para ver su agenda; <b>arrastra sobre varios días</b> para bloquear un rango (vacaciones). En celular la semana muestra 3 días a la vez.</p>
+
+<script>
+const $=id=>document.getElementById(id);
+const MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const DIAS=['lunes','martes','miércoles','jueves','viernes','sábado','domingo'], DC=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const sumar=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const fmtH=m=>{const h=Math.floor(m/60),mm=m%60;return `${((h+11)%12)+1}:${String(mm).padStart(2,'0')} ${h<12?'a. m.':'p. m.'}`};
+const hoyD=new Date(); hoyD.setHours(0,0,0,0);
+const lunes=d=>{const x=new Date(d);const k=(x.getDay()+6)%7;x.setDate(x.getDate()-k);return x};
+
+/* ---- datos de ejemplo ---- */
+const HORARIO=[[[540,1320]],[[540,1320]],[[420,1200]],[],[[540,1080]],[[600,840]],[]]; // Lun..Dom (minutos)
+const base=lunes(hoyD);
+let reservas=[
+  {f:iso(sumar(base,1)),i:600,e:720,n:'Ana Pérez',p:4,s:'c'},
+  {f:iso(sumar(base,2)),i:780,e:900,n:'Luis Gómez',p:2,s:'c'},
+  {f:iso(sumar(base,4)),i:1080,e:1200,n:'Familia Ruiz',p:6,s:'p'},
+  {f:iso(sumar(base,5)),i:660,e:780,n:'Sofía Martín',p:3,s:'p'},
+  {f:iso(sumar(base,8)),i:600,e:720,n:'Carlos León',p:2,s:'c'},
+  {f:iso(sumar(base,10)),i:900,e:1020,n:'María Díaz',p:5,s:'c'},
+];
+let bloq=new Set([iso(sumar(base,12)),iso(sumar(base,13)),iso(sumar(base,14))]);
+let guardado={pol:'flexible',ant:150,usd:false,bloq:[...bloq]};
+let est={pol:'flexible',ant:150,usd:false,activo:true};
+let modo='mobile', vistaCal='mes', ref=new Date(hoyD), sel=iso(hoyD), rango=null;
+
+function toast(m){const t=$('toast');t.textContent='✓ '+m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1700)}
+function sucio(){return est.pol!==guardado.pol||est.ant!==guardado.ant||est.usd!==guardado.usd||[...bloq].sort().join()!==guardado.bloq.slice().sort().join()}
+function pintaGuardar(){$('guardar').classList.toggle('vis',sucio())}
+function guardar(){guardado={pol:est.pol,ant:est.ant,usd:est.usd,bloq:[...bloq]};pintaGuardar();toast('Cambios guardados')}
+function descartar(){est.pol=guardado.pol;est.ant=guardado.ant;est.usd=guardado.usd;bloq=new Set(guardado.bloq);todo()}
+
+/* ---- activación / reglas ---- */
+function abre(k){document.getElementById('sub-'+k).classList.toggle('open')}
+function togAct(){est.activo=!est.activo;$('swAct').classList.toggle('on',est.activo);$('swAct').setAttribute('aria-checked',est.activo);$('subAct').textContent=est.activo?'Tus clientes reservan desde la app':'Pausado: nadie puede reservar'}
+function setPol(v){est.pol=v;pintaReglas();pintaGuardar()}
+const ANT=[[0,'Sin anticipo'],[100,'$100'],[150,'$150'],[200,'$200'],[300,'$300'],['otro','Otro monto']];
+function setAnt(v){ if(v==='otro'){$('montoOtro').classList.remove('hide');$('montoOtro').focus();} else {est.ant=v;$('montoOtro').classList.add('hide')} pintaReglas();pintaGuardar()}
+function otroMonto(v){est.ant=Math.max(0,Number(v)||0);pintaReglas(true);pintaGuardar()}
+function togUsd(){est.usd=!est.usd;pintaReglas();pintaGuardar()}
+function pintaReglas(sinChips){
+  document.querySelectorAll('#opts .opt').forEach(b=>{const on=b.dataset.v===est.pol;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});
+  $('polDesc').textContent=est.pol==='flexible'?'El cliente se siente más seguro y suele reservar más.':'Más barata para el cliente y proteges tu agenda de huecos.';
+  $('resPol').textContent=est.pol==='flexible'?'Flexible · gratis hasta 24–48 h antes':'No reembolsable · sin cancelación';
+  const esOtro=!ANT.some(a=>a[0]===est.ant)||!$('montoOtro').classList.contains('hide');
+  if(!sinChips)$('chipsAnt').innerHTML=ANT.map(([v,t])=>`<button class="chip ${(v==='otro'?esOtro:(!esOtro&&v===est.ant))?'on':''}" onclick="setAnt(${typeof v==='string'?`'${v}'`:v})">${t}</button>`).join('');
+  $('resAnt').textContent=est.ant>0?`$${est.ant.toLocaleString('es-MX')} MXN al reservar`:'Sin anticipo · se paga todo al llegar';
+  $('resUsd').textContent=est.usd?(est.ant>0?`Sí · se verá ≈ $${Math.round(est.ant/17.1)} USD`:'Sí · en dólares'):'No · solo en pesos';
+  $('swUsd').classList.toggle('on',est.usd);$('swUsd').setAttribute('aria-checked',est.usd);
+  $('usdTxt').textContent=est.usd&&est.ant>0?`Se verá ≈ $${Math.round(est.ant/17.1)} USD (referencia, no en vivo)`:'Mostrar el anticipo también en dólares';
+}
+
+/* ---- solicitudes ---- */
+function pintaSol(){
+  const pend=reservas.filter(r=>r.s==='p');
+  $('nSol').textContent=pend.length;
+  $('listaSol').innerHTML=pend.length?pend.map((r,i)=>{const d=new Date(r.f+'T00:00');return `<div class="item"><span class="pt" style="background:var(--amb)"></span><div><b>${r.n}</b><small>${DC[(d.getDay()+6)%7]} ${d.getDate()} ${MES[d.getMonth()].slice(0,3)} · ${fmtH(r.i)} · ${r.p} pers.</small></div>
+    <div class="acc"><button class="no" onclick="resp('${r.n}',0)">Rechazar</button><button class="ok" onclick="resp('${r.n}',1)">Aceptar</button></div></div>`}).join(''):'<p class="vacio">No tienes solicitudes pendientes.</p>';
+}
+function resp(n,ok){const r=reservas.find(x=>x.n===n);if(ok)r.s='c';else reservas=reservas.filter(x=>x!==r);todo();toast(ok?'Reserva aceptada':'Solicitud rechazada')}
+
+/* ---- calendario ---- */
+function setVista(v){vistaCal=v;$('vMes').classList.toggle('on',v==='mes');$('vSem').classList.toggle('on',v==='sem');$('vistaMes').classList.toggle('hide',v!=='mes');$('vistaSem').classList.toggle('hide',v!=='sem');pintaCal()}
+function mover(n){ if(vistaCal==='mes'){ref=new Date(ref.getFullYear(),ref.getMonth()+n,1)} else {ref=sumar(ref,n*(modo==='mobile'?3:7))} pintaCal()}
+function irHoy(){ref=new Date(hoyD);sel=iso(hoyD);rango=null;pintaCal()}
+function abierto(d){return HORARIO[(d.getDay()+6)%7]}
+function pintaCal(){ if(vistaCal==='mes')pintaMes(); else pintaSem(); pintaDetalle() }
+
+function pintaMes(){
+  $('titulo').textContent=`${MES[ref.getMonth()]} ${ref.getFullYear()}`;
+  const ini=lunes(new Date(ref.getFullYear(),ref.getMonth(),1));
+  let h=DC.map(d=>`<div class="dow">${d}</div>`).join('');
+  for(let i=0;i<42;i++){
+    const d=sumar(ini,i),k=iso(d);
+    const rs=reservas.filter(r=>r.f===k);
+    const cls=['dia',d.getMonth()!==ref.getMonth()?'fuera':'',k===iso(hoyD)?'hoy':'',k===sel&&!rango?'sel':'',bloq.has(k)?'bloq':'',(!bloq.has(k)&&!abierto(d).length)?'cerrado':'',enRango(k)?'rango':''].join(' ');
+    h+=`<div class="${cls}" data-k="${k}"><div class="n">${d.getDate()}</div>${bloq.has(k)?'<span class="cand">🔒</span>':''}<div class="ev">${rs.map(r=>`<span class="${r.s}">${modo==='desktop'?`${fmtH(r.i).replace(' a. m.','a').replace(' p. m.','p')} ${r.n.split(' ')[0]}`:''}</span>`).join('')}</div></div>`;
+  }
+  $('mes').innerHTML=h;
+  $('ayuda').textContent=modo==='mobile'?'Toca un día para ver su agenda. Mantén y arrastra sobre varios días para bloquear un rango.':'Haz clic en un día para ver su agenda. Arrastra sobre varios días para bloquear un rango.';
+  enlazaMes();
+}
+function enRango(k){return rango&&k>=rango[0]&&k<=rango[1]}
+function enlazaMes(){
+  let ini=null,mov=false;
+  const dayAt=e=>{const el=document.elementFromPoint(e.clientX,e.clientY);return el&&el.closest('.dia')};
+  $('mes').onpointerdown=e=>{const el=e.target.closest('.dia');if(!el)return;ini=el.dataset.k;mov=false;$('mes').setPointerCapture(e.pointerId)};
+  $('mes').onpointermove=e=>{if(!ini)return;const el=dayAt(e);if(!el)return;const k=el.dataset.k;if(k!==ini||mov){mov=true;rango=[ini<k?ini:k,ini<k?k:ini];marcaRango()}};
+  $('mes').onpointerup=e=>{if(!ini)return;if(!mov){sel=ini;rango=null}ini=null;pintaCal()};
+}
+function marcaRango(){document.querySelectorAll('.dia').forEach(el=>{el.classList.toggle('rango',enRango(el.dataset.k))});pintaDetalle()}
+
+/* semana: 7 días en PC, 3 en celular */
+function pintaSem(){
+  const n=modo==='mobile'?3:7;
+  const ini=modo==='mobile'?(()=>{let d=new Date(ref);return d})():lunes(ref);
+  const dias=Array.from({length:n},(_,i)=>sumar(ini,i));
+  $('titulo').textContent=n===7?`${dias[0].getDate()} – ${dias[6].getDate()} de ${MES[dias[6].getMonth()]}`:`${dias[0].getDate()} – ${dias[2].getDate()} de ${MES[dias[2].getMonth()]}`;
+  const cols=`46px repeat(${n},1fr)`;
+  $('shead').style.gridTemplateColumns=cols;$('sbody').style.gridTemplateColumns=cols;
+  $('shead').innerHTML='<div></div>'+dias.map(d=>`<div class="${iso(d)===iso(hoyD)?'hoyc':''}">${DC[(d.getDay()+6)%7]}<small>${d.getDate()}</small></div>`).join('');
+  let h='<div class="horas">'+Array.from({length:18},(_,i)=>`<div>${i===0?'':fmtH((6+i)*60).replace(':00','')}</div>`).join('')+'</div>';
+  dias.forEach(d=>{
+    const k=iso(d),b=bloq.has(k);
+    h+=`<div class="scol ${b?'bloq':''}" data-k="${k}">`;
+    if(!b)abierto(d).forEach(([a,c])=>{h+=`<div class="abre" style="top:${(a-360)/60*44}px;height:${(c-a)/60*44}px"></div>`});
+    reservas.filter(r=>r.f===k).forEach(r=>{h+=`<div class="rsv ${r.s}" style="top:${(r.i-360)/60*44}px;height:${(r.e-r.i)/60*44}px" data-k="${k}">${r.n}<small>${fmtH(r.i)} · ${r.p} pers.</small></div>`});
+    h+='</div>';
+  });
+  $('sbody').innerHTML=h;
+  $('sscroll').scrollTop=(8-6)*44;
+  document.querySelectorAll('.scol').forEach(c=>c.onclick=()=>{sel=c.dataset.k;rango=null;pintaDetalle()});
+  $('ayuda').textContent='Verde claro = tu horario de apertura. Toca un día para ver su agenda o bloquearlo.';
+}
+
+/* panel del día */
+function pintaDetalle(){
+  let h='';
+  if(rango){
+    const a=new Date(rango[0]+'T00:00'),b=new Date(rango[1]+'T00:00');
+    const n=Math.round((b-a)/864e5)+1;
+    const todosBloq=Array.from({length:n},(_,i)=>bloq.has(iso(sumar(a,i)))).every(Boolean);
+    h=`<div class="dpanel"><h4 class="disp">${a.getDate()} ${MES[a.getMonth()].slice(0,3)} – ${b.getDate()} ${MES[b.getMonth()].slice(0,3)}</h4><span class="estado ${todosBloq?'bl':'ab'}">${n} días seleccionados</span>
+      <p class="vacio">${todosBloq?'Todos están bloqueados.':'Nadie podrá reservar estos días.'}</p>
+      <button class="btn2 ${todosBloq?'desbloq':'bloquear'}" onclick="bloquearRango('${rango[0]}','${rango[1]}',${todosBloq})">${todosBloq?'Desbloquear estos días':'Bloquear estos días'}</button></div>`;
+  } else {
+    const d=new Date(sel+'T00:00'),b=bloq.has(sel),ab=abierto(d);
+    const rs=reservas.filter(r=>r.f===sel).sort((x,y)=>x.i-y.i);
+    h=`<div class="dpanel"><h4 class="disp">${DIAS[(d.getDay()+6)%7]} ${d.getDate()} de ${MES[d.getMonth()]}</h4>
+      <span class="estado ${b?'bl':ab.length?'ab':'ce'}">${b?'Bloqueado':ab.length?'Abierto '+ab.map(([x,y])=>fmtH(x)+' – '+fmtH(y)).join(' y '):'Cerrado por horario'}</span>
+      ${rs.length?rs.map(r=>`<div class="item"><span class="pt" style="background:${r.s==='c'?'var(--j600)':'var(--amb)'}"></span><div><b>${r.n}</b><small>${fmtH(r.i)} – ${fmtH(r.e)} · ${r.p} pers. · ${r.s==='c'?'Confirmada':'Pendiente'}</small></div>${r.s==='p'?`<div class="acc"><button class="ok" onclick="resp('${r.n}',1)">Aceptar</button></div>`:''}</div>`).join(''):'<p class="vacio">Sin reservas este día.</p>'}
+      <button class="btn2 ${b?'desbloq':'bloquear'}" onclick="togBloq('${sel}')">${b?'Desbloquear este día':'Bloquear este día'}</button></div>`;
+  }
+  $('detalle').innerHTML=h;
+}
+function togBloq(k){bloq.has(k)?bloq.delete(k):bloq.add(k);todo()}
+function bloquearRango(a,b,desb){let d=new Date(a+'T00:00');const f=new Date(b+'T00:00');while(d<=f){desb?bloq.delete(iso(d)):bloq.add(iso(d));d=sumar(d,1)}rango=null;sel=a;todo()}
+
+function todo(){pintaReglas();pintaSol();pintaCal();pintaGuardar()}
+function vista(m){modo=m;$('dev').className='dev '+m;$('bm').classList.toggle('on',m==='mobile');$('bd').classList.toggle('on',m==='desktop');todo()}
+vista('mobile');
+</script>
+</body>
+</html>

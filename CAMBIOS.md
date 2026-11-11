@@ -422,3 +422,17 @@ Con internet lento o inestable, la app mostraba pantalla en blanco hasta que lle
 
 ## Ajuste posterior: una pregunta por pantalla
 El paso 1 ahora muestra UNA pregunta a la vez (nombre → tipo → dónde: estado + municipio), cada una grande y sola, y la siguiente entra deslizándose desde abajo (la anterior sale hacia arriba; con "Atrás" va al revés). Elegir un tipo avanza solo; Enter en los campos de texto también avanza. El botón "Atrás" abajo regresa de pregunta antes de salir del paso. Un borrador guardado abre directo en "¿Dónde?". `empezarDeNuevo` ahora también reinicia la pregunta y el tipo elegido. Estado en `sub`/`subDir`, funciones `irSub`/`elegirTipo` en `ProviderPanel.tsx`.
+
+# Sesión 2026-11-10 (2) — Registro de negocio: tarjetas grandes, precio, mapa satelital y foto
+
+`ProviderPanel.tsx` (+ `MapScreen.tsx` exporta `ESTILO_SATELITE` y `ZOOM_SATELITE_MAX`):
+- **Tipo de negocio:** tarjetas grandes con foto, descripción corta, entrada escalonada y zoom al pasar el mouse; al tocar una avanza sola.
+- **Municipio:** ya no son dos desplegables; es una lista de opciones grandes (Catemaco, San Andrés, Santiago) que avanza con un toque. "Otro lugar" despliega municipio + estado.
+- **Precio:** 4 niveles (Económico/Moderado/Alto/Premium) que precargan un rango y dos deslizadores (0–5000) para afinarlo, con el monto grande en vivo y su equivalente en USD. Se precarga al entrar para que lo visto sea lo guardado. En hospedaje dice "por noche".
+- **Teléfono → mapa:** teléfono solo en una pantalla; la siguiente es el mapa. Vista **satélite** por defecto (botón Mapa/Satélite), alto de ~56 % de la pantalla, **pin fijo al centro** (se mueve el mapa, no el pin), botón "Usar mi ubicación actual" (pide GPS al llegar) y buscador de calle/colonia (Nominatim, sesgado al municipio elegido). Ya no hay botón "Guardar ubicación": "Siguiente" la confirma.
+- **Verificación:** dos botones, "Tomar foto" (abre la cámara) y "Subir archivo" (galería/archivos). Antes `capture` forzaba solo la cámara.
+- **Pendiente / decisión:** las fotos del negocio siguen en su pantalla después de enviar (necesitan que el servicio ya exista en la base); en la barra cuentan como el mismo paso 5.
+- Percance: un script con `String.replace` interpretó los `$` de los precios como patrones y dañó el archivo; se restauró desde HEAD y se reaplicó con reemplazos por función.
+
+## Ajuste: un solo botón "Subir foto" (verificación)
+Se quitaron "Tomar foto" y "Subir archivo": ahora un solo botón con `<input type="file" accept="image/*">` SIN `capture`, para que el teléfono muestre su selector nativo (cámara / galería / archivos). Se agregó el permiso `CAMERA` (y `uses-feature` no obligatorio) en `android/.../AndroidManifest.xml` para que ese selector ofrezca la cámara dentro de la app Capacitor. Sin probar en un teléfono real. Siguiente nivel si se quiere: `@capacitor/camera` con `CameraSource.Prompt`.

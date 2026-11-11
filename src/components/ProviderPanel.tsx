@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Map, Marker } from '@vis.gl/react-maplibre';
+import { Map, type MapRef } from '@vis.gl/react-maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Search, Sparkles, Building2, MapPin, Navigation, CheckCircle2, Loader2, Copy,
-  ShieldCheck, ImagePlus, X,
+  ShieldCheck, X, Layers, Camera,
 } from 'lucide-react';
 import { buscarPorCodigo } from '../lib/db';
 import { getUsuarioLocal, getToken, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
@@ -14,7 +14,7 @@ import { obtenerUbicacionGPS } from '../lib/routing';
 import OfflineIndicator from './OfflineIndicator';
 import AuthModal from './AuthModal';
 import GestorFotos from './GestorFotos';
-import { ESTILO_MAPA } from './MapScreen';
+import { ESTILO_MAPA, ESTILO_SATELITE, ZOOM_SATELITE_MAX } from './MapScreen';
 import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio } from '../data/estados';
 
 // ============================================================
@@ -39,12 +39,20 @@ type Vista = 'inicio' | 'consultar' | 'registrar';
 
 const TUXTLAS_CENTER: [number, number] = [18.45, -95.18];
 type NivelPrecio = 'limitado' | 'razonable' | 'lujo' | 'muy_lujo';
-const NIVELES_PRECIO: { id: NivelPrecio; simbolo: string; label: string }[] = [
-  { id: 'limitado', simbolo: '$', label: 'Presupuesto limitado' },
-  { id: 'razonable', simbolo: '$$', label: 'Precio razonable' },
-  { id: 'lujo', simbolo: '$$$', label: 'De lujo' },
-  { id: 'muy_lujo', simbolo: '$$$$', label: 'Muy lujo' },
+const NIVELES_PRECIO: { id: NivelPrecio; simbolo: string; label: string; ejemplo: string; min: number; max: number }[] = [
+  { id: 'limitado', simbolo: '$', label: 'Económico', ejemplo: 'Menos de $150', min: 50, max: 150 },
+  { id: 'razonable', simbolo: '$$', label: 'Moderado', ejemplo: 'De $150 a $400', min: 150, max: 400 },
+  { id: 'lujo', simbolo: '$$$', label: 'Alto', ejemplo: 'De $400 a $900', min: 400, max: 900 },
+  { id: 'muy_lujo', simbolo: '$$$$', label: 'Premium', ejemplo: 'Más de $900', min: 900, max: 2000 },
 ];
+const PRECIO_TOPE = 5000;
+const PRECIO_PASO = 50;
+// Animación vertical entre las preguntas de un mismo paso.
+const VARIANTES_SUB = {
+  entra: (d: 1 | -1) => ({ y: d > 0 ? 40 : -40, opacity: 0 }),
+  centro: { y: 0, opacity: 1 },
+  sale: (d: 1 | -1) => ({ y: d > 0 ? -40 : 40, opacity: 0 }),
+};
 // Tasa de referencia MXN → USD, solo para dar una idea aproximada —
 // NO es una tasa en vivo (eso necesitaría una API externa nueva).
 // Verificada al escribir esto (~17.1 MXN/USD); revisar de vez en
@@ -334,6 +342,13 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   // Pregunta actual dentro del paso 'info' (0 nombre, 1 tipo, 2 dónde).
   const [sub, setSub] = useState<0 | 1 | 2>(() => (borradorInicial?.nombreNegocio.trim() ? 2 : 0));
   const [subDir, setSubDir] = useState<1 | -1>(1);
+  // Pregunta actual dentro de 'contacto' (0 teléfono, 1 mapa).
+  const [subC, setSubC] = useState<0 | 1>(() => (borradorInicial?.ubicacion ? 1 : 0));
+  const [vistaSatelite, setVistaSatelite] = useState(true);
+  const [busqueda, setBusqueda] = useState('');
+  const [buscandoDireccion, setBuscandoDireccion] = useState(false);
+  const [errorBusqueda, setErrorBusqueda] = useState('');
+  const mapaRef = useRef<MapRef>(null);
   const [estado, setEstado] = useState(() => borradorInicial?.estado ?? 'Veracruz');
   // Lo que se guarda y se envía: los municipios de Los Tuxtlas tal cual
   // (como siempre), y cualquier otro lugar como "Municipio, Estado".
@@ -384,7 +399,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   function empezarDeNuevo() {
     if (usuarioId) borrarBorrador(usuarioId);
     setMostrarAvisoBorrador(false);
-    setPaso('info'); setDireccion(1); setSub(0); setTipoElegido(false);
+    setPaso('info'); setDireccion(1); setSub(0); setSubC(0); setTipoElegido(false);
     setNombreNegocio(''); setCategoria('Gastronomia'); setMunicipio('Catemaco'); setEstado('Veracruz');
     setDescripcion(''); setNivelPrecio('razonable'); setPrecioMin(''); setPrecioMax('');
     setContacto(''); setUbicacion(null); setUbicacionGuardada(false); setTerminos(false);
@@ -416,6 +431,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
       setUbicacion(gps.coord);
       setUbicacionGuardada(false);
       setPrecisionUbicacion(gps.precisionMetros);
+      mapaRef.current?.flyTo({ center: [gps.coord[1], gps.coord[0]], zoom: 18, duration: 1200 });
     } else {
       setUbicacionAutoFallo(true);
     }
@@ -430,13 +446,23 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   // "Usar mi ubicación actual" junto al mapa sigue disponible para
   // reintentar cuando quiera.
   useEffect(() => {
-    if (paso !== 'contacto') return;
+    if (paso !== 'contacto' || subC !== 1) return;
     if (ubicacion || intentoAutoUbicacionHecho.current) return;
     intentoAutoUbicacionHecho.current = true;
     let explicada = false;
     try { explicada = localStorage.getItem('ubicacion-explicada') === 'true'; } catch { /* no crítico */ }
     if (explicada) intentarUbicarme();
     else setMostrarExplicacionUbicacion(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paso, subC]);
+
+  // Al entrar al precio sin valores, se precarga el rango del nivel elegido
+  // (lo que se ve en pantalla es lo que se guarda).
+  useEffect(() => {
+    if (paso === 'precio' && !precioMin && !precioMax) {
+      setPrecioMin(String(nivelActual.min));
+      setPrecioMax(String(nivelActual.max));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paso]);
 
@@ -460,7 +486,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     const nivel = NIVELES_PRECIO.find((n) => n.id === nivelPrecio)!;
     const min = parseFloat(precioMin);
     const max = parseFloat(precioMax);
-    if (Number.isNaN(min) || Number.isNaN(max) || min <= 0 || max <= 0) return 'A consultar';
+    if (Number.isNaN(min) || Number.isNaN(max) || min < 0 || max <= 0) return 'A consultar';
     const usdMin = Math.round(min / TASA_USD_REFERENCIA);
     const usdMax = Math.round(max / TASA_USD_REFERENCIA);
     return `${nivel.simbolo} $${min.toLocaleString('es-MX')} – $${max.toLocaleString('es-MX')} MXN (aprox. $${usdMin} – $${usdMax} USD)`;
@@ -520,6 +546,72 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     }
   }
 
+  function irSubC(n: 0 | 1, dir: 1 | -1) {
+    setError('');
+    setSubDir(dir);
+    setSubC(n);
+  }
+
+  // Tocar un municipio de la lista lo elige y pasa solo a la siguiente pregunta.
+  function elegirLugar(m: string) {
+    setEstado('Veracruz');
+    setMunicipio(m);
+    setError('');
+    setTimeout(() => irA('descripcion', 1), 280);
+  }
+
+  // Precio: los niveles precargan un rango razonable; los sliders lo afinan.
+  const nivelActual = NIVELES_PRECIO.find((n) => n.id === nivelPrecio)!;
+  const pMin = parseFloat(precioMin);
+  const pMax = parseFloat(precioMax);
+  const precioMinNum = Number.isNaN(pMin) ? nivelActual.min : pMin;
+  const precioMaxNum = Number.isNaN(pMax) ? nivelActual.max : pMax;
+
+  function elegirNivelPrecio(id: NivelPrecio) {
+    const n = NIVELES_PRECIO.find((x) => x.id === id)!;
+    setNivelPrecio(id);
+    setPrecioMin(String(n.min));
+    setPrecioMax(String(n.max));
+  }
+
+  function cambiarPrecio(cual: 'min' | 'max', v: number) {
+    let nuevoMin = precioMinNum;
+    let nuevoMax = precioMaxNum;
+    if (cual === 'min') { nuevoMin = v; if (nuevoMax < v) nuevoMax = v; }
+    else { nuevoMax = v; if (nuevoMin > v) nuevoMin = v; }
+    setPrecioMin(String(nuevoMin));
+    setPrecioMax(String(nuevoMax));
+  }
+
+  // Busca una calle/colonia/negocio cerca del municipio ya elegido y
+  // mueve el mapa hasta ahí (Nominatim de OpenStreetMap).
+  async function buscarDireccion(e: React.FormEvent) {
+    e.preventDefault();
+    const q = busqueda.trim();
+    if (!q) return;
+    setBuscandoDireccion(true);
+    setErrorBusqueda('');
+    try {
+      const lugar = municipioFinal ? `${q}, ${municipioFinal}` : q;
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=mx&q=${encodeURIComponent(lugar)}`);
+      const datos = await r.json();
+      if (!Array.isArray(datos) || datos.length === 0) {
+        setErrorBusqueda('No encontramos ese lugar. Prueba con otra calle o mueve el mapa a mano.');
+      } else {
+        const lat = parseFloat(datos[0].lat);
+        const lng = parseFloat(datos[0].lon);
+        mapaRef.current?.flyTo({ center: [lng, lat], zoom: 17, duration: 1200 });
+        setUbicacion([lat, lng]);
+        setUbicacionGuardada(false);
+        setPrecisionUbicacion(null);
+      }
+    } catch {
+      setErrorBusqueda('Necesitas internet para buscar. Puedes mover el mapa a mano.');
+    } finally {
+      setBuscandoDireccion(false);
+    }
+  }
+
   function irSub(n: 0 | 1 | 2, dir: 1 | -1) {
     setError('');
     setSubDir(dir);
@@ -550,10 +642,14 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     }
     if (paso === 'descripcion' && (!descripcion.trim() || descripcion.trim().length < 20)) return setError('La descripción debe tener al menos 20 caracteres.');
     if (paso === 'contacto') {
-      if (contacto.trim() && !TELEFONO_VALIDO.test(contacto.trim())) {
-        return setError('El contacto debe ser un número de teléfono (10 dígitos).');
+      if (subC === 0) {
+        if (contacto.trim() && !TELEFONO_VALIDO.test(contacto.trim())) {
+          return setError('El contacto debe ser un número de teléfono (10 dígitos).');
+        }
+        return irSubC(1, 1);
       }
-      if (!ubicacionGuardada) return setError('Marca tu ubicación en el mapa antes de continuar.');
+      if (!ubicacion) return setError('Usa tu ubicación actual o mueve el mapa hasta tu negocio.');
+      setUbicacionGuardada(true);
     }
     setError('');
     irA(ORDEN_PASOS[indicePaso + 1], 1);
@@ -566,13 +662,13 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   };
 
   const CATEGORIAS_OPCIONES = [
-    { id: 'Gastronomia', emoji: '🍤', foto: '/lugares/hechizo-amor_1.jpg' },
-    { id: 'Naturaleza', emoji: '🌿', foto: '/lugares/eyipantla_1.jpg' },
-    { id: 'Aventura', emoji: '🥾', foto: '/lugares/cerro-venado_1.jpg' },
-    { id: 'Hospedaje', emoji: '🛏️', foto: '/lugares/sirena-olmeca_1.jpg' },
-    { id: 'Comercio', emoji: '🛍️', foto: '/imgPrestadores/Prestador_img.jpg', pos: 'left center' },
-    { id: 'Cooperativa', emoji: '🤝', foto: '/img/slide_17.jpg', pos: 'center 80%' },
-    { id: 'Otro', emoji: '⭐', foto: '/img/slide_15.jpg', pos: 'center 85%' },
+    { id: 'Gastronomia', desc: 'Restaurantes, cafés y antojitos', emoji: '🍤', foto: '/lugares/hechizo-amor_1.jpg' },
+    { id: 'Naturaleza', desc: 'Cascadas, selva, lago y reservas', emoji: '🌿', foto: '/lugares/eyipantla_1.jpg' },
+    { id: 'Aventura', desc: 'Tirolesa, senderismo, kayak', emoji: '🥾', foto: '/lugares/cerro-venado_1.jpg' },
+    { id: 'Hospedaje', desc: 'Hoteles, cabañas y hostales', emoji: '🛏️', foto: '/lugares/sirena-olmeca_1.jpg' },
+    { id: 'Comercio', desc: 'Tiendas, artesanías y mercados', emoji: '🛍️', foto: '/imgPrestadores/Prestador_img.jpg', pos: 'left center' },
+    { id: 'Cooperativa', desc: 'Lancheros, guías y grupos locales', emoji: '🤝', foto: '/img/slide_17.jpg', pos: 'center 80%' },
+    { id: 'Otro', desc: 'Otro tipo de servicio', emoji: '⭐', foto: '/img/slide_15.jpg', pos: 'center 85%' },
   ];
   const esOtroMunicipio = estado !== 'Veracruz' || !MUNICIPIOS_TUXTLAS.includes(municipio);
 
@@ -645,11 +741,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                 <motion.div
                   key={sub}
                   custom={subDir}
-                  variants={{
-                    entra: (d: 1 | -1) => ({ y: d > 0 ? 40 : -40, opacity: 0 }),
-                    centro: { y: 0, opacity: 1 },
-                    sale: (d: 1 | -1) => ({ y: d > 0 ? -40 : 40, opacity: 0 }),
-                  }}
+                  variants={VARIANTES_SUB}
                   initial="entra" animate="centro" exit="sale"
                   transition={{ duration: 0.28, ease: 'easeOut' }}
                 >
@@ -672,20 +764,37 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                       <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-obsidiana-900 leading-tight mb-6">
                         ¿Qué tipo de negocio es?
                       </h2>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-                        {CATEGORIAS_OPCIONES.map((c) => {
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {CATEGORIAS_OPCIONES.map((c, i) => {
                           const activa = tipoElegido && categoria === c.id;
+                          const ultima = i === CATEGORIAS_OPCIONES.length - 1;
                           return (
-                            <motion.button key={c.id} whileTap={{ scale: 0.95 }} type="button"
+                            <motion.button
+                              key={c.id} type="button"
+                              initial={{ opacity: 0, y: 28, scale: 0.96 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              transition={{ delay: 0.05 * i, duration: 0.4, ease: 'easeOut' }}
+                              whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }}
                               onClick={() => elegirTipo(c.id)}
                               aria-pressed={activa}
-                              className={`relative ${c.id === 'Otro' ? 'col-span-3 aspect-[3/1] sm:col-span-1 sm:aspect-[4/3]' : 'aspect-[4/3]'} overflow-hidden rounded-2xl border-2 text-left transition-all ${activa ? 'border-jungle-600 ring-2 ring-jungle-600/40' : 'border-transparent'}`}>
-                              <img src={c.foto} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: c.pos ?? 'center' }} />
-                              <span className={`absolute inset-0 ${activa ? 'bg-jungle-900/55' : 'bg-gradient-to-t from-black/70 via-black/10 to-transparent'}`} />
-                              <span className="absolute inset-x-0 bottom-0 p-2 text-white text-xs sm:text-sm font-bold leading-tight flex items-center gap-1">
-                                <span>{c.emoji}</span> {c.id}
+                              className={`group relative overflow-hidden rounded-3xl text-left shadow-sm ${ultima ? 'col-span-2 aspect-[2/1] sm:col-span-1 sm:aspect-[3/4]' : 'aspect-[3/4]'} ${activa ? 'ring-4 ring-jungle-500' : ''}`}
+                            >
+                              <img src={c.foto} alt="" loading="lazy"
+                                className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                style={{ objectPosition: c.pos ?? 'center' }} />
+                              <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
+                              {activa && <span className="absolute inset-0 bg-jungle-900/40" />}
+                              <span className="absolute inset-x-0 bottom-0 p-4 text-white">
+                                <span className="block text-2xl mb-1">{c.emoji}</span>
+                                <span className="block font-display font-extrabold text-lg leading-tight">{c.id}</span>
+                                <span className="block text-xs text-white/80 mt-0.5 leading-snug">{c.desc}</span>
                               </span>
-                              {activa && <span className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-jungle-600 text-white text-xs flex items-center justify-center">✓</span>}
+                              {activa && (
+                                <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                  className="absolute top-3 right-3 h-8 w-8 rounded-full bg-jungle-500 text-white flex items-center justify-center shadow-lg">
+                                  <CheckCircle2 size={20} />
+                                </motion.span>
+                              )}
                             </motion.button>
                           );
                         })}
@@ -696,49 +805,75 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                   {sub === 2 && (
                     <>
                       <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-obsidiana-900 leading-tight mb-6">
-                        ¿Dónde está tu negocio?
+                        ¿En qué municipio está?
                       </h2>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label className="block">
-                          <span className="block text-xs font-semibold text-obsidiana-600 mb-1">Estado</span>
-                          <select
-                            value={estado}
-                            onChange={(e) => {
-                              const nuevo = e.target.value;
-                              setEstado(nuevo);
-                              setMunicipio(nuevo === 'Veracruz' ? 'Catemaco' : '');
-                            }}
-                            className="w-full bg-white border-2 border-jungle-100 focus:border-jungle-600 rounded-2xl px-4 py-3.5 font-semibold text-base text-obsidiana-800 focus:outline-none transition-colors"
-                          >
-                            {ESTADOS_MEXICO.map((e) => (
-                              <option key={e} value={e}>{e}</option>
-                            ))}
-                          </select>
-                        </label>
-                        {estado === 'Veracruz' && (
-                          <label className="block">
-                            <span className="block text-xs font-semibold text-obsidiana-600 mb-1">Municipio</span>
-                            <select
-                              value={esOtroMunicipio ? '__otro' : municipio}
-                              onChange={(e) => setMunicipio(e.target.value === '__otro' ? '' : e.target.value)}
-                              className="w-full bg-white border-2 border-jungle-100 focus:border-jungle-600 rounded-2xl px-4 py-3.5 font-semibold text-base text-obsidiana-800 focus:outline-none transition-colors"
+                      <div className="space-y-3">
+                        {MUNICIPIOS_TUXTLAS.map((m, i) => {
+                          const activo = estado === 'Veracruz' && municipio === m;
+                          return (
+                            <motion.button
+                              key={m} type="button"
+                              initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: 0.06 * i, duration: 0.3 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => elegirLugar(m)}
+                              className={`w-full flex items-center gap-4 rounded-2xl border-2 px-5 py-4 text-left transition-colors ${activo ? 'border-jungle-600 bg-jungle-50' : 'border-jungle-100 bg-white hover:border-jungle-300'}`}
                             >
-                              {MUNICIPIOS_TUXTLAS.map((m) => (
-                                <option key={m} value={m}>{m}</option>
-                              ))}
-                              <option value="__otro">Otro municipio…</option>
-                            </select>
-                          </label>
-                        )}
+                              <span className={`h-11 w-11 rounded-full flex items-center justify-center flex-shrink-0 ${activo ? 'bg-jungle-600 text-white' : 'bg-jungle-50 text-jungle-700'}`}>
+                                <MapPin size={20} />
+                              </span>
+                              <span className="flex-1">
+                                <span className="block font-display font-bold text-lg text-obsidiana-900 leading-tight">{m}</span>
+                                <span className="block text-xs text-obsidiana-600">Veracruz</span>
+                              </span>
+                              {activo && <CheckCircle2 size={22} className="text-jungle-600" />}
+                            </motion.button>
+                          );
+                        })}
+                        <motion.button
+                          type="button"
+                          initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.06 * MUNICIPIOS_TUXTLAS.length, duration: 0.3 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setMunicipio('')}
+                          className={`w-full flex items-center gap-4 rounded-2xl border-2 border-dashed px-5 py-4 text-left transition-colors ${esOtroMunicipio ? 'border-jungle-600 bg-jungle-50' : 'border-jungle-200 bg-white hover:border-jungle-300'}`}
+                        >
+                          <span className={`h-11 w-11 rounded-full flex items-center justify-center flex-shrink-0 ${esOtroMunicipio ? 'bg-jungle-600 text-white' : 'bg-jungle-50 text-jungle-700'}`}>
+                            <Search size={20} />
+                          </span>
+                          <span className="flex-1">
+                            <span className="block font-display font-bold text-lg text-obsidiana-900 leading-tight">Otro lugar</span>
+                            <span className="block text-xs text-obsidiana-600">Otro municipio o estado</span>
+                          </span>
+                        </motion.button>
                       </div>
-                      {esOtroMunicipio && (
-                        <input
-                          type="text" value={municipio} onChange={(e) => setMunicipio(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') siguiente(); }}
-                          placeholder={estado === 'Veracruz' ? 'Municipio. Ej: Xalapa' : 'Municipio o ciudad. Ej: Villahermosa'} maxLength={60}
-                          className="mt-3 w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors"
-                        />
-                      )}
+
+                      <AnimatePresence initial={false}>
+                        {esOtroMunicipio && (
+                          <motion.div
+                            key="otro" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="pt-5 space-y-4">
+                              <input
+                                type="text" value={municipio} onChange={(e) => setMunicipio(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') siguiente(); }}
+                                placeholder="Municipio o ciudad. Ej: Xalapa" maxLength={60} autoFocus
+                                className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-2xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors"
+                              />
+                              <label className="flex items-center gap-3">
+                                <span className="text-sm font-semibold text-obsidiana-600">Estado</span>
+                                <select
+                                  value={estado} onChange={(e) => setEstado(e.target.value)}
+                                  className="flex-1 bg-white border-2 border-jungle-100 focus:border-jungle-600 rounded-2xl px-4 py-3 font-semibold text-base text-obsidiana-800 focus:outline-none transition-colors"
+                                >
+                                  {ESTADOS_MEXICO.map((e) => (<option key={e} value={e}>{e}</option>))}
+                                </select>
+                              </label>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </>
                   )}
                 </motion.div>
@@ -759,31 +894,62 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
           )}
 
           {paso === 'precio' && (
-            <div className="max-w-xl">
-              <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-6">
-                ¿Cuál es tu rango de precios?
+            <div className="max-w-xl w-full">
+              <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-obsidiana-900 leading-tight mb-2">
+                ¿Cuánto cuesta, más o menos?
               </h2>
-              <div className="flex flex-wrap gap-2.5 mb-2">
-                {NIVELES_PRECIO.map((n) => (
-                  <motion.button key={n.id} whileTap={{ scale: 0.94 }} type="button" onClick={() => setNivelPrecio(n.id)}
-                    className={`px-5 py-3.5 rounded-2xl border-2 font-display font-bold text-lg transition-colors ${nivelPrecio === n.id ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-jungle-800'}`}>
-                    {n.simbolo}
-                  </motion.button>
-                ))}
+              <p className="text-sm text-obsidiana-800/60 mb-6">
+                Un aproximado {categoria === 'Hospedaje' ? 'por noche' : 'por persona'}. No tiene que ser exacto.
+              </p>
+
+              <div className="grid grid-cols-2 gap-3 mb-8">
+                {NIVELES_PRECIO.map((n, i) => {
+                  const activo = nivelPrecio === n.id;
+                  return (
+                    <motion.button
+                      key={n.id} type="button"
+                      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.06 * i, duration: 0.3 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => elegirNivelPrecio(n.id)}
+                      className={`rounded-3xl border-2 p-4 text-left transition-colors ${activo ? 'border-jungle-600 bg-jungle-600 text-white shadow-lg' : 'border-jungle-100 bg-white text-obsidiana-900 hover:border-jungle-300'}`}
+                    >
+                      <span className="block font-display font-extrabold text-2xl tracking-wider">
+                        {[0, 1, 2, 3].map((k) => (
+                          <span key={k} className={k < n.simbolo.length ? '' : activo ? 'opacity-25' : 'text-jungle-200'}>$</span>
+                        ))}
+                      </span>
+                      <span className="block font-bold text-sm mt-1">{n.label}</span>
+                      <span className={`block text-xs mt-0.5 ${activo ? 'text-white/80' : 'text-obsidiana-600'}`}>{n.ejemplo}</span>
+                    </motion.button>
+                  );
+                })}
               </div>
-              <p className="text-sm text-jungle-500 mb-8">{NIVELES_PRECIO.find((n) => n.id === nivelPrecio)?.label}</p>
-              <div className="flex items-center gap-4">
-                <input type="number" min={0} value={precioMin} onChange={(e) => setPrecioMin(e.target.value)} placeholder="Desde"
-                  className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-2 text-2xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors" />
-                <span className="text-jungle-300 text-2xl">—</span>
-                <input type="number" min={0} value={precioMax} onChange={(e) => setPrecioMax(e.target.value)} placeholder="Hasta"
-                  className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-2 text-2xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors" />
+
+              <div className="bg-white border border-jungle-100 rounded-3xl p-5">
+                <div className="text-center mb-5">
+                  <motion.p key={`${precioMinNum}-${precioMaxNum}`} initial={{ scale: 0.96 }} animate={{ scale: 1 }}
+                    className="font-display font-extrabold text-3xl sm:text-4xl text-jungle-700">
+                    ${precioMinNum.toLocaleString('es-MX')} – ${precioMaxNum.toLocaleString('es-MX')}
+                    <span className="text-base font-bold text-jungle-500 ml-1.5">MXN</span>
+                  </motion.p>
+                  <p className="text-xs text-obsidiana-600 mt-1">
+                    ≈ ${Math.round(precioMinNum / TASA_USD_REFERENCIA)} – ${Math.round(precioMaxNum / TASA_USD_REFERENCIA)} USD (referencia, no en vivo)
+                  </p>
+                </div>
+                <label className="block mb-4">
+                  <span className="flex justify-between text-xs font-semibold text-obsidiana-600 mb-1"><span>Desde</span><span>${precioMinNum.toLocaleString('es-MX')}</span></span>
+                  <input type="range" min={0} max={PRECIO_TOPE} step={PRECIO_PASO} value={precioMinNum}
+                    onChange={(e) => cambiarPrecio('min', Number(e.target.value))}
+                    className="w-full h-2 accent-jungle-600" aria-label="Precio desde" />
+                </label>
+                <label className="block">
+                  <span className="flex justify-between text-xs font-semibold text-obsidiana-600 mb-1"><span>Hasta</span><span>${precioMaxNum.toLocaleString('es-MX')}{precioMaxNum >= PRECIO_TOPE ? '+' : ''}</span></span>
+                  <input type="range" min={0} max={PRECIO_TOPE} step={PRECIO_PASO} value={precioMaxNum}
+                    onChange={(e) => cambiarPrecio('max', Number(e.target.value))}
+                    className="w-full h-2 accent-jungle-600" aria-label="Precio hasta" />
+                </label>
               </div>
-              {precioMin && precioMax && !Number.isNaN(parseFloat(precioMin)) && !Number.isNaN(parseFloat(precioMax)) && (
-                <p className="text-sm text-jungle-500 mt-4">
-                  ≈ ${Math.round(parseFloat(precioMin) / TASA_USD_REFERENCIA)} – ${Math.round(parseFloat(precioMax) / TASA_USD_REFERENCIA)} USD (tasa de referencia, no en vivo)
-                </p>
-              )}
             </div>
           )}
 
@@ -794,69 +960,106 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
               solo con lo que ubica al negocio (teléfono + mapa); la
               verificación pasa a su propio paso, ver abajo. */}
           {paso === 'contacto' && (
-            <div className="max-w-2xl space-y-10">
-              <div>
-                <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-5">
-                  ¿A qué número te marcamos?
-                </h2>
-                <input type="tel" inputMode="tel" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="9521234567"
-                  className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-2xl sm:text-3xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors" />
-              </div>
+            <div className="max-w-2xl w-full">
+              <AnimatePresence mode="wait" initial={false} custom={subDir}>
+                <motion.div
+                  key={subC}
+                  custom={subDir}
+                  variants={VARIANTES_SUB}
+                  initial="entra" animate="centro" exit="sale"
+                  transition={{ duration: 0.28, ease: 'easeOut' }}
+                >
+                  {subC === 0 && (
+                    <>
+                      <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-obsidiana-900 leading-tight mb-6">
+                        ¿A qué número te marcamos?
+                      </h2>
+                      <input type="tel" inputMode="tel" value={contacto} onChange={(e) => setContacto(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') siguiente(); }}
+                        placeholder="9521234567" autoFocus
+                        className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-2xl sm:text-3xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors" />
+                    </>
+                  )}
 
-              <div>
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900">
-                    ¿Dónde está?
-                  </h2>
-                  {/* Reintento manual — además del intento automático
-                      al entrar al paso (ver el useEffect de arriba),
-                      por si falló, la persona lo descartó, o se movió
-                      de lugar mientras llenaba el formulario. */}
-                  <motion.button whileTap={{ scale: 0.95 }} type="button" onClick={intentarUbicarme} disabled={buscandoUbicacion}
-                    className="flex-shrink-0 inline-flex items-center gap-1.5 bg-jungle-50 hover:bg-jungle-100 text-jungle-700 px-3 py-2 rounded-full text-xs font-bold disabled:opacity-60 transition-colors">
-                    {buscandoUbicacion ? <Loader2 size={13} className="animate-spin" /> : <Navigation size={13} />}
-                    {buscandoUbicacion ? 'Ubicándote…' : 'Usar mi ubicación actual'}
-                  </motion.button>
-                </div>
-                <p className="text-sm text-jungle-500 mb-1">Toca el mapa donde está tu negocio para colocar el marcador.</p>
-                {ubicacionAutoFallo && !ubicacion && (
-                  <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3 mt-2">
-                    No pudimos ubicarte automáticamente — márcalo tocando el mapa, o inténtalo de nuevo con el botón de arriba.
-                  </p>
-                )}
-                <div className="rounded-3xl overflow-hidden border-2 border-jungle-200 mt-3" style={{ height: '340px' }}>
-                  <Map
-                    initialViewState={{ longitude: TUXTLAS_CENTER[1], latitude: TUXTLAS_CENTER[0], zoom: 11 }}
-                    minZoom={8}
-                    maxZoom={17}
-                    mapStyle={ESTILO_MAPA}
-                    style={{ width: '100%', height: '100%' }}
-                    onClick={(e) => { setUbicacion([e.lngLat.lat, e.lngLat.lng]); setUbicacionGuardada(false); setPrecisionUbicacion(null); }}
-                  >
-                    {ubicacion && (
-                      <Marker longitude={ubicacion[1]} latitude={ubicacion[0]} anchor="bottom">
-                        <div className="w-8 h-8 rounded-full bg-jungle-700 border-[3px] border-white shadow-lg flex items-center justify-center text-white text-sm">📍</div>
-                      </Marker>
-                    )}
-                  </Map>
-                </div>
-                {ubicacion && !ubicacionGuardada && (
-                  <motion.button whileTap={{ scale: 0.97 }} type="button" onClick={() => setUbicacionGuardada(true)}
-                    className="w-full mt-3 bg-jungle-600 hover:bg-jungle-700 text-white text-sm font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-colors">
-                    <Navigation size={15} /> Guardar ubicación
-                  </motion.button>
-                )}
-                {ubicacionGuardada && (
-                  <div className="mt-3 flex items-center gap-2 bg-jungle-50 border border-jungle-200 rounded-2xl px-4 py-3">
-                    <CheckCircle2 size={16} className="text-jungle-600 flex-shrink-0" />
-                    <p className="text-sm text-jungle-700 font-medium">
-                      Ubicación guardada ({ubicacion![0].toFixed(4)}, {ubicacion![1].toFixed(4)})
-                      {precisionUbicacion != null && ` · precisión aprox. ±${Math.round(precisionUbicacion)} m`}
-                    </p>
-                    <button type="button" onClick={() => { setUbicacionGuardada(false); setUbicacion(null); setPrecisionUbicacion(null); }} className="ml-auto text-xs text-jungle-500 underline">cambiar</button>
-                  </div>
-                )}
-              </div>
+                  {subC === 1 && (
+                    <>
+                      <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-obsidiana-900 leading-tight mb-1">
+                        Pon el pin en tu negocio
+                      </h2>
+                      <p className="text-sm text-obsidiana-800/60 mb-3">
+                        Mueve el mapa hasta que el pin quede justo en la puerta. Lo más preciso es que estés ahí y uses tu ubicación.
+                      </p>
+
+                      <form onSubmit={buscarDireccion} className="flex gap-2 mb-3">
+                        <input
+                          type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+                          placeholder="Busca tu calle, colonia o negocio"
+                          className="flex-1 min-w-0 bg-white border-2 border-jungle-100 focus:border-jungle-600 rounded-2xl px-4 py-3 text-base text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors"
+                        />
+                        <button type="submit" disabled={buscandoDireccion || !busqueda.trim()} aria-label="Buscar"
+                          className="h-12 w-12 flex-shrink-0 rounded-2xl bg-jungle-700 text-white flex items-center justify-center disabled:opacity-50">
+                          {buscandoDireccion ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                        </button>
+                      </form>
+                      {errorBusqueda && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3">{errorBusqueda}</p>}
+
+                      <div className="relative rounded-3xl overflow-hidden border-2 border-jungle-200 h-[56vh] min-h-[360px] sm:h-[480px]">
+                        <Map
+                          ref={mapaRef}
+                          initialViewState={{
+                            longitude: ubicacion ? ubicacion[1] : TUXTLAS_CENTER[1],
+                            latitude: ubicacion ? ubicacion[0] : TUXTLAS_CENTER[0],
+                            zoom: ubicacion ? 17 : 11,
+                          }}
+                          minZoom={8}
+                          maxZoom={vistaSatelite ? ZOOM_SATELITE_MAX : 19}
+                          mapStyle={vistaSatelite ? (ESTILO_SATELITE as any) : ESTILO_MAPA}
+                          style={{ width: '100%', height: '100%' }}
+                          onMoveEnd={(e) => {
+                            // Solo cuando la persona mueve el mapa con el dedo/mouse
+                            // (los vuelos automáticos ya fijan su propia ubicación).
+                            if (!e.originalEvent) return;
+                            setUbicacion([e.viewState.latitude, e.viewState.longitude]);
+                            setUbicacionGuardada(false);
+                            setPrecisionUbicacion(null);
+                          }}
+                        />
+                        {/* Pin fijo al centro: el mapa se mueve debajo de él. */}
+                        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full flex flex-col items-center">
+                          <motion.div animate={{ y: [0, -6, 0] }} transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}>
+                            <MapPin size={48} className="text-red-600 drop-shadow-lg" fill="currentColor" stroke="white" strokeWidth={1.5} />
+                          </motion.div>
+                        </div>
+                        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-black/50" />
+
+                        <div className="absolute top-3 right-3 flex flex-col gap-2">
+                          <button type="button" onClick={() => setVistaSatelite((v) => !v)} aria-label="Cambiar vista del mapa"
+                            className="h-11 px-3 rounded-full bg-white shadow-lg text-jungle-800 text-xs font-bold flex items-center gap-1.5">
+                            <Layers size={16} /> {vistaSatelite ? 'Mapa' : 'Satélite'}
+                          </button>
+                        </div>
+                        <button type="button" onClick={intentarUbicarme} disabled={buscandoUbicacion}
+                          className="absolute bottom-3 left-3 right-3 sm:right-auto h-12 px-5 rounded-full bg-white shadow-lg text-jungle-800 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-70">
+                          {buscandoUbicacion ? <Loader2 size={17} className="animate-spin" /> : <Navigation size={17} />}
+                          {buscandoUbicacion ? 'Ubicándote…' : 'Usar mi ubicación actual'}
+                        </button>
+                      </div>
+
+                      {ubicacionAutoFallo && !ubicacion && (
+                        <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-3">
+                          No pudimos ubicarte. Activa la ubicación del teléfono y vuelve a intentar, o busca tu calle y mueve el mapa.
+                        </p>
+                      )}
+                      {ubicacion && (
+                        <p className="flex items-center gap-2 text-sm text-jungle-700 font-medium mt-3">
+                          <CheckCircle2 size={16} className="text-jungle-600 flex-shrink-0" />
+                          Pin colocado{precisionUbicacion != null ? ` · precisión aprox. ±${Math.round(precisionUbicacion)} m` : ''}. Si es correcto, toca Siguiente.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </div>
           )}
 
@@ -890,22 +1093,23 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                       <X size={13} />
                     </button>
                   </div>
+                ) : subiendoVerificacion ? (
+                  <div className="flex items-center justify-center gap-2 border border-dashed border-jungle-300 rounded-xl py-6 text-jungle-600 text-sm font-semibold">
+                    <Loader2 size={16} className="animate-spin" /> Subiendo… {progresoVerificacion}%
+                  </div>
                 ) : (
-                  <label className="flex items-center justify-center gap-2 border border-dashed border-jungle-300 hover:border-jungle-500 rounded-xl py-4 cursor-pointer text-jungle-600 text-sm font-semibold transition-colors">
-                    {subiendoVerificacion ? (
-                      <><Loader2 size={16} className="animate-spin" /> Subiendo… {progresoVerificacion}%</>
-                    ) : (
-                      <><ImagePlus size={16} /> Subir foto de identificación</>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      capture="environment"
-                      disabled={subiendoVerificacion}
-                      className="hidden"
-                      onChange={(e) => { if (e.target.files?.[0]) subirVerificacion(e.target.files[0]); e.target.value = ''; }}
-                    />
-                  </label>
+                  <>
+                    {/* Un solo botón: en el teléfono el sistema abre su selector
+                        nativo (Tomar foto / Fototeca o Galería / Archivos). Sin
+                        "capture" a propósito: con capture solo abría la cámara. */}
+                    <label className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-jungle-700 hover:bg-jungle-800 text-white py-8 cursor-pointer font-bold transition-colors">
+                      <Camera size={30} />
+                      <span className="text-base">Subir foto</span>
+                      <span className="text-xs font-medium text-white/75">Toma una foto o elige una de tu galería</span>
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={(e) => { if (e.target.files?.[0]) subirVerificacion(e.target.files[0]); e.target.value = ''; }} />
+                    </label>
+                  </>
                 )}
               </div>
 
@@ -974,7 +1178,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
           <div className="flex items-center gap-3 pb-6">
             {(indicePaso > 0 || sub > 0) && (
               <motion.button whileTap={{ scale: 0.95 }} aria-label="Atrás"
-                onClick={() => (paso === 'info' ? irSub((sub - 1) as 0 | 1, -1) : irA(ORDEN_PASOS[indicePaso - 1], -1))}
+                onClick={() => (paso === 'info' ? irSub((sub - 1) as 0 | 1, -1) : paso === 'contacto' && subC > 0 ? irSubC(0, -1) : irA(ORDEN_PASOS[indicePaso - 1], -1))}
                 className="w-14 h-14 rounded-2xl border-2 border-jungle-100 flex items-center justify-center text-jungle-800 flex-shrink-0">
                 <ArrowLeft size={20} />
               </motion.button>

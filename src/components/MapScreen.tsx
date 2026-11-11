@@ -70,8 +70,8 @@ export const ESTILO_MAPA = 'https://tiles.openfreemap.org/styles/liberty';
 // desde z15 y el mapa no deja acercar más de z16.
 const TOKEN_MAPBOX = (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined)?.trim();
 const ZOOM_SATELITE_FUENTE = TOKEN_MAPBOX ? 17 : 15;
-const ZOOM_SATELITE_MAX = TOKEN_MAPBOX ? 18 : 16;
-const ESTILO_SATELITE = {
+export const ZOOM_SATELITE_MAX = TOKEN_MAPBOX ? 18 : 16;
+export const ESTILO_SATELITE = {
   version: 8 as const,
   sources: {
     'satelite': {

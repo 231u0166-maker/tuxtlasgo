@@ -2,7 +2,7 @@
 // GET/POST/DELETE /api/servicios/editar?recurso=fotos → gestión de fotos (fusionado
 // aquí para no pasarnos del límite de 12 funciones serverless del plan Hobby de Vercel)
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPool, asegurarColumnaHorario } from '../_lib/db.js';
+import { getPool, asegurarColumnasServicio } from '../_lib/db.js';
 import { v2 as cloudinary } from 'cloudinary';
 
 cloudinary.config({
@@ -39,20 +39,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (sess.rows.length === 0)
       return res.status(401).json({ error: 'Sesión inválida' });
     const usuarioId = sess.rows[0].id;
-    await asegurarColumnaHorario(pool);
+    await asegurarColumnasServicio(pool);
 
     // ── ?recurso=fotos — gestión de fotos (antes api/servicios/fotos.ts) ──
     if (req.query.recurso === 'fotos') {
       const srv = await pool.query(
-        `SELECT id, fotos FROM servicios WHERE usuario_id=$1 ORDER BY creado_en DESC LIMIT 1`,
+        `SELECT id, fotos, fotos_pies FROM servicios WHERE usuario_id=$1 ORDER BY creado_en DESC LIMIT 1`,
         [usuarioId]
       );
       if (srv.rows.length === 0) return res.status(404).json({ error: 'Sin servicio registrado' });
       const servicio = srv.rows[0];
       const fotosActuales: string[] = servicio.fotos ?? [];
+      // Texto debajo de cada foto: { "<url>": "texto" }. Solo cuentan las fotos que existen.
+      const piesActuales: Record<string, string> =
+        servicio.fotos_pies && typeof servicio.fotos_pies === 'object' && !Array.isArray(servicio.fotos_pies) ? { ...servicio.fotos_pies } : {};
+      const limpiarPies = (fotos: string[], pies: Record<string, string>) =>
+        Object.fromEntries(Object.entries(pies).filter(([u, t]) => fotos.includes(u) && typeof t === 'string' && t.trim()));
 
       if (req.method === 'GET') {
-        return res.status(200).json({ ok: true, fotos: fotosActuales });
+        return res.status(200).json({ ok: true, fotos: fotosActuales, pies: limpiarPies(fotosActuales, piesActuales) });
+      }
+
+      // PATCH — cambia el texto de una foto y/o la reemplaza en su mismo lugar (foto ya editada).
+      if (req.method === 'PATCH') {
+        const { url, pie, reemplazarPor, publicIdViejo } = req.body ?? {};
+        if (typeof url !== 'string' || !fotosActuales.includes(url)) return res.status(404).json({ error: 'Foto no encontrada' });
+        let fotos = fotosActuales;
+        let clave = url;
+        if (reemplazarPor !== undefined) {
+          if (typeof reemplazarPor !== 'string' || !reemplazarPor.startsWith('https://')) return res.status(400).json({ error: 'URL inválida' });
+          if (reemplazarPor !== url && fotosActuales.includes(reemplazarPor)) return res.status(400).json({ error: 'Esa foto ya existe' });
+          fotos = fotosActuales.map((f: string) => (f === url ? reemplazarPor : f));
+          clave = reemplazarPor;
+          if (piesActuales[url] !== undefined && reemplazarPor !== url) { piesActuales[reemplazarPor] = piesActuales[url]; delete piesActuales[url]; }
+          if (publicIdViejo && reemplazarPor !== url) {
+            try { await cloudinary.uploader.destroy(publicIdViejo); } catch (e) { console.warn('Cloudinary delete:', e); }
+          }
+        }
+        if (typeof pie === 'string') {
+          const texto = pie.trim().slice(0, 160);
+          if (texto) piesActuales[clave] = texto; else delete piesActuales[clave];
+        }
+        const pies = limpiarPies(fotos, piesActuales);
+        await pool.query(
+          `UPDATE servicios SET fotos=$1, fotos_pies=$2, actualizado_en=NOW() WHERE id=$3`,
+          [JSON.stringify(fotos), JSON.stringify(pies), servicio.id]
+        );
+        return res.status(200).json({ ok: true, fotos, pies });
       }
 
       if (req.method === 'POST') {
@@ -71,7 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           try { await cloudinary.uploader.destroy(publicId); } catch (e) { console.warn('Cloudinary delete:', e); }
         }
         const nuevas = fotosActuales.filter((f: string) => f !== url);
-        await pool.query(`UPDATE servicios SET fotos=$1, actualizado_en=NOW() WHERE id=$2`, [JSON.stringify(nuevas), servicio.id]);
+        await pool.query(`UPDATE servicios SET fotos=$1, fotos_pies=$2, actualizado_en=NOW() WHERE id=$3`, [JSON.stringify(nuevas), JSON.stringify(limpiarPies(nuevas, piesActuales)), servicio.id]);
         return res.status(200).json({ ok: true, fotos: nuevas });
       }
 
@@ -311,7 +344,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const updated = await pool.query(
       `SELECT id, nombre, categoria, municipio, descripcion, precio,
               contacto, lat, lng, estado, codigo_seguimiento,
-              motivo_rechazo, fotos,
+              motivo_rechazo, fotos, fotos_pies,
               horario, dias_abierto, horario_semanal, duracion, como_llegar, tip, ideal_para,
               mascotas, enlaces, premium, premium_desde, premium_hasta, cuenta_cobro, mp_conectado, mp_user_id,
               acepta_reservaciones, politica_cancelacion, fechas_bloqueadas, monto_minimo, mostrar_usd_reservacion,

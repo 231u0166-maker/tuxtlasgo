@@ -23,14 +23,17 @@
 // Environment Variables.
 import { Pool } from 'pg';
 
-// Horario por día de cada servicio (JSON). Se crea la columna la primera vez que
-// se necesita, con el mismo estilo de auto-provisión del resto del proyecto; la
-// bandera evita repetir el ALTER en cada petición de una misma instancia.
-let columnaHorarioLista = false;
-export async function asegurarColumnaHorario(pool: Pool) {
-  if (columnaHorarioLista) return;
+// Columnas JSON de servicios que se agregaron después (se crean la primera vez que se
+// necesitan, con el mismo estilo de auto-provisión del resto del proyecto; la bandera
+// evita repetir el ALTER en cada petición de una misma instancia):
+//  - horario_semanal: horario por día.
+//  - fotos_pies: texto debajo de cada foto, { "<url>": "texto" }.
+let columnasServicioListas = false;
+export async function asegurarColumnasServicio(pool: Pool) {
+  if (columnasServicioListas) return;
   await pool.query('ALTER TABLE servicios ADD COLUMN IF NOT EXISTS horario_semanal JSONB');
-  columnaHorarioLista = true;
+  await pool.query('ALTER TABLE servicios ADD COLUMN IF NOT EXISTS fotos_pies JSONB');
+  columnasServicioListas = true;
 }
 
 export function getPool() {

@@ -4,7 +4,7 @@
 // Endpoint público — solo muestra info validada
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPool, asegurarTablaEventosServicio } from '../_lib/db.js';
+import { getPool, asegurarTablaEventosServicio, asegurarColumnasServicio } from '../_lib/db.js';
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,6 +16,15 @@ function parseFotos(raw: any): string[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
   try { return JSON.parse(raw); } catch { return []; }
+}
+
+function parsePies(raw: any): Record<string, string> | undefined {
+  let o = raw;
+  if (typeof o === 'string') { try { o = JSON.parse(o); } catch { return undefined; } }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return undefined;
+  const limpio: Record<string, string> = {};
+  for (const [k, v] of Object.entries(o)) if (typeof v === 'string' && v.trim()) limpio[k] = v.trim();
+  return Object.keys(limpio).length ? limpio : undefined;
 }
 
 function parseIdeal(raw: any): string[] {
@@ -68,9 +77,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Método no permitido' });
 
   try {
+    await asegurarColumnasServicio(pool);
     const rows = await pool.query(`
       SELECT s.id, s.nombre, s.categoria, s.municipio, s.descripcion,
-             s.precio, s.contacto, s.lat, s.lng, s.codigo_seguimiento, s.fotos,
+             s.precio, s.contacto, s.lat, s.lng, s.codigo_seguimiento, s.fotos, s.fotos_pies,
              s.horario, s.dias_abierto, s.duracion, s.como_llegar, s.tip, s.ideal_para,
              s.mascotas, s.enlaces, s.acepta_reservaciones, s.monto_minimo, s.mostrar_usd_reservacion,
              s.fechas_bloqueadas, s.premium, s.premium_hasta,
@@ -105,6 +115,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         duracionSugerida: s.duracion || 'Variable',
         imagen: fotos.length > 0 ? fotos[0] : '/logo-tuxtlasgo.png',
         imagenesExtra: fotos.length > 1 ? fotos.slice(1) : [],
+        // Texto debajo de cada foto (solo las que tienen), por URL.
+        pies: parsePies(s.fotos_pies),
         tags: [s.categoria.toLowerCase(), s.municipio.toLowerCase()],
         ideal: ideal.length > 0 ? ideal : ['familia', 'pareja', 'amigos', 'solo'],
         abierto: {

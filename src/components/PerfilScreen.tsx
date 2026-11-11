@@ -73,6 +73,7 @@ interface ServicioAPI {
   horario?: string;
   dias_abierto?: string;
   horario_semanal?: unknown; // JSON: 7 días con tramos [inicio, fin] en minutos
+  fotos_pies?: unknown;      // JSON: texto debajo de cada foto, { url: texto }
   duracion?: string;
   como_llegar?: string;
   tip?: string;
@@ -1389,7 +1390,9 @@ function PerfilPrestador({
             {tab === 'fotos' && (
               <div className="bg-white rounded-2xl border border-jungle-100 p-4">
                 {servicio.estado === 'aprobado' ? (
-                  <GestorFotos codigoSeguimiento={servicio.codigo_seguimiento} fotosIniciales={fotos} onFotosActualizadas={setFotos} />
+                  <GestorFotos codigoSeguimiento={servicio.codigo_seguimiento} fotosIniciales={fotos} onFotosActualizadas={setFotos}
+                    piesIniciales={servicio.fotos_pies && typeof servicio.fotos_pies === 'object' && !Array.isArray(servicio.fotos_pies) ? (servicio.fotos_pies as Record<string, string>) : {}}
+                    nombreNegocio={servicio.nombre} />
                 ) : (
                   <div className="text-center py-8 text-jungle-400">
                     <p className="text-sm font-medium mb-1">Fotos disponibles cuando el servicio sea aprobado.</p>

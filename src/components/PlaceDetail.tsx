@@ -554,14 +554,18 @@ function GaleriaFotos({
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-6">
         <div className={`mx-auto columns-1 sm:columns-2 gap-3 sm:gap-4 ${fotos.length >= 5 ? 'lg:columns-3 max-w-[1500px]' : 'max-w-5xl'}`}>
           {fotos.map((url, i) => (
-            <img
-              key={url + i}
-              src={optimizarImagen(url, ANCHO_DETALLE)}
-              alt={lugar.nombre}
-              loading="lazy"
-              onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
-              className="w-full mb-3 sm:mb-4 rounded-lg break-inside-avoid"
-            />
+            <figure key={url + i} className="mb-3 sm:mb-4 break-inside-avoid">
+              <img
+                src={optimizarImagen(url, ANCHO_DETALLE)}
+                alt={lugar.pies?.[url] ?? lugar.nombre}
+                loading="lazy"
+                onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
+                className="w-full rounded-lg"
+              />
+              {lugar.pies?.[url] && (
+                <figcaption className="text-sm text-white/85 mt-2 px-1 leading-snug">{lugar.pies[url]}</figcaption>
+              )}
+            </figure>
           ))}
         </div>
       </div>

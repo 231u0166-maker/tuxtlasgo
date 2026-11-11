@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPool, asegurarColumnaHorario } from '../_lib/db.js';
+import { getPool, asegurarColumnasServicio } from '../_lib/db.js';
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -35,11 +35,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
       let servicio = null;
       if (usuario.tipo === 'prestador') {
-        await asegurarColumnaHorario(pool);
+        await asegurarColumnasServicio(pool);
         const sr = await pool.query(
           `SELECT id, nombre, categoria, municipio, descripcion, precio,
                   contacto, lat, lng, estado, codigo_seguimiento,
-                  motivo_rechazo, fotos,
+                  motivo_rechazo, fotos, fotos_pies,
                   horario, dias_abierto, horario_semanal, duracion, como_llegar, tip, ideal_para,
                   mascotas, enlaces, premium, premium_desde, premium_hasta, cuenta_cobro, mp_conectado, mp_user_id,
                   acepta_reservaciones, politica_cancelacion, fechas_bloqueadas, monto_minimo, mostrar_usd_reservacion,

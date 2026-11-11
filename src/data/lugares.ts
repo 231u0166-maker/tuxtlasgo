@@ -54,6 +54,8 @@ export interface Lugar {
   mascotas?: string;
   // Redes sociales / sitio del prestador (Centro de Prestador — Enlaces).
   enlaces?: EnlaceServicio[];
+  /** Texto debajo de cada foto del prestador, por URL (solo las que tienen). */
+  pies?: Record<string, string>;
   // Reservaciones (Módulo 2 — pieza 2). servicioId es el id numérico
   // real en Neon (distinto de `id`, que es "prestador-<n>").
   aceptaReservaciones?: boolean;

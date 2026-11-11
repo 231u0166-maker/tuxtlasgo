@@ -1,14 +1,20 @@
 // GestorFotos.tsx — subida y gestión de fotos para prestadores aprobados
 // Usa Firebase Storage para subir, Neon para guardar las URLs
-import { useState, useRef, useCallback } from 'react';
-import { Upload, X, ImagePlus, CheckCircle2, AlertCircle, Loader2, GripVertical } from 'lucide-react';
+import { useState, useRef, useCallback, lazy, Suspense } from 'react';
+import { Upload, X, ImagePlus, CheckCircle2, AlertCircle, Loader2, Pencil } from 'lucide-react';
 import { subirFoto } from '../lib/cloudinary';
 import { recargarCatalogo } from '../App';
 import { getToken } from '../lib/auth';
 
+// El editor (recorte, ajustes, texto) solo se descarga cuando se abre una foto.
+const EditorFoto = lazy(() => import('./EditorFoto'));
+
 interface Props {
   codigoSeguimiento: string;
   fotosIniciales?: string[];
+  /** Texto debajo de cada foto, por URL. */
+  piesIniciales?: Record<string, string>;
+  nombreNegocio?: string;
   onFotosActualizadas?: (fotos: string[]) => void;
 }
 
@@ -23,7 +29,7 @@ interface FotoLocal {
   cancelar?: () => void;
 }
 
-export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], onFotosActualizadas }: Props) {
+export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], piesIniciales = {}, nombreNegocio, onFotosActualizadas }: Props) {
   const [fotos, setFotos] = useState<FotoLocal[]>(
     fotosIniciales.map((url, i) => ({
       id: `saved-${i}`,
@@ -33,6 +39,8 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
     }))
   );
   const [arrastrandoSobre, setArrastrandoSobre] = useState(false);
+  const [pies, setPies] = useState<Record<string, string>>(piesIniciales);
+  const [editando, setEditando] = useState<FotoLocal | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const fotasSubidas = fotos.filter((f) => f.url && !f.error);
@@ -152,7 +160,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
         <div>
           <h3 className="font-display font-bold text-jungle-950">Fotos de tu servicio</h3>
           <p className="text-xs text-jungle-600 mt-0.5">
-            Sube hasta 8 fotos. La primera será la imagen principal.
+            Sube hasta 8 fotos. La primera será la imagen principal. Toca una foto dos veces para editarla.
           </p>
         </div>
         <span className={`text-xs font-bold px-2 py-1 rounded-full ${fotasSubidas.length >= 8 ? 'bg-amber-100 text-amber-700' : 'bg-jungle-100 text-jungle-700'}`}>
@@ -164,7 +172,8 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
       {fotos.length > 0 && (
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
           {fotos.map((foto, i) => (
-            <div key={foto.id} className="relative aspect-square rounded-xl overflow-hidden bg-jungle-100 group">
+            <div key={foto.id} className="relative aspect-square rounded-xl overflow-hidden bg-jungle-100 group"
+              onDoubleClick={() => { if (foto.url && !foto.subiendo && !foto.error) setEditando(foto); }}>
               {/* Badge primera foto */}
               {i === 0 && foto.url && (
                 <div className="absolute top-1 left-1 z-10 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
@@ -208,6 +217,25 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
                 <div className="absolute bottom-1 right-1">
                   <CheckCircle2 size={14} className="text-green-400 drop-shadow" />
                 </div>
+              )}
+
+              {/* Texto debajo de la foto (si lo tiene) */}
+              {foto.url && pies[foto.url] && !foto.subiendo && (
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-1.5 pt-4 pb-1 pointer-events-none">
+                  <p className="text-white text-[10px] leading-tight line-clamp-2">{pies[foto.url]}</p>
+                </div>
+              )}
+
+              {/* Editar (también por doble clic) */}
+              {foto.url && !foto.subiendo && !foto.error && (
+                <button
+                  onClick={() => setEditando(foto)}
+                  className="absolute top-1 left-1 bg-black/60 hover:bg-jungle-700 text-white rounded-full w-6 h-6 flex items-center justify-center sm:opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ top: i === 0 ? 22 : 4 }}
+                  title="Editar foto" aria-label={`Editar foto ${i + 1}`}
+                >
+                  <Pencil size={11} />
+                </button>
               )}
 
               {/* Botón eliminar */}
@@ -263,6 +291,25 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], on
         className="hidden"
         onChange={(e) => e.target.files && procesarArchivos(e.target.files)}
       />
+
+      {editando?.url && (
+        <Suspense fallback={null}>
+          <EditorFoto
+            key={editando.id}
+            url={editando.url}
+            pie={pies[editando.url] ?? ''}
+            codigoSeguimiento={codigoSeguimiento}
+            nombreNegocio={nombreNegocio}
+            onCerrar={() => setEditando(null)}
+            onGuardado={({ fotos: nuevas, pies: nuevosPies, urlAnterior, urlNueva }) => {
+              setPies(nuevosPies);
+              setFotos((prev) => prev.map((f) => (f.url === urlAnterior ? { ...f, url: urlNueva } : f)));
+              onFotosActualizadas?.(nuevas);
+              recargarCatalogo().catch(() => {});
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Tip */}
       {fotasSubidas.length > 0 && fotasSubidas.length < 3 && (

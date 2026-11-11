@@ -283,6 +283,7 @@ export const EN: Record<string, string> = {
   '¿Quieres salir de TuxtlasGO?': 'Do you want to leave TuxtlasGO?',
   'Puedes volver cuando quieras; tu guía sigue disponible aunque no tengas señal.': 'You can come back anytime; your guide stays available even without signal.',
   'Quedarme': 'Stay',
+  'Presiona atrás una vez más para salir': 'Press back once more to exit',
   'Salir': 'Leave',
   'Tus datos, en tu dispositivo': 'Your data, on your device',
   'No usamos cookies de seguimiento ni publicidad. Solo guardamos en tu dispositivo lo necesario para que la app funcione: tu sesión, el idioma, tus favoritos y el mapa sin internet.': 'We do not use tracking or advertising cookies. We only store on your device what the app needs to work: your session, language, favorites and the offline map.',

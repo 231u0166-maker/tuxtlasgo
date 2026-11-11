@@ -560,12 +560,19 @@ export default function AppShell() {
   salirAbiertoRef.current = mostrarSalir;
   const tabAntesDeMapaRef = useRef(tabAntesDeMapa);
   tabAntesDeMapaRef.current = tabAntesDeMapa;
+  // Mientras se está saliendo, el detector de "atrás" no debe reaccionar
+  // a la navegación que provoca el propio botón "Salir".
+  const saliendoRef = useRef(false);
+  // Sin página anterior (PWA recién abierta) no se puede cerrar la app por
+  // código: se avisa que un "atrás" más la cierra (patrón estándar de Android).
+  const [avisoAtrasOtraVez, setAvisoAtrasOtraVez] = useState(false);
   const empujarApp = () =>
     window.history.pushState({ ...(window.history.state ?? {}), tgApp: true }, '');
 
   useEffect(() => {
     if (!(window.history.state && window.history.state.tgApp)) empujarApp();
     const alRetroceder = () => {
+      if (saliendoRef.current) return;
       empujarApp();
       if (salirAbiertoRef.current) { setMostrarSalir(false); return; }
       if (lugarAbiertoRef.current) { setLugarSeleccionado(null); return; }
@@ -584,11 +591,30 @@ export default function AppShell() {
 
   const confirmarSalida = () => {
     setMostrarSalir(false);
-    // Atrás de la entrada de la app y de su base: a donde venías.
-    window.history.go(-2);
-    // Si no hay a dónde volver (PWA recién abierta), se intenta cerrar.
+    saliendoRef.current = true;
+    // Historial: [... página anterior, base, app]. Con página anterior
+    // se regresa a ella (-2); si la app se abrió directo (PWA recién
+    // iniciada) solo queda la base: se retrocede a ella y el siguiente
+    // "atrás" del sistema cierra la app de forma nativa — una página no
+    // puede cerrarse sola.
+    if (window.history.length > 2) {
+      window.history.go(-2);
+    } else {
+      window.history.back();
+      setAvisoAtrasOtraVez(true);
+      window.setTimeout(() => setAvisoAtrasOtraVez(false), 4000);
+    }
     window.setTimeout(() => { try { window.close(); } catch { /* no crítico */ } }, 300);
   };
+
+  // Si la persona sigue usando la app después de "Salir" (no había a
+  // dónde ir), al cambiar de pestaña se vuelve a armar la protección.
+  useEffect(() => {
+    if (!saliendoRef.current) return;
+    saliendoRef.current = false;
+    setAvisoAtrasOtraVez(false);
+    if (!(window.history.state && window.history.state.tgApp)) empujarApp();
+  }, [tab]);
 
   // Se llama SOLO cuando la persona toca "Permitir ubicación" en
   // nuestra propia explicación — eso es justo lo que dispara el
@@ -1063,6 +1089,12 @@ export default function AppShell() {
             onIniciarSesion={() => setMostrarAuth(true)}
           />
         </>
+      )}
+
+      {avisoAtrasOtraVez && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-[10000] bg-jungle-950 text-white text-sm font-semibold px-4 py-2.5 rounded-full shadow-xl animate-fade-in max-w-[90vw] text-center">
+          {t('Presiona atrás una vez más para salir')}
+        </div>
       )}
 
       {mostrarSalir && (

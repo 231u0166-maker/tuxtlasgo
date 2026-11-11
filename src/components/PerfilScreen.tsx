@@ -16,7 +16,7 @@ import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
   Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
-  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users } from 'lucide-react';
+  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users, Eye, CalendarDays, type LucideIcon } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
@@ -33,7 +33,7 @@ import { TIPOS_ENLACE, nuevoEnlaceId, parseEnlaces, type EnlaceServicio, type Ti
 import { useHojaArrastrable } from '../lib/useHojaArrastrable';
 import ChatReservacion from './ChatReservacion';
 import TarjetaRechazo from './TarjetaRechazo';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio, separarMunicipio } from '../data/estados';
 
 // ─────────────── TIPOS ───────────────
@@ -1009,18 +1009,18 @@ function PerfilPrestador({
   const premiumActivo = !!servicio?.premium && (!servicio?.premium_hasta || new Date(servicio.premium_hasta) > new Date());
 
   const porResponder = (reservacionesEntrantes ?? []).filter((r: any) => r.estado === 'pendiente').length;
-  const SECCIONES: { id: TabPrincipal; icono: string; titulo: string; estado: string; tono: 'ok' | 'aviso' | 'malo' }[] = [
+  const SECCIONES: { id: TabPrincipal; Icono: LucideIcon; titulo: string; estado: string; tono: 'ok' | 'aviso' | 'malo' }[] = [
     {
-      id: 'servicio', icono: '📋', titulo: 'Mi servicio',
+      id: 'servicio', Icono: Store, titulo: 'Mi servicio',
       estado: servicio?.estado === 'rechazado' ? 'Rechazado · toca para ver razones'
             : servicio?.estado === 'pendiente' ? 'En revisión'
             : 'Información, precio y contacto',
       tono: servicio?.estado === 'rechazado' ? 'malo' : servicio?.estado === 'pendiente' ? 'aviso' : 'ok',
     },
-    { id: 'fotos', icono: '📸', titulo: 'Fotos', estado: fotos.length === 1 ? '1 foto' : `${fotos.length} fotos`, tono: fotos.length === 0 ? 'aviso' : 'ok' },
-    { id: 'preview', icono: '👁️', titulo: 'Vista previa', estado: 'Así te ve el turista', tono: 'ok' },
-    { id: 'reservaciones', icono: '📅', titulo: 'Reservaciones', estado: porResponder > 0 ? `${porResponder} por responder` : 'Sin pendientes', tono: porResponder > 0 ? 'aviso' : 'ok' },
-    { id: 'externa', icono: '🔗', titulo: 'Enlaces y pagos', estado: servicio?.mp_conectado ? 'Mercado Pago conectado' : 'Conecta Mercado Pago', tono: servicio?.mp_conectado ? 'ok' : 'aviso' },
+    { id: 'fotos', Icono: Camera, titulo: 'Fotos', estado: fotos.length === 1 ? '1 foto' : `${fotos.length} fotos`, tono: fotos.length === 0 ? 'aviso' : 'ok' },
+    { id: 'preview', Icono: Eye, titulo: 'Vista previa', estado: 'Así te ve el turista', tono: 'ok' },
+    { id: 'reservaciones', Icono: CalendarDays, titulo: 'Reservaciones', estado: porResponder > 0 ? `${porResponder} por responder` : 'Sin pendientes', tono: porResponder > 0 ? 'aviso' : 'ok' },
+    { id: 'externa', Icono: Link2, titulo: 'Enlaces y pagos', estado: servicio?.mp_conectado ? 'Mercado Pago conectado' : 'Conecta Mercado Pago', tono: servicio?.mp_conectado ? 'ok' : 'aviso' },
   ];
   const colorPunto = { ok: 'bg-jungle-500', aviso: 'bg-amber-400', malo: 'bg-red-500' } as const;
 
@@ -1156,53 +1156,70 @@ function PerfilPrestador({
               sociales, y el nombre viejo lo escondía. */}
           <div className="lg:flex lg:gap-6 lg:px-6 lg:max-w-6xl lg:mx-auto lg:items-start">
             {/* PC: columna lateral con las secciones */}
-            <nav className="hidden lg:flex flex-col gap-1.5 w-64 flex-shrink-0 sticky top-4 bg-white border border-jungle-100 rounded-3xl p-3" aria-label="Secciones del perfil">
-              {SECCIONES.map((sec) => (
-                <button
-                  key={sec.id}
-                  onClick={() => setTab(sec.id)}
-                  aria-current={tab === sec.id ? 'page' : undefined}
-                  className={`relative flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left font-semibold text-[15px] transition-colors ${tab === sec.id ? 'text-white' : 'text-jungle-800 hover:bg-jungle-50'}`}
-                >
-                  {tab === sec.id && (
-                    <motion.span layoutId="pill-seccion" className="absolute inset-0 rounded-2xl bg-jungle-700" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />
-                  )}
-                  <span className="relative text-xl w-7 text-center">{sec.icono}</span>
-                  <span className="relative">{sec.titulo}</span>
-                  {sec.tono !== 'ok' && <span className={`relative ml-auto h-2.5 w-2.5 rounded-full ${colorPunto[sec.tono]}`} />}
-                </button>
-              ))}
+            <nav className="hidden lg:flex flex-col gap-0.5 w-64 flex-shrink-0 sticky top-4 bg-white/60 backdrop-blur-xl border border-white/70 shadow-[0_8px_30px_rgba(20,83,45,0.07)] rounded-2xl p-2" aria-label="Secciones del perfil">
+              {SECCIONES.map((sec) => {
+                const activa = tab === sec.id;
+                return (
+                  <button
+                    key={sec.id}
+                    onClick={() => setTab(sec.id)}
+                    aria-current={activa ? 'page' : undefined}
+                    className={`group relative flex items-center gap-3 rounded-xl px-3.5 py-3 text-left text-[13.5px] font-medium tracking-[-0.005em] transition-colors ${activa ? 'text-jungle-950' : 'text-jungle-700/80 hover:text-jungle-900'}`}
+                  >
+                    {activa && (
+                      <motion.span layoutId="pill-seccion" className="absolute inset-0 rounded-xl bg-jungle-600/10 backdrop-blur-sm ring-1 ring-jungle-600/15" transition={{ type: 'spring', stiffness: 380, damping: 32 }}>
+                        <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-full bg-jungle-600" />
+                      </motion.span>
+                    )}
+                    <sec.Icono size={18} strokeWidth={1.75} className={`relative flex-shrink-0 transition-colors ${activa ? 'text-jungle-700' : 'text-jungle-500 group-hover:text-jungle-700'}`} />
+                    <span className="relative flex-1">{sec.titulo}</span>
+                    {sec.tono !== 'ok' && <span className={`relative h-1.5 w-1.5 rounded-full ${colorPunto[sec.tono]}`} />}
+                  </button>
+                );
+              })}
             </nav>
 
             <div className="flex-1 min-w-0">
               {/* Celular: menú de tarjetas grandes */}
-              {!abierta && (
-                <div className="lg:hidden grid grid-cols-2 gap-3 px-4 pb-2">
-                  {SECCIONES.map((sec, k) => (
-                    <motion.button
-                      key={sec.id}
-                      initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.06 * k, duration: 0.4, ease: 'easeOut' }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => abrirSeccion(sec.id)}
-                      className={`bg-white border border-jungle-100 rounded-3xl p-4 text-left flex gap-2 shadow-sm ${k === 0 ? 'col-span-2 flex-row items-center gap-4' : 'flex-col min-h-[120px]'}`}
-                    >
-                      <span className="h-12 w-12 rounded-2xl bg-jungle-50 flex items-center justify-center text-2xl flex-shrink-0">{sec.icono}</span>
-                      <span className="flex flex-col gap-1 min-w-0">
-                        <span className="font-display font-bold text-jungle-950 text-[15px] leading-tight">{sec.titulo}</span>
-                        <span className="flex items-start gap-1.5 text-xs text-jungle-500 leading-snug">
-                          <span className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${colorPunto[sec.tono]}`} />
-                          {sec.estado}
-                        </span>
-                      </span>
-                    </motion.button>
-                  ))}
-                </div>
-              )}
+              <AnimatePresence mode="popLayout" initial>
+                {!abierta && (
+                  <motion.div
+                    key="menu-movil"
+                    className="lg:hidden px-4 pb-2"
+                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, x: -28, filter: 'blur(6px)', transition: { duration: 0.18 } }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                  >
+                    <div className="bg-white/70 backdrop-blur-xl border border-white/80 rounded-2xl shadow-[0_8px_30px_rgba(20,83,45,0.07)] divide-y divide-jungle-100/80 overflow-hidden">
+                      {SECCIONES.map((sec, k) => (
+                        <motion.button
+                          key={sec.id}
+                          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.04 * k, duration: 0.3, ease: 'easeOut' }}
+                          onClick={() => abrirSeccion(sec.id)}
+                          className="w-full flex items-center gap-3.5 px-4 py-4 text-left active:bg-jungle-50/80 transition-colors"
+                        >
+                          <span className="h-10 w-10 rounded-xl bg-jungle-50 ring-1 ring-jungle-100 text-jungle-700 flex items-center justify-center flex-shrink-0">
+                            <sec.Icono size={19} strokeWidth={1.75} />
+                          </span>
+                          <span className="flex flex-col min-w-0 flex-1">
+                            <span className="font-display font-semibold text-jungle-950 text-[15px] leading-tight">{sec.titulo}</span>
+                            <span className="flex items-center gap-1.5 text-xs text-jungle-500 mt-0.5 leading-snug">
+                              <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${colorPunto[sec.tono]}`} />
+                              <span className="truncate">{sec.estado}</span>
+                            </span>
+                          </span>
+                          <ChevronRight size={18} strokeWidth={1.75} className="text-jungle-300 flex-shrink-0" />
+                        </motion.button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Sección abierta (siempre visible en PC) */}
               <div ref={zonaSeccionRef} className={abierta ? '' : 'hidden lg:block'}>
-                <div className="lg:hidden sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-jungle-100 px-3 py-2.5 mb-4 flex items-center gap-1">
+                <div className="lg:hidden sticky top-0 z-20 bg-white/70 backdrop-blur-xl border-b border-white/70 px-3 py-2.5 mb-4 flex items-center gap-1">
                   <button onClick={() => setAbierta(false)} className="h-11 pl-2 pr-4 rounded-2xl flex items-center gap-1 text-jungle-700 font-bold text-sm active:bg-jungle-50">
                     <ArrowLeft size={18} /> Mi perfil
                   </button>
@@ -1210,7 +1227,14 @@ function PerfilPrestador({
                     {SECCIONES.find((x) => x.id === tab)?.titulo}
                   </p>
                 </div>
-                <motion.div key={tab} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
+                <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={`${tab}-${abierta}`}
+                  initial={{ opacity: 0, x: 22, filter: 'blur(6px)' }}
+                  animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+                  exit={{ opacity: 0, x: -14, filter: 'blur(4px)', transition: { duration: 0.14 } }}
+                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                >
           <div className="px-4 lg:px-0">
                 {/* ── TAB: Mi Servicio ── */}
                 {tab === 'servicio' && (
@@ -1437,6 +1461,7 @@ function PerfilPrestador({
             </div>
           )}
                 </motion.div>
+                </AnimatePresence>
               </div>
             </div>
           </div>

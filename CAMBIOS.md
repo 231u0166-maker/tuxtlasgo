@@ -460,3 +460,9 @@ Enlaces actualizados a las cuentas serias: Facebook `facebook.com/share/1KnrBQAX
 - **PC (lg):** columna lateral con las secciones (pastilla activa animada con `layoutId`) y el contenido a la derecha; la barra principal de la app no cambia.
 - Transición suave al cambiar de sección; el regreso desde Mercado Pago abre directo la sección de origen.
 - Estado nuevo: `abierta`, `zonaSeccionRef`; datos del menú en `SECCIONES`. Siguiente: revisar sección por sección (Mi servicio primero).
+
+## Ajuste de estilo del menú del perfil (más profesional)
+Se quitaron los emojis: cada sección usa un icono de línea de `lucide-react` (Store, Camera, Eye, CalendarDays, Link2) dentro de una burbuja de color suave, igual que los chips de Explorar. PC: columna más compacta (radio menor), la sección activa se marca con una pastilla clara (`bg-jungle-50` + aro) en vez del bloque verde sólido. Celular: tarjetas con radio y sombra más discretos, punto de estado más pequeño y flecha en la principal.
+
+## Menú del perfil: segunda pasada de estilo (sobrio, translúcido, fluido)
+Se quitaron los colores por sección y las burbujas de color: iconos de línea (`strokeWidth` 1.75) de un solo tono. **PC:** columna de vidrio (`bg-white/60 backdrop-blur-xl`), pastilla activa translúcida con barra lateral fina que se desliza (`layoutId`); texto más pequeño y de peso medio. **Celular:** lista agrupada en vidrio con separadores finos, icono neutro, estado con punto y flecha por fila (estilo ajustes), en vez de tarjetas. **Transiciones:** el menú sale desvaneciéndose/desenfocándose hacia la izquierda (`AnimatePresence mode="popLayout"`) y la sección entra deslizando desde la derecha con desenfoque; en PC el cambio de sección es un cruce `mode="wait"` (sale 0.14 s, entra 0.28 s). Barra fija "← Mi perfil" también en vidrio. Probado en navegador a 400 y 1366 px.

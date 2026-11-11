@@ -7,14 +7,12 @@ import {
   ArrowLeft, Search, Sparkles, Building2, MapPin, Navigation, CheckCircle2, Loader2, Copy,
   ShieldCheck, X, Layers, Camera,
 } from 'lucide-react';
-import { buscarPorCodigo } from '../lib/db';
 import { getUsuarioLocal, getToken, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFotoVerificacion, type ProgresoSubida } from '../lib/cloudinary';
 import { obtenerUbicacionGPS } from '../lib/routing';
 import OfflineIndicator from './OfflineIndicator';
 import AuthModal from './AuthModal';
 import GestorFotos from './GestorFotos';
-import TarjetaRechazo from './TarjetaRechazo';
 import { ESTILO_MAPA, ESTILO_SATELITE, ZOOM_SATELITE_MAX } from './MapScreen';
 import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio } from '../data/estados';
 
@@ -36,7 +34,7 @@ import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio } from '../data/e
 //  + Consultar estado, disponible siempre
 // ============================================================
 
-type Vista = 'inicio' | 'consultar' | 'registrar';
+type Vista = 'inicio' | 'registrar';
 
 const TUXTLAS_CENTER: [number, number] = [18.45, -95.18];
 type NivelPrecio = 'limitado' | 'razonable' | 'lujo' | 'muy_lujo';
@@ -73,50 +71,51 @@ export default function ProviderPanel() {
   const esPrestador = usuario?.tipo === 'prestador';
 
   return (
-    <div className="min-h-screen bg-amate-50">
+    <div className="min-h-screen bg-amate-50 flex flex-col">
       <OfflineIndicator />
-      <header className="bg-white/80 backdrop-blur-md border-b border-obsidiana-900/5">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 text-jungle-700 hover:text-jungle-900 text-sm font-medium mb-4"
-          >
-            <ArrowLeft size={16} /> Inicio
-          </Link>
-          <div className="inline-flex items-center gap-1.5 bg-sun-50 text-sun-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-3">
-            <Sparkles size={12} />
-            Prestadores
-          </div>
-          <h1 className="font-display font-extrabold text-2xl sm:text-3xl text-obsidiana-900">
-            Tu negocio en TuxtlasGO
-          </h1>
-          <p className="text-sm text-obsidiana-800/60 mt-1.5 leading-relaxed">
-            Da a conocerte a quien ya viene por acá. Sin intermediarios, sin comisiones.
-          </p>
-        </div>
-      </header>
 
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 pb-14">
-        {vista === 'inicio' && (
-          <PantallaInicio
-            onElegir={setVista}
-            usuario={usuario}
-            esPrestador={esPrestador}
-            onPedirCuenta={() => setMostrarAuth(true)}
-          />
-        )}
-        {vista === 'consultar' && <ConsultarEstado onVolver={() => setVista('inicio')} />}
-        {vista === 'registrar' && (
-          <RegistrarNegocio
-            onVolver={() => setVista('inicio')}
-            onExito={() => {
-              const actualizado = getUsuarioLocal();
-              setUsuario(actualizado);
-              setVista('inicio');
-            }}
-          />
-        )}
-      </main>
+      {vista === 'inicio' ? (
+        <PantallaInicio
+          onRegistrar={() => setVista('registrar')}
+          usuario={usuario}
+          esPrestador={esPrestador}
+          onPedirCuenta={() => setMostrarAuth(true)}
+        />
+      ) : (
+        <>
+          <header className="bg-white/80 backdrop-blur-md border-b border-obsidiana-900/5">
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-1.5 text-jungle-700 hover:text-jungle-900 text-sm font-medium mb-4"
+              >
+                <ArrowLeft size={16} /> Inicio
+              </Link>
+              <div className="inline-flex items-center gap-1.5 bg-sun-50 text-sun-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-3">
+                <Sparkles size={12} />
+                Prestadores
+              </div>
+              <h1 className="font-display font-extrabold text-2xl sm:text-3xl text-obsidiana-900">
+                Tu negocio en TuxtlasGO
+              </h1>
+              <p className="text-sm text-obsidiana-800/60 mt-1.5 leading-relaxed">
+                Da a conocerte a quien ya viene por acá. Sin intermediarios, sin comisiones.
+              </p>
+            </div>
+          </header>
+
+          <main className="max-w-2xl w-full mx-auto px-4 sm:px-6 py-6 pb-14">
+            <RegistrarNegocio
+              onVolver={() => setVista('inicio')}
+              onExito={() => {
+                const actualizado = getUsuarioLocal();
+                setUsuario(actualizado);
+                setVista('inicio');
+              }}
+            />
+          </main>
+        </>
+      )}
 
       {mostrarAuth && (
         <AuthModal
@@ -134,76 +133,83 @@ export default function ProviderPanel() {
 }
 
 // ─────────────── PANTALLA DE INICIO ───────────────
+// Minimalista y centrada, sin fotos: titular, una sola acción y el camino en
+// tres pasos. El estado de la solicitud (aprobada / rechazada) ya no se
+// consulta con un código: le llega como notificación.
+const PASOS_PRESTADOR = [
+  { titulo: 'Cuéntanos de tu negocio', texto: 'Nombre, tipo, precio y ubicación. Toma unos minutos.' },
+  { titulo: 'Lo revisamos', texto: 'Confirmamos que sea real y te avisamos por notificación.' },
+  { titulo: 'Apareces en el mapa', texto: 'Los turistas te encuentran, incluso sin internet.' },
+];
+
 function PantallaInicio({
-  onElegir,
+  onRegistrar,
   usuario,
   esPrestador,
   onPedirCuenta,
 }: {
-  onElegir: (v: Vista) => void;
+  onRegistrar: () => void;
   usuario: UsuarioSesion | null;
   esPrestador: boolean;
   onPedirCuenta: () => void;
 }) {
-  return (
-    <div className="space-y-4">
-      {esPrestador ? (
-        <div className="bg-jungle-50 border border-jungle-200 text-jungle-800 p-5 rounded-2xl flex items-start gap-3">
-          <span className="text-xl flex-shrink-0">📋</span>
-          <div>
-            <p className="font-display font-bold text-sm mb-1">Gestiona tu servicio desde Mi Perfil</p>
-            <p className="text-sm text-jungle-700/70 leading-relaxed">
-              Edita tu información, horarios, fotos y previsualiza tu tarjeta desde{' '}
-              <strong>Mi Perfil</strong> dentro de la app.
-            </p>
-          </div>
-        </div>
-      ) : usuario ? (
-        <div className="bg-white border border-obsidiana-900/8 rounded-2xl p-6 text-center">
-          <p className="font-display font-bold text-obsidiana-900 mb-1.5">
-            ¿Quieres registrar tu servicio?
-          </p>
-          <p className="text-sm text-obsidiana-800/60 mb-5 leading-relaxed">
-            Llena tu información — toma unos minutos y tu solicitud queda en revisión.
-          </p>
-          <button
-            onClick={() => onElegir('registrar')}
-            className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3 rounded-full font-semibold text-sm transition-colors"
-          >
-            Más información
-          </button>
-        </div>
-      ) : (
-        <div className="bg-white border border-obsidiana-900/8 rounded-2xl p-6 text-center">
-          <p className="font-display font-bold text-obsidiana-900 mb-1.5">
-            ¿Quieres registrar tu servicio?
-          </p>
-          <p className="text-sm text-obsidiana-800/60 mb-5 leading-relaxed">
-            Primero crea una cuenta gratis — es rápido, luego llenas la información de tu negocio.
-          </p>
-          <button
-            onClick={onPedirCuenta}
-            className="inline-flex items-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-6 py-3 rounded-full font-semibold text-sm transition-colors"
-          >
-            Crear cuenta
-          </button>
-        </div>
-      )}
+  const clasesBoton =
+    'inline-flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 text-white px-8 py-4 rounded-full font-bold text-base shadow-lg shadow-jungle-700/20 transition-colors';
+  const aparece = (i: number) => ({
+    initial: { opacity: 0, y: 24 },
+    animate: { opacity: 1, y: 0 },
+    transition: { delay: 0.08 * i, duration: 0.5, ease: 'easeOut' as const },
+  });
 
-      <button
-        onClick={() => onElegir('consultar')}
-        className="w-full bg-white hover:border-jungle-300 border border-obsidiana-900/8 text-obsidiana-900 p-5 rounded-2xl text-left flex items-center gap-4 transition-colors"
-      >
-        <div className="w-11 h-11 rounded-xl bg-jungle-50 flex items-center justify-center flex-shrink-0">
-          <Search size={20} className="text-jungle-700" />
-        </div>
-        <div>
-          <div className="font-display font-bold text-base">Consultar estado de mi servicio</div>
-          <div className="text-sm text-obsidiana-800/55">
-            ¿Ya registraste tu negocio? Revisa si fue aprobado con tu código.
-          </div>
-        </div>
-      </button>
+  return (
+    <div className="flex-1 flex flex-col">
+      <div className="max-w-3xl w-full mx-auto px-4 sm:px-6 pt-5">
+        <Link to="/" className="inline-flex items-center gap-1.5 text-jungle-700 hover:text-jungle-900 text-sm font-medium">
+          <ArrowLeft size={16} /> Inicio
+        </Link>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 pb-16">
+        <motion.p {...aparece(0)} className="text-xs font-bold uppercase tracking-[0.2em] text-sun-700 mb-4">
+          Para prestadores
+        </motion.p>
+        <motion.h1 {...aparece(1)} className="font-display font-extrabold text-4xl sm:text-6xl text-obsidiana-900 leading-[1.05] max-w-2xl">
+          Tu negocio en TuxtlasGO
+        </motion.h1>
+        <motion.p {...aparece(2)} className="text-base sm:text-lg text-obsidiana-800/60 mt-4 max-w-md leading-relaxed">
+          Da a conocerte a quien ya viene por acá. Sin intermediarios, sin comisiones.
+        </motion.p>
+
+        <motion.div {...aparece(3)} className="mt-9 flex flex-col items-center gap-3">
+          {esPrestador ? (
+            <>
+              <Link to="/app?tab=perfil" className={clasesBoton}>Ir a mi perfil</Link>
+              <p className="text-sm text-obsidiana-800/55 max-w-xs">
+                Ahí gestionas tu servicio. Si te aprueban o necesitas corregir algo, te avisamos en las notificaciones 🔔
+              </p>
+            </>
+          ) : usuario ? (
+            <button type="button" onClick={onRegistrar} className={clasesBoton}>Registrar mi negocio</button>
+          ) : (
+            <>
+              <button type="button" onClick={onPedirCuenta} className={clasesBoton}>Crear cuenta gratis</button>
+              <p className="text-sm text-obsidiana-800/55">Es rápido; después cuentas de tu negocio.</p>
+            </>
+          )}
+        </motion.div>
+
+        <ol className="mt-16 grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-6 max-w-3xl w-full">
+          {PASOS_PRESTADOR.map((p, i) => (
+            <motion.li key={p.titulo} {...aparece(4 + i)} className="flex flex-col items-center">
+              <span className="h-10 w-10 rounded-full border-2 border-jungle-300 text-jungle-700 font-display font-bold flex items-center justify-center mb-3">
+                {i + 1}
+              </span>
+              <p className="font-display font-bold text-obsidiana-900">{p.titulo}</p>
+              <p className="text-sm text-obsidiana-800/55 mt-1 max-w-[16rem] leading-relaxed">{p.texto}</p>
+            </motion.li>
+          ))}
+        </ol>
+      </div>
     </div>
   );
 }
@@ -289,7 +295,7 @@ interface BorradorRegistro {
   // YA CREADO en Neon (estado "pendiente", con su código de
   // seguimiento) antes de que la persona termine de verlo/copiarlo o
   // de subir fotos — si cierra la pestaña justo ahí, sin seguir
-  // guardando esto perdería la única forma de consultar el estado de
+  // guardando esto perdería el código de seguimiento de
   // una solicitud que sí quedó registrada. Por eso el borrador se
   // sigue guardando durante 'fotos' y 'listo', y solo se borra cuando
   // la persona toca "Entendido" (ver completarRegistro).
@@ -1156,12 +1162,13 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                 <CheckCircle2 className="text-white" size={28} />
               </motion.div>
               <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-2">¡Solicitud enviada!</h2>
-              <p className="text-sm text-obsidiana-800/60 mb-6 leading-relaxed">
-                Nuestro equipo va a validar tu negocio. Guarda este código para consultar el estado:
+              <p className="text-sm text-obsidiana-800/60 mb-6 leading-relaxed max-w-sm mx-auto">
+                Nuestro equipo va a validar tu negocio. Te avisamos por <strong>notificación 🔔</strong> cuando lo aprobemos o si hay algo que corregir.
               </p>
+              <p className="text-xs text-obsidiana-800/50 mb-2">Tu código de seguimiento</p>
               <div className="inline-flex items-center justify-center gap-2 bg-amate-50 rounded-2xl px-5 py-4 mb-8">
                 <span className="font-mono font-bold text-xl tracking-wider text-jungle-800">{codigo}</span>
-                <button onClick={() => { navigator.clipboard.writeText(codigo).catch(() => {}); setCopiado(true); }} className="text-jungle-600 hover:text-jungle-800">
+                <button onClick={() => { navigator.clipboard.writeText(codigo).catch(() => {}); setCopiado(true); }} className="text-jungle-600 hover:text-jungle-800" aria-label="Copiar código">
                   {copiado ? <CheckCircle2 size={20} /> : <Copy size={20} />}
                 </button>
               </div>
@@ -1257,104 +1264,6 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─────────────── CONSULTAR ESTADO (IndexedDB + Neon) ───────────────
-function ConsultarEstado({ onVolver }: { onVolver: () => void }) {
-  const [codigoBusqueda, setCodigoBusqueda] = useState('');
-  const [buscando, setBuscando] = useState(false);
-  const [resultado, setResultado] = useState<any | null | 'no-encontrado'>(null);
-
-  async function buscar() {
-    if (codigoBusqueda.trim().length < 4) return;
-    setBuscando(true);
-    try {
-      const local = await buscarPorCodigo(codigoBusqueda.trim().toUpperCase());
-      if (local) { setResultado(local); return; }
-      try {
-        const res = await fetch(`/api/servicios/registro?codigo=${encodeURIComponent(codigoBusqueda.trim().toUpperCase())}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.ok && data.servicio) {
-            setResultado({
-              nombreNegocio: data.servicio.nombre,
-              categoria: data.servicio.categoria,
-              municipio: data.servicio.municipio,
-              estado: data.servicio.estado,
-              motivoRechazo: data.servicio.motivo_rechazo,
-              codigoSeguimiento: data.servicio.codigo_seguimiento,
-            });
-            return;
-          }
-        }
-      } catch { /* sin internet */ }
-      setResultado('no-encontrado');
-    } finally {
-      setBuscando(false);
-    }
-  }
-
-  const colores: Record<string, string> = {
-    pendiente: 'bg-sun-50 text-sun-700',
-    aprobado: 'bg-jungle-50 text-jungle-700',
-    rechazado: 'bg-red-50 text-red-700',
-  };
-
-  return (
-    <div className="space-y-4">
-      <button onClick={onVolver} className="inline-flex items-center gap-1.5 text-jungle-700 hover:text-jungle-900 text-sm font-medium">
-        <ArrowLeft size={16} /> Volver
-      </button>
-
-      <div className="bg-white border border-obsidiana-900/8 rounded-2xl p-6">
-        <h2 className="font-display font-bold text-lg text-obsidiana-900 mb-1">Consultar mi servicio</h2>
-        <p className="text-sm text-obsidiana-800/60 mb-4">Escribe el código de seguimiento que recibiste al registrar tu servicio.</p>
-        <div className="flex gap-2 mb-4">
-          <input
-            type="text"
-            value={codigoBusqueda}
-            onChange={(e) => setCodigoBusqueda(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === 'Enter' && buscar()}
-            placeholder="TGO-XXXX"
-            className="flex-1 bg-amate-50 rounded-xl px-4 py-3 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-jungle-400 border-0"
-            maxLength={8}
-          />
-          <button onClick={buscar} disabled={buscando || codigoBusqueda.trim().length < 4}
-            className="bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white px-5 rounded-xl font-semibold text-sm transition-colors">
-            Buscar
-          </button>
-        </div>
-
-        {resultado === 'no-encontrado' && (
-          <div className="bg-sun-50 border border-sun-200 rounded-xl p-4 text-sm text-sun-800">
-            No encontramos ningún servicio con ese código. Revisa que esté bien escrito (ejemplo: TGO-A7B2).
-          </div>
-        )}
-
-        {resultado && resultado !== 'no-encontrado' && (
-          <div className="border border-obsidiana-900/8 rounded-xl p-4">
-            <div className="font-display font-bold text-obsidiana-900 mb-1">{resultado.nombreNegocio}</div>
-            <div className="text-xs text-obsidiana-800/55 mb-3">{resultado.categoria} · {resultado.municipio}</div>
-            <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full ${colores[resultado.estado] || 'bg-gray-100'}`}>
-              {resultado.estado === 'pendiente' ? '⏳ Pendiente' : resultado.estado === 'aprobado' ? '✅ Aprobado' : '❌ Rechazado'}
-            </span>
-            {resultado.estado === 'pendiente' && <p className="text-sm text-obsidiana-800/60 mt-3">Tu servicio está en revisión. El equipo de TuxtlasGO lo validará pronto.</p>}
-            {resultado.estado === 'aprobado' && <p className="text-sm text-jungle-700 mt-3">¡Felicidades! Tu servicio ya está visible en el mapa y en Explorar.</p>}
-            {resultado.estado === 'rechazado' && (
-              <div className="mt-3">
-                <TarjetaRechazo
-                  motivo={resultado.motivoRechazo}
-                  nombreNegocio={resultado.nombreNegocio}
-                  codigo={codigoBusqueda.trim().toUpperCase()}
-                  pista="Entra a Mi Perfil en la app, corrige lo indicado y vuelve a enviarlo a revisión."
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

@@ -26,6 +26,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // equipo sobre qué pasó realmente con cada uno.
       const estado = accion === 'aprobar' ? 'aprobado' : accion === 'dar_de_baja' ? 'baja' : 'rechazado';
       await pool.query('UPDATE servicios SET estado=$1, motivo_rechazo=$2, notificado=FALSE, actualizado_en=NOW() WHERE id=$3', [estado, accion !== 'aprobar' ? motivoRechazo : null, servicioId]);
+      // Aviso en la campana del prestador (ya no hay "consultar estado" con código).
+      // Si el aviso falla no se tumba la acción del admin: el estado ya quedó guardado.
+      try {
+        const dueno = await pool.query('SELECT usuario_id, nombre FROM servicios WHERE id=$1', [servicioId]);
+        if (dueno.rows[0]) {
+          const { usuario_id, nombre } = dueno.rows[0];
+          const motivo = (motivoRechazo ?? '').toString().trim();
+          const aviso =
+            accion === 'aprobar'
+              ? { tipo: 'servicio_aprobado', titulo: '¡Tu servicio fue aprobado!', mensaje: `"${nombre}" ya está visible en el mapa y en Explorar.` }
+              : accion === 'rechazar'
+                ? { tipo: 'servicio_rechazado', titulo: 'Tu solicitud no fue aprobada', mensaje: `"${nombre}"${motivo ? `: ${motivo}` : ''}. Entra a Mi Perfil para corregirla y volver a enviarla.` }
+                : { tipo: 'servicio_baja', titulo: 'Tu servicio fue dado de baja', mensaje: `"${nombre}"${motivo ? `: ${motivo}` : ''}. Escríbenos si crees que es un error.` };
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS notificaciones (
+              id SERIAL PRIMARY KEY,
+              usuario_id INT NOT NULL,
+              reservacion_id INT,
+              tipo TEXT NOT NULL DEFAULT 'info',
+              titulo TEXT NOT NULL,
+              mensaje TEXT NOT NULL,
+              leida BOOLEAN NOT NULL DEFAULT FALSE,
+              creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )`);
+          await pool.query(
+            'INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje) VALUES ($1, $2, $3, $4)',
+            [usuario_id, aviso.tipo, aviso.titulo, aviso.mensaje]
+          );
+        }
+      } catch (e) {
+        console.warn('No se pudo crear la notificación del servicio:', e);
+      }
       return res.status(200).json({ ok: true, mensaje: `Servicio ${estado}` });
     }
 

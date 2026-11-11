@@ -442,3 +442,9 @@ Se quitaron "Tomar foto" y "Subir archivo": ahora un solo botón con `<input typ
 - API `PATCH /api/servicios/editar` acepta `reenviar_revision: true`: solo si el servicio está `rechazado`, lo pasa a `pendiente`, borra el motivo y `notificado=FALSE`, para que vuelva a la cola del admin.
 - `src/lib/soporte.ts`: **pendiente poner el número real** en `WHATSAPP_SOPORTE` (ej. `'5219211234567'`). Vacío = el botón abre el DM de Instagram `@tuxtlasgo` y no se muestra número.
 - Probado en navegador con un servicio rechazado simulado; el endpoint real no se probó contra Neon.
+
+# Sesión 2026-11-10 (4) — Notificaciones de aprobación/rechazo y nuevo inicio de prestadores
+- **Se eliminó "Consultar estado de mi servicio"** (botón, vista y componente `ConsultarEstado` en `ProviderPanel.tsx`). El estado ahora llega como notificación.
+- **API `api/servicios/admin.ts`:** al aprobar, rechazar o dar de baja, se inserta un aviso en `notificaciones` para el dueño del servicio (tipos `servicio_aprobado`, `servicio_rechazado`, `servicio_baja`; el rechazo incluye el motivo). Crea la tabla si no existe y, si el aviso falla, no tumba la acción del admin. La campana ya los muestra; tocar un aviso lleva a Mi Perfil (donde está la `TarjetaRechazo`). **No probado contra Neon.**
+- **Inicio de /prestador** minimalista y centrado, sin fotos: etiqueta, titular grande, subtítulo, una sola acción según el estado (Crear cuenta gratis / Registrar mi negocio / Ir a mi perfil) y el camino en 3 pasos (Cuéntanos → Lo revisamos → Apareces en el mapa), con entrada escalonada. El encabezado anterior solo queda dentro del registro.
+- La pantalla final del registro ya no dice "consultar el estado": avisa que llegará una notificación; el código de seguimiento se sigue mostrando.

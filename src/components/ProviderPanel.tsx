@@ -14,6 +14,7 @@ import { obtenerUbicacionGPS } from '../lib/routing';
 import OfflineIndicator from './OfflineIndicator';
 import AuthModal from './AuthModal';
 import GestorFotos from './GestorFotos';
+import TarjetaRechazo from './TarjetaRechazo';
 import { ESTILO_MAPA, ESTILO_SATELITE, ZOOM_SATELITE_MAX } from './MapScreen';
 import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio } from '../data/estados';
 
@@ -1342,10 +1343,13 @@ function ConsultarEstado({ onVolver }: { onVolver: () => void }) {
             {resultado.estado === 'pendiente' && <p className="text-sm text-obsidiana-800/60 mt-3">Tu servicio está en revisión. El equipo de TuxtlasGO lo validará pronto.</p>}
             {resultado.estado === 'aprobado' && <p className="text-sm text-jungle-700 mt-3">¡Felicidades! Tu servicio ya está visible en el mapa y en Explorar.</p>}
             {resultado.estado === 'rechazado' && (
-              <div className="text-sm text-red-700 mt-3">
-                <p>Tu servicio no fue aprobado en esta ocasión.</p>
-                {resultado.motivoRechazo && <p className="mt-1"><strong>Motivo:</strong> {resultado.motivoRechazo}</p>}
-                <p className="mt-1">Puedes registrarlo de nuevo corrigiendo lo indicado.</p>
+              <div className="mt-3">
+                <TarjetaRechazo
+                  motivo={resultado.motivoRechazo}
+                  nombreNegocio={resultado.nombreNegocio}
+                  codigo={codigoBusqueda.trim().toUpperCase()}
+                  pista="Entra a Mi Perfil en la app, corrige lo indicado y vuelve a enviarlo a revisión."
+                />
               </div>
             )}
           </div>

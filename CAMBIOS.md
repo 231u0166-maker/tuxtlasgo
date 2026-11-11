@@ -436,3 +436,9 @@ El paso 1 ahora muestra UNA pregunta a la vez (nombre → tipo → dónde: estad
 
 ## Ajuste: un solo botón "Subir foto" (verificación)
 Se quitaron "Tomar foto" y "Subir archivo": ahora un solo botón con `<input type="file" accept="image/*">` SIN `capture`, para que el teléfono muestre su selector nativo (cámara / galería / archivos). Se agregó el permiso `CAMERA` (y `uses-feature` no obligatorio) en `android/.../AndroidManifest.xml` para que ese selector ofrezca la cámara dentro de la app Capacitor. Sin probar en un teléfono real. Siguiente nivel si se quiere: `@capacitor/camera` con `CameraSource.Prompt`.
+
+# Sesión 2026-11-10 (3) — Rechazo de servicio: razones, reintentar y contacto
+- Nuevo `TarjetaRechazo.tsx` (usada en Mi Perfil → Mi Servicio y en "Consultar estado"): título, "Ver razones" desplegable con el motivo del admin, pista de qué hacer, botón **Volver a enviar a revisión** (solo en Mi Perfil) y botón **Escríbenos** con mensaje ya redactado (nombre del negocio, código y motivo).
+- API `PATCH /api/servicios/editar` acepta `reenviar_revision: true`: solo si el servicio está `rechazado`, lo pasa a `pendiente`, borra el motivo y `notificado=FALSE`, para que vuelva a la cola del admin.
+- `src/lib/soporte.ts`: **pendiente poner el número real** en `WHATSAPP_SOPORTE` (ej. `'5219211234567'`). Vacío = el botón abre el DM de Instagram `@tuxtlasgo` y no se muestra número.
+- Probado en navegador con un servicio rechazado simulado; el endpoint real no se probó contra Neon.

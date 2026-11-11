@@ -32,6 +32,7 @@ import SelectorIdioma from './SelectorIdioma';
 import { TIPOS_ENLACE, nuevoEnlaceId, parseEnlaces, type EnlaceServicio, type TipoEnlace } from '../lib/enlaces';
 import { useHojaArrastrable } from '../lib/useHojaArrastrable';
 import ChatReservacion from './ChatReservacion';
+import TarjetaRechazo from './TarjetaRechazo';
 import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio, separarMunicipio } from '../data/estados';
 
 // ─────────────── TIPOS ───────────────
@@ -715,6 +716,24 @@ function PerfilPrestador({
     cargar();
   }, []);
 
+  const [reenviando, setReenviando] = useState(false);
+  async function reenviarARevision() {
+    setReenviando(true);
+    try {
+      const res = await fetch('/api/servicios/editar', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ reenviar_revision: true }),
+      });
+      const data = await res.json();
+      if (data.ok) setServicio((s) => (s ? { ...s, ...data.servicio } : s));
+      else alert(data.error ?? 'No se pudo reenviar');
+    } catch {
+      alert('Sin conexión. Verifica tu internet.');
+    }
+    setReenviando(false);
+  }
+
   async function guardar() {
     const { estado: estadoForm, municipio: muniForm } = separarMunicipio(form.municipio);
     if (form.municipio && muniForm.trim().length < 2) {
@@ -1135,10 +1154,15 @@ function PerfilPrestador({
                     Cambios guardados. Tu PlaceCard ya refleja la info actualizada.
                   </div>
                 )}
-                {servicio.estado === 'rechazado' && servicio.motivo_rechazo && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
-                    <strong>Motivo de rechazo:</strong> {servicio.motivo_rechazo}
-                  </div>
+                {servicio.estado === 'rechazado' && (
+                  <TarjetaRechazo
+                    motivo={servicio.motivo_rechazo}
+                    nombreNegocio={servicio.nombre}
+                    codigo={servicio.codigo_seguimiento}
+                    onReenviar={reenviarARevision}
+                    reenviando={reenviando}
+                    pista="Corrige lo que se indica con el lápiz ✏️ de cada sección (información, precio, fotos) y toca “Volver a enviar a revisión”."
+                  />
                 )}
 
                 {/* Antes el "% de perfil completo" solo vivía dentro

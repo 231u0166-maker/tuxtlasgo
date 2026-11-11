@@ -82,13 +82,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(405).json({ error: 'Método no permitido' });
 
     const srv = await pool.query(
-      `SELECT id FROM servicios WHERE usuario_id = $1
+      `SELECT id, estado FROM servicios WHERE usuario_id = $1
        ORDER BY creado_en DESC LIMIT 1`,
       [usuarioId]
     );
     if (srv.rows.length === 0)
       return res.status(404).json({ error: 'Sin servicio registrado' });
     const servicioId = srv.rows[0].id;
+    const estadoActual = srv.rows[0].estado;
 
     const {
       // Campos originales
@@ -112,6 +113,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Botón "Eliminar reservaciones" — apaga todo de un golpe y
       // regresa la configuración a como estaba antes de publicarla.
       eliminar_reservaciones,
+      // Volver a enviar a revisión una solicitud rechazada, ya corregida.
+      reenviar_revision,
     } = req.body ?? {};
 
     const campos: string[] = [];
@@ -268,6 +271,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       campos.push(`politica_cancelacion = 'flexible'`);
       campos.push(`monto_minimo = NULL`);
       campos.push(`mostrar_usd_reservacion = FALSE`);
+    }
+
+    // Un servicio rechazado vuelve a la cola del admin: estado pendiente,
+    // sin motivo viejo. Solo aplica si de verdad está rechazado.
+    if (reenviar_revision === true) {
+      if (estadoActual !== 'rechazado')
+        return res.status(400).json({ error: 'Solo se puede reenviar una solicitud rechazada' });
+      campos.push(`estado = 'pendiente'`, `motivo_rechazo = NULL`, `notificado = FALSE`);
     }
 
     if (campos.length === 0)

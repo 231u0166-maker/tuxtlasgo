@@ -542,6 +542,54 @@ export default function AppShell() {
     setTab(nuevoTab);
   };
 
+  // ── Botón/gesto "atrás" (PWA y navegador) ──
+  // Las pestañas son solo estado, no entradas del historial, así que
+  // "atrás" sacaba de la app. Ahora la app vive siempre sobre una
+  // entrada de historial propia (tgApp) encima de una "base": "atrás"
+  // consume esa entrada y aquí decidimos qué hacer, volviéndola a
+  // poner enseguida —
+  //   · aviso/detalle abierto → se cierra
+  //   · en otra pestaña       → regresa a Destacados
+  //   · ya en Destacados      → pregunta "¿Quieres salir de TuxtlasGO?"
+  const [mostrarSalir, setMostrarSalir] = useState(false);
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  const lugarAbiertoRef = useRef(false);
+  lugarAbiertoRef.current = !!lugarSeleccionado;
+  const salirAbiertoRef = useRef(false);
+  salirAbiertoRef.current = mostrarSalir;
+  const tabAntesDeMapaRef = useRef(tabAntesDeMapa);
+  tabAntesDeMapaRef.current = tabAntesDeMapa;
+  const empujarApp = () =>
+    window.history.pushState({ ...(window.history.state ?? {}), tgApp: true }, '');
+
+  useEffect(() => {
+    if (!(window.history.state && window.history.state.tgApp)) empujarApp();
+    const alRetroceder = () => {
+      empujarApp();
+      if (salirAbiertoRef.current) { setMostrarSalir(false); return; }
+      if (lugarAbiertoRef.current) { setLugarSeleccionado(null); return; }
+      const actual = tabRef.current;
+      if (actual === 'mapa' && tabAntesDeMapaRef.current !== 'inicio') {
+        setTab(tabAntesDeMapaRef.current);
+      } else if (actual !== 'inicio') {
+        setTab('inicio');
+      } else {
+        setMostrarSalir(true);
+      }
+    };
+    window.addEventListener('popstate', alRetroceder);
+    return () => window.removeEventListener('popstate', alRetroceder);
+  }, []);
+
+  const confirmarSalida = () => {
+    setMostrarSalir(false);
+    // Atrás de la entrada de la app y de su base: a donde venías.
+    window.history.go(-2);
+    // Si no hay a dónde volver (PWA recién abierta), se intenta cerrar.
+    window.setTimeout(() => { try { window.close(); } catch { /* no crítico */ } }, 300);
+  };
+
   // Se llama SOLO cuando la persona toca "Permitir ubicación" en
   // nuestra propia explicación — eso es justo lo que dispara el
   // diálogo real del sistema ("Para uso de esta app se necesita
@@ -1015,6 +1063,33 @@ export default function AppShell() {
             onIniciarSesion={() => setMostrarAuth(true)}
           />
         </>
+      )}
+
+      {mostrarSalir && (
+        <div className="fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full animate-fade-in">
+            <h3 className="font-display font-bold text-lg text-jungle-950 mb-1">
+              {t('¿Quieres salir de TuxtlasGO?')}
+            </h3>
+            <p className="text-sm text-jungle-700 mb-4">
+              {t('Puedes volver cuando quieras; tu guía sigue disponible aunque no tengas señal.')}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMostrarSalir(false)}
+                className="flex-1 bg-jungle-700 text-white py-2.5 rounded-xl font-semibold text-sm"
+              >
+                {t('Quedarme')}
+              </button>
+              <button
+                onClick={confirmarSalida}
+                className="flex-1 border-2 border-jungle-200 text-jungle-800 py-2.5 rounded-xl font-semibold text-sm"
+              >
+                {t('Salir')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {mostrarAuth && (

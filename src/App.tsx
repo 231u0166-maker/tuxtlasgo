@@ -15,6 +15,7 @@ import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
 import { anotarCarga, embeddingsListo, indexarCatalogo, indexarConocimiento, inicializarEmbeddings, fijarEstadoEmbeddings } from './lib/embeddings';
 import DiagnosticoIA from './components/DiagnosticoIA';
 import ActualizacionDisponible from './components/ActualizacionDisponible';
+import AvisoPrivacidad from './components/AvisoPrivacidad';
 import { optimizarImagen, ANCHO_TARJETA, ANCHO_DETALLE, ANCHO_MINIATURA } from './lib/imagenOptimizada';
 
 // ============================================================
@@ -226,6 +227,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ActualizacionDisponible />
+      <AvisoPrivacidad />
     </BrowserRouter>
   );
 }

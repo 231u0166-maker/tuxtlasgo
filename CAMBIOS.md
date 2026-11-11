@@ -452,4 +452,11 @@ Se quitaron "Tomar foto" y "Subir archivo": ahora un solo botón con `<input typ
 # Sesión 2026-11-10 (5) — Redes sociales oficiales
 Enlaces actualizados a las cuentas serias: Facebook `facebook.com/share/1KnrBQAX1T/`, Instagram `instagram.com/tuxtlas_go` (sin parámetros de rastreo). Se agregó **TikTok** `tiktok.com/@tuxtlasgo` al pie de la landing (icono propio en SVG; lucide no trae TikTok) con su texto en inglés en `i18n-en.ts`. Cambiado en `FooterDinamico.tsx`, en el JSON-LD (`sameAs`) de `index.html` y el botón de contacto por Instagram de `soporte.ts` (`ig.me/m/tuxtlas_go`).
 - `soporte.ts`: el botón de contacto por Instagram abre el perfil `instagram.com/tuxtlas_go` en vez de `ig.me/m/…` (que no conectaba).
-- Contacto por Instagram: vuelve a `ig.me/m/tuxtlas_go` (abre el chat directo) y, como Instagram no precarga texto, al tocar se copia el mensaje redactado al portapapeles con aviso "Mensaje copiado, pégalo". Con WhatsApp sí va precargado.
+- Contacto por Instagram: el botón abre el perfil `instagram.com/tuxtlas_go` (sin copiar mensaje ni abrir chat directo; se revirtió a propósito). Con WhatsApp sí va el mensaje precargado.
+
+# Sesión 2026-11-10 (6) — Perfil del prestador: menú por secciones
+`PerfilScreen.tsx` (`PerfilPrestador`): se reemplazó la fila de pestañas chicas por navegación de secciones, sin tocar el contenido de cada una.
+- **Celular:** el perfil abre con tarjetas grandes (Mi servicio, Fotos, Vista previa, Reservaciones, Enlaces y pagos), con entrada escalonada, una línea de estado y un punto de color (verde ok / ámbar pendiente / rojo rechazado; p. ej. "Rechazado · toca para ver razones", "2 por responder", "Conecta Mercado Pago"). Al tocar una se abre sola, con barra fija "← Mi perfil" y título; el encabezado grande (portada, avatar, ganancias) se oculta dentro de la sección.
+- **PC (lg):** columna lateral con las secciones (pastilla activa animada con `layoutId`) y el contenido a la derecha; la barra principal de la app no cambia.
+- Transición suave al cambiar de sección; el regreso desde Mercado Pago abre directo la sección de origen.
+- Estado nuevo: `abierta`, `zonaSeccionRef`; datos del menú en `SECCIONES`. Siguiente: revisar sección por sección (Mi servicio primero).

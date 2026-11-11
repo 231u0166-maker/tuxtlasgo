@@ -6,10 +6,8 @@
 // al mensaje directo de Instagram de TuxtlasGO, que sí existe.
 export const WHATSAPP_SOPORTE = '';
 
-// Abre directo el chat con la cuenta (en el celular, en la app de Instagram).
-// Instagram no permite precargar el texto como WhatsApp: por eso quien llama
-// copia el mensaje al portapapeles y la persona solo lo pega.
-const INSTAGRAM_MENSAJE = 'https://ig.me/m/tuxtlas_go';
+// Abre el perfil de Instagram de TuxtlasGO; desde ahí la persona toca "Mensaje".
+const INSTAGRAM_MENSAJE = 'https://www.instagram.com/tuxtlas_go';
 
 /** Número en formato legible ("+52 921 123 4567") o null si no hay uno configurado. */
 export function numeroSoporteLegible(): string | null {
@@ -21,10 +19,10 @@ export function numeroSoporteLegible(): string | null {
 }
 
 /** Enlace para escribirle a soporte con un mensaje ya redactado. */
-export function enlaceSoporte(mensaje: string): { href: string; etiqueta: string; esWhatsApp: boolean } {
+export function enlaceSoporte(mensaje: string): { href: string; etiqueta: string } {
   const d = WHATSAPP_SOPORTE.replace(/\D/g, '');
   if (d.length >= 10) {
-    return { href: `https://wa.me/${d}?text=${encodeURIComponent(mensaje)}`, etiqueta: 'Escríbenos por WhatsApp', esWhatsApp: true };
+    return { href: `https://wa.me/${d}?text=${encodeURIComponent(mensaje)}`, etiqueta: 'Escríbenos por WhatsApp' };
   }
-  return { href: INSTAGRAM_MENSAJE, etiqueta: 'Escríbenos por Instagram', esWhatsApp: false };
+  return { href: INSTAGRAM_MENSAJE, etiqueta: 'Escríbenos por Instagram' };
 }

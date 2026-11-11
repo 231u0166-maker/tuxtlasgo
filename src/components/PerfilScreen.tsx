@@ -33,6 +33,7 @@ import { TIPOS_ENLACE, nuevoEnlaceId, parseEnlaces, type EnlaceServicio, type Ti
 import { useHojaArrastrable } from '../lib/useHojaArrastrable';
 import ChatReservacion from './ChatReservacion';
 import TarjetaRechazo from './TarjetaRechazo';
+import { motion } from 'motion/react';
 import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio, separarMunicipio } from '../data/estados';
 
 // ─────────────── TIPOS ───────────────
@@ -603,6 +604,10 @@ function PerfilPrestador({
   onVolver: () => void;
 }) {
   const [tab, setTab] = useState<TabPrincipal>('servicio');
+  // En celular el perfil abre en un menú de tarjetas y cada una abre su sección
+  // sola (abierta = true). En PC (lg) el menú es una columna lateral y esto no aplica.
+  const [abierta, setAbierta] = useState(false);
+  const zonaSeccionRef = useRef<HTMLDivElement>(null);
   const [servicio, setServicio]   = useState<ServicioAPI | null>(null);
   const [fotos, setFotos]         = useState<string[]>([]);
   const [cargando, setCargando]   = useState(true);
@@ -712,6 +717,7 @@ function PerfilPrestador({
     if (tabRetorno) {
       sessionStorage.removeItem('tuxtlasgo_prestador_tab_retorno');
       setTab(tabRetorno as TabPrincipal);
+      setAbierta(true);
     }
     cargar();
   }, []);
@@ -1002,8 +1008,31 @@ function PerfilPrestador({
                     : '❌ Rechazado';
   const premiumActivo = !!servicio?.premium && (!servicio?.premium_hasta || new Date(servicio.premium_hasta) > new Date());
 
+  const porResponder = (reservacionesEntrantes ?? []).filter((r: any) => r.estado === 'pendiente').length;
+  const SECCIONES: { id: TabPrincipal; icono: string; titulo: string; estado: string; tono: 'ok' | 'aviso' | 'malo' }[] = [
+    {
+      id: 'servicio', icono: '📋', titulo: 'Mi servicio',
+      estado: servicio?.estado === 'rechazado' ? 'Rechazado · toca para ver razones'
+            : servicio?.estado === 'pendiente' ? 'En revisión'
+            : 'Información, precio y contacto',
+      tono: servicio?.estado === 'rechazado' ? 'malo' : servicio?.estado === 'pendiente' ? 'aviso' : 'ok',
+    },
+    { id: 'fotos', icono: '📸', titulo: 'Fotos', estado: fotos.length === 1 ? '1 foto' : `${fotos.length} fotos`, tono: fotos.length === 0 ? 'aviso' : 'ok' },
+    { id: 'preview', icono: '👁️', titulo: 'Vista previa', estado: 'Así te ve el turista', tono: 'ok' },
+    { id: 'reservaciones', icono: '📅', titulo: 'Reservaciones', estado: porResponder > 0 ? `${porResponder} por responder` : 'Sin pendientes', tono: porResponder > 0 ? 'aviso' : 'ok' },
+    { id: 'externa', icono: '🔗', titulo: 'Enlaces y pagos', estado: servicio?.mp_conectado ? 'Mercado Pago conectado' : 'Conecta Mercado Pago', tono: servicio?.mp_conectado ? 'ok' : 'aviso' },
+  ];
+  const colorPunto = { ok: 'bg-jungle-500', aviso: 'bg-amber-400', malo: 'bg-red-500' } as const;
+
+  function abrirSeccion(id: TabPrincipal) {
+    setTab(id);
+    setAbierta(true);
+    requestAnimationFrame(() => zonaSeccionRef.current?.scrollIntoView({ block: 'start' }));
+  }
+
   return (
     <div className="min-h-screen bg-jungle-50 pb-10">
+      <div className={abierta ? 'hidden lg:block' : ''}>
       {/* Header con portada */}
       <div
         className="h-36 bg-gradient-to-br from-jungle-800 to-jungle-950 relative"
@@ -1082,6 +1111,8 @@ function PerfilPrestador({
         </div>
       )}
 
+      </div>
+
       {cargando && (
         <div className="px-4">
           <div className="bg-white rounded-2xl p-8 text-center text-jungle-500">
@@ -1123,28 +1154,64 @@ function PerfilPrestador({
               "Información externa" además renombrada a "Enlaces y
               pagos": ahí vive también Mercado Pago, no solo redes
               sociales, y el nombre viejo lo escondía. */}
-          <div className="px-4 mb-4 flex gap-2 overflow-x-auto">
-            {([
-              { id: 'servicio'       as TabPrincipal, label: '📋 Mi Servicio' },
-              { id: 'fotos'          as TabPrincipal, label: '📸 Fotos' },
-              { id: 'preview'        as TabPrincipal, label: '👁️ Preview' },
-              { id: 'reservaciones'  as TabPrincipal, label: '📅 Reservaciones' },
-              { id: 'externa'        as TabPrincipal, label: '🔗 Enlaces y pagos' },
-            ]).map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                aria-current={tab === t.id ? 'true' : undefined}
-                className={`flex-shrink-0 py-2.5 px-3.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
-                  tab === t.id ? 'bg-jungle-700 text-white' : 'bg-white text-jungle-700 border border-jungle-100'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <div className="lg:flex lg:gap-6 lg:px-6 lg:max-w-6xl lg:mx-auto lg:items-start">
+            {/* PC: columna lateral con las secciones */}
+            <nav className="hidden lg:flex flex-col gap-1.5 w-64 flex-shrink-0 sticky top-4 bg-white border border-jungle-100 rounded-3xl p-3" aria-label="Secciones del perfil">
+              {SECCIONES.map((sec) => (
+                <button
+                  key={sec.id}
+                  onClick={() => setTab(sec.id)}
+                  aria-current={tab === sec.id ? 'page' : undefined}
+                  className={`relative flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left font-semibold text-[15px] transition-colors ${tab === sec.id ? 'text-white' : 'text-jungle-800 hover:bg-jungle-50'}`}
+                >
+                  {tab === sec.id && (
+                    <motion.span layoutId="pill-seccion" className="absolute inset-0 rounded-2xl bg-jungle-700" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />
+                  )}
+                  <span className="relative text-xl w-7 text-center">{sec.icono}</span>
+                  <span className="relative">{sec.titulo}</span>
+                  {sec.tono !== 'ok' && <span className={`relative ml-auto h-2.5 w-2.5 rounded-full ${colorPunto[sec.tono]}`} />}
+                </button>
+              ))}
+            </nav>
 
-          <div className="px-4">
+            <div className="flex-1 min-w-0">
+              {/* Celular: menú de tarjetas grandes */}
+              {!abierta && (
+                <div className="lg:hidden grid grid-cols-2 gap-3 px-4 pb-2">
+                  {SECCIONES.map((sec, k) => (
+                    <motion.button
+                      key={sec.id}
+                      initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.06 * k, duration: 0.4, ease: 'easeOut' }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => abrirSeccion(sec.id)}
+                      className={`bg-white border border-jungle-100 rounded-3xl p-4 text-left flex gap-2 shadow-sm ${k === 0 ? 'col-span-2 flex-row items-center gap-4' : 'flex-col min-h-[120px]'}`}
+                    >
+                      <span className="h-12 w-12 rounded-2xl bg-jungle-50 flex items-center justify-center text-2xl flex-shrink-0">{sec.icono}</span>
+                      <span className="flex flex-col gap-1 min-w-0">
+                        <span className="font-display font-bold text-jungle-950 text-[15px] leading-tight">{sec.titulo}</span>
+                        <span className="flex items-start gap-1.5 text-xs text-jungle-500 leading-snug">
+                          <span className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${colorPunto[sec.tono]}`} />
+                          {sec.estado}
+                        </span>
+                      </span>
+                    </motion.button>
+                  ))}
+                </div>
+              )}
+
+              {/* Sección abierta (siempre visible en PC) */}
+              <div ref={zonaSeccionRef} className={abierta ? '' : 'hidden lg:block'}>
+                <div className="lg:hidden sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-jungle-100 px-3 py-2.5 mb-4 flex items-center gap-1">
+                  <button onClick={() => setAbierta(false)} className="h-11 pl-2 pr-4 rounded-2xl flex items-center gap-1 text-jungle-700 font-bold text-sm active:bg-jungle-50">
+                    <ArrowLeft size={18} /> Mi perfil
+                  </button>
+                  <p className="font-display font-bold text-jungle-950 text-base absolute left-1/2 -translate-x-1/2 pointer-events-none">
+                    {SECCIONES.find((x) => x.id === tab)?.titulo}
+                  </p>
+                </div>
+                <motion.div key={tab} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
+          <div className="px-4 lg:px-0">
                 {/* ── TAB: Mi Servicio ── */}
                 {tab === 'servicio' && (
               <div className="bg-white rounded-2xl border border-jungle-100 p-4 space-y-4">
@@ -1282,7 +1349,7 @@ function PerfilPrestador({
 
           {/* ── TAB: Información externa (antes "Enlaces") ── */}
           {tab === 'externa' && (
-            <div className="px-4 space-y-3">
+            <div className="px-4 lg:px-0 space-y-3">
               <div className="bg-white rounded-2xl border border-jungle-100 p-4">
                 <p className="text-sm font-semibold text-jungle-900 mb-1">Redes sociales y sitio</p>
                 <p className="text-xs text-jungle-500 mb-4">
@@ -1369,6 +1436,10 @@ function PerfilPrestador({
               </div>
             </div>
           )}
+                </motion.div>
+              </div>
+            </div>
+          </div>
         </>
       )}
 

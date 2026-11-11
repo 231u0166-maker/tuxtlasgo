@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maqueta · Perfil del prestador</title>
+<style>
+  :root{
+    --j50:#f0fdf4;--j100:#dcfce7;--j200:#bbf7d0;--j300:#86efac;--j600:#16a34a;--j700:#15803d;--j800:#166534;--j900:#14532d;--j950:#052e16;
+    --ink:#1c1917;--mute:#6b7280;--line:#e5efe8;--amate:#fffbf3;--sun:#b45309;--red:#dc2626;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:#e7efe9;color:var(--ink);min-height:100vh;padding:16px}
+  h1,h2,h3,.disp{font-family:"Plus Jakarta Sans",Inter,system-ui,sans-serif}
+  button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+
+  /* controles de la maqueta */
+  .ctl{display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .ctl span{font-size:13px;color:var(--mute)}
+  .ctl button{padding:9px 16px;border-radius:999px;background:#fff;border:2px solid var(--j200);font-weight:700;font-size:13px;color:var(--j800)}
+  .ctl button.on{background:var(--j700);border-color:var(--j700);color:#fff}
+
+  /* marco del dispositivo */
+  .app{margin:0 auto;background:var(--amate);overflow:hidden;position:relative;border-radius:22px;box-shadow:0 20px 60px rgba(5,46,22,.18);transition:max-width .3s}
+  .app.mobile{max-width:390px;height:780px;display:flex;flex-direction:column}
+  .app.desktop{max-width:1180px;height:760px;display:flex;flex-direction:column}
+  .scroll{flex:1;overflow-y:auto}
+
+  /* encabezado compacto */
+  .head{background:linear-gradient(160deg,var(--j900),var(--j800));color:#fff;padding:18px 18px 16px}
+  .head .top{display:flex;align-items:center;gap:12px}
+  .av{width:48px;height:48px;border-radius:50%;background:var(--j600);display:grid;place-items:center;font-weight:800;font-size:17px;flex:none}
+  .head h2{font-size:17px;line-height:1.15}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;background:rgba(255,255,255,.14);padding:3px 9px;border-radius:999px;margin-top:4px}
+  .gan{margin-left:auto;text-align:right}
+  .gan small{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--j300);font-weight:700}
+  .gan b{font-size:18px}
+
+  /* menú de tarjetas (celular) */
+  .menu{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:16px;text-align:left;display:flex;flex-direction:column;gap:6px;min-height:118px;transition:transform .15s,box-shadow .15s}
+  .card:active{transform:scale(.97)}
+  .card:hover{box-shadow:0 8px 24px rgba(21,128,61,.12)}
+  .card .ic{width:44px;height:44px;border-radius:14px;background:var(--j50);display:grid;place-items:center;font-size:22px}
+  .card b{font-size:15px}
+  .card em{font-style:normal;font-size:12px;color:var(--mute);line-height:1.3}
+  .card.wide{grid-column:1/-1;flex-direction:row;align-items:center;min-height:0;gap:14px}
+  .card div{display:flex;flex-direction:column;gap:3px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--j600);margin-right:5px}
+  .dot.warn{background:#f59e0b}
+
+  /* barra superior de una sección (celular) */
+  .sechead{display:flex;align-items:center;gap:8px;padding:12px 14px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+  .back{height:44px;padding:0 14px 0 8px;border-radius:14px;display:flex;align-items:center;gap:4px;color:var(--j700);font-weight:700;font-size:14px}
+  .back:active{background:var(--j50)}
+  .sechead h3{font-size:16px;margin-left:auto;margin-right:auto;padding-right:70px}
+
+  .body{padding:16px;display:flex;flex-direction:column;gap:14px}
+  .pane{background:#fff;border:1px solid var(--line);border-radius:20px;padding:16px}
+  .pane h4{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--j700);font-weight:800;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+  .edit{width:44px;height:44px;border-radius:14px;background:var(--j50);display:grid;place-items:center;font-size:17px;margin:-8px -6px -8px 0}
+  .row{padding:9px 0;border-top:1px solid var(--line)}
+  .row:first-of-type{border-top:0}
+  .row small{display:block;font-size:11px;color:var(--j700);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .row span{font-size:15px}
+  .bar{height:10px;border-radius:99px;background:var(--j100);overflow:hidden;margin-top:8px}
+  .bar i{display:block;height:100%;background:var(--j600);border-radius:99px}
+  .fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .fotos i{aspect-ratio:1;border-radius:14px;background:linear-gradient(135deg,#86efac,#15803d);display:grid;place-items:center;color:#fff;font-style:normal;font-size:12px;font-weight:700}
+  .fotos i:nth-child(2){background:linear-gradient(135deg,#fcd34d,#b45309)}
+  .fotos i:nth-child(3){background:linear-gradient(135deg,#93c5fd,#1d4ed8)}
+  .fotos i.add{background:#fff;border:2px dashed var(--j300);color:var(--j700);font-size:26px}
+  .btnp{width:100%;background:var(--j700);color:#fff;font-weight:800;border-radius:16px;padding:15px;font-size:15px}
+  .link{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+  .link:first-of-type{border-top:0}
+  .link .ic{width:40px;height:40px;border-radius:12px;background:var(--j50);display:grid;place-items:center}
+  .link div{flex:1;font-size:14px}
+  .link small{display:block;color:var(--mute);font-size:12px}
+  .pill{font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px;background:var(--j100);color:var(--j800)}
+  .empty{text-align:center;padding:26px 10px;color:var(--mute);font-size:14px}
+  .empty b{display:block;font-size:16px;color:var(--ink);margin:8px 0 4px}
+  .prev{border-radius:20px;overflow:hidden;border:1px solid var(--line);background:#fff}
+  .prev .ph{height:150px;background:linear-gradient(135deg,#fcd34d,#b45309)}
+  .prev .tx{padding:14px}
+
+  /* PC: barra lateral */
+  .desktop .layout{display:flex;flex:1;min-height:0}
+  .side{width:270px;background:#fff;border-right:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:6px;flex:none}
+  .side button{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:14px;font-weight:700;font-size:15px;color:var(--j800);text-align:left;width:100%}
+  .side button:hover{background:var(--j50)}
+  .side button.on{background:var(--j700);color:#fff}
+  .side button .ic{font-size:19px;width:26px;text-align:center}
+  .side button .st{margin-left:auto;font-size:11px;font-weight:700;opacity:.7}
+  .desktop .main{flex:1;overflow-y:auto}
+  .desktop .body{max-width:760px;padding:24px}
+  .desktop .sechead{display:none}
+  .desktop .gridp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .desktop .fotos{grid-template-columns:repeat(5,1fr)}
+  .hide{display:none!important}
+  .note{max-width:560px;margin:14px auto 0;text-align:center;font-size:12.5px;color:var(--mute);line-height:1.5}
+</style>
+</head>
+<body>
+
+<div class="ctl">
+  <span>Ver como:</span>
+  <button id="bm" class="on" onclick="vista('mobile')">📱 Celular</button>
+  <button id="bd" onclick="vista('desktop')">💻 PC</button>
+</div>
+
+<div class="app mobile" id="app">
+
+  <!-- encabezado compacto, siempre visible -->
+  <div class="head">
+    <div class="top">
+      <div class="av">CB</div>
+      <div>
+        <h2 class="disp">Cocos y Bebidas El Malecón</h2>
+        <span class="badge">✅ Aprobado · Comercio</span>
+      </div>
+      <div class="gan"><small>Ganancias</small><b class="disp">$0</b></div>
+    </div>
+  </div>
+
+  <div class="layout" id="layout" style="display:contents">
+
+    <!-- PC: barra lateral -->
+    <nav class="side hide" id="side"></nav>
+
+    <div class="main scroll" id="scroll">
+
+      <!-- CELULAR: menú de tarjetas -->
+      <div id="menuView">
+        <div class="menu" id="menuCards"></div>
+      </div>
+
+      <!-- Sección abierta -->
+      <div id="secView" class="hide">
+        <div class="sechead">
+          <button class="back" onclick="atras()" aria-label="Volver">‹ Mi perfil</button>
+          <h3 class="disp" id="secTitulo"></h3>
+        </div>
+        <div class="body" id="secBody"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<p class="note">
+  Maqueta interactiva. En <b>celular</b> el perfil abre en un menú de tarjetas grandes y cada una abre su sección sola, con “‹ Mi perfil” para volver.
+  En <b>PC</b> el menú es una columna a la izquierda y el contenido va a la derecha. El contenido de cada sección es solo de ejemplo.
+</p>
+
+<script>
+const SECC = [
+  {id:'servicio', ic:'📋', t:'Mi servicio', st:'Perfil 100 %', ok:true},
+  {id:'fotos', ic:'📸', t:'Fotos', st:'3 fotos', ok:true},
+  {id:'preview', ic:'👁️', t:'Vista previa', st:'Así te ve el turista', ok:true},
+  {id:'reservaciones', ic:'📅', t:'Reservaciones', st:'Sin reservas nuevas', ok:true},
+  {id:'externa', ic:'🔗', t:'Enlaces y pagos', st:'Mercado Pago pendiente', ok:false},
+];
+
+const CONTENIDO = {
+  servicio: `
+    <div class="pane"><h4>Perfil completo <span>6 de 6</span></h4><b class="disp" style="font-size:22px">100%</b><div class="bar"><i style="width:100%"></i></div></div>
+    <div class="gridp">
+      <div class="pane"><h4>Información básica <button class="edit" aria-label="Editar">✏️</button></h4>
+        <div class="row"><small>Categoría</small><span>Comercio</span></div>
+        <div class="row"><small>Municipio</small><span>Catemaco</span></div>
+        <div class="row"><small>Descripción</small><span>Aguas de coco naturales y bebidas frente al lago.</span></div>
+      </div>
+      <div class="pane"><h4>Precio y contacto <button class="edit" aria-label="Editar">✏️</button></h4>
+        <div class="row"><small>Precio</small><span>$$ · $45 – $200 MXN</span></div>
+        <div class="row"><small>Contacto</small><span>294 125 0703</span></div>
+      </div>
+      <div class="pane"><h4>Horario y llegada <button class="edit" aria-label="Editar">✏️</button></h4>
+        <div class="row"><small>Horario</small><span>9:00 am – 6:00 pm</span></div>
+        <div class="row"><small>Cómo llegar</small><span>Sobre el malecón, frente al muelle.</span></div>
+      </div>
+    </div>`,
+  fotos: `
+    <div class="pane"><h4>Tus fotos <span>3 de 8</span></h4>
+      <div class="fotos"><i>Foto 1</i><i>Foto 2</i><i>Foto 3</i><i class="add">＋</i></div>
+    </div>
+    <button class="btnp">📷 Subir foto</button>`,
+  preview: `
+    <div class="prev"><div class="ph"></div><div class="tx"><b class="disp" style="font-size:18px">Cocos y Bebidas El Malecón</b>
+      <div style="color:var(--mute);font-size:13px;margin:4px 0 8px">Comercio · Catemaco · ★ 4.6</div>
+      <div style="font-size:14px">Aguas de coco naturales y bebidas frente al lago.</div></div></div>
+    <div class="pane" style="font-size:13px;color:var(--mute)">Así aparece tu tarjeta en Explorar y en el mapa.</div>`,
+  reservaciones: `
+    <div class="pane"><h4>Reservaciones</h4>
+      <div class="empty">📅<b>Aún no tienes reservas</b>Cuando alguien reserve, te avisamos por notificación.</div>
+    </div>
+    <div class="pane"><h4>Configuración</h4>
+      <div class="link"><div class="ic">🔒</div><div><b>Aceptar reservaciones</b><small>Primero conecta Mercado Pago</small></div><span class="pill" style="background:#fef3c7;color:#92400e">Apagado</span></div>
+    </div>`,
+  externa: `
+    <div class="pane"><h4>Pagos</h4>
+      <div class="link"><div class="ic">💳</div><div><b>Mercado Pago</b><small>Para recibir tus pagos</small></div><span class="pill" style="background:#fef3c7;color:#92400e">Conectar</span></div>
+    </div>
+    <div class="pane"><h4>Enlaces</h4>
+      <div class="link"><div class="ic">📷</div><div><b>Instagram</b><small>instagram.com/tu_negocio</small></div><span class="pill">Activo</span></div>
+      <div class="link"><div class="ic">💬</div><div><b>WhatsApp</b><small>Agregar enlace</small></div><span class="pill" style="background:#f3f4f6;color:#6b7280">＋</span></div>
+      <div class="link"><div class="ic">🎵</div><div><b>TikTok</b><small>Agregar enlace</small></div><span class="pill" style="background:#f3f4f6;color:#6b7280">＋</span></div>
+    </div>`,
+};
+
+let modo = 'mobile', actual = 'servicio', abierta = false;
+
+function pintarMenu(){
+  document.getElementById('menuCards').innerHTML = SECC.map((s,i)=>`
+    <button class="card ${i===0?'wide':''}" onclick="abrir('${s.id}')">
+      <span class="ic">${s.ic}</span>
+      <div><b class="disp">${s.t}</b><em><span class="dot ${s.ok?'':'warn'}"></span>${s.st}</em></div>
+    </button>`).join('');
+  document.getElementById('side').innerHTML = SECC.map(s=>`
+    <button class="${s.id===actual?'on':''}" onclick="abrir('${s.id}')"><span class="ic">${s.ic}</span>${s.t}<span class="st">${s.ok?'':'●'}</span></button>`).join('');
+}
+function pintarSeccion(){
+  const s = SECC.find(x=>x.id===actual);
+  document.getElementById('secTitulo').textContent = s.t;
+  document.getElementById('secBody').innerHTML = CONTENIDO[actual];
+}
+function abrir(id){ actual=id; abierta=true; pintarMenu(); pintarSeccion(); render(); document.getElementById('scroll').scrollTop=0; }
+function atras(){ abierta=false; render(); }
+function render(){
+  const mobile = modo==='mobile';
+  document.getElementById('side').classList.toggle('hide', mobile);
+  document.getElementById('layout').style.display = mobile ? 'contents' : 'flex';
+  document.getElementById('menuView').classList.toggle('hide', !mobile || abierta);
+  document.getElementById('secView').classList.toggle('hide', mobile && !abierta);
+}
+function vista(m){
+  modo=m; abierta = false;
+  const a=document.getElementById('app'); a.className='app '+m;
+  document.getElementById('bm').classList.toggle('on', m==='mobile');
+  document.getElementById('bd').classList.toggle('on', m==='desktop');
+  if(m==='desktop'){ pintarSeccion(); }
+  pintarMenu(); render();
+}
+vista('mobile');
+</script>
+</body>
+</html>

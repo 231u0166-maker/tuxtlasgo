@@ -94,7 +94,7 @@ export default function FooterDinamico({ modo = 'turista' }: { modo?: 'turista' 
             </p>
             <div className="flex items-center gap-3 pt-1">
               <a
-                href="https://www.facebook.com/share/1RRL1HJ5jS/"
+                href="https://www.facebook.com/share/1KnrBQAX1T/"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={t('Facebook de TuxtlasGO')}
@@ -103,13 +103,24 @@ export default function FooterDinamico({ modo = 'turista' }: { modo?: 'turista' 
                 <Facebook size={18} />
               </a>
               <a
-                href="https://www.instagram.com/tuxtlasgo?stkn=NnN6cTNicDI4bHFv"
+                href="https://www.instagram.com/tuxtlas_go"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={t('Instagram de TuxtlasGO')}
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-[#FEDA75] via-[#D62976] to-[#4F5BD5] text-white transition-transform duration-300 hover:-translate-y-1 hover:scale-110"
               >
                 <Instagram size={18} />
+              </a>
+              <a
+                href="https://www.tiktok.com/@tuxtlasgo"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={t('TikTok de TuxtlasGO')}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white ring-1 ring-white/20 transition-transform duration-300 hover:-translate-y-1 hover:scale-110"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+                  <path d="M19.6 6.7a4.8 4.8 0 0 1-3.8-4.2V2h-3.4v13.4a2.9 2.9 0 1 1-2.9-2.9c.3 0 .6 0 .9.1V9.2a6.3 6.3 0 1 0 5.4 6.2V9a8.2 8.2 0 0 0 4.8 1.5V7.1a4.8 4.8 0 0 1-1-.4Z" />
+                </svg>
               </a>
             </div>
             <Link

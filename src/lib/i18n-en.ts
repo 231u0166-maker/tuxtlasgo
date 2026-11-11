@@ -387,6 +387,7 @@ export const EN: Record<string, string> = {
   'Plataforma turística inteligente de Los Tuxtlas, Veracruz. Rutas con IA, mapa offline y prestadores locales verificados.': 'Smart tourism platform for Los Tuxtlas, Veracruz. AI routes, offline map and verified local providers.',
   'Facebook de TuxtlasGO': 'TuxtlasGO on Facebook',
   'Instagram de TuxtlasGO': 'TuxtlasGO on Instagram',
+  'TikTok de TuxtlasGO': 'TuxtlasGO on TikTok',
   'Explora': 'Explore',
   'Legal': 'Legal',
   'Términos y condiciones': 'Terms and conditions',

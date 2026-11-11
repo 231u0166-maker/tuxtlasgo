@@ -16,7 +16,7 @@ import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
   Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
-  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users, Eye, CalendarDays, Utensils, Leaf, Mountain, BedDouble, ShoppingBag, Handshake, Star, type LucideIcon } from 'lucide-react';
+  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users, Eye, CalendarDays, Utensils, Leaf, Mountain, BedDouble, ShoppingBag, Handshake, Star, MapPin, FileText, type LucideIcon } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
@@ -1501,79 +1501,81 @@ function PerfilPrestador({
           { id: 'Cooperativa', nombre: 'Cooperativa', Icono: Handshake },
           { id: 'Otro', nombre: 'Otro', Icono: Star },
         ];
-        const etiqueta = 'text-xs font-bold uppercase tracking-wide text-jungle-800 mb-2 block';
-        const campo = 'w-full rounded-xl border-[1.5px] border-jungle-100 bg-white px-4 py-3.5 text-[17px] font-medium text-jungle-950 focus:outline-none focus:border-jungle-600 focus:ring-4 focus:ring-jungle-600/10 transition-shadow';
+        const etiqueta = 'text-[13px] font-semibold text-jungle-700 mb-2 block';
+        const campo = 'w-full rounded-xl border-[1.5px] border-jungle-100 bg-white/90 px-4 py-3.5 text-[17px] font-medium text-jungle-950 focus:outline-none focus:border-jungle-600 focus:ring-4 focus:ring-jungle-600/10 transition-shadow';
         return (
           <ModalEditarSeccion formulario titulo="Información básica" subtitulo="Así te ven los turistas" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
-            <div className="space-y-5 min-w-0">
-              <div>
-                <label className={etiqueta}>Nombre del negocio <span className="text-red-500">*</span></label>
-                <input value={form.nombre} maxLength={80} onChange={e => setForm({ ...form, nombre: e.target.value })} className={campo} />
-              </div>
-
-              <div>
-                <label className={etiqueta}>Categoría</label>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                  {CATS.map(({ id, nombre, Icono }) => {
-                    const activa = form.categoria === id;
-                    return (
-                      <button key={id} type="button" onClick={() => setForm({ ...form, categoria: id })} aria-pressed={activa}
-                        className={`flex items-center lg:flex-col lg:justify-center gap-2.5 lg:gap-1.5 rounded-xl border-[1.5px] px-3 py-3 lg:px-1.5 min-h-[48px] lg:min-h-[68px] text-sm lg:text-[13px] font-semibold text-left lg:text-center transition-all ${activa ? 'border-jungle-600 bg-jungle-50 text-jungle-950 ring-[3px] ring-jungle-600/10' : 'border-jungle-100 bg-white text-jungle-800 hover:border-jungle-300'}`}>
-                        <Icono size={18} strokeWidth={1.75} className={activa ? 'text-jungle-700' : 'text-jungle-500'} />
-                        {nombre}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label className={etiqueta}>Estado</label>
-                <select value={estadoForm}
-                  onChange={e => {
-                    const nuevo = e.target.value;
-                    setForm({ ...form, municipio: componerMunicipio(nuevo, nuevo === 'Veracruz' ? 'Catemaco' : '') });
-                  }}
-                  className={campo + ' !text-[15px] !font-semibold'}>
-                  {ESTADOS_MEXICO.map(est => (<option key={est} value={est}>{est}</option>))}
-                </select>
-              </div>
-
-              <div>
-                <label className={etiqueta}>Municipio</label>
-                {estadoForm === 'Veracruz' && (
-                  <div className="flex flex-wrap gap-2">
-                    {MUNICIPIOS_TUXTLAS.map(m => {
-                      const activo = !esOtro && muniForm === m;
-                      return (
-                        <button key={m} type="button" onClick={() => setForm({ ...form, municipio: componerMunicipio('Veracruz', m) })}
-                          className={`min-h-[44px] px-4 rounded-full border-[1.5px] text-sm font-semibold transition-colors ${activo ? 'bg-jungle-700 border-jungle-700 text-white' : 'bg-white border-jungle-100 text-jungle-800 hover:border-jungle-300'}`}>
-                          {m}
-                        </button>
-                      );
-                    })}
-                    <button type="button" onClick={() => setForm({ ...form, municipio: componerMunicipio('Veracruz', '') })}
-                      className={`min-h-[44px] px-4 rounded-full border-[1.5px] text-sm font-semibold transition-colors ${esOtro ? 'bg-jungle-700 border-jungle-700 text-white' : 'bg-white border-jungle-100 text-jungle-800 hover:border-jungle-300'}`}>
-                      Otro municipio…
-                    </button>
+            <div className="flex flex-col gap-4 lg:gap-5 min-w-0 lg:min-h-0 lg:h-full lg:overflow-y-auto lg:-m-2 lg:p-2">
+              <TarjetaFormulario Icono={Store} titulo="Tu negocio" ayuda="El nombre y el tipo con los que apareces" orden={0}>
+                <div className="space-y-5">
+                  <div>
+                    <label className={etiqueta}>Nombre del negocio <span className="text-red-500">*</span></label>
+                    <input value={form.nombre} maxLength={80} onChange={e => setForm({ ...form, nombre: e.target.value })} className={campo} />
                   </div>
-                )}
-                {esOtro && (
-                  <input value={muniForm} maxLength={60}
-                    onChange={e => setForm({ ...form, municipio: componerMunicipio(estadoForm, e.target.value) })}
-                    placeholder={estadoForm === 'Veracruz' ? 'Municipio. Ej: Xalapa' : 'Municipio o ciudad. Ej: Villahermosa'}
-                    className={campo + (estadoForm === 'Veracruz' ? ' mt-3' : '')} />
-                )}
-              </div>
+                  <div>
+                    <label className={etiqueta}>Tipo de negocio</label>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                      {CATS.map(({ id, nombre, Icono }) => {
+                        const activa = form.categoria === id;
+                        return (
+                          <button key={id} type="button" onClick={() => setForm({ ...form, categoria: id })} aria-pressed={activa}
+                            className={`flex items-center lg:flex-col lg:justify-center gap-2.5 lg:gap-1.5 rounded-xl border-[1.5px] px-3 py-3 lg:px-1.5 min-h-[48px] lg:min-h-[68px] text-sm lg:text-[13px] font-semibold text-left lg:text-center transition-all ${activa ? 'border-jungle-600 bg-jungle-50 text-jungle-950 ring-[3px] ring-jungle-600/10' : 'border-jungle-100 bg-white/80 text-jungle-800 hover:border-jungle-300'}`}>
+                            <Icono size={18} strokeWidth={1.75} className={activa ? 'text-jungle-700' : 'text-jungle-500'} />
+                            {nombre}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </TarjetaFormulario>
+
+              <TarjetaFormulario Icono={MapPin} titulo="Ubicación" ayuda="Dónde te encuentran" orden={1}>
+                <div className="space-y-5">
+                  <div>
+                    <label className={etiqueta}>Estado</label>
+                    <select value={estadoForm}
+                      onChange={e => {
+                        const nuevo = e.target.value;
+                        setForm({ ...form, municipio: componerMunicipio(nuevo, nuevo === 'Veracruz' ? 'Catemaco' : '') });
+                      }}
+                      className={campo + ' !text-[15px] !font-semibold'}>
+                      {ESTADOS_MEXICO.map(est => (<option key={est} value={est}>{est}</option>))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={etiqueta}>Municipio</label>
+                    {estadoForm === 'Veracruz' && (
+                      <div className="flex flex-wrap gap-2">
+                        {MUNICIPIOS_TUXTLAS.map(m => {
+                          const activo = !esOtro && muniForm === m;
+                          return (
+                            <button key={m} type="button" onClick={() => setForm({ ...form, municipio: componerMunicipio('Veracruz', m) })}
+                              className={`min-h-[44px] px-4 rounded-full border-[1.5px] text-sm font-semibold transition-colors ${activo ? 'bg-jungle-700 border-jungle-700 text-white' : 'bg-white/80 border-jungle-100 text-jungle-800 hover:border-jungle-300'}`}>
+                              {m}
+                            </button>
+                          );
+                        })}
+                        <button type="button" onClick={() => setForm({ ...form, municipio: componerMunicipio('Veracruz', '') })}
+                          className={`min-h-[44px] px-4 rounded-full border-[1.5px] text-sm font-semibold transition-colors ${esOtro ? 'bg-jungle-700 border-jungle-700 text-white' : 'bg-white/80 border-jungle-100 text-jungle-800 hover:border-jungle-300'}`}>
+                          Otro municipio…
+                        </button>
+                      </div>
+                    )}
+                    {esOtro && (
+                      <input value={muniForm} maxLength={60}
+                        onChange={e => setForm({ ...form, municipio: componerMunicipio(estadoForm, e.target.value) })}
+                        placeholder={estadoForm === 'Veracruz' ? 'Municipio. Ej: Xalapa' : 'Municipio o ciudad. Ej: Villahermosa'}
+                        className={campo + (estadoForm === 'Veracruz' ? ' mt-3' : '')} />
+                    )}
+                  </div>
+                </div>
+              </TarjetaFormulario>
             </div>
 
-            <div className="flex flex-col min-w-0 lg:min-h-0">
-              <div className="flex items-baseline justify-between gap-3 mb-2">
-                <label className={etiqueta + ' !mb-0'}>Descripción <span className="text-red-500">*</span></label>
-                <span className="text-xs text-jungle-500 text-right">Qué ofreces, precios, qué te hace especial</span>
-              </div>
+            <TarjetaFormulario Icono={FileText} titulo="Descripción" ayuda="Qué ofreces, precios, qué te hace especial" orden={2} className="flex flex-col min-h-[440px] lg:min-h-0 lg:h-full lg:m-0">
               <EditorDescripcion value={form.descripcion} onChange={(v) => setForm({ ...form, descripcion: v })} />
-            </div>
+            </TarjetaFormulario>
           </ModalEditarSeccion>
         );
       })()}
@@ -2643,6 +2645,33 @@ function SeccionServicio({ titulo, onEditar, children }: { titulo: string; onEdi
 // que AuthModal (hoja desde abajo en móvil, centrado en escritorio),
 // para que editar el negocio se sienta igual de simple que iniciar
 // sesión, en vez de la pared de campos de antes.
+// Tarjeta de vidrio para separar los bloques de un formulario: título con icono,
+// fondo translúcido y entrada escalonada (orden = posición para el retraso).
+function TarjetaFormulario({
+  Icono, titulo, ayuda, orden = 0, className = '', children,
+}: {
+  Icono: LucideIcon; titulo: string; ayuda?: string; orden?: number; className?: string; children: React.ReactNode;
+}) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.07 * orden, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className={`rounded-2xl bg-white/70 backdrop-blur-xl border border-white/90 ring-1 ring-jungle-100/70 shadow-[0_8px_28px_rgba(20,83,45,0.08)] p-4 lg:p-5 min-w-0 ${className}`}
+    >
+      <header className="flex items-center gap-3 mb-4">
+        <span className="h-9 w-9 rounded-xl bg-jungle-50 ring-1 ring-jungle-100 text-jungle-700 flex items-center justify-center flex-shrink-0">
+          <Icono size={18} strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0">
+          <h3 className="font-display font-bold text-[15px] text-jungle-950 leading-tight">{titulo}</h3>
+          {ayuda && <p className="text-xs text-jungle-500 mt-0.5 leading-snug">{ayuda}</p>}
+        </div>
+      </header>
+      {children}
+    </motion.section>
+  );
+}
+
 function ModalEditarSeccion({
   titulo, onClose, onGuardar, guardando, children, textoGuardar, formulario, subtitulo,
 }: {
@@ -2662,7 +2691,7 @@ function ModalEditarSeccion({
             </div>
             <button onClick={onClose} aria-label="Cerrar" className="ml-auto h-11 w-11 rounded-xl flex items-center justify-center text-jungle-600 hover:bg-jungle-50"><X size={22} /></button>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 lg:px-7 py-5 flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-8">
+          <div className="flex-1 overflow-y-auto px-4 lg:px-7 py-5 flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:grid-rows-[minmax(0,1fr)] lg:gap-6 lg:overflow-hidden bg-gradient-to-b from-jungle-50 via-jungle-50/60 to-white">
             {children}
           </div>
           <div className="flex gap-3 px-4 lg:px-7 py-3 lg:justify-end border-t border-jungle-100 bg-white/90 backdrop-blur-xl flex-none" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>

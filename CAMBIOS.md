@@ -409,3 +409,9 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 - Search Console: public/google32721e05fd1a5601.html (archivo de verificación de propiedad; NO borrar).
 - SEO: a los buscadores (Googlebot, Bing, etc., por userAgent) siempre se les sirve español aunque se identifiquen en inglés; antes Google veía la landing en inglés (se detectó con "Ver página probada"). Los turistas con el teléfono en inglés siguen viendo inglés. Las cifras de la landing arrancan con el número real en vez de 0.
 - SEO: a los robots no se les arranca el modelo de IA (e5-small de Hugging Face, ~113 MB); Search Console mostraba esos 4 archivos como errores de redirección. Los 2 de /api bloqueados por robots.txt son normales.
+
+---
+
+# Sesión 2026-11-10 — Pantalla de carga con el logo
+
+Con internet lento o inestable, la app mostraba pantalla en blanco hasta que llegaba el JS. Ahora `index.html` trae una pantalla de carga (logo `logo-emblema.png` pulsando + "TuxtlasGO" + barrita) escrita en HTML/CSS puro dentro de `#root`: se pinta antes de que baje el JS y React la reemplaza solo al montar. El logo se precarga (`<link rel="preload">`) y la animación respeta `prefers-reduced-motion`. Probado en navegador retrasando `main.tsx` 6 s: se ve el logo y desaparece al montar la app.

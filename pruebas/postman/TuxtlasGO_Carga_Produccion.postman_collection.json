@@ -1,0 +1,204 @@
+{
+  "info": {
+    "name": "TuxtlasGO - Carga en produccion (flujo turista)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://go.tuxtlas.xyz"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const ms = 1000 + Math.floor(Math.random() * 1000);",
+          "setTimeout(() => {}, ms);"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Portada (estatico)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": []
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalogo",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/servicios/aprobados",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "servicios",
+            "aprobados"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Disponibilidad",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/reservaciones?disponibilidad=1&servicio_id=26&fecha=2026-12-24",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "reservaciones"
+          ],
+          "query": [
+            {
+              "key": "disponibilidad",
+              "value": "1"
+            },
+            {
+              "key": "servicio_id",
+              "value": "26"
+            },
+            {
+              "key": "fecha",
+              "value": "2026-12-24"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Evento vista (servicio 999999)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"servicio_id\":999999,\"tipo\":\"vista\"}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/servicios/aprobados?recurso=evento",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "servicios",
+            "aprobados"
+          ],
+          "query": [
+            {
+              "key": "recurso",
+              "value": "evento"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat IA (pregunta fija, cacheada)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"systemPrompt\":\"Eres un asistente turístico de Los Tuxtlas. Responde breve y solo con el contexto dado.\",\"mensajes\":[{\"role\":\"user\",\"content\":\"Que horario tiene la reserva de Los Tuxtlas?\"}]}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ia/chat",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "ia",
+            "chat"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 (429 = limite diario, cuenta como fallo de IA)', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

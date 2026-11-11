@@ -73,10 +73,34 @@
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""
     />
+    <link rel="preload" as="image" href="/logo-emblema.png" />
+    <style>
+      /* Pantalla de carga: HTML/CSS puro dentro de #root, se pinta antes de que
+         llegue el JS (conexión lenta o inestable) y React la reemplaza al montar. */
+      html, body { margin: 0; background: #f0fdf4; }
+      #splash {
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 18px;
+        background: #f0fdf4; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      #splash img { width: 96px; height: 96px; object-fit: contain; animation: splash-pulso 1.6s ease-in-out infinite; }
+      #splash b { color: #14532d; font-size: 22px; font-weight: 700; letter-spacing: .2px; }
+      #splash i { display: block; width: 120px; height: 3px; border-radius: 3px; background: #bbf7d0; overflow: hidden; position: relative; }
+      #splash i::after { content: ''; position: absolute; inset: 0; width: 40%; background: #15803d; border-radius: 3px; animation: splash-barra 1.2s ease-in-out infinite; }
+      @keyframes splash-pulso { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: .8; } }
+      @keyframes splash-barra { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+      @media (prefers-reduced-motion: reduce) { #splash img, #splash i::after { animation: none; } }
+    </style>
     <title>TuxtlasGO — Tu guía turística offline de Los Tuxtlas</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="splash" role="status" aria-label="Cargando TuxtlasGO">
+        <img src="/logo-emblema.png" alt="" width="96" height="96" />
+        <b>TuxtlasGO</b>
+        <i></i>
+      </div>
+    </div>
     <noscript>
       <h1>TuxtlasGO — Guía turística de Los Tuxtlas, Veracruz</h1>
       <p>Descubre Catemaco y San Andrés Tuxtla: cascadas, selva, el lago, restaurantes, hospedaje y artesanías de prestadores locales verificados. Mapa y asistente con IA que funcionan también sin internet.</p>

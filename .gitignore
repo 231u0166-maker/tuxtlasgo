@@ -38,3 +38,6 @@ public/registerSW.js
 
 # Playwright MCP scratch output (screenshots/snapshots from browser testing)
 .playwright-mcp/
+
+.vercel
+.env*

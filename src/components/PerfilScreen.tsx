@@ -35,6 +35,8 @@ import ChatReservacion from './ChatReservacion';
 import TarjetaRechazo from './TarjetaRechazo';
 import EditorDescripcion from './EditorDescripcion';
 import SelectorRangoPrecio from './SelectorRangoPrecio';
+import EditorHorarioSemanal, { ResumenHorario } from './EditorHorarioSemanal';
+import { semanaDesdeTextos, semanaValida, textosDeSemana, semanaVacia, type Semana } from '../lib/horario';
 import { formatearPrecio, parsearPrecio, type NivelPrecio } from '../lib/precio';
 import { motion, AnimatePresence } from 'motion/react';
 import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio, separarMunicipio } from '../data/estados';
@@ -56,6 +58,7 @@ interface ServicioAPI {
   fotos?: string[] | string;
   horario?: string;
   dias_abierto?: string;
+  horario_semanal?: unknown; // JSON: 7 días con tramos [inicio, fin] en minutos
   duracion?: string;
   como_llegar?: string;
   tip?: string;
@@ -123,6 +126,7 @@ interface FormServicio {
   contacto: string;
   horario: string;
   dias_abierto: string;
+  horario_semanal: Semana; // horario por día (el calendario); horario/dias_abierto son sus textos
   duracion: string;
   como_llegar: string;
   tip: string;
@@ -174,6 +178,7 @@ function formDesdeServicio(srv: ServicioAPI): FormServicio {
     contacto:    srv.contacto    ?? '',
     horario:     srv.horario     ?? '',
     dias_abierto: srv.dias_abierto ?? '',
+    horario_semanal: semanaValida(srv.horario_semanal) ?? semanaDesdeTextos(srv.horario, srv.dias_abierto),
     duracion:    srv.duracion    ?? '',
     como_llegar: srv.como_llegar ?? '',
     tip:         srv.tip         ?? '',
@@ -633,7 +638,7 @@ function PerfilPrestador({
   const [gananciasTotales, setGananciasTotales] = useState<number | null>(null);
   const [form, setForm]           = useState<FormServicio>({
     nombre: '', categoria: '', municipio: '', descripcion: '',
-    precio: '', contacto: '', horario: '', dias_abierto: '',
+    precio: '', contacto: '', horario: '', dias_abierto: '', horario_semanal: semanaVacia(),
     duracion: '', como_llegar: '', tip: '', mascotas: '', ideal_para: [],
   });
   // Qué modal de edición está abierto — antes era un solo booleano
@@ -824,6 +829,14 @@ function PerfilPrestador({
     if (contactoForm.whatsapp) nuevos.push({ id: 'wa-contacto', tipo: 'whatsapp', url: `https://wa.me/${wa}` });
     if (correo) nuevos.push({ id: 'correo-contacto', tipo: 'correo', url: `mailto:${correo}` });
     return guardarCon({ contacto: tel || correo, enlaces: nuevos });
+  }
+
+  // Guarda el horario por día y, junto, los dos textos de siempre (horario / dias_abierto)
+  // para que fichas, asistente y todo lo que ya los leía como texto sigan igual.
+  function guardarDetalles() {
+    const textos = textosDeSemana(form.horario_semanal);
+    setForm((f) => ({ ...f, ...textos }));
+    return guardarCon({ ...textos, horario_semanal: form.horario_semanal });
   }
 
   function toggleIdeal(id: string) {
@@ -1328,7 +1341,7 @@ function PerfilPrestador({
 
                   <SeccionServicio titulo="Detalles para el turista" onEditar={() => abrirModal('detalles')}>
                     <InfoFila icono={<Clock size={14} />} label="Horario"
-                      valor={servicio.horario ? `${servicio.horario} · ${servicio.dias_abierto ?? ''}` : undefined} />
+                      valor={servicio.horario ? (servicio.dias_abierto && servicio.dias_abierto !== 'Horario por día' ? `${servicio.horario} · ${servicio.dias_abierto}` : servicio.horario) : undefined} />
                     <InfoFila icono={null} label="Duración" valor={servicio.duracion} />
                     <InfoFila icono={null} label="Cómo llegar" valor={servicio.como_llegar} />
                     <InfoFila icono={null} label="Consejo" valor={servicio.tip} />
@@ -1668,15 +1681,13 @@ function PerfilPrestador({
       })()}
 
       {modalEditar === 'detalles' && (
-        <ModalEditarSeccion titulo="Detalles para el turista" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block"><Clock size={11} className="inline mr-1" />Horario</label>
-            <SelectorHorario valor={form.horario} onCambiar={(s) => setForm({ ...form, horario: s })} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-2 block">Días abierto</label>
-            <SelectorDias valor={form.dias_abierto} onCambiar={(s) => setForm({ ...form, dias_abierto: s })} />
-          </div>
+        <ModalEditarSeccion formulario titulo="Detalles para el turista" subtitulo="Horario y datos útiles para la visita" onClose={() => setModalEditar(null)} onGuardar={guardarDetalles} guardando={guardando}>
+          <div className="flex flex-col gap-4 lg:gap-5 min-w-0 order-2 lg:order-1 lg:min-h-0 lg:h-full lg:overflow-y-auto lg:-m-2 lg:p-2">
+            <TarjetaFormulario Icono={Eye} titulo="Así lo verá el turista" ayuda="Se arma solo con lo que marcaste" orden={1}>
+              <ResumenHorario value={form.horario_semanal} />
+            </TarjetaFormulario>
+            <TarjetaFormulario Icono={FileText} titulo="Más detalles" ayuda="Duración, cómo llegar, consejo y más" orden={2}>
+              <div className="space-y-4">
           <div>
             <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
             <SelectorDuracion valor={form.duracion} onCambiar={(s) => setForm({ ...form, duracion: s })} />
@@ -1713,6 +1724,14 @@ function PerfilPrestador({
               ))}
             </div>
           </div>
+              </div>
+            </TarjetaFormulario>
+          </div>
+
+          <TarjetaFormulario Icono={Clock} titulo="Horario" ayuda="Marca cuándo abres, cada día con su hora" orden={0}
+            className="order-1 lg:order-2 flex flex-col lg:min-h-0 lg:h-full">
+            <EditorHorarioSemanal value={form.horario_semanal} onChange={(sem) => setForm({ ...form, horario_semanal: sem })} />
+          </TarjetaFormulario>
         </ModalEditarSeccion>
       )}
     </div>
@@ -2338,223 +2357,6 @@ function IconoEnlace({ tipo }: { tipo: TipoEnlace }) {
 // el mismo tipo de texto que ya se usaba, no cambia nada del backend.
 
 
-function parsearHora12a24(str: string): string {
-  const m = str.trim().match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
-  if (!m) return '';
-  let h = parseInt(m[1], 10);
-  const min = m[2];
-  const ampm = m[3].toLowerCase();
-  if (ampm === 'pm' && h !== 12) h += 12;
-  if (ampm === 'am' && h === 12) h = 0;
-  return `${String(h).padStart(2, '0')}:${min}`;
-}
-function formatear12h(hhmm: string): string {
-  if (!hhmm) return '';
-  const [hStr, m] = hhmm.split(':');
-  let h = parseInt(hStr, 10);
-  const ampm = h >= 12 ? 'pm' : 'am';
-  h = h % 12; if (h === 0) h = 12;
-  return `${h}:${m} ${ampm}`;
-}
-
-// ─────────────── Selector de hora tipo "alarma de celular" ───────────
-// Antes usaba <input type="time"> — cada navegador/SO dibuja su propio
-// selector nativo (en Windows/Chrome sale una tabla de horas/minutos
-// que se siente ajena al resto de la app). Esto es un selector de
-// ruedas hecho a la medida (scroll-snap, sin librería nueva) para que
-// se sienta como poner una alarma en el teléfono.
-const ALTO_ITEM_RUEDA = 36;
-
-function ColumnaRueda({ opciones, indice, onCambiar }: { opciones: (string | number)[]; indice: number; onCambiar: (i: number) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  // Solo se auto-posiciona al montar — después el scroll del usuario
-  // manda, así no le "arrebatamos" el dedo a media gesticulación.
-  useEffect(() => {
-    ref.current?.scrollTo({ top: indice * ALTO_ITEM_RUEDA });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function alTerminarScroll() {
-    const cont = ref.current;
-    if (!cont) return;
-    const idx = Math.max(0, Math.min(opciones.length - 1, Math.round(cont.scrollTop / ALTO_ITEM_RUEDA)));
-    cont.scrollTo({ top: idx * ALTO_ITEM_RUEDA, behavior: 'smooth' });
-    if (idx !== indice) onCambiar(idx);
-  }
-
-  function alScrollear() {
-    clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(alTerminarScroll, 130);
-  }
-
-  function elegir(i: number) {
-    ref.current?.scrollTo({ top: i * ALTO_ITEM_RUEDA, behavior: 'smooth' });
-    onCambiar(i);
-  }
-
-  return (
-    <div ref={ref} onScroll={alScrollear}
-      className="relative h-[108px] flex-1 min-w-0 max-w-14 overflow-y-scroll snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div style={{ height: ALTO_ITEM_RUEDA }} />
-      {opciones.map((op, i) => (
-        <div key={i} onClick={() => elegir(i)}
-          className={`h-9 flex items-center justify-center snap-center cursor-pointer select-none tabular-nums transition-colors ${
-            i === indice ? 'text-jungle-900 font-bold text-base' : 'text-jungle-300 text-sm'
-          }`}>
-          {op}
-        </div>
-      ))}
-      <div style={{ height: ALTO_ITEM_RUEDA }} />
-    </div>
-  );
-}
-
-const HORAS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
-const MINUTOS_60 = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
-const AMPM_OPCIONES = ['a. m.', 'p. m.'];
-
-// Una sola hora (formato interno "HH:MM" 24h, igual que antes) elegida
-// con 3 ruedas: hora 12h, minutos y am/pm.
-function RuedaHora({ valor, onCambiar }: { valor: string; onCambiar: (hhmm: string) => void }) {
-  const { h, m, ampm } = useMemo(() => {
-    const [hStr, mStr] = (valor || '09:00').split(':');
-    const h24 = parseInt(hStr, 10) || 0;
-    const ampmIdx = h24 >= 12 ? 1 : 0;
-    let h12 = h24 % 12; if (h12 === 0) h12 = 12;
-    return { h: h12, m: parseInt(mStr, 10) || 0, ampm: ampmIdx };
-  }, [valor]);
-
-  function cambiar(hNuevo: number, mNuevo: number, ampmNuevo: number) {
-    let h24 = hNuevo % 12;
-    if (ampmNuevo === 1) h24 += 12;
-    onCambiar(`${String(h24).padStart(2, '0')}:${String(mNuevo).padStart(2, '0')}`);
-  }
-
-  return (
-    <div className="relative flex items-center justify-center gap-0.5 bg-jungle-50 rounded-2xl py-1 px-1 min-w-0">
-      {/* Banda que marca la fila seleccionada, igual que un picker de alarma */}
-      <div className="absolute inset-x-1.5 top-1/2 -translate-y-1/2 h-9 bg-white rounded-xl border border-jungle-200 pointer-events-none" />
-      <ColumnaRueda opciones={HORAS_12} indice={h - 1} onCambiar={(i) => cambiar(i + 1, m, ampm)} />
-      <span className="text-jungle-400 font-bold relative">:</span>
-      <ColumnaRueda opciones={MINUTOS_60} indice={m} onCambiar={(i) => cambiar(h, i, ampm)} />
-      <ColumnaRueda opciones={AMPM_OPCIONES} indice={ampm} onCambiar={(i) => cambiar(h, m, i)} />
-    </div>
-  );
-}
-
-function SelectorHorario({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
-  const partes = useMemo(() => valor.split(/[-–]/).map((s) => s.trim()), [valor]);
-  const [desde, setDesde] = useState(() => (partes[0] ? parsearHora12a24(partes[0]) || '09:00' : '09:00'));
-  const [hasta, setHasta] = useState(() => (partes[1] ? parsearHora12a24(partes[1]) || '18:00' : '18:00'));
-
-  useEffect(() => {
-    onCambiar(`${formatear12h(desde)} - ${formatear12h(hasta)}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desde, hasta]);
-
-  return (
-    <div className="flex items-start gap-2">
-      <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-semibold text-jungle-500 mb-1.5 text-center">Desde</p>
-        <RuedaHora valor={desde} onCambiar={setDesde} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-semibold text-jungle-500 mb-1.5 text-center">Hasta</p>
-        <RuedaHora valor={hasta} onCambiar={setHasta} />
-      </div>
-    </div>
-  );
-}
-
-const DIAS_SEMANA_EDICION = [
-  { id: 'lun', label: 'L', nombre: 'Lunes' }, { id: 'mar', label: 'M', nombre: 'Martes' },
-  { id: 'mie', label: 'M', nombre: 'Miércoles' }, { id: 'jue', label: 'J', nombre: 'Jueves' },
-  { id: 'vie', label: 'V', nombre: 'Viernes' }, { id: 'sab', label: 'S', nombre: 'Sábado' },
-  { id: 'dom', label: 'D', nombre: 'Domingo' },
-];
-
-// "Días abierto" es un patrón semanal que se repite siempre (abierto
-// TODOS los lunes, no solo el lunes de tal fecha) — a propósito NO es
-// una cuadrícula de fechas reales (eso obligaría al prestador a venir
-// cada mes a marcar el mes siguiente, para siempre). Lo que se pidió
-// fue la APARIENCIA de un calendario: se abre en su propia ventana,
-// con columnas L-D como encabezado de calendario, pero tocar una
-// columna completa marca/desmarca ese día de la semana para siempre.
-function SelectorDias({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
-  const [seleccionados, setSeleccionados] = useState<string[]>(() => {
-    if (/todos/i.test(valor)) return DIAS_SEMANA_EDICION.map((d) => d.id);
-    return DIAS_SEMANA_EDICION.filter((d) => new RegExp(d.nombre, 'i').test(valor)).map((d) => d.id);
-  });
-  const [abierto, setAbierto] = useState(false);
-
-  useEffect(() => {
-    if (seleccionados.length === 0) return;
-    if (seleccionados.length === 7) { onCambiar('Todos los días'); return; }
-    onCambiar(DIAS_SEMANA_EDICION.filter((d) => seleccionados.includes(d.id)).map((d) => d.nombre).join(', '));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seleccionados]);
-
-  function alternar(id: string) {
-    setSeleccionados((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
-
-  const resumen = seleccionados.length === 7
-    ? 'Todos los días'
-    : seleccionados.length === 0
-    ? 'Selecciona los días'
-    : DIAS_SEMANA_EDICION.filter((d) => seleccionados.includes(d.id)).map((d) => d.label).join(', ');
-
-  return (
-    <>
-      <button type="button" onClick={() => setAbierto(true)}
-        className="w-full flex items-center justify-between bg-jungle-50 hover:bg-jungle-100 rounded-xl px-3 py-2.5 text-sm transition-colors">
-        <span className={seleccionados.length ? 'text-jungle-900 font-medium' : 'text-jungle-400'}>{resumen}</span>
-        <Calendar size={16} className="text-jungle-400 flex-shrink-0" />
-      </button>
-
-      {abierto && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }}
-          className="lg:!items-center lg:!justify-center lg:p-8">
-          <div className="bg-white w-full rounded-t-3xl lg:rounded-3xl max-h-[85vh] overflow-y-auto lg:max-w-sm lg:shadow-2xl">
-            <div className="sticky top-0 bg-white border-b border-jungle-100 px-6 py-4 flex items-center justify-between rounded-t-3xl">
-              <h3 className="font-display font-extrabold text-lg text-jungle-950">Días abierto</h3>
-              <button onClick={() => setAbierto(false)} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={22} /></button>
-            </div>
-            <div className="px-6 py-6">
-              <p className="text-xs text-jungle-500 mb-4">Toca un día para marcarlo como abierto todas las semanas.</p>
-              <div className="grid grid-cols-7 gap-1.5">
-                {DIAS_SEMANA_EDICION.map((d) => {
-                  const activo = seleccionados.includes(d.id);
-                  return (
-                    <button key={d.id} type="button" onClick={() => alternar(d.id)} title={d.nombre}
-                      className="flex items-center justify-center group">
-                      <span className={`w-full aspect-square rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                        activo ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-500 group-hover:bg-jungle-100'
-                      }`}>
-                        {d.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <button type="button"
-                onClick={() => setSeleccionados(seleccionados.length === 7 ? [] : DIAS_SEMANA_EDICION.map((d) => d.id))}
-                className="text-xs font-semibold text-jungle-600 hover:text-jungle-800 mt-5">
-                {seleccionados.length === 7 ? 'Quitar todos' : 'Marcar todos los días'}
-              </button>
-              <button type="button" onClick={() => setAbierto(false)}
-                className="w-full bg-jungle-700 hover:bg-jungle-800 text-white py-3 rounded-xl text-sm font-semibold mt-6">
-                Listo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
 
 const OPCIONES_DURACION_EDICION = ['30 minutos', '1 hora', '1-2 horas', '2-3 horas', '3-4 horas', 'Medio día', 'Día completo', 'Variable'];
 

@@ -2,7 +2,7 @@
 // GET/POST/DELETE /api/servicios/editar?recurso=fotos → gestión de fotos (fusionado
 // aquí para no pasarnos del límite de 12 funciones serverless del plan Hobby de Vercel)
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPool } from '../_lib/db.js';
+import { getPool, asegurarColumnaHorario } from '../_lib/db.js';
 import { v2 as cloudinary } from 'cloudinary';
 
 cloudinary.config({
@@ -39,6 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (sess.rows.length === 0)
       return res.status(401).json({ error: 'Sesión inválida' });
     const usuarioId = sess.rows[0].id;
+    await asegurarColumnaHorario(pool);
 
     // ── ?recurso=fotos — gestión de fotos (antes api/servicios/fotos.ts) ──
     if (req.query.recurso === 'fotos') {
@@ -95,7 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Campos originales
       nombre, categoria, municipio, descripcion, precio, contacto,
       // Campos nuevos (Módulo 1 — consistencia PlaceCard)
-      horario, dias_abierto, duracion, como_llegar, tip, ideal_para,
+      horario, dias_abierto, horario_semanal, duracion, como_llegar, tip, ideal_para,
       // Política de mascotas — texto libre corto, ej. "Sí, aceptamos
       // perros" / "No se permiten mascotas". Sin dato = no se sabe,
       // el chat nunca debe inventarlo.
@@ -194,6 +195,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (typeof dias_abierto === 'string') {
       campos.push(`dias_abierto = $${idx++}`);
       valores.push(dias_abierto.trim() || null);
+    }
+    // Horario por día: 7 días, hasta 4 tramos por día, [inicio, fin] en minutos (0–1440).
+    // Se revalida aquí porque el frontend puede mentir, la base de datos no.
+    if (horario_semanal !== undefined) {
+      const ok =
+        Array.isArray(horario_semanal) && horario_semanal.length === 7 &&
+        horario_semanal.every((d: unknown) =>
+          Array.isArray(d) && d.length <= 4 &&
+          d.every((t: unknown) =>
+            Array.isArray(t) && t.length === 2 &&
+            Number.isFinite(t[0]) && Number.isFinite(t[1]) && t[0] >= 0 && t[1] <= 1440 && t[1] > t[0]));
+      if (!ok) return res.status(400).json({ error: 'Horario inválido' });
+      campos.push(`horario_semanal = $${idx++}`);
+      valores.push(JSON.stringify(horario_semanal));
     }
     if (typeof duracion === 'string') {
       campos.push(`duracion = $${idx++}`);
@@ -297,7 +312,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `SELECT id, nombre, categoria, municipio, descripcion, precio,
               contacto, lat, lng, estado, codigo_seguimiento,
               motivo_rechazo, fotos,
-              horario, dias_abierto, duracion, como_llegar, tip, ideal_para,
+              horario, dias_abierto, horario_semanal, duracion, como_llegar, tip, ideal_para,
               mascotas, enlaces, premium, premium_desde, premium_hasta, cuenta_cobro, mp_conectado, mp_user_id,
               acepta_reservaciones, politica_cancelacion, fechas_bloqueadas, monto_minimo, mostrar_usd_reservacion,
               creado_en, actualizado_en

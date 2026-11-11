@@ -23,6 +23,16 @@
 // Environment Variables.
 import { Pool } from 'pg';
 
+// Horario por día de cada servicio (JSON). Se crea la columna la primera vez que
+// se necesita, con el mismo estilo de auto-provisión del resto del proyecto; la
+// bandera evita repetir el ALTER en cada petición de una misma instancia.
+let columnaHorarioLista = false;
+export async function asegurarColumnaHorario(pool: Pool) {
+  if (columnaHorarioLista) return;
+  await pool.query('ALTER TABLE servicios ADD COLUMN IF NOT EXISTS horario_semanal JSONB');
+  columnaHorarioLista = true;
+}
+
 export function getPool() {
   const connectionString = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL || '';
   // ── DIAGNÓSTICO TEMPORAL — bórrala en cuanto confirmes el resultado

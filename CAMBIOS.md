@@ -451,3 +451,4 @@ Se quitaron "Tomar foto" y "Subir archivo": ahora un solo botón con `<input typ
 
 # Sesión 2026-11-10 (5) — Redes sociales oficiales
 Enlaces actualizados a las cuentas serias: Facebook `facebook.com/share/1KnrBQAX1T/`, Instagram `instagram.com/tuxtlas_go` (sin parámetros de rastreo). Se agregó **TikTok** `tiktok.com/@tuxtlasgo` al pie de la landing (icono propio en SVG; lucide no trae TikTok) con su texto en inglés en `i18n-en.ts`. Cambiado en `FooterDinamico.tsx`, en el JSON-LD (`sameAs`) de `index.html` y el botón de contacto por Instagram de `soporte.ts` (`ig.me/m/tuxtlas_go`).
+- `soporte.ts`: el botón de contacto por Instagram abre el perfil `instagram.com/tuxtlas_go` en vez de `ig.me/m/…` (que no conectaba).

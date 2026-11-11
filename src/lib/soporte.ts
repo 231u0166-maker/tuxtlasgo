@@ -6,7 +6,8 @@
 // al mensaje directo de Instagram de TuxtlasGO, que sí existe.
 export const WHATSAPP_SOPORTE = '';
 
-const INSTAGRAM_MENSAJE = 'https://ig.me/m/tuxtlas_go';
+// Perfil directo (ig.me/m/... falla en varios navegadores y escritorio); desde el perfil se toca "Mensaje".
+const INSTAGRAM_MENSAJE = 'https://www.instagram.com/tuxtlas_go';
 
 /** Número en formato legible ("+52 921 123 4567") o null si no hay uno configurado. */
 export function numeroSoporteLegible(): string | null {

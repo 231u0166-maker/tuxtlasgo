@@ -475,3 +475,6 @@ Se quitaron los colores por sección y las burbujas de color: iconos de línea (
 
 ## Información básica: separación en tarjetas de vidrio
 Para que cada bloque se distinga, el formulario se parte en tres tarjetas (`TarjetaFormulario`, nueva en `PerfilScreen.tsx`): **Tu negocio** (nombre + tipo), **Ubicación** (estado + municipio) y **Descripción** (bloc de notas). Cada una con icono y título propio, fondo translúcido (`bg-white/70 backdrop-blur-xl`), aro y sombra suaves, y entrada escalonada; el cuerpo del modal lleva un degradado verde muy claro para que el vidrio se note. En PC cada columna tiene su propio scroll (la izquierda se desplaza; la descripción llena todo el alto). Probado a 400 y 1366 px.
+
+## Fix: "Expandir" volvió a cubrir toda la pantalla
+Al meter el bloc de notas dentro de `TarjetaFormulario` (desenfoque + animación con transformación), el `position: fixed` del editor expandido quedaba atrapado dentro de la tarjeta (un ancestro con `backdrop-filter`/`transform` pasa a ser su contenedor). `EditorDescripcion.tsx` ahora pinta la versión expandida con un **portal en `<body>`** (`createPortal`). Como el textarea se vuelve a montar al expandir/volver, se guarda y restaura el cursor y el foco. Comprobado a 400 y 1366 px: el editor mide exactamente el viewport, el texto se conserva, "Listo" y Esc vuelven al formulario sin cerrarlo.

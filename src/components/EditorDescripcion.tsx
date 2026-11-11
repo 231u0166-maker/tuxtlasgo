@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Smile, List, AlignJustify, Type, Maximize2, Minimize2 } from 'lucide-react';
 
 // Bloc de notas para la descripción del negocio: papel con renglones, emojis,
@@ -28,12 +29,22 @@ interface Props {
 export default function EditorDescripcion({ value, onChange, max = 1200, placeholder }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const zonaEmojisRef = useRef<HTMLDivElement>(null);
+  const cursorRef = useRef<number | null>(null);
   const [expandido, setExpandido] = useState(false);
   const [verEmojis, setVerEmojis] = useState(false);
   const [lhIdx, setLhIdx] = useState(1);
   const [fs, setFs] = useState(16);
 
   const lh = INTERLINEADOS[lhIdx].valor;
+
+  // Al expandir/volver el textarea se vuelve a montar: se recupera foco y cursor.
+  useEffect(() => {
+    const t = ref.current;
+    if (!t) return;
+    const pos = cursorRef.current ?? t.value.length;
+    requestAnimationFrame(() => { t.focus(); t.setSelectionRange(pos, pos); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandido]);
 
   // El selector se cierra al tocar fuera de él, SIN tragarse ese toque
   // (por eso es un listener y no una capa invisible encima de todo).
@@ -80,19 +91,19 @@ export default function EditorDescripcion({ value, onChange, max = 1200, placeho
 
   const boton = 'h-10 min-w-10 px-2.5 rounded-xl flex items-center justify-center gap-1.5 text-[13px] font-bold text-jungle-800 hover:bg-jungle-100 transition-colors';
 
-  return (
+  const cuerpo = (
     <div
       className={
         expandido
           ? 'fixed inset-0 z-[10001] flex flex-col bg-[#fffdf6] animate-fade-in'
           : 'relative flex flex-col flex-1 min-h-[340px] lg:min-h-0 rounded-2xl border-[1.5px] border-jungle-100 bg-[#fffdf6] overflow-hidden focus-within:border-jungle-600 focus-within:ring-4 focus-within:ring-jungle-600/10 transition-shadow'
       }
-      onKeyDown={(e) => { if (e.key === 'Escape' && expandido) { e.stopPropagation(); setExpandido(false); } }}
+      onKeyDown={(e) => { if (e.key === 'Escape' && expandido) { e.stopPropagation(); cursorRef.current = ref.current?.selectionStart ?? null; setExpandido(false); } }}
     >
       {expandido && (
         <div className="flex items-center gap-3 px-4 py-3 border-b border-jungle-100 bg-white/80 backdrop-blur-xl">
           <span className="font-display font-bold text-jungle-950">Descripción</span>
-          <button type="button" onClick={() => setExpandido(false)}
+          <button type="button" onClick={() => { cursorRef.current = ref.current?.selectionStart ?? null; setExpandido(false); }}
             className="ml-auto h-10 px-4 rounded-xl bg-jungle-700 text-white text-sm font-bold flex items-center gap-1.5">
             <Minimize2 size={16} /> Listo
           </button>
@@ -112,7 +123,7 @@ export default function EditorDescripcion({ value, onChange, max = 1200, placeho
         <button type="button" onClick={() => setFs((f) => Math.max(14, f - 1))} aria-label="Letra más pequeña" className={boton}><Type size={14} />−</button>
         <button type="button" onClick={() => setFs((f) => Math.min(22, f + 1))} aria-label="Letra más grande" className={boton}><Type size={19} />+</button>
         {!expandido && (
-          <button type="button" onClick={() => { setVerEmojis(false); setExpandido(true); }} aria-label="Expandir para escribir en pantalla completa"
+          <button type="button" onClick={() => { cursorRef.current = ref.current?.selectionStart ?? null; setVerEmojis(false); setExpandido(true); }} aria-label="Expandir para escribir en pantalla completa"
             className="ml-auto h-10 pl-3 pr-3.5 rounded-xl bg-jungle-50 text-jungle-800 text-[13px] font-bold flex items-center gap-1.5 hover:bg-jungle-100">
             <Maximize2 size={16} /> Expandir
           </button>
@@ -150,4 +161,8 @@ export default function EditorDescripcion({ value, onChange, max = 1200, placeho
       {expandido && <div style={{ height: 'env(safe-area-inset-bottom)' }} />}
     </div>
   );
+
+  // Expandido se pinta en <body> (portal): dentro de una tarjeta con desenfoque o
+  // transformación, `position: fixed` queda atrapado en la tarjeta y no cubre la pantalla.
+  return expandido ? createPortal(cuerpo, document.body) : cuerpo;
 }

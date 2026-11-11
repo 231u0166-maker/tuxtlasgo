@@ -24,6 +24,16 @@ export default function TarjetaRechazo({ motivo, nombreNegocio, codigo, onReenvi
     `Hola TuxtlasGO, mi solicitud${nombreNegocio ? ` "${nombreNegocio}"` : ''}${codigo ? ` (código ${codigo})` : ''} ` +
     `no fue aprobada${motivo ? `. Motivo: ${motivo}` : ''}. Necesito ayuda para corregirla.`;
   const contacto = enlaceSoporte(mensaje);
+  const [copiado, setCopiado] = useState(false);
+
+  // Instagram no precarga texto: se copia el mensaje para pegarlo en el chat.
+  function alAbrirContacto() {
+    if (contacto.esWhatsApp) return;
+    navigator.clipboard?.writeText(mensaje).then(() => {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 6000);
+    }).catch(() => { /* sin permiso de portapapeles: se abre el chat igual */ });
+  }
 
   return (
     <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-900">
@@ -61,10 +71,15 @@ export default function TarjetaRechazo({ motivo, nombreNegocio, codigo, onReenvi
             Volver a enviar a revisión
           </motion.button>
         )}
-        <a href={contacto.href} target="_blank" rel="noopener noreferrer"
+        <a href={contacto.href} target="_blank" rel="noopener noreferrer" onClick={alAbrirContacto}
           className="w-full flex items-center justify-center gap-2 bg-white border-2 border-red-200 hover:border-red-300 text-red-700 text-sm font-bold py-3 rounded-xl transition-colors">
           <MessageCircle size={16} /> {contacto.etiqueta}
         </a>
+        {copiado && (
+          <p className="text-xs text-center text-jungle-700 font-semibold bg-jungle-50 rounded-lg px-3 py-2">
+            ✓ Mensaje copiado. Pégalo en el chat y envíalo.
+          </p>
+        )}
         {numero && (
           <p className="flex items-center justify-center gap-1.5 text-xs text-red-800/80">
             <Phone size={12} /> Contacto: <a href={`tel:${numero.replace(/\s/g, '')}`} className="font-bold underline">{numero}</a>

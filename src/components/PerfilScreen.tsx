@@ -10,7 +10,7 @@
 // Ruta: tab 'perfil' en AppShell  (+ /perfil como URL directa)
 // ============================================================
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
@@ -33,9 +33,15 @@ import { TIPOS_ENLACE, nuevoEnlaceId, parseEnlaces, type EnlaceServicio, type Ti
 import { useHojaArrastrable } from '../lib/useHojaArrastrable';
 import ChatReservacion from './ChatReservacion';
 import TarjetaRechazo from './TarjetaRechazo';
-import EditorDescripcion from './EditorDescripcion';
-import SelectorRangoPrecio from './SelectorRangoPrecio';
-import EditorHorarioSemanal, { ResumenHorario } from './EditorHorarioSemanal';
+import ResumenHorario from './ResumenHorario';
+
+// Pesados o poco usados: se cargan solo cuando se abre su formulario (code splitting).
+const EditorDescripcion = lazy(() => import('./EditorDescripcion'));
+const SelectorRangoPrecio = lazy(() => import('./SelectorRangoPrecio'));
+const EditorHorarioSemanal = lazy(() => import('./EditorHorarioSemanal'));
+const CargandoCampo = ({ alto = 160 }: { alto?: number }) => (
+  <div className="flex-1 rounded-2xl bg-jungle-50 animate-pulse" style={{ minHeight: alto }} aria-hidden="true" />
+);
 import { semanaDesdeTextos, semanaValida, textosDeSemana, semanaVacia, type Semana } from '../lib/horario';
 import { formatearPrecio, parsearPrecio, type NivelPrecio } from '../lib/precio';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1205,7 +1211,7 @@ function PerfilPrestador({
               sociales, y el nombre viejo lo escondía. */}
           <div className="lg:flex lg:gap-6 lg:px-6 lg:max-w-6xl lg:mx-auto lg:items-start">
             {/* PC: columna lateral con las secciones */}
-            <nav className="hidden lg:flex flex-col gap-0.5 w-64 flex-shrink-0 sticky top-4 bg-white/60 backdrop-blur-xl border border-white/70 shadow-[0_8px_30px_rgba(20,83,45,0.07)] rounded-2xl p-2" aria-label="Secciones del perfil">
+            <nav className="hidden lg:flex flex-col gap-0.5 w-64 flex-shrink-0 sticky top-4 bg-white/85 border border-white/70 shadow-[0_8px_30px_rgba(20,83,45,0.07)] rounded-2xl p-2" aria-label="Secciones del perfil">
               {SECCIONES.map((sec) => {
                 const activa = tab === sec.id;
                 return (
@@ -1216,7 +1222,7 @@ function PerfilPrestador({
                     className={`group relative flex items-center gap-3 rounded-xl px-3.5 py-3 text-left text-[13.5px] font-medium tracking-[-0.005em] transition-colors ${activa ? 'text-jungle-950' : 'text-jungle-700/80 hover:text-jungle-900'}`}
                   >
                     {activa && (
-                      <motion.span layoutId="pill-seccion" className="absolute inset-0 rounded-xl bg-jungle-600/10 backdrop-blur-sm ring-1 ring-jungle-600/15" transition={{ type: 'spring', stiffness: 380, damping: 32 }}>
+                      <motion.span layoutId="pill-seccion" className="absolute inset-0 rounded-xl bg-jungle-600/10 ring-1 ring-jungle-600/15" transition={{ type: 'spring', stiffness: 380, damping: 32 }}>
                         <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-full bg-jungle-600" />
                       </motion.span>
                     )}
@@ -1235,11 +1241,11 @@ function PerfilPrestador({
                   <motion.div
                     key="menu-movil"
                     className="lg:hidden px-4 pb-2"
-                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                    exit={{ opacity: 0, x: -28, filter: 'blur(6px)', transition: { duration: 0.18 } }}
+                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -28, transition: { duration: 0.18 } }}
                     transition={{ duration: 0.3, ease: 'easeOut' }}
                   >
-                    <div className="bg-white/70 backdrop-blur-xl border border-white/80 rounded-2xl shadow-[0_8px_30px_rgba(20,83,45,0.07)] divide-y divide-jungle-100/80 overflow-hidden">
+                    <div className="bg-white/85 border border-white/80 rounded-2xl shadow-[0_8px_30px_rgba(20,83,45,0.07)] divide-y divide-jungle-100/80 overflow-hidden">
                       {SECCIONES.map((sec, k) => (
                         <motion.button
                           key={sec.id}
@@ -1279,9 +1285,9 @@ function PerfilPrestador({
                 <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={`${tab}-${abierta}`}
-                  initial={{ opacity: 0, x: 22, filter: 'blur(6px)' }}
-                  animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-                  exit={{ opacity: 0, x: -14, filter: 'blur(4px)', transition: { duration: 0.14 } }}
+                  initial={{ opacity: 0, x: 22 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -14, transition: { duration: 0.14 } }}
                   transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                 >
           <div className="px-4 lg:px-0">
@@ -1622,7 +1628,9 @@ function PerfilPrestador({
             </div>
 
             <TarjetaFormulario Icono={FileText} titulo="Descripción" ayuda="Qué ofreces, precios, qué te hace especial" orden={2} className="flex flex-col min-h-[440px] lg:min-h-0 lg:h-full lg:m-0">
-              <EditorDescripcion value={form.descripcion} onChange={(v) => setForm({ ...form, descripcion: v })} />
+              <Suspense fallback={<CargandoCampo alto={340} />}>
+                <EditorDescripcion value={form.descripcion} onChange={(v) => setForm({ ...form, descripcion: v })} />
+              </Suspense>
             </TarjetaFormulario>
           </ModalEditarSeccion>
         );
@@ -1673,8 +1681,10 @@ function PerfilPrestador({
 
             <TarjetaFormulario Icono={DollarSign} titulo="Precio" ayuda={`Un aproximado ${form.categoria === 'Hospedaje' ? 'por noche' : 'por persona'}`} orden={0}
               className="order-1 lg:order-2 lg:min-h-0 lg:overflow-y-auto">
-              <SelectorRangoPrecio nivel={pp.nivel} min={pp.min} max={pp.max}
+              <Suspense fallback={<CargandoCampo alto={320} />}>
+                <SelectorRangoPrecio nivel={pp.nivel} min={pp.min} max={pp.max}
                 onChange={(v) => setForm({ ...form, precio: formatearPrecio(v.nivel, v.min, v.max) })} />
+              </Suspense>
             </TarjetaFormulario>
           </ModalEditarSeccion>
         );
@@ -1730,7 +1740,9 @@ function PerfilPrestador({
 
           <TarjetaFormulario Icono={Clock} titulo="Horario" ayuda="Marca cuándo abres, cada día con su hora" orden={0}
             className="order-1 lg:order-2 flex flex-col lg:min-h-0 lg:h-full">
-            <EditorHorarioSemanal value={form.horario_semanal} onChange={(sem) => setForm({ ...form, horario_semanal: sem })} />
+            <Suspense fallback={<CargandoCampo alto={300} />}>
+              <EditorHorarioSemanal value={form.horario_semanal} onChange={(sem) => setForm({ ...form, horario_semanal: sem })} />
+            </Suspense>
           </TarjetaFormulario>
         </ModalEditarSeccion>
       )}
@@ -2453,7 +2465,7 @@ function TarjetaFormulario({
     <motion.section
       initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.07 * orden, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className={`rounded-2xl bg-white/70 backdrop-blur-xl border border-white/90 ring-1 ring-jungle-100/70 shadow-[0_8px_28px_rgba(20,83,45,0.08)] p-4 lg:p-5 min-w-0 ${className}`}
+      className={`rounded-2xl bg-white/85 border border-white/90 ring-1 ring-jungle-100/70 shadow-[0_8px_28px_rgba(20,83,45,0.08)] p-4 lg:p-5 min-w-0 ${className}`}
     >
       <header className="flex items-center gap-3 mb-4">
         <span className="h-9 w-9 rounded-xl bg-jungle-50 ring-1 ring-jungle-100 text-jungle-700 flex items-center justify-center flex-shrink-0">

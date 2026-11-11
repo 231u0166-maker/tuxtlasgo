@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Map, type MapRef } from '@vis.gl/react-maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -15,7 +15,8 @@ import AuthModal from './AuthModal';
 import GestorFotos from './GestorFotos';
 import { ESTILO_MAPA, ESTILO_SATELITE, ZOOM_SATELITE_MAX } from './MapScreen';
 import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio } from '../data/estados';
-import SelectorRangoPrecio from './SelectorRangoPrecio';
+// Se descarga solo al llegar al paso de precio (mismo componente que usa Mi Perfil).
+const SelectorRangoPrecio = lazy(() => import('./SelectorRangoPrecio'));
 import { NIVELES_PRECIO, formatearPrecio, type NivelPrecio } from '../lib/precio';
 
 // ============================================================
@@ -873,12 +874,14 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
               <p className="text-sm text-obsidiana-800/60 mb-6">
                 Un aproximado {categoria === 'Hospedaje' ? 'por noche' : 'por persona'}. No tiene que ser exacto.
               </p>
-              <SelectorRangoPrecio
+              <Suspense fallback={<div className="h-64 rounded-2xl bg-jungle-50 animate-pulse" aria-hidden="true" />}>
+                <SelectorRangoPrecio
                 nivel={nivelPrecio}
                 min={precioMinNum}
                 max={precioMaxNum}
                 onChange={(v) => { setNivelPrecio(v.nivel); setPrecioMin(String(v.min)); setPrecioMax(String(v.max)); }}
               />
+              </Suspense>
             </div>
           )}
 

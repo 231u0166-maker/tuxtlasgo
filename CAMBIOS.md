@@ -493,3 +493,11 @@ Al meter el bloc de notas dentro de `TarjetaFormulario` (desenfoque + animación
 - **Modal "Detalles para el turista"** con el mismo formato (pantalla completa en celular, 2 columnas en PC, tarjetas de vidrio): Horario + Así lo verá el turista + "Más detalles" (duración, cómo llegar, consejo, mascotas, ideal para — **sin rediseñar todavía, siguiente ronda**). Se eliminaron `SelectorHorario`, `SelectorDias` y las ruedas de hora.
 - Probado en navegador (400 y 1366 px): precarga desde texto viejo, apagar un día, arrastrar en el calendario y el PATCH resultante.
 - Pendiente de decisión: cierres después de medianoche (el calendario llega a las 12:00 a. m.).
+
+## Calendario expandible y aligerado de componentes nuevos
+- **Expandir (PC):** el calendario de horario tiene botón "Expandir" → pantalla completa (portal en `<body>`, filas más altas de 30 px, resumen "Así lo verá el turista" al lado; "Listo" o Esc vuelven sin cerrar el formulario). `ResumenHorario` se movió a su propio archivo (sin dependencias).
+- **Menos RAM/CPU/GPU:**
+  - *Carga diferida (code splitting):* `EditorHorarioSemanal` (10.4 kB), `EditorDescripcion` (6.5 kB) y `SelectorRangoPrecio` (2.7 kB) son paquetes aparte que se descargan solo al abrir su formulario (`lazy` + `Suspense` con esqueleto), tanto en Mi Perfil como en el registro.
+  - *Calendario:* las 7 columnas están memorizadas (`memo`) y con handlers estables: durante un arrastre solo se repinta la columna tocada, y solo cuando cambia el paso de 30 min; se quitaron las animaciones de resorte (`motion layout`) del interruptor del celular.
+  - *GPU:* se quitó `backdrop-blur` de las tarjetas grandes, la columna lateral y el menú (quedó solo en 3 barras fijas pequeñas) y los `filter: blur()` de las transiciones; la translucidez se mantiene con fondos `bg-white/85` y desvanecido/deslizamiento (propiedades baratas de animar).
+- Medido con `vite build`: los tres componentes suman ~19.6 kB (~7.7 kB gzip) y ya no van en el paquete principal. Ojo: el paquete principal sigue pesando 3.1 MB (840 kB gzip) y eso ya venía de antes (no es de estos cambios).

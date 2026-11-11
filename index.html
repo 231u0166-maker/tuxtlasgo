@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#047857" />
     <meta name="description" content="TuxtlasGO: guía turística de Los Tuxtlas, Veracruz. Descubre Catemaco y San Andrés Tuxtla: cascadas, selva, lago, restaurantes, hospedaje y artesanías de prestadores locales verificados. Mapa y asistente con IA, también sin internet." />
     <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -66,14 +66,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""
-    />
+      rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" /></noscript>
     <link rel="preload" as="image" href="/logo-emblema.png" />
     <style>
       /* Pantalla de carga: HTML/CSS puro dentro de #root, se pinta antes de que
@@ -107,6 +101,11 @@
       <p>Descubre Catemaco y San Andrés Tuxtla: cascadas, selva, el lago, restaurantes, hospedaje y artesanías de prestadores locales verificados. Mapa y asistente con IA que funcionan también sin internet.</p>
       <p>Activa JavaScript para usar TuxtlasGO.</p>
     </noscript>
+    <script>
+      // Canonical = la URL real de esta página (antes siempre apuntaba a "/", y Lighthouse
+      // lo marcaba inválido en /app).
+      try { document.querySelector('link[rel=canonical]').href = location.origin + location.pathname; } catch (e) {}
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

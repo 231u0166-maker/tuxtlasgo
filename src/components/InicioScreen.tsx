@@ -52,7 +52,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, onAbrirMapa, onI
           <h1 className="font-display font-extrabold text-2xl text-obsidiana-900">
             {t('¿A dónde vamos hoy?')}
           </h1>
-          <p className="text-sm text-obsidiana-800/60 mt-1">
+          <p className="text-sm text-obsidiana-800/80 mt-1">
             {t('Pregúntame lo que quieras, o mira lo que tenemos para ti.')}
           </p>
         </div>
@@ -66,8 +66,8 @@ export default function InicioScreen({ onVerLugar, onPreguntar, onAbrirMapa, onI
           </h2>
           {paraTi.length > 0 ? (
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
-              {paraTi.map((l) => (
-                <PlaceCard key={l.id} lugar={l} onClick={() => onVerLugar(l)} />
+              {paraTi.map((l, idx) => (
+                <PlaceCard key={l.id} lugar={l} prioritaria={idx < 2} onClick={() => onVerLugar(l)} />
               ))}
             </div>
           ) : (

@@ -13,7 +13,7 @@ import type { TipoEnlace } from '../lib/enlaces';
 import { registrarEventoServicio } from '../lib/eventos';
 import { getCatalogoActivo } from '../lib/chatbot';
 import ModalReservacion from './ModalReservacion';
-import MiniMapaChat from './MiniMapaChat';
+import MiniMapaChat from './MiniMapaChatLazy';
 import { TarjetaLugar, BarraPregunta } from './ExploreScreen';
 import ResenasLugar from './ResenasLugar';
 import { useT, useTd } from '../lib/i18n';

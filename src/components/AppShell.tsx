@@ -21,7 +21,7 @@ import {
   type PreferenciasUsuario,
 } from '../lib/chatbot';
 import { type FiltrosViajeValor } from './FiltrosViaje';
-import MapScreen from './MapScreen';
+import MapScreen from './MapScreenLazy';
 import ChatAssistant from './ChatAssistant';
 import { useLLM } from '../hooks/useLLM';
 import FavoritesScreen from './FavoritesScreen';

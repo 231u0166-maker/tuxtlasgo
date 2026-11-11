@@ -11,9 +11,11 @@ interface Props {
   lugar: Lugar;
   onClick?: () => void;
   compact?: boolean;
+  /** Primeras tarjetas visibles: se cargan sin lazy y con prioridad alta (mejora el LCP). */
+  prioritaria?: boolean;
 }
 
-export default function PlaceCard({ lugar, onClick, compact }: Props) {
+export default function PlaceCard({ lugar, onClick, compact, prioritaria }: Props) {
   const t = useT();
   const td = useTd();
   const [fav, setFav] = useState(false);
@@ -50,7 +52,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
           <div className="text-xs text-jungle-700 mt-0.5 truncate">
             {lugar.descripcionCorta}
           </div>
-          <div className="flex items-center gap-2 mt-1 text-xs text-jungle-600">
+          <div className="flex items-center gap-2 mt-1 text-xs text-jungle-700">
             {lugar.rating > 0 && (
               <>
                 <Star size={12} className="fill-amber-400 text-amber-400" />
@@ -80,7 +82,11 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
           src={optimizarImagen(lugar.imagen, ANCHO_TARJETA)}
           alt={lugar.nombre}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          loading="lazy"
+          loading={prioritaria ? 'eager' : 'lazy'}
+          fetchPriority={prioritaria ? 'high' : undefined}
+          decoding="async"
+          width={640}
+          height={480}
         onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
           />
         <button
@@ -106,7 +112,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
           )}
         </div>
         {lugar.destacado && (
-          <div className="absolute bottom-3 left-3 bg-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">
+          <div className="absolute bottom-3 left-3 bg-amber-700 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">
             {t('Destacado')}
           </div>
         )}
@@ -146,7 +152,7 @@ export default function PlaceCard({ lugar, onClick, compact }: Props) {
         <p className="text-sm text-jungle-700 mt-1 line-clamp-2 flex-1">
           {lugar.descripcionCorta}
         </p>
-        <div className="flex items-center justify-between gap-3 mt-3 text-xs text-jungle-600">
+        <div className="flex items-center justify-between gap-3 mt-3 text-xs text-jungle-700">
           <span className="flex items-center gap-1 min-w-0 flex-1">
             <MapPin size={12} className="flex-shrink-0" />
             <span className="truncate">{lugar.municipio}</span>

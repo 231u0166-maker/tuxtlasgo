@@ -1,13 +1,7 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './components/LandingPage';
 import AppShell from './components/AppShell';
-import ProviderPanel from './components/ProviderPanel';
-import AdminPanel from './components/AdminPanel';
-import GaleriaPage from './components/GaleriaPage';
-import TerminosPage from './components/TerminosPage';
-import PrivacidadPage from './components/PrivacidadPage';
-import CopyrightPage from './components/CopyrightPage';
 import { seedDemoSiVacio, limpiarPrestadoresDemoRetirados, listarServiciosAprobadosComoLugares, cachearCatalogoAprobado, listarCatalogoCacheado } from './lib/db';
 import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
 import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
@@ -17,6 +11,15 @@ import DiagnosticoIA from './components/DiagnosticoIA';
 import ActualizacionDisponible from './components/ActualizacionDisponible';
 import AvisoPrivacidad from './components/AvisoPrivacidad';
 import { optimizarImagen, ANCHO_TARJETA, ANCHO_DETALLE, ANCHO_MINIATURA } from './lib/imagenOptimizada';
+
+// Pantallas poco visitadas: se descargan solo cuando se entra a ellas (el bundle
+// inicial bajó; Lighthouse marcaba ~540 KiB de JavaScript sin usar al abrir).
+const ProviderPanel = lazy(() => import('./components/ProviderPanel'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const GaleriaPage = lazy(() => import('./components/GaleriaPage'));
+const TerminosPage = lazy(() => import('./components/TerminosPage'));
+const PrivacidadPage = lazy(() => import('./components/PrivacidadPage'));
+const CopyrightPage = lazy(() => import('./components/CopyrightPage'));
 
 // ============================================================
 // PWA INSTALADA — saltar la landing de marketing
@@ -190,12 +193,12 @@ export default function App() {
     // (la página anterior aún no libera su memoria) y casi nunca al abrirla en
     // una pestaña nueva. Si la navegación es una recarga o un regreso atrás, se
     // espera más antes de pedir la memoria del modelo.
-    let esperaInicial = 3000;
+    let esperaInicial = 25_000;
     try {
       const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
       if (nav && (nav.type === 'reload' || nav.type === 'back_forward')) {
-        esperaInicial = 10_000;
-        anotarCarga('recarga detectada: el modelo arranca en 10 s para dejar que se libere la memoria');
+        esperaInicial = 35_000;
+        anotarCarga('recarga detectada: el modelo arranca en 35 s para dejar que se libere la memoria');
       }
     } catch { /* sin Performance API: se usa la espera normal */ }
     // Los buscadores (Googlebot…) no necesitan el modelo de IA: bajarlo
@@ -211,6 +214,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <DiagnosticoIA />
+      <Suspense fallback={null}>
       <Routes>
         <Route
           path="/"
@@ -226,6 +230,7 @@ export default function App() {
         <Route path="/copyright" element={<CopyrightPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
       <ActualizacionDisponible />
       <AvisoPrivacidad />
     </BrowserRouter>

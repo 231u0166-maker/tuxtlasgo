@@ -58,7 +58,7 @@ import {
   formatearDistancia,
 } from '../lib/routing';
 import { useOffline } from '../hooks/useOffline';
-import MiniMapaChat from './MiniMapaChat';
+import MiniMapaChat from './MiniMapaChatLazy';
 // ============================================================
 // PANTALLA DEL ASISTENTE — interfaz del motor local de IA
 // ============================================================

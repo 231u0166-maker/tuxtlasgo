@@ -28,7 +28,9 @@
 //   npm i @xenova/transformers
 // ============================================================
 
-import { pipeline, env, type FeatureExtractionPipeline } from '@xenova/transformers';
+// Import dinámico (ver crearPipeline): la librería pesa cientos de KiB y solo se
+// necesita cuando el modelo arranca, no al abrir la app.
+import type { FeatureExtractionPipeline } from '@xenova/transformers';
 import { db } from './db';
 import vectoresPrecalculados from '../data/vectoresFichas.json';
 import type { Lugar } from '../data/lugares';
@@ -40,7 +42,6 @@ import type { Lugar } from '../data/lugares';
 // como JSON, y el modelo real nunca se descargaba — dejando apagada la
 // búsqueda semántica y el banco de respuestas. No alojamos el modelo
 // nosotros, así que se desactiva la búsqueda local y se baja de su CDN.
-env.allowLocalModels = false;
 
 // Modelo MULTILINGÜE: multilingual-e5-small (384 dimensiones, ~113 MB
 // cuantizado). Se cambió desde all-MiniLM-L6-v2, entrenado casi solo en
@@ -107,7 +108,10 @@ export async function inicializarEmbeddings(
 
 const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-function crearPipeline(onProgress?: (info: { progreso: number; texto: string }) => void) {
+async function crearPipeline(onProgress?: (info: { progreso: number; texto: string }) => void) {
+  const { pipeline, env } = await import('@xenova/transformers');
+  // Sin esto la librería busca el modelo en nuestro servidor y recibe el index.html del SPA (ver nota arriba).
+  env.allowLocalModels = false;
   return pipeline('feature-extraction', MODELO_EMBEDDINGS, {
     progress_callback: (p: any) => {
       if (p?.status === 'progress') {

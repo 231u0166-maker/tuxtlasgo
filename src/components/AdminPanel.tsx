@@ -418,7 +418,7 @@ export default function AdminPanel() {
             <span className="flex items-center gap-1.5">
               <ShieldCheck size={15} /> Administración de servicios
               {pendientes > 0 && (
-                <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                <span className="bg-amber-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                   {pendientes}
                 </span>
               )}

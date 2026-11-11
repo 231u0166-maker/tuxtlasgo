@@ -545,3 +545,13 @@ Decisiones tomadas con la maqueta (`pruebas/maqueta-reservaciones.html`): agenda
 - **No probado:** detalle de un lugar con atrás, PWA instalada en Android/iOS, escritorio.
 - **Corrección del botón "Salir":** `history.go(-2)` disparaba el propio detector de "atrás", que volvía a poner la entrada y reabría el aviso (pasaba al llegar desde la landing), y sin página anterior (PWA recién abierta) no hacía nada. Ahora `saliendoRef` hace que el detector ignore esa navegación; con página anterior se regresa a ella, y sin ella (`history.length <= 2`) se retrocede a la entrada base para que el siguiente "atrás" del sistema cierre la app (una página no puede cerrarse sola). Si la persona sigue usando la app, al cambiar de pestaña se re-arma la protección. Probado: landing → app → atrás → Salir regresa a la landing; pestaña nueva → Salir sale. **No probado** el caso PWA instalada sin historial previo (la ruta `history.back()`).
 - **"Salir" en el celular/PWA (segunda corrección):** sin página anterior el botón no tenía nada que hacer y parecía roto. Ahora, en ese caso, retrocede a la entrada base y muestra el aviso "Presiona atrás una vez más para salir" (4 s); ese segundo "atrás" lo cierra el sistema. Probado simulando historial corto (aviso, desaparece a los 4 s, segundo atrás sale); **no probado en un teléfono real**.
+
+## 2026-11-11 — Mejora de Lighthouse (rendimiento / accesibilidad / SEO)
+Diagnóstico (4 corridas en /app móvil, Performance 43–57): el modelo de IA (~130 MB de Hugging Face) se descargaba a los 3 s y saturaba la red → LCP de 68–111 s y TBT hasta 3.5 s; además 2 MB de JS inicial, CSS de Leaflet (ya sin uso) y fuentes bloqueando el render.
+- App.tsx: el modelo arranca a los 25 s (35 s en recarga) en vez de 3 s; rutas poco usadas con React.lazy.
+- embeddings.ts: `@xenova/transformers` con import dinámico (sale del bundle inicial).
+- MapScreenLazy / MiniMapaChatLazy: MapLibre fuera del bundle inicial (JS inicial 2,058 → 955 kB).
+- PlaceCard/InicioScreen: las 2 primeras tarjetas con `eager` + `fetchPriority=high` + width/height (LCP).
+- index.html: sin `maximum-scale=1` (zoom permitido), sin leaflet.css, fuentes no bloqueantes, canonical según la ruta.
+- Contraste: badges ámbar→amber-700, `text-jungle-600`→700 en PlaceCard, subtítulo de Inicio más oscuro.
+Pendiente: volver a medir en incógnito (el IndexedDB previo contamina el puntaje); imágenes /lugares/*.jpg pesan ~5.5 MB (convertir a WebP).

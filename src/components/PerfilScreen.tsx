@@ -16,7 +16,7 @@ import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
   Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
-  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users, Eye, CalendarDays, Utensils, Leaf, Mountain, BedDouble, ShoppingBag, Handshake, Star, MapPin, FileText, Mail, type LucideIcon } from 'lucide-react';
+  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users, Eye, CalendarDays, Utensils, Leaf, Mountain, BedDouble, ShoppingBag, Handshake, Star, MapPin, FileText, Mail, Timer, Route, Lightbulb, PawPrint, Heart, PartyPopper, Compass, type LucideIcon } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
@@ -39,6 +39,14 @@ import ResumenHorario from './ResumenHorario';
 const EditorDescripcion = lazy(() => import('./EditorDescripcion'));
 const SelectorRangoPrecio = lazy(() => import('./SelectorRangoPrecio'));
 const EditorHorarioSemanal = lazy(() => import('./EditorHorarioSemanal'));
+// Bloc de notas en versión baja: cómo llegar, consejo, mascotas.
+function NotaCompacta({ titulo, value, onChange, max, placeholder }: { titulo: string; value: string; onChange: (v: string) => void; max: number; placeholder: string }) {
+  return (
+    <Suspense fallback={<CargandoCampo alto={176} />}>
+      <EditorDescripcion compacto titulo={titulo} value={value} onChange={onChange} max={max} placeholder={placeholder} />
+    </Suspense>
+  );
+}
 const CargandoCampo = ({ alto = 160 }: { alto?: number }) => (
   <div className="flex-1 rounded-2xl bg-jungle-50 animate-pulse" style={{ minHeight: alto }} aria-hidden="true" />
 );
@@ -1696,44 +1704,42 @@ function PerfilPrestador({
             <TarjetaFormulario Icono={Eye} titulo="Así lo verá el turista" ayuda="Se arma solo con lo que marcaste" orden={1}>
               <ResumenHorario value={form.horario_semanal} />
             </TarjetaFormulario>
-            <TarjetaFormulario Icono={FileText} titulo="Más detalles" ayuda="Duración, cómo llegar, consejo y más" orden={2}>
-              <div className="space-y-4">
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Duración sugerida de visita</label>
-            <SelectorDuracion valor={form.duracion} onCambiar={(s) => setForm({ ...form, duracion: s })} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Cómo llegar</label>
-            <textarea value={form.como_llegar} onChange={e => setForm({ ...form, como_llegar: e.target.value })}
-              placeholder="ej: A 45 minutos de Catemaco por carretera costera."
-              rows={2} className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400 resize-none" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">💡 Consejo para el visitante</label>
-            <input value={form.tip} onChange={e => setForm({ ...form, tip: e.target.value })}
-              placeholder="ej: Lleva efectivo, no siempre hay señal."
-              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">🐾 ¿Aceptan mascotas?</label>
-            <input value={form.mascotas} onChange={e => setForm({ ...form, mascotas: e.target.value })}
-              placeholder="ej: Sí, aceptamos perros / No se permiten mascotas / Solo en la terraza"
-              className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-            <p className="text-[11px] text-jungle-500 mt-1">Si lo dejas vacío, el asistente dirá honestamente que no tiene ese dato — nunca lo inventa.</p>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-2 block">Ideal para</label>
-            <div className="flex flex-wrap gap-2">
-              {IDEAL_OPCIONES.map(op => (
-                <button key={op.id} type="button" onClick={() => toggleIdeal(op.id)}
-                  className={`text-sm px-3 py-1.5 rounded-xl border font-medium transition-colors ${
-                    form.ideal_para.includes(op.id) ? 'bg-jungle-600 text-white border-jungle-600' : 'bg-white text-jungle-700 border-jungle-200'
-                  }`}>
-                  {op.label}
-                </button>
-              ))}
-            </div>
-          </div>
+            <TarjetaFormulario Icono={Timer} titulo="Duración de la visita" ayuda="Cuánto tiempo suele quedarse la gente" orden={2}>
+              <SelectorDuracion valor={form.duracion} onCambiar={(v) => setForm({ ...form, duracion: v })} />
+            </TarjetaFormulario>
+
+            <TarjetaFormulario Icono={Route} titulo="Cómo llegar" ayuda="Referencias para encontrarte fácil" orden={3}>
+              <NotaCompacta titulo="Cómo llegar" max={600} value={form.como_llegar} onChange={(v) => setForm({ ...form, como_llegar: v })}
+                placeholder="Ej: Frente a la farmacia, rumbo al malecón, sobre la calle Democracia." />
+            </TarjetaFormulario>
+
+            <TarjetaFormulario Icono={Lightbulb} titulo="Consejo para el visitante" ayuda="Algo que les sirva saber antes de ir" orden={4}>
+              <NotaCompacta titulo="Consejo para el visitante" max={400} value={form.tip} onChange={(v) => setForm({ ...form, tip: v })}
+                placeholder="Ej: Lleva efectivo, no siempre hay señal." />
+            </TarjetaFormulario>
+
+            <TarjetaFormulario Icono={PawPrint} titulo="¿Aceptan mascotas?" ayuda="Tu política, con tus palabras" orden={5}>
+              <NotaCompacta titulo="¿Aceptan mascotas?" max={300} value={form.mascotas} onChange={(v) => setForm({ ...form, mascotas: v })}
+                placeholder="Ej: Sí, aceptamos perros / No se permiten mascotas / Solo en la terraza." />
+              <p className="text-xs text-jungle-500 mt-2 leading-snug">Si lo dejas vacío, el asistente dirá honestamente que no tiene ese dato — nunca lo inventa.</p>
+            </TarjetaFormulario>
+
+            <TarjetaFormulario Icono={Users} titulo="Ideal para" ayuda="Elige todos los que apliquen" orden={6}>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { id: 'pareja', texto: 'Parejas', Icono: Heart },
+                  { id: 'familia', texto: 'Familias', Icono: Users },
+                  { id: 'grupos', texto: 'Grupos', Icono: PartyPopper },
+                  { id: 'solo', texto: 'Viajeros solos', Icono: Compass },
+                ] as const).map(({ id, texto, Icono }) => {
+                  const activo = form.ideal_para.includes(id);
+                  return (
+                    <button key={id} type="button" onClick={() => toggleIdeal(id)} aria-pressed={activo}
+                      className={`flex items-center gap-2 min-h-[44px] px-4 rounded-full border-[1.5px] text-sm font-semibold transition-colors ${activo ? 'bg-jungle-700 border-jungle-700 text-white' : 'bg-white/80 border-jungle-100 text-jungle-800 hover:border-jungle-300'}`}>
+                      <Icono size={16} strokeWidth={1.75} /> {texto}
+                    </button>
+                  );
+                })}
               </div>
             </TarjetaFormulario>
           </div>
@@ -2376,17 +2382,17 @@ function SelectorDuracion({ valor, onCambiar }: { valor: string; onCambiar: (s: 
   const esPersonalizado = !!valor && !OPCIONES_DURACION_EDICION.includes(valor);
   return (
     <div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-2">
         {OPCIONES_DURACION_EDICION.map((op) => (
           <button key={op} type="button" onClick={() => onCambiar(op)}
-            className={`px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${valor === op ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-600'}`}>
+            className={`min-h-[44px] px-4 rounded-full border-[1.5px] text-sm font-semibold transition-colors ${valor === op ? 'bg-jungle-700 border-jungle-700 text-white' : 'bg-white/80 border-jungle-100 text-jungle-800 hover:border-jungle-300'}`}>
             {op}
           </button>
         ))}
       </div>
       {esPersonalizado && (
         <input value={valor} onChange={(e) => onCambiar(e.target.value)}
-          className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-jungle-400" />
+          className="w-full rounded-xl border-[1.5px] border-jungle-100 bg-white/90 px-4 py-3 text-[15px] font-medium text-jungle-950 mt-3 focus:outline-none focus:border-jungle-600 focus:ring-4 focus:ring-jungle-600/10" />
       )}
     </div>
   );

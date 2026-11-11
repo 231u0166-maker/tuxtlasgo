@@ -24,9 +24,13 @@ interface Props {
   onChange: (v: string) => void;
   max?: number;
   placeholder?: string;
+  /** Título de la vista expandida (por defecto "Descripción"). */
+  titulo?: string;
+  /** Versión baja para tarjetas con varios campos (cómo llegar, consejo, mascotas…). */
+  compacto?: boolean;
 }
 
-export default function EditorDescripcion({ value, onChange, max = 1200, placeholder }: Props) {
+export default function EditorDescripcion({ value, onChange, max = 1200, placeholder, titulo = 'Descripción', compacto = false }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const zonaEmojisRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<number | null>(null);
@@ -89,20 +93,20 @@ export default function EditorDescripcion({ value, onChange, max = 1200, placeho
     backgroundAttachment: 'local',
   } as React.CSSProperties;
 
-  const boton = 'h-10 min-w-10 px-2.5 rounded-xl flex items-center justify-center gap-1.5 text-[13px] font-bold text-jungle-800 hover:bg-jungle-100 transition-colors';
+  const boton = `h-10 min-w-10 ${compacto ? 'px-2' : 'px-2.5'} rounded-xl flex items-center justify-center gap-1.5 text-[13px] font-bold text-jungle-800 hover:bg-jungle-100 transition-colors`;
 
   const cuerpo = (
     <div
       className={
         expandido
           ? 'fixed inset-0 z-[10001] flex flex-col bg-[#fffdf6] animate-fade-in'
-          : 'relative flex flex-col flex-1 min-h-[340px] lg:min-h-0 rounded-2xl border-[1.5px] border-jungle-100 bg-[#fffdf6] overflow-hidden focus-within:border-jungle-600 focus-within:ring-4 focus-within:ring-jungle-600/10 transition-shadow'
+          : `relative flex flex-col ${compacto ? 'h-[176px]' : 'flex-1 min-h-[340px] lg:min-h-0'} rounded-2xl border-[1.5px] border-jungle-100 bg-[#fffdf6] overflow-hidden focus-within:border-jungle-600 focus-within:ring-4 focus-within:ring-jungle-600/10 transition-shadow`
       }
       onKeyDown={(e) => { if (e.key === 'Escape' && expandido) { e.stopPropagation(); cursorRef.current = ref.current?.selectionStart ?? null; setExpandido(false); } }}
     >
       {expandido && (
         <div className="flex items-center gap-3 px-4 py-3 border-b border-jungle-100 bg-white/80 backdrop-blur-xl">
-          <span className="font-display font-bold text-jungle-950">Descripción</span>
+          <span className="font-display font-bold text-jungle-950">{titulo}</span>
           <button type="button" onClick={() => { cursorRef.current = ref.current?.selectionStart ?? null; setExpandido(false); }}
             className="ml-auto h-10 px-4 rounded-xl bg-jungle-700 text-white text-sm font-bold flex items-center gap-1.5">
             <Minimize2 size={16} /> Listo
@@ -113,12 +117,12 @@ export default function EditorDescripcion({ value, onChange, max = 1200, placeho
       <div ref={zonaEmojisRef} className="relative flex items-center gap-0.5 px-2 py-1.5 border-b border-jungle-100 bg-white/70 backdrop-blur-md flex-wrap">
         <button type="button" onClick={() => setVerEmojis((v) => !v)} aria-label="Emojis" aria-expanded={verEmojis}
           className={`${boton} ${verEmojis ? 'bg-jungle-100' : ''}`}>
-          <Smile size={18} /> <span className="hidden sm:inline">Emojis</span>
+          <Smile size={18} /> <span className={compacto ? 'hidden' : 'hidden sm:inline'}>Emojis</span>
         </button>
         <button type="button" onClick={viñeta} aria-label="Lista con viñetas" className={boton}><List size={18} /></button>
         <span className="w-px h-5 bg-jungle-100 mx-1" />
         <button type="button" onClick={() => setLhIdx((i) => (i + 1) % INTERLINEADOS.length)} aria-label="Espacio entre líneas" className={boton}>
-          <AlignJustify size={18} /> <span className="hidden sm:inline">{INTERLINEADOS[lhIdx].nombre}</span>
+          <AlignJustify size={18} /> <span className={compacto ? 'hidden' : 'hidden sm:inline'}>{INTERLINEADOS[lhIdx].nombre}</span>
         </button>
         <button type="button" onClick={() => setFs((f) => Math.max(14, f - 1))} aria-label="Letra más pequeña" className={boton}><Type size={14} />−</button>
         <button type="button" onClick={() => setFs((f) => Math.min(22, f + 1))} aria-label="Letra más grande" className={boton}><Type size={19} />+</button>

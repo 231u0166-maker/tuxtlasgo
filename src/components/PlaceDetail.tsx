@@ -1,4 +1,5 @@
 import {
+  Mail,
   X, Star, MapPin, Clock, DollarSign, Calendar, Navigation, Heart, Route, Lightbulb, BadgeCheck,
   PawPrint, Instagram, Facebook, MessageCircle, Phone, Globe, CalendarCheck, Share2, ChevronDown, Maximize2, Minimize2,
 } from 'lucide-react';
@@ -264,7 +265,7 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar, o
                 </Dato>
                 <Dato icono={DollarSign} titulo={t('Costo')}>{td(lugar.precioMxn)}</Dato>
                 <Dato icono={Calendar} titulo={t('Duración')}>{td(lugar.duracionSugerida)}</Dato>
-                {lugar.contacto && <Dato icono={Phone} titulo={t('Contacto')}>{lugar.contacto}</Dato>}
+                {lugar.contacto && <Dato icono={Phone} titulo={t('Contacto')}><ContactoEnlace valor={lugar.contacto} /></Dato>}
                 {/* Mascotas: solo si el prestador la declaró; sin dato, no
                     se dice nada (nunca se supone). */}
                 {lugar.mascotas && <Dato icono={PawPrint} titulo={t('Mascotas')}>{lugar.mascotas}</Dato>}
@@ -472,12 +473,24 @@ function claseChica(n: number, i: number): string {
   return '';
 }
 
+// El contacto se puede tocar: en el celular (iOS o Android) abre el marcador con
+// el número ya puesto; si es un correo, abre el correo.
+function ContactoEnlace({ valor }: { valor: string }) {
+  const limpio = valor.trim();
+  const digitos = limpio.replace(/\D/g, '');
+  const clase = 'underline underline-offset-2 decoration-jungle-300 hover:decoration-jungle-600';
+  if (limpio.includes('@')) return <a href={`mailto:${limpio}`} className={clase}>{limpio}</a>;
+  if (digitos.length >= 10) return <a href={`tel:+${digitos.length === 10 ? '52' : ''}${digitos}`} className={clase}>{limpio}</a>;
+  return <>{limpio}</>;
+}
+
 const ETIQUETA_ENLACE: Record<TipoEnlace, string> = {
   instagram: 'Instagram',
   facebook: 'Facebook',
   whatsapp: 'WhatsApp',
   tiktok: 'TikTok',
   sitio: 'Sitio web',
+  correo: 'Correo',
   otro: 'Enlace',
 };
 
@@ -487,6 +500,7 @@ function IconoEnlaceLugar({ tipo }: { tipo: TipoEnlace }) {
     case 'instagram': return <Instagram {...props} />;
     case 'facebook': return <Facebook {...props} />;
     case 'whatsapp': return <MessageCircle {...props} />;
+    case 'correo': return <Mail {...props} />;
     default: return <Globe {...props} />;
   }
 }

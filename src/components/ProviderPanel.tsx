@@ -15,6 +15,8 @@ import AuthModal from './AuthModal';
 import GestorFotos from './GestorFotos';
 import { ESTILO_MAPA, ESTILO_SATELITE, ZOOM_SATELITE_MAX } from './MapScreen';
 import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio } from '../data/estados';
+import SelectorRangoPrecio from './SelectorRangoPrecio';
+import { NIVELES_PRECIO, formatearPrecio, type NivelPrecio } from '../lib/precio';
 
 // ============================================================
 // PANEL DEL PRESTADOR — v3 (ver MEJORAS DISEÑO PANEL PRESTADOR)
@@ -37,27 +39,12 @@ import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio } from '../data/e
 type Vista = 'inicio' | 'registrar';
 
 const TUXTLAS_CENTER: [number, number] = [18.45, -95.18];
-type NivelPrecio = 'limitado' | 'razonable' | 'lujo' | 'muy_lujo';
-const NIVELES_PRECIO: { id: NivelPrecio; simbolo: string; label: string; ejemplo: string; min: number; max: number }[] = [
-  { id: 'limitado', simbolo: '$', label: 'Económico', ejemplo: 'Menos de $150', min: 50, max: 150 },
-  { id: 'razonable', simbolo: '$$', label: 'Moderado', ejemplo: 'De $150 a $400', min: 150, max: 400 },
-  { id: 'lujo', simbolo: '$$$', label: 'Alto', ejemplo: 'De $400 a $900', min: 400, max: 900 },
-  { id: 'muy_lujo', simbolo: '$$$$', label: 'Premium', ejemplo: 'Más de $900', min: 900, max: 2000 },
-];
-const PRECIO_TOPE = 5000;
-const PRECIO_PASO = 50;
 // Animación vertical entre las preguntas de un mismo paso.
 const VARIANTES_SUB = {
   entra: (d: 1 | -1) => ({ y: d > 0 ? 40 : -40, opacity: 0 }),
   centro: { y: 0, opacity: 1 },
   sale: (d: 1 | -1) => ({ y: d > 0 ? -40 : 40, opacity: 0 }),
 };
-// Tasa de referencia MXN → USD, solo para dar una idea aproximada —
-// NO es una tasa en vivo (eso necesitaría una API externa nueva).
-// Verificada al escribir esto (~17.1 MXN/USD); revisar de vez en
-// cuando si se nota muy desfasada.
-const TASA_USD_REFERENCIA = 17.1;
-
 // Mismo criterio que api/servicios/registro.ts — validado en los dos
 // lados por la misma razón de siempre: el cliente da el error al
 // instante, el servidor es el que de verdad protege los datos.
@@ -490,13 +477,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   ]);
 
   function precioFinal(): string {
-    const nivel = NIVELES_PRECIO.find((n) => n.id === nivelPrecio)!;
-    const min = parseFloat(precioMin);
-    const max = parseFloat(precioMax);
-    if (Number.isNaN(min) || Number.isNaN(max) || min < 0 || max <= 0) return 'A consultar';
-    const usdMin = Math.round(min / TASA_USD_REFERENCIA);
-    const usdMax = Math.round(max / TASA_USD_REFERENCIA);
-    return `${nivel.simbolo} $${min.toLocaleString('es-MX')} – $${max.toLocaleString('es-MX')} MXN (aprox. $${usdMin} – $${usdMax} USD)`;
+    return formatearPrecio(nivelPrecio, parseFloat(precioMin), parseFloat(precioMax));
   }
 
   function subirVerificacion(file: File) {
@@ -573,22 +554,6 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   const pMax = parseFloat(precioMax);
   const precioMinNum = Number.isNaN(pMin) ? nivelActual.min : pMin;
   const precioMaxNum = Number.isNaN(pMax) ? nivelActual.max : pMax;
-
-  function elegirNivelPrecio(id: NivelPrecio) {
-    const n = NIVELES_PRECIO.find((x) => x.id === id)!;
-    setNivelPrecio(id);
-    setPrecioMin(String(n.min));
-    setPrecioMax(String(n.max));
-  }
-
-  function cambiarPrecio(cual: 'min' | 'max', v: number) {
-    let nuevoMin = precioMinNum;
-    let nuevoMax = precioMaxNum;
-    if (cual === 'min') { nuevoMin = v; if (nuevoMax < v) nuevoMax = v; }
-    else { nuevoMax = v; if (nuevoMin > v) nuevoMin = v; }
-    setPrecioMin(String(nuevoMin));
-    setPrecioMax(String(nuevoMax));
-  }
 
   // Busca una calle/colonia/negocio cerca del municipio ya elegido y
   // mueve el mapa hasta ahí (Nominatim de OpenStreetMap).
@@ -908,55 +873,12 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
               <p className="text-sm text-obsidiana-800/60 mb-6">
                 Un aproximado {categoria === 'Hospedaje' ? 'por noche' : 'por persona'}. No tiene que ser exacto.
               </p>
-
-              <div className="grid grid-cols-2 gap-3 mb-8">
-                {NIVELES_PRECIO.map((n, i) => {
-                  const activo = nivelPrecio === n.id;
-                  return (
-                    <motion.button
-                      key={n.id} type="button"
-                      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.06 * i, duration: 0.3 }}
-                      whileTap={{ scale: 0.96 }}
-                      onClick={() => elegirNivelPrecio(n.id)}
-                      className={`rounded-3xl border-2 p-4 text-left transition-colors ${activo ? 'border-jungle-600 bg-jungle-600 text-white shadow-lg' : 'border-jungle-100 bg-white text-obsidiana-900 hover:border-jungle-300'}`}
-                    >
-                      <span className="block font-display font-extrabold text-2xl tracking-wider">
-                        {[0, 1, 2, 3].map((k) => (
-                          <span key={k} className={k < n.simbolo.length ? '' : activo ? 'opacity-25' : 'text-jungle-200'}>$</span>
-                        ))}
-                      </span>
-                      <span className="block font-bold text-sm mt-1">{n.label}</span>
-                      <span className={`block text-xs mt-0.5 ${activo ? 'text-white/80' : 'text-obsidiana-600'}`}>{n.ejemplo}</span>
-                    </motion.button>
-                  );
-                })}
-              </div>
-
-              <div className="bg-white border border-jungle-100 rounded-3xl p-5">
-                <div className="text-center mb-5">
-                  <motion.p key={`${precioMinNum}-${precioMaxNum}`} initial={{ scale: 0.96 }} animate={{ scale: 1 }}
-                    className="font-display font-extrabold text-3xl sm:text-4xl text-jungle-700">
-                    ${precioMinNum.toLocaleString('es-MX')} – ${precioMaxNum.toLocaleString('es-MX')}
-                    <span className="text-base font-bold text-jungle-500 ml-1.5">MXN</span>
-                  </motion.p>
-                  <p className="text-xs text-obsidiana-600 mt-1">
-                    ≈ ${Math.round(precioMinNum / TASA_USD_REFERENCIA)} – ${Math.round(precioMaxNum / TASA_USD_REFERENCIA)} USD (referencia, no en vivo)
-                  </p>
-                </div>
-                <label className="block mb-4">
-                  <span className="flex justify-between text-xs font-semibold text-obsidiana-600 mb-1"><span>Desde</span><span>${precioMinNum.toLocaleString('es-MX')}</span></span>
-                  <input type="range" min={0} max={PRECIO_TOPE} step={PRECIO_PASO} value={precioMinNum}
-                    onChange={(e) => cambiarPrecio('min', Number(e.target.value))}
-                    className="w-full h-2 accent-jungle-600" aria-label="Precio desde" />
-                </label>
-                <label className="block">
-                  <span className="flex justify-between text-xs font-semibold text-obsidiana-600 mb-1"><span>Hasta</span><span>${precioMaxNum.toLocaleString('es-MX')}{precioMaxNum >= PRECIO_TOPE ? '+' : ''}</span></span>
-                  <input type="range" min={0} max={PRECIO_TOPE} step={PRECIO_PASO} value={precioMaxNum}
-                    onChange={(e) => cambiarPrecio('max', Number(e.target.value))}
-                    className="w-full h-2 accent-jungle-600" aria-label="Precio hasta" />
-                </label>
-              </div>
+              <SelectorRangoPrecio
+                nivel={nivelPrecio}
+                min={precioMinNum}
+                max={precioMaxNum}
+                onChange={(v) => { setNivelPrecio(v.nivel); setPrecioMin(String(v.min)); setPrecioMax(String(v.max)); }}
+              />
             </div>
           )}
 

@@ -5,7 +5,7 @@
 // solo enlaces que el turista puede abrir desde su ficha.
 // ============================================================
 
-export type TipoEnlace = 'instagram' | 'facebook' | 'whatsapp' | 'tiktok' | 'sitio' | 'otro';
+export type TipoEnlace = 'instagram' | 'facebook' | 'whatsapp' | 'tiktok' | 'sitio' | 'correo' | 'otro';
 
 export interface EnlaceServicio {
   id: string;
@@ -19,6 +19,7 @@ export const TIPOS_ENLACE: { tipo: TipoEnlace; etiqueta: string; placeholder: st
   { tipo: 'whatsapp',  etiqueta: 'WhatsApp Business', placeholder: 'https://wa.me/529211234567' },
   { tipo: 'tiktok',    etiqueta: 'TikTok',            placeholder: 'https://tiktok.com/@tu_negocio' },
   { tipo: 'sitio',     etiqueta: 'Sitio web',         placeholder: 'https://tunegocio.com' },
+  { tipo: 'correo',    etiqueta: 'Correo',            placeholder: 'mailto:contacto@tunegocio.com' },
   { tipo: 'otro',      etiqueta: 'Otro enlace',       placeholder: 'https://…' },
 ];
 

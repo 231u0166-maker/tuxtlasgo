@@ -16,7 +16,7 @@ import {
   ArrowLeft, Camera, Edit3, Save, Clock, Phone,
   Loader2, CheckCircle2, Store, RefreshCw, ImagePlus, X,
   Link2, DollarSign, BarChart3, Plus, Trash2, Instagram, Facebook,
-  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users, Eye, CalendarDays, Utensils, Leaf, Mountain, BedDouble, ShoppingBag, Handshake, Star, MapPin, FileText, type LucideIcon } from 'lucide-react';
+  MessageCircle, Globe, Calendar, ChevronRight, Search, Share2, Users, Eye, CalendarDays, Utensils, Leaf, Mountain, BedDouble, ShoppingBag, Handshake, Star, MapPin, FileText, Mail, type LucideIcon } from 'lucide-react';
 import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '../lib/auth';
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
@@ -34,6 +34,8 @@ import { useHojaArrastrable } from '../lib/useHojaArrastrable';
 import ChatReservacion from './ChatReservacion';
 import TarjetaRechazo from './TarjetaRechazo';
 import EditorDescripcion from './EditorDescripcion';
+import SelectorRangoPrecio from './SelectorRangoPrecio';
+import { formatearPrecio, parsearPrecio, type NivelPrecio } from '../lib/precio';
 import { motion, AnimatePresence } from 'motion/react';
 import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio, separarMunicipio } from '../data/estados';
 
@@ -616,6 +618,10 @@ function PerfilPrestador({
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito]         = useState(false);
   const [enlaces, setEnlaces]     = useState<EnlaceServicio[]>([]);
+  // Contacto estructurado de "Precio y contacto": teléfono (marca desde el celular),
+  // si ese número también tiene WhatsApp, y correo. WhatsApp y correo se guardan como
+  // enlaces con id fijo (wa-contacto / correo-contacto) para no tocar la base de datos.
+  const [contactoForm, setContactoForm] = useState({ telefono: '', whatsapp: false, correo: '' });
   const [guardandoEnlaces, setGuardandoEnlaces] = useState(false);
   const [nuevoTipoEnlace, setNuevoTipoEnlace] = useState<TipoEnlace>('instagram');
   const [nuevaUrlEnlace, setNuevaUrlEnlace] = useState('');
@@ -741,7 +747,9 @@ function PerfilPrestador({
     setReenviando(false);
   }
 
-  async function guardar() {
+  function guardar() { return guardarCon(); }
+
+  async function guardarCon(extra: Record<string, unknown> = {}) {
     const { estado: estadoForm, municipio: muniForm } = separarMunicipio(form.municipio);
     if (form.municipio && muniForm.trim().length < 2) {
       alert('Escribe el municipio o ciudad donde está tu negocio.');
@@ -759,6 +767,7 @@ function PerfilPrestador({
         body: JSON.stringify({
           ...form,
           municipio: form.municipio ? componerMunicipio(estadoForm, muniForm.trim()) : form.municipio,
+          ...extra,
         }),
       });
       const data = await res.json();
@@ -768,6 +777,7 @@ function PerfilPrestador({
           estado: (data.servicio.estado ?? servicio?.estado ?? '').trim().toLowerCase(),
         };
         setServicio(srv);
+        if (Array.isArray(extra.enlaces)) setEnlaces(extra.enlaces as EnlaceServicio[]);
         setModalEditar(null);
         setExito(true);
         setTimeout(() => setExito(false), 3000);
@@ -787,8 +797,33 @@ function PerfilPrestador({
   // una sección filtrándose al guardar otra (el PATCH manda el form
   // completo, aunque solo se haya tocado una sección).
   function abrirModal(seccion: 'basica' | 'precio' | 'detalles') {
-    if (servicio) setForm(formDesdeServicio(servicio));
+    if (servicio) {
+      setForm(formDesdeServicio(servicio));
+      const actual = servicio.contacto ?? '';
+      const eraCorreo = actual.includes('@');
+      const correoGuardado = enlaces.find((e) => e.id === 'correo-contacto')?.url.replace(/^mailto:/i, '') ?? '';
+      setContactoForm({
+        telefono: eraCorreo ? '' : actual,
+        whatsapp: enlaces.some((e) => e.id === 'wa-contacto'),
+        correo: correoGuardado || (eraCorreo ? actual : ''),
+      });
+    }
     setModalEditar(seccion);
+  }
+
+  function guardarPrecioContacto() {
+    const tel = contactoForm.telefono.trim();
+    const correo = contactoForm.correo.trim();
+    const digitos = tel.replace(/\D/g, '');
+    if (!tel && !correo) { alert('Deja un teléfono o un correo para que te contacten.'); return; }
+    if (tel && !/^\+?[\d\s-]{10,15}$/.test(tel)) { alert('El teléfono debe tener 10 dígitos.'); return; }
+    if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) { alert('Revisa el correo electrónico.'); return; }
+    if (contactoForm.whatsapp && !tel) { alert('Para ligar WhatsApp escribe tu teléfono.'); return; }
+    const wa = digitos.length === 10 ? '52' + digitos : digitos;
+    const nuevos: EnlaceServicio[] = enlaces.filter((e) => e.id !== 'wa-contacto' && e.id !== 'correo-contacto');
+    if (contactoForm.whatsapp) nuevos.push({ id: 'wa-contacto', tipo: 'whatsapp', url: `https://wa.me/${wa}` });
+    if (correo) nuevos.push({ id: 'correo-contacto', tipo: 'correo', url: `mailto:${correo}` });
+    return guardarCon({ contacto: tel || correo, enlaces: nuevos });
   }
 
   function toggleIdeal(id: string) {
@@ -1580,18 +1615,57 @@ function PerfilPrestador({
         );
       })()}
 
-      {modalEditar === 'precio' && (
-        <ModalEditarSeccion titulo="Precio y contacto" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">Precio aproximado</label>
-            <SelectorPrecio valor={form.precio} onCambiar={(s) => setForm({ ...form, precio: s })} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-jungle-700 mb-1 block">WhatsApp / correo</label>
-            <SelectorContacto valor={form.contacto} onCambiar={(s) => setForm({ ...form, contacto: s })} />
-          </div>
-        </ModalEditarSeccion>
-      )}
+      {modalEditar === 'precio' && (() => {
+        const pp = parsearPrecio(form.precio) ?? { nivel: 'razonable' as NivelPrecio, min: 150, max: 400 };
+        const etiqueta = 'text-[13px] font-semibold text-jungle-700 mb-2 block';
+        const campo = 'w-full rounded-xl border-[1.5px] border-jungle-100 bg-white/90 px-4 py-3.5 text-[17px] font-medium text-jungle-950 focus:outline-none focus:border-jungle-600 focus:ring-4 focus:ring-jungle-600/10 transition-shadow placeholder:text-jungle-300';
+        return (
+          <ModalEditarSeccion formulario titulo="Precio y contacto" subtitulo="Para que decidan y te encuentren" onClose={() => setModalEditar(null)} onGuardar={guardarPrecioContacto} guardando={guardando}>
+            <TarjetaFormulario Icono={Phone} titulo="Contacto" ayuda="Cómo te llaman o te escriben" orden={1}
+              className="order-2 lg:order-1 lg:self-start">
+              <div className="space-y-5">
+                <div>
+                  <label className={etiqueta}>Teléfono</label>
+                  <input type="tel" inputMode="tel" autoComplete="tel" value={contactoForm.telefono} maxLength={20}
+                    onChange={(e) => setContactoForm({ ...contactoForm, telefono: e.target.value })}
+                    placeholder="294 125 0703" className={campo} />
+                  <p className="text-xs text-jungle-500 mt-1.5">En el celular, quien te vea podrá tocarlo para llamarte.</p>
+                </div>
+
+                <button type="button" role="switch" aria-checked={contactoForm.whatsapp}
+                  onClick={() => setContactoForm({ ...contactoForm, whatsapp: !contactoForm.whatsapp })}
+                  className={`w-full flex items-center gap-3 rounded-xl border-[1.5px] px-4 py-3.5 text-left transition-colors ${contactoForm.whatsapp ? 'border-jungle-600 bg-jungle-50' : 'border-jungle-100 bg-white/80'}`}>
+                  <MessageCircle size={20} strokeWidth={1.75} className={contactoForm.whatsapp ? 'text-jungle-700' : 'text-jungle-500'} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-semibold text-jungle-950">Este número también tiene WhatsApp</span>
+                    <span className="block text-xs text-jungle-500 mt-0.5">Podrán escribirte o llamarte por WhatsApp</span>
+                  </span>
+                  <span className={`relative h-6 w-11 rounded-full flex-shrink-0 transition-colors ${contactoForm.whatsapp ? 'bg-jungle-600' : 'bg-jungle-200'}`}>
+                    <motion.span layout transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow ${contactoForm.whatsapp ? 'right-0.5' : 'left-0.5'}`} />
+                  </span>
+                </button>
+
+                <div>
+                  <label className={etiqueta}>Correo <span className="font-normal text-jungle-400">(opcional)</span></label>
+                  <div className="relative">
+                    <Mail size={18} strokeWidth={1.75} className="absolute left-4 top-1/2 -translate-y-1/2 text-jungle-400 pointer-events-none" />
+                    <input type="email" inputMode="email" autoComplete="email" value={contactoForm.correo} maxLength={80}
+                      onChange={(e) => setContactoForm({ ...contactoForm, correo: e.target.value })}
+                      placeholder="contacto@tunegocio.com" className={campo + ' !pl-11'} />
+                  </div>
+                </div>
+              </div>
+            </TarjetaFormulario>
+
+            <TarjetaFormulario Icono={DollarSign} titulo="Precio" ayuda={`Un aproximado ${form.categoria === 'Hospedaje' ? 'por noche' : 'por persona'}`} orden={0}
+              className="order-1 lg:order-2 lg:min-h-0 lg:overflow-y-auto">
+              <SelectorRangoPrecio nivel={pp.nivel} min={pp.min} max={pp.max}
+                onChange={(v) => setForm({ ...form, precio: formatearPrecio(v.nivel, v.min, v.max) })} />
+            </TarjetaFormulario>
+          </ModalEditarSeccion>
+        );
+      })()}
 
       {modalEditar === 'detalles' && (
         <ModalEditarSeccion titulo="Detalles para el turista" onClose={() => setModalEditar(null)} onGuardar={guardar} guardando={guardando}>
@@ -2251,6 +2325,7 @@ function IconoEnlace({ tipo }: { tipo: TipoEnlace }) {
     case 'instagram': return <Instagram {...props} />;
     case 'facebook':  return <Facebook {...props} />;
     case 'whatsapp':  return <MessageCircle {...props} />;
+    case 'correo':    return <Mail {...props} />;
     case 'tiktok':    return <Globe {...props} />;
     case 'sitio':     return <Globe {...props} />;
     default:          return <Link2 {...props} />;
@@ -2262,86 +2337,6 @@ function IconoEnlace({ tipo }: { tipo: TipoEnlace }) {
 // poder leerlos bien, así que ahora son selectores/pickers que arman
 // el mismo tipo de texto que ya se usaba, no cambia nada del backend.
 
-const TASA_USD_REFERENCIA_EDICION = 17.1; // misma tasa que ProviderPanel.tsx
-const NIVELES_PRECIO_EDICION = ['$', '$$', '$$$', '$$$$'];
-
-function SelectorPrecio({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
-  const parseado = useMemo(() => {
-    const m = valor.match(/^(\${1,4})\s*\$([\d,]+)\s*[–-]\s*\$([\d,]+)\s*MXN/);
-    return m ? { nivel: m[1], min: m[2].replace(/,/g, ''), max: m[3].replace(/,/g, '') } : null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const [nivel, setNivel] = useState(parseado?.nivel ?? '$$');
-  const [min, setMin] = useState(parseado?.min ?? '');
-  const [max, setMax] = useState(parseado?.max ?? '');
-
-  useEffect(() => {
-    const minNum = parseFloat(min), maxNum = parseFloat(max);
-    if (!min || !max || Number.isNaN(minNum) || Number.isNaN(maxNum)) return;
-    const usdMin = Math.round(minNum / TASA_USD_REFERENCIA_EDICION);
-    const usdMax = Math.round(maxNum / TASA_USD_REFERENCIA_EDICION);
-    onCambiar(`${nivel} $${minNum.toLocaleString('es-MX')} – $${maxNum.toLocaleString('es-MX')} MXN (aprox. $${usdMin} – $${usdMax} USD)`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nivel, min, max]);
-
-  return (
-    <div>
-      <div className="flex gap-1.5 mb-2">
-        {NIVELES_PRECIO_EDICION.map((n) => (
-          <button key={n} type="button" onClick={() => setNivel(n)}
-            className={`flex-1 py-1.5 rounded-lg text-sm font-bold border-2 transition-colors ${nivel === n ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-jungle-700'}`}>
-            {n}
-          </button>
-        ))}
-      </div>
-      <div className="flex items-center gap-2">
-        <input type="number" min={0} inputMode="numeric" value={min} onChange={(e) => setMin(e.target.value)} placeholder="Desde"
-          className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-        <span className="text-jungle-400 flex-shrink-0">–</span>
-        <input type="number" min={0} inputMode="numeric" value={max} onChange={(e) => setMax(e.target.value)} placeholder="Hasta"
-          className="w-full bg-jungle-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-      </div>
-    </div>
-  );
-}
-
-function SelectorContacto({ valor, onCambiar }: { valor: string; onCambiar: (s: string) => void }) {
-  const [modo, setModo] = useState<'whatsapp' | 'correo'>(valor.includes('@') ? 'correo' : 'whatsapp');
-
-  return (
-    <div>
-      <div className="flex gap-1.5 mb-1.5">
-        <button type="button" onClick={() => setModo('whatsapp')}
-          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${modo === 'whatsapp' ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-600'}`}>
-          WhatsApp
-        </button>
-        <button type="button" onClick={() => setModo('correo')}
-          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${modo === 'correo' ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-600'}`}>
-          Correo
-        </button>
-      </div>
-      {modo === 'whatsapp' ? (
-        <input
-          value={valor}
-          inputMode="numeric"
-          type="tel"
-          onChange={(e) => onCambiar(e.target.value.replace(/[^\d+\s-]/g, ''))}
-          placeholder="9521234567"
-          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-        />
-      ) : (
-        <input
-          value={valor}
-          type="email"
-          onChange={(e) => onCambiar(e.target.value)}
-          placeholder="negocio@correo.com"
-          className="w-full bg-jungle-50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-        />
-      )}
-    </div>
-  );
-}
 
 function parsearHora12a24(str: string): string {
   const m = str.trim().match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);

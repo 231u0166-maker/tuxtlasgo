@@ -415,3 +415,10 @@ Todas las tablas nuevas (`notificaciones`, `eventos_servicio`) se autoprovisiona
 # Sesión 2026-11-10 — Pantalla de carga con el logo
 
 Con internet lento o inestable, la app mostraba pantalla en blanco hasta que llegaba el JS. Ahora `index.html` trae una pantalla de carga (logo `logo-emblema.png` pulsando + "TuxtlasGO" + barrita) escrita en HTML/CSS puro dentro de `#root`: se pinta antes de que baje el JS y React la reemplaza solo al montar. El logo se precarga (`<link rel="preload">`) y la animación respeta `prefers-reduced-motion`. Probado en navegador retrasando `main.tsx` 6 s: se ve el logo y desaparece al montar la app.
+
+# Sesión 2026-11-10 — Formulario de registro de negocio (paso 1) dinámico
+
+`ProviderPanel.tsx`, paso "Información básica": ahora se arma por etapas para verse corto. Primero solo el nombre; con ≥3 letras aparece "¿Qué tipo de negocio es?" como tarjetas con foto (comida, naturaleza, aventura, hospedaje, comercio, cooperativa, otro; fotos ya existentes en `public/`); al elegir tipo aparece "¿Dónde está?" con dos desplegables (Estado y Municipio). Municipio = los 3 de Los Tuxtlas + "Otro municipio…" (muestra campo de texto); si el estado no es Veracruz, solo campo de texto. El tipo ya no viene preseleccionado: hay que tocarlo (`tipoElegido`), y "Siguiente" lo exige. Con un borrador guardado se muestra todo ya elegido. Probado en navegador con la API de prueba (`vite.mock.config.mjs`) a 420 px.
+
+## Ajuste posterior: una pregunta por pantalla
+El paso 1 ahora muestra UNA pregunta a la vez (nombre → tipo → dónde: estado + municipio), cada una grande y sola, y la siguiente entra deslizándose desde abajo (la anterior sale hacia arriba; con "Atrás" va al revés). Elegir un tipo avanza solo; Enter en los campos de texto también avanza. El botón "Atrás" abajo regresa de pregunta antes de salir del paso. Un borrador guardado abre directo en "¿Dónde?". `empezarDeNuevo` ahora también reinicia la pregunta y el tipo elegido. Estado en `sub`/`subDir`, funciones `irSub`/`elegirTipo` en `ProviderPanel.tsx`.

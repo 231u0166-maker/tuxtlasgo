@@ -328,6 +328,12 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   const [nombreNegocio, setNombreNegocio] = useState(() => borradorInicial?.nombreNegocio ?? '');
   const [categoria, setCategoria] = useState(() => borradorInicial?.categoria ?? 'Gastronomia');
   const [municipio, setMunicipio] = useState(() => borradorInicial?.municipio ?? 'Catemaco');
+  // El tipo se muestra sin elegir hasta que la persona toque uno (la categoría
+  // por defecto no cuenta); con borrador ya cargado se da por elegido.
+  const [tipoElegido, setTipoElegido] = useState(() => !!borradorInicial && !!borradorInicial.nombreNegocio.trim());
+  // Pregunta actual dentro del paso 'info' (0 nombre, 1 tipo, 2 dónde).
+  const [sub, setSub] = useState<0 | 1 | 2>(() => (borradorInicial?.nombreNegocio.trim() ? 2 : 0));
+  const [subDir, setSubDir] = useState<1 | -1>(1);
   const [estado, setEstado] = useState(() => borradorInicial?.estado ?? 'Veracruz');
   // Lo que se guarda y se envía: los municipios de Los Tuxtlas tal cual
   // (como siempre), y cualquier otro lugar como "Municipio, Estado".
@@ -378,7 +384,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   function empezarDeNuevo() {
     if (usuarioId) borrarBorrador(usuarioId);
     setMostrarAvisoBorrador(false);
-    setPaso('info'); setDireccion(1);
+    setPaso('info'); setDireccion(1); setSub(0); setTipoElegido(false);
     setNombreNegocio(''); setCategoria('Gastronomia'); setMunicipio('Catemaco'); setEstado('Veracruz');
     setDescripcion(''); setNivelPrecio('razonable'); setPrecioMin(''); setPrecioMax('');
     setContacto(''); setUbicacion(null); setUbicacionGuardada(false); setTerminos(false);
@@ -514,9 +520,30 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
     }
   }
 
+  function irSub(n: 0 | 1 | 2, dir: 1 | -1) {
+    setError('');
+    setSubDir(dir);
+    setSub(n);
+  }
+
+  // Tocar un tipo lo elige y pasa solo a la siguiente pregunta.
+  function elegirTipo(id: string) {
+    setCategoria(id);
+    setTipoElegido(true);
+    setError('');
+    setTimeout(() => irSub(2, 1), 280);
+  }
+
   function siguiente() {
-    if (paso === 'info' && (!nombreNegocio.trim() || nombreNegocio.trim().length < 3 || !NOMBRE_NEGOCIO_VALIDO.test(nombreNegocio.trim()))) {
-      return setError('Escribe el nombre real de tu negocio (no solo números o símbolos).');
+    if (paso === 'info' && sub === 0) {
+      if (nombreNegocio.trim().length < 3 || !NOMBRE_NEGOCIO_VALIDO.test(nombreNegocio.trim())) {
+        return setError('Escribe el nombre real de tu negocio (no solo números o símbolos).');
+      }
+      return irSub(1, 1);
+    }
+    if (paso === 'info' && sub === 1) {
+      if (!tipoElegido) return setError('Elige qué tipo de negocio es.');
+      return irSub(2, 1);
     }
     if (paso === 'info' && municipio.trim().length < 2) {
       return setError('Escribe el municipio o ciudad donde está tu negocio.');
@@ -539,13 +566,13 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   };
 
   const CATEGORIAS_OPCIONES = [
-    { id: 'Gastronomia', emoji: '🍤' },
-    { id: 'Naturaleza', emoji: '🌿' },
-    { id: 'Aventura', emoji: '🥾' },
-    { id: 'Hospedaje', emoji: '🛏️' },
-    { id: 'Comercio', emoji: '🛍️' },
-    { id: 'Cooperativa', emoji: '🤝' },
-    { id: 'Otro', emoji: '⭐' },
+    { id: 'Gastronomia', emoji: '🍤', foto: '/lugares/hechizo-amor_1.jpg' },
+    { id: 'Naturaleza', emoji: '🌿', foto: '/lugares/eyipantla_1.jpg' },
+    { id: 'Aventura', emoji: '🥾', foto: '/lugares/cerro-venado_1.jpg' },
+    { id: 'Hospedaje', emoji: '🛏️', foto: '/lugares/sirena-olmeca_1.jpg' },
+    { id: 'Comercio', emoji: '🛍️', foto: '/imgPrestadores/Prestador_img.jpg', pos: 'left center' },
+    { id: 'Cooperativa', emoji: '🤝', foto: '/img/slide_17.jpg', pos: 'center 80%' },
+    { id: 'Otro', emoji: '⭐', foto: '/img/slide_15.jpg', pos: 'center 85%' },
   ];
   const esOtroMunicipio = estado !== 'Veracruz' || !MUNICIPIOS_TUXTLAS.includes(municipio);
 
@@ -611,71 +638,111 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
           className="min-h-[62vh] sm:min-h-[68vh] flex flex-col justify-center px-4 sm:px-6 py-8"
         >
           {paso === 'info' && (
-            <div className="space-y-10 max-w-xl">
-              <div>
-                <h2 className="font-display font-bold text-2xl sm:text-3xl text-obsidiana-900 mb-5">
-                  ¿Cómo se llama tu negocio?
-                </h2>
-                <input
-                  type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)}
-                  placeholder="Ej: Hotel Lago Encantado" autoFocus
-                  className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-2xl sm:text-3xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <h3 className="font-display font-bold text-xl text-obsidiana-900 mb-4">¿Qué tipo de negocio es?</h3>
-                <div className="flex flex-wrap gap-2.5">
-                  {CATEGORIAS_OPCIONES.map((c) => (
-                    <motion.button key={c.id} whileTap={{ scale: 0.94 }} type="button" onClick={() => setCategoria(c.id)}
-                      className={`px-4 py-3 rounded-2xl border-2 font-semibold text-sm flex items-center gap-2 transition-colors ${categoria === c.id ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-obsidiana-800'}`}>
-                      <span>{c.emoji}</span> {c.id}
-                    </motion.button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-display font-bold text-xl text-obsidiana-900 mb-4">¿En qué estado está?</h3>
-                <select
-                  value={estado}
-                  onChange={(e) => {
-                    const nuevo = e.target.value;
-                    setEstado(nuevo);
-                    setMunicipio(nuevo === 'Veracruz' ? 'Catemaco' : '');
+            <div className="max-w-xl w-full">
+              {/* Una pregunta a la vez, grande y sola en pantalla: la
+                  siguiente entra deslizándose desde abajo. */}
+              <AnimatePresence mode="wait" initial={false} custom={subDir}>
+                <motion.div
+                  key={sub}
+                  custom={subDir}
+                  variants={{
+                    entra: (d: 1 | -1) => ({ y: d > 0 ? 40 : -40, opacity: 0 }),
+                    centro: { y: 0, opacity: 1 },
+                    sale: (d: 1 | -1) => ({ y: d > 0 ? -40 : 40, opacity: 0 }),
                   }}
-                  className="w-full sm:w-auto bg-white border-2 border-jungle-100 focus:border-jungle-600 rounded-2xl px-5 py-3 font-semibold text-sm text-obsidiana-800 focus:outline-none transition-colors"
+                  initial="entra" animate="centro" exit="sale"
+                  transition={{ duration: 0.28, ease: 'easeOut' }}
                 >
-                  {ESTADOS_MEXICO.map((e) => (
-                    <option key={e} value={e}>{e}</option>
-                  ))}
-                </select>
-              </div>
+                  {sub === 0 && (
+                    <>
+                      <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-obsidiana-900 leading-tight mb-6">
+                        ¿Cómo se llama tu negocio?
+                      </h2>
+                      <input
+                        type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') siguiente(); }}
+                        placeholder="Ej: Hotel Lago Encantado" autoFocus maxLength={80}
+                        className="w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-2xl sm:text-3xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors"
+                      />
+                    </>
+                  )}
 
-              <div>
-                <h3 className="font-display font-bold text-xl text-obsidiana-900 mb-4">¿En qué municipio está?</h3>
-                {estado === 'Veracruz' && (
-                  <div className="flex flex-wrap gap-2.5">
-                    {MUNICIPIOS_TUXTLAS.map((m) => (
-                      <motion.button key={m} whileTap={{ scale: 0.94 }} type="button" onClick={() => setMunicipio(m)}
-                        className={`px-5 py-3 rounded-2xl border-2 font-semibold text-sm transition-colors ${municipio === m ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-obsidiana-800'}`}>
-                        {m}
-                      </motion.button>
-                    ))}
-                    <motion.button whileTap={{ scale: 0.94 }} type="button" onClick={() => setMunicipio('')}
-                      className={`px-5 py-3 rounded-2xl border-2 font-semibold text-sm transition-colors ${esOtroMunicipio ? 'border-jungle-600 bg-jungle-600 text-white' : 'border-jungle-100 bg-white text-obsidiana-800'}`}>
-                      Otro municipio
-                    </motion.button>
-                  </div>
-                )}
-                {esOtroMunicipio && (
-                  <input
-                    type="text" value={municipio} onChange={(e) => setMunicipio(e.target.value)}
-                    placeholder={estado === 'Veracruz' ? 'Ej: Xalapa' : 'Ej: Villahermosa'} maxLength={60}
-                    className={`w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors ${estado === 'Veracruz' ? 'mt-4' : ''}`}
-                  />
-                )}
-              </div>
+                  {sub === 1 && (
+                    <>
+                      <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-obsidiana-900 leading-tight mb-6">
+                        ¿Qué tipo de negocio es?
+                      </h2>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                        {CATEGORIAS_OPCIONES.map((c) => {
+                          const activa = tipoElegido && categoria === c.id;
+                          return (
+                            <motion.button key={c.id} whileTap={{ scale: 0.95 }} type="button"
+                              onClick={() => elegirTipo(c.id)}
+                              aria-pressed={activa}
+                              className={`relative ${c.id === 'Otro' ? 'col-span-3 aspect-[3/1] sm:col-span-1 sm:aspect-[4/3]' : 'aspect-[4/3]'} overflow-hidden rounded-2xl border-2 text-left transition-all ${activa ? 'border-jungle-600 ring-2 ring-jungle-600/40' : 'border-transparent'}`}>
+                              <img src={c.foto} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: c.pos ?? 'center' }} />
+                              <span className={`absolute inset-0 ${activa ? 'bg-jungle-900/55' : 'bg-gradient-to-t from-black/70 via-black/10 to-transparent'}`} />
+                              <span className="absolute inset-x-0 bottom-0 p-2 text-white text-xs sm:text-sm font-bold leading-tight flex items-center gap-1">
+                                <span>{c.emoji}</span> {c.id}
+                              </span>
+                              {activa && <span className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-jungle-600 text-white text-xs flex items-center justify-center">✓</span>}
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {sub === 2 && (
+                    <>
+                      <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-obsidiana-900 leading-tight mb-6">
+                        ¿Dónde está tu negocio?
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label className="block">
+                          <span className="block text-xs font-semibold text-obsidiana-600 mb-1">Estado</span>
+                          <select
+                            value={estado}
+                            onChange={(e) => {
+                              const nuevo = e.target.value;
+                              setEstado(nuevo);
+                              setMunicipio(nuevo === 'Veracruz' ? 'Catemaco' : '');
+                            }}
+                            className="w-full bg-white border-2 border-jungle-100 focus:border-jungle-600 rounded-2xl px-4 py-3.5 font-semibold text-base text-obsidiana-800 focus:outline-none transition-colors"
+                          >
+                            {ESTADOS_MEXICO.map((e) => (
+                              <option key={e} value={e}>{e}</option>
+                            ))}
+                          </select>
+                        </label>
+                        {estado === 'Veracruz' && (
+                          <label className="block">
+                            <span className="block text-xs font-semibold text-obsidiana-600 mb-1">Municipio</span>
+                            <select
+                              value={esOtroMunicipio ? '__otro' : municipio}
+                              onChange={(e) => setMunicipio(e.target.value === '__otro' ? '' : e.target.value)}
+                              className="w-full bg-white border-2 border-jungle-100 focus:border-jungle-600 rounded-2xl px-4 py-3.5 font-semibold text-base text-obsidiana-800 focus:outline-none transition-colors"
+                            >
+                              {MUNICIPIOS_TUXTLAS.map((m) => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                              <option value="__otro">Otro municipio…</option>
+                            </select>
+                          </label>
+                        )}
+                      </div>
+                      {esOtroMunicipio && (
+                        <input
+                          type="text" value={municipio} onChange={(e) => setMunicipio(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') siguiente(); }}
+                          placeholder={estado === 'Veracruz' ? 'Municipio. Ej: Xalapa' : 'Municipio o ciudad. Ej: Villahermosa'} maxLength={60}
+                          className="mt-3 w-full bg-transparent border-0 border-b-2 border-jungle-200 focus:border-jungle-600 px-0 py-3 text-xl font-display text-obsidiana-900 placeholder:text-jungle-300 focus:outline-none transition-colors"
+                        />
+                      )}
+                    </>
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </div>
           )}
 
@@ -905,8 +972,9 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
       <div className="px-4 sm:px-6">
         {paso !== 'listo' && paso !== 'fotos' && (
           <div className="flex items-center gap-3 pb-6">
-            {indicePaso > 0 && (
-              <motion.button whileTap={{ scale: 0.95 }} onClick={() => irA(ORDEN_PASOS[indicePaso - 1], -1)}
+            {(indicePaso > 0 || sub > 0) && (
+              <motion.button whileTap={{ scale: 0.95 }} aria-label="Atrás"
+                onClick={() => (paso === 'info' ? irSub((sub - 1) as 0 | 1, -1) : irA(ORDEN_PASOS[indicePaso - 1], -1))}
                 className="w-14 h-14 rounded-2xl border-2 border-jungle-100 flex items-center justify-center text-jungle-800 flex-shrink-0">
                 <ArrowLeft size={20} />
               </motion.button>

@@ -4,6 +4,7 @@ import {
   PawPrint, Instagram, Facebook, MessageCircle, Phone, Globe, CalendarCheck, Share2, ChevronDown, Maximize2, Minimize2,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import LogoRed from './LogoRed';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { toggleFavorito, esFavorito } from '../lib/db';
@@ -307,9 +308,9 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar, o
                       href={en.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-1.5 bg-jungle-50 hover:bg-jungle-100 text-jungle-800 text-xs font-semibold px-3 py-2 rounded-full"
+                      className="flex items-center gap-2 bg-jungle-50 hover:bg-jungle-100 text-jungle-800 text-xs font-semibold pl-1.5 pr-3.5 py-1.5 rounded-full"
                     >
-                      <IconoEnlaceLugar tipo={en.tipo} />
+                      <LogoRed tipo={en.tipo} size={22} />
                       {en.tipo === 'sitio' ? t('Sitio web') : en.tipo === 'otro' ? t('Enlace') : ETIQUETA_ENLACE[en.tipo]}
                     </a>
                   ))}
@@ -489,21 +490,12 @@ const ETIQUETA_ENLACE: Record<TipoEnlace, string> = {
   facebook: 'Facebook',
   whatsapp: 'WhatsApp',
   tiktok: 'TikTok',
+  youtube: 'YouTube',
   sitio: 'Sitio web',
   correo: 'Correo',
   otro: 'Enlace',
 };
 
-function IconoEnlaceLugar({ tipo }: { tipo: TipoEnlace }) {
-  const props = { size: 13 };
-  switch (tipo) {
-    case 'instagram': return <Instagram {...props} />;
-    case 'facebook': return <Facebook {...props} />;
-    case 'whatsapp': return <MessageCircle {...props} />;
-    case 'correo': return <Mail {...props} />;
-    default: return <Globe {...props} />;
-  }
-}
 
 // Galería a pantalla completa: todas las fotos del lugar en columnas,
 // como en la referencia. Esc o la X la cierran.

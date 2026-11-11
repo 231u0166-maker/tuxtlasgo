@@ -28,7 +28,9 @@ import { recargarCatalogo } from '../App';
 import { useT } from '../lib/i18n';
 import { optimizarImagen, ANCHO_TARJETA } from '../lib/imagenOptimizada';
 import SelectorIdioma from './SelectorIdioma';
-import { TIPOS_ENLACE, nuevoEnlaceId, parseEnlaces, type EnlaceServicio, type TipoEnlace } from '../lib/enlaces';
+import { TIPOS_ENLACE, ID_ENLACE_AUTOMATICO, nuevoEnlaceId, parseEnlaces, normalizarEnlace, textoCortoEnlace, type EnlaceServicio, type TipoEnlace } from '../lib/enlaces';
+import LogoRed from './LogoRed';
+import PlaceDetail from './PlaceDetail';
 import { useHojaArrastrable } from '../lib/useHojaArrastrable';
 import ChatReservacion from './ChatReservacion';
 import TarjetaRechazo from './TarjetaRechazo';
@@ -617,7 +619,7 @@ function PerfilTurista({
 // Servicio/Fotos/Preview/Reservaciones debajo, solo bajo "Servicio")
 // — redundante y confuso ("Servicio" y "Mi Servicio" a la vez). Ahora
 // es una sola fila con las 5 secciones.
-type TabPrincipal = 'servicio' | 'fotos' | 'preview' | 'reservaciones' | 'externa';
+type TabPrincipal = 'servicio' | 'fotos' | 'reservaciones' | 'externa';
 
 function PerfilPrestador({
   usuario,
@@ -643,8 +645,12 @@ function PerfilPrestador({
   // enlaces con id fijo (wa-contacto / correo-contacto) para no tocar la base de datos.
   const [contactoForm, setContactoForm] = useState({ telefono: '', whatsapp: false, correo: '' });
   const [guardandoEnlaces, setGuardandoEnlaces] = useState(false);
-  const [nuevoTipoEnlace, setNuevoTipoEnlace] = useState<TipoEnlace>('instagram');
+  const [nuevoTipoEnlace, setNuevoTipoEnlace] = useState<TipoEnlace | null>(null);
   const [nuevaUrlEnlace, setNuevaUrlEnlace] = useState('');
+  const [editandoEnlace, setEditandoEnlace] = useState<string | null>(null);
+  const [textoEditando, setTextoEditando] = useState('');
+  // Vista previa: la ficha REAL (PlaceDetail) tal como la ve el turista.
+  const [vistaPrevia, setVistaPrevia] = useState<Lugar | null>(null);
   const [mostrarResumen, setMostrarResumen] = useState(false);
   const [mensajePremium, setMensajePremium] = useState<{ tipo: 'exito' | 'error' | 'pendiente'; texto: string } | null>(null);
   // Ganancias totales — solo el monto, para la tarjeta resumen de
@@ -800,7 +806,7 @@ function PerfilPrestador({
         if (Array.isArray(extra.enlaces)) setEnlaces(extra.enlaces as EnlaceServicio[]);
         setModalEditar(null);
         setExito(true);
-        setTimeout(() => setExito(false), 3000);
+        setTimeout(() => setExito(false), 9000);
         // Actualiza el catálogo en tiempo real — el turista ve los cambios de inmediato
         recargarCatalogo().catch(() => {});
       } else {
@@ -1027,9 +1033,35 @@ function PerfilPrestador({
   }
 
   function agregarEnlace() {
-    if (!nuevaUrlEnlace.trim()) return;
-    setEnlaces(e => [...e, { id: nuevoEnlaceId(), tipo: nuevoTipoEnlace, url: nuevaUrlEnlace.trim() }]);
+    if (!nuevoTipoEnlace) return;
+    const url = normalizarEnlace(nuevoTipoEnlace, nuevaUrlEnlace);
+    if (!url) return;
+    setEnlaces(e => [...e, { id: nuevoEnlaceId(), tipo: nuevoTipoEnlace, url }]);
     setNuevaUrlEnlace('');
+    setNuevoTipoEnlace(null);
+  }
+
+  function aplicarEdicionEnlace() {
+    if (!editandoEnlace) return;
+    setEnlaces(e => e.map(x => (x.id === editandoEnlace ? { ...x, url: normalizarEnlace(x.tipo, textoEditando) || x.url } : x)));
+    setEditandoEnlace(null);
+  }
+
+  function abrirVistaPrevia() {
+    if (!servicio) return;
+    const pies = servicio.fotos_pies && typeof servicio.fotos_pies === 'object' && !Array.isArray(servicio.fotos_pies)
+      ? (servicio.fotos_pies as Record<string, string>) : undefined;
+    setVistaPrevia({
+      ...buildPreview(),
+      imagenesExtra: fotos.slice(1),
+      pies,
+      verificado: servicio.estado === 'aprobado',
+      aceptaReservaciones: !!servicio.acepta_reservaciones,
+      servicioId: servicio.id,
+      montoMinimo: servicio.monto_minimo != null ? Number(servicio.monto_minimo) : null,
+      mostrarUsdReservacion: !!servicio.mostrar_usd_reservacion,
+      fechasBloqueadas: servicio.fechas_bloqueadas ?? [],
+    });
   }
 
   function eliminarEnlace(id: string) {
@@ -1082,7 +1114,6 @@ function PerfilPrestador({
       tono: servicio?.estado === 'rechazado' ? 'malo' : servicio?.estado === 'pendiente' ? 'aviso' : 'ok',
     },
     { id: 'fotos', Icono: Camera, titulo: 'Fotos', estado: fotos.length === 1 ? '1 foto' : `${fotos.length} fotos`, tono: fotos.length === 0 ? 'aviso' : 'ok' },
-    { id: 'preview', Icono: Eye, titulo: 'Vista previa', estado: 'Así te ve el turista', tono: 'ok' },
     { id: 'reservaciones', Icono: CalendarDays, titulo: 'Reservaciones', estado: porResponder > 0 ? `${porResponder} por responder` : 'Sin pendientes', tono: porResponder > 0 ? 'aviso' : 'ok' },
     { id: 'externa', Icono: Link2, titulo: 'Enlaces y pagos', estado: servicio?.mp_conectado ? 'Mercado Pago conectado' : 'Conecta Mercado Pago', tono: servicio?.mp_conectado ? 'ok' : 'aviso' },
   ];
@@ -1241,6 +1272,14 @@ function PerfilPrestador({
                   </button>
                 );
               })}
+              <div className="mt-1 pt-2 border-t border-jungle-100/80">
+                <button type="button" onClick={abrirVistaPrevia}
+                  className="w-full flex items-center gap-3 rounded-xl px-3.5 py-3 text-left text-[13.5px] font-semibold text-jungle-700/90 hover:bg-jungle-50 hover:text-jungle-900 transition-colors">
+                  <Eye size={18} strokeWidth={1.75} className="text-jungle-500 flex-shrink-0" />
+                  <span className="flex-1">Ver cómo te ven</span>
+                  <ChevronRight size={15} className="text-jungle-300" />
+                </button>
+              </div>
             </nav>
 
             <div className="flex-1 min-w-0">
@@ -1277,6 +1316,15 @@ function PerfilPrestador({
                         </motion.button>
                       ))}
                     </div>
+                    <button type="button" onClick={abrirVistaPrevia}
+                      className="mt-3 w-full flex items-center gap-3.5 px-4 py-4 rounded-2xl bg-white/85 border border-white/80 shadow-[0_8px_30px_rgba(20,83,45,0.07)] text-left active:bg-jungle-50/80 transition-colors">
+                      <span className="h-10 w-10 rounded-xl bg-jungle-700 text-white flex items-center justify-center flex-shrink-0"><Eye size={19} strokeWidth={1.75} /></span>
+                      <span className="flex flex-col min-w-0 flex-1">
+                        <span className="font-display font-semibold text-jungle-950 text-[15px] leading-tight">Ver cómo te ven</span>
+                        <span className="text-xs text-jungle-500 mt-0.5">Tu ficha tal como la ve el turista</span>
+                      </span>
+                      <ChevronRight size={18} strokeWidth={1.75} className="text-jungle-300 flex-shrink-0" />
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1304,9 +1352,12 @@ function PerfilPrestador({
                 {tab === 'servicio' && (
               <div className="bg-white rounded-2xl border border-jungle-100 p-4 space-y-4">
                 {exito && (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2 text-sm text-green-800">
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2.5 text-sm text-green-800">
                     <CheckCircle2 size={16} className="text-green-600 flex-shrink-0" />
-                    Cambios guardados. Tu PlaceCard ya refleja la info actualizada.
+                    <span className="flex-1">Cambios guardados.</span>
+                    <button type="button" onClick={abrirVistaPrevia} className="flex-shrink-0 h-9 px-3 rounded-lg bg-white border border-green-200 text-green-800 text-xs font-bold flex items-center gap-1.5 hover:bg-green-100">
+                      <Eye size={14} /> Ver cómo se ve
+                    </button>
                   </div>
                 )}
                 {servicio.estado === 'rechazado' && (
@@ -1402,14 +1453,6 @@ function PerfilPrestador({
               </div>
             )}
 
-            {/* ── TAB: Preview ── */}
-            {tab === 'preview' && (
-              <div>
-                <p className="text-xs text-jungle-500 mb-3 text-center">Así verá el turista tu servicio en la app</p>
-                <PreviewCard lugar={buildPreview()} />
-              </div>
-            )}
-
             {/* ── TAB: Reservaciones (pieza 2 — sin pagos todavía) ── */}
             {tab === 'reservaciones' && (
               <PanelReservacionesPrestador
@@ -1434,100 +1477,142 @@ function PerfilPrestador({
             )}
           </div>
 
-          {/* ── TAB: Información externa (antes "Enlaces") ── */}
-          {tab === 'externa' && (
-            <div className="px-4 lg:px-0 space-y-3">
-              <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-                <p className="text-sm font-semibold text-jungle-900 mb-1">Redes sociales y sitio</p>
-                <p className="text-xs text-jungle-500 mb-4">
-                  El turista podrá tocarlos desde tu ficha para conocerte más.
-                </p>
+          {/* ── TAB: Enlaces y pagos ── */}
+          {tab === 'externa' && (() => {
+            const guardados = parseEnlaces(servicio.enlaces);
+            const firma = (l: EnlaceServicio[]) => JSON.stringify(l.map((x) => [x.id, x.tipo, x.url]));
+            const sucioEnlaces = firma(enlaces) !== firma(guardados);
+            const usados = new Set(enlaces.map((x) => x.tipo));
+            const disponibles = TIPOS_ENLACE.filter((t) => t.tipo === 'sitio' || t.tipo === 'otro' || !usados.has(t.tipo));
+            const tipoNuevo = TIPOS_ENLACE.find((t) => t.tipo === nuevoTipoEnlace);
+            const campoTxt = 'w-full h-12 rounded-xl border-[1.5px] border-jungle-100 bg-white/90 px-4 text-[16px] font-medium text-jungle-950 placeholder:text-jungle-300 focus:outline-none focus:border-jungle-600 focus:ring-4 focus:ring-jungle-600/10';
+            const modo = (t?: 'tel' | 'email' | 'url') => (t === 'tel' ? 'tel' : t === 'email' ? 'email' : t === 'url' ? 'url' : 'text');
+            return (
+              <div className="px-4 lg:px-0 space-y-4">
+                <TarjetaFormulario Icono={Share2} titulo="Redes y contacto" ayuda="Lo que el turista puede tocar en tu ficha" orden={0}>
+                  {enlaces.length > 0 ? (
+                    <ul className="divide-y divide-jungle-100/80 mb-4">
+                      {enlaces.map((en) => {
+                        const auto = ID_ENLACE_AUTOMATICO.includes(en.id);
+                        const editando = editandoEnlace === en.id;
+                        const t = TIPOS_ENLACE.find((x) => x.tipo === en.tipo);
+                        return (
+                          <li key={en.id} className="py-3 first:pt-0">
+                            <div className="flex items-center gap-3">
+                              <LogoRed tipo={en.tipo} size={42} />
+                              <div className="min-w-0 flex-1">
+                                <p className="font-display font-bold text-[14.5px] text-jungle-950 leading-tight">{t?.etiqueta ?? 'Enlace'}</p>
+                                <p className="text-[13px] text-jungle-600 truncate">{auto ? 'Desde tu contacto · ' : ''}{textoCortoEnlace(en.tipo, en.url)}</p>
+                              </div>
+                              {!auto && (
+                                <>
+                                  <button type="button" aria-label={editando ? 'Listo' : `Editar ${t?.etiqueta}`}
+                                    onClick={() => (editando ? aplicarEdicionEnlace() : (setEditandoEnlace(en.id), setTextoEditando(textoCortoEnlace(en.tipo, en.url))))}
+                                    className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${editando ? 'bg-jungle-700 text-white' : 'bg-jungle-50 text-jungle-700 ring-1 ring-jungle-100 hover:bg-jungle-100'}`}>
+                                    {editando ? <Check size={17} /> : <Pencil size={16} />}
+                                  </button>
+                                  <button type="button" aria-label={`Quitar ${t?.etiqueta}`} onClick={() => eliminarEnlace(en.id)}
+                                    className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 text-jungle-300 hover:bg-red-50 hover:text-red-600 transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                            {editando && (
+                              <input value={textoEditando} onChange={(e) => setTextoEditando(e.target.value)} autoFocus
+                                onKeyDown={(e) => { if (e.key === 'Enter') aplicarEdicionEnlace(); }}
+                                inputMode={modo(t?.teclado)} placeholder={t?.entrada} className={campoTxt + ' mt-3'} />
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-jungle-500 mb-4">Aún no tienes redes agregadas. Elige una para empezar.</p>
+                  )}
 
-                {enlaces.length > 0 && (
-                  <div className="space-y-2 mb-4">
-                    {enlaces.map(en => (
-                      <div key={en.id} className="flex items-center gap-2.5 bg-jungle-50 rounded-xl p-2.5">
-                        <IconoEnlace tipo={en.tipo} />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-jungle-800">
-                            {TIPOS_ENLACE.find(t => t.tipo === en.tipo)?.etiqueta}
-                          </p>
-                          <p className="text-xs text-jungle-500 truncate">{en.url}</p>
-                        </div>
-                        <button onClick={() => eliminarEnlace(en.id)} className="text-red-300 hover:text-red-600 p-1 flex-shrink-0">
-                          <Trash2 size={14} />
+                  <p className="text-[13px] font-semibold text-jungle-700 mb-2.5">Agregar</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {disponibles.map((t) => {
+                      const activo = nuevoTipoEnlace === t.tipo;
+                      return (
+                        <button key={t.tipo} type="button" aria-pressed={activo}
+                          onClick={() => { setNuevoTipoEnlace(activo ? null : t.tipo); setNuevaUrlEnlace(''); }}
+                          className={`flex flex-col items-center gap-1.5 rounded-2xl border-[1.5px] py-2.5 px-1 transition-all ${activo ? 'border-jungle-600 bg-jungle-50 ring-[3px] ring-jungle-600/10' : 'border-jungle-100 bg-white/80 hover:border-jungle-300'}`}>
+                          <LogoRed tipo={t.tipo} size={40} />
+                          <span className="text-[11.5px] font-semibold text-jungle-800 leading-tight text-center">{t.etiqueta}</span>
                         </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                )}
-
-                <div className="flex gap-2">
-                  <select
-                    value={nuevoTipoEnlace}
-                    onChange={e => setNuevoTipoEnlace(e.target.value as TipoEnlace)}
-                    className="bg-jungle-50 rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                  >
-                    {TIPOS_ENLACE.map(t => <option key={t.tipo} value={t.tipo}>{t.etiqueta}</option>)}
-                  </select>
-                  <input
-                    value={nuevaUrlEnlace}
-                    onChange={e => setNuevaUrlEnlace(e.target.value)}
-                    placeholder={TIPOS_ENLACE.find(t => t.tipo === nuevoTipoEnlace)?.placeholder}
-                    className="flex-1 min-w-0 bg-jungle-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-                  />
-                  <button onClick={agregarEnlace} disabled={!nuevaUrlEnlace.trim()}
-                    className="bg-jungle-100 disabled:opacity-40 text-jungle-700 px-3 rounded-xl">
-                    <Plus size={16} />
-                  </button>
-                </div>
-              </div>
-
-              <button onClick={guardarEnlaces} disabled={guardandoEnlaces}
-                className="w-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
-                {guardandoEnlaces ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                Guardar enlaces
-              </button>
-
-              {/* Cuenta de cobro — a dónde le llega su parte al
-                  prestador cuando exista el reparto 94%/6% de
-                  reservaciones. Mercado Pago ya es una conexión real
-                  (OAuth) — PayPal por ahora solo guarda el correo,
-                  hasta que construyamos su propia conexión. */}
-              <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-                <p className="text-sm font-semibold text-jungle-900 mb-1">Mercado Pago</p>
-                <p className="text-xs text-jungle-500 mb-3">
-                  Conecta tu cuenta para recibir tu parte de cada reservación en automático.
-                </p>
-                {servicio.mp_conectado ? (
-                  <div className="flex items-center gap-2.5 bg-green-50 rounded-xl p-3">
-                    <span className="w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center text-white text-[10px] font-black flex-shrink-0">MP</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-green-800">Conectada</p>
-                      {servicio.mp_user_id && <p className="text-xs text-green-700/70 truncate">Cuenta #{servicio.mp_user_id}</p>}
+                  {tipoNuevo && (
+                    <div className="mt-3.5 flex gap-2">
+                      <input value={nuevaUrlEnlace} onChange={(e) => setNuevaUrlEnlace(e.target.value)} autoFocus
+                        onKeyDown={(e) => { if (e.key === 'Enter') agregarEnlace(); }}
+                        inputMode={modo(tipoNuevo.teclado)} placeholder={tipoNuevo.entrada} aria-label={`${tipoNuevo.etiqueta}: usuario, número o enlace`}
+                        className={campoTxt + ' flex-1 min-w-0'} />
+                      <button type="button" onClick={agregarEnlace} disabled={!nuevaUrlEnlace.trim()}
+                        className="h-12 px-5 rounded-xl bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white text-sm font-bold flex items-center gap-1.5">
+                        <Plus size={16} /> Agregar
+                      </button>
                     </div>
-                    <button onClick={desconectarMercadoPago} className="text-[11px] font-semibold text-jungle-500 hover:text-red-600 flex-shrink-0">
-                      Desconectar
+                  )}
+                </TarjetaFormulario>
+
+                {/* Cuenta de cobro — a dónde le llega su parte al prestador. Mercado Pago es una
+                    conexión real (OAuth). */}
+                <TarjetaFormulario Icono={DollarSign} titulo="Pagos" ayuda="Dónde recibes tu parte de cada reservación" orden={1}>
+                  <div className="flex items-center gap-3">
+                    <span className="h-[42px] w-[42px] rounded-[12px] bg-[#009EE3] text-white flex items-center justify-center flex-shrink-0 font-black text-[13px] shadow-sm">MP</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-display font-bold text-[14.5px] text-jungle-950 leading-tight">Mercado Pago</p>
+                      <p className="text-[13px] text-jungle-600 truncate">{servicio.mp_conectado ? (servicio.mp_user_id ? `Cuenta #${servicio.mp_user_id}` : 'Cuenta conectada') : 'Aún sin conectar'}</p>
+                    </div>
+                    <span className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full flex-shrink-0 ${servicio.mp_conectado ? 'bg-jungle-100 text-jungle-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {servicio.mp_conectado ? 'Conectada' : 'Sin conectar'}
+                    </span>
+                  </div>
+                  {servicio.mp_conectado ? (
+                    <button type="button" onClick={desconectarMercadoPago} className="mt-3.5 text-[13px] font-bold text-jungle-500 hover:text-red-600">
+                      Desconectar cuenta
+                    </button>
+                  ) : (
+                    <button type="button" onClick={conectarMercadoPago} disabled={conectandoMp}
+                      className="mt-3.5 w-full h-12 rounded-xl bg-[#009EE3] hover:bg-[#0089C7] disabled:opacity-60 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors">
+                      {conectandoMp ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                      Conectar con Mercado Pago
+                    </button>
+                  )}
+                  <p className="text-xs text-jungle-500 mt-3 leading-snug">TuxtlasGO retiene 6 % por reservación pagada; tú recibes el 94 % directo a tu cuenta.</p>
+                </TarjetaFormulario>
+
+                {sucioEnlaces && (
+                  <div className="sticky bottom-[84px] lg:bottom-4 z-30 flex items-center gap-2.5 rounded-2xl bg-jungle-950 text-white pl-4 pr-2.5 py-2.5 shadow-2xl animate-fade-in" role="status">
+                    <span className="flex-1 text-[13.5px] font-semibold">Tienes cambios sin guardar</span>
+                    <button type="button" onClick={() => { setEnlaces(guardados); setEditandoEnlace(null); setNuevoTipoEnlace(null); }} className="h-10 px-3 text-sm font-bold text-jungle-200">Descartar</button>
+                    <button type="button" onClick={guardarEnlaces} disabled={guardandoEnlaces}
+                      className="h-10 px-5 rounded-xl bg-jungle-400 text-jungle-950 text-sm font-bold flex items-center gap-1.5 disabled:opacity-60">
+                      {guardandoEnlaces && <Loader2 size={15} className="animate-spin" />} Guardar
                     </button>
                   </div>
-                ) : (
-                  <button
-                    onClick={conectarMercadoPago}
-                    disabled={conectandoMp}
-                    className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold transition-colors"
-                  >
-                    {conectandoMp ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-                    Conectar con Mercado Pago
-                  </button>
                 )}
               </div>
-            </div>
-          )}
+            );
+          })()}
                 </motion.div>
                 </AnimatePresence>
               </div>
             </div>
           </div>
+        </>
+      )}
+
+      {vistaPrevia && (
+        <>
+          <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[10000] pointer-events-none rounded-full bg-jungle-950/90 text-white text-[11px] font-bold px-3 py-1.5 shadow-lg">
+            Vista previa
+          </div>
+          <PlaceDetail lugar={vistaPrevia} onClose={() => setVistaPrevia(null)} onVerEnMapa={() => setVistaPrevia(null)} />
         </>
       )}
 
@@ -2333,18 +2418,6 @@ function PanelResumenPrestador({
 // Modal — "¿Cómo te gustaría que te pagaran?" — solo guarda el dato
 // por ahora (a dónde le llega su parte al prestador). El reparto
 // automático real (94%/6%) llega junto con el módulo de reservas.
-function IconoEnlace({ tipo }: { tipo: TipoEnlace }) {
-  const props = { size: 15, className: 'text-jungle-600 flex-shrink-0' };
-  switch (tipo) {
-    case 'instagram': return <Instagram {...props} />;
-    case 'facebook':  return <Facebook {...props} />;
-    case 'whatsapp':  return <MessageCircle {...props} />;
-    case 'correo':    return <Mail {...props} />;
-    case 'tiktok':    return <Globe {...props} />;
-    case 'sitio':     return <Globe {...props} />;
-    default:          return <Link2 {...props} />;
-  }
-}
 
 // ─────────────── Selectores estructurados de Mi Servicio ───────────
 // Antes eran texto libre — la IA necesita formatos consistentes para
@@ -2565,81 +2638,3 @@ function InfoFila({ icono, label, valor }: { icono: React.ReactNode; label: stri
   );
 }
 
-function PreviewCard({ lugar }: { lugar: Lugar }) {
-  const cat = CATEGORIAS.find(c => c.id === lugar.categoria);
-  return (
-    <div className="bg-white rounded-2xl border border-jungle-100 overflow-hidden shadow-sm">
-      <div className="relative h-44">
-        <img src={optimizarImagen(lugar.imagen, ANCHO_TARJETA)} alt={lugar.nombre} className="w-full h-full object-cover" />
-        <div className="absolute top-3 left-3 flex gap-2">
-          {cat && (
-            <span className="bg-white/90 text-jungle-800 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
-              {cat.emoji} {cat.id}
-            </span>
-          )}
-          {lugar.verificado && (
-            <span className="bg-white/90 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
-              <CheckCircle2 size={11} /> Info verificada
-            </span>
-          )}
-        </div>
-      </div>
-      <div className="p-4 space-y-3">
-        <div>
-          <h2 className="font-display font-bold text-xl text-jungle-950">{lugar.nombre}</h2>
-          <p className="text-sm text-jungle-500 mt-0.5">{lugar.municipio}</p>
-        </div>
-        <p className="text-sm text-jungle-700">{lugar.descripcionCorta}</p>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-jungle-50 rounded-xl p-2.5">
-            <p className="text-[10px] text-jungle-500 uppercase font-semibold">Duración</p>
-            <p className="text-sm font-semibold text-jungle-900 mt-0.5">{lugar.duracionSugerida}</p>
-          </div>
-          <div className="bg-jungle-50 rounded-xl p-2.5">
-            <p className="text-[10px] text-jungle-500 uppercase font-semibold">Costo</p>
-            <p className="text-sm font-semibold text-jungle-900 mt-0.5">{lugar.precioMxn}</p>
-          </div>
-          <div className="bg-jungle-50 rounded-xl p-2.5">
-            <p className="text-[10px] text-jungle-500 uppercase font-semibold">Días</p>
-            <p className="text-sm font-semibold text-jungle-900 mt-0.5">{lugar.abierto.dias}</p>
-          </div>
-          <div className="bg-jungle-50 rounded-xl p-2.5">
-            <p className="text-[10px] text-jungle-500 uppercase font-semibold">Horario</p>
-            <p className="text-sm font-semibold text-jungle-900 mt-0.5">{lugar.abierto.horario}</p>
-          </div>
-        </div>
-        {lugar.contacto && (
-          <div className="bg-jungle-50 rounded-xl p-2.5">
-            <p className="text-[10px] text-jungle-500 uppercase font-semibold mb-0.5">Contacto</p>
-            <p className="text-xs text-jungle-700">{lugar.contacto}</p>
-          </div>
-        )}
-        {lugar.comoLlegar && (
-          <div className="bg-jungle-50 rounded-xl p-2.5">
-            <p className="text-[10px] text-jungle-500 uppercase font-semibold mb-0.5">Cómo llegar</p>
-            <p className="text-xs text-jungle-700">{lugar.comoLlegar}</p>
-          </div>
-        )}
-        {lugar.tip && (
-          <div className="bg-amber-50 border border-amber-100 rounded-xl p-2.5">
-            <p className="text-[10px] text-amber-600 uppercase font-semibold mb-0.5">Consejo</p>
-            <p className="text-xs text-amber-800">{lugar.tip}</p>
-          </div>
-        )}
-        {lugar.ideal.length > 0 && (
-          <div>
-            <p className="text-[10px] text-jungle-500 uppercase font-semibold mb-1.5">Ideal para</p>
-            <div className="flex flex-wrap gap-1.5">
-              {lugar.ideal.map(id => {
-                const op = IDEAL_OPCIONES.find(o => o.id === id);
-                return op ? (
-                  <span key={id} className="text-xs bg-jungle-100 text-jungle-700 px-2.5 py-1 rounded-full font-medium">{op.label}</span>
-                ) : null;
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}

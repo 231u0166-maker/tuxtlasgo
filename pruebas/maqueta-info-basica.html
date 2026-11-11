@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maqueta · Información básica</title>
+<style>
+  :root{--j50:#f0fdf4;--j100:#dcfce7;--j200:#bbf7d0;--j300:#86efac;--j500:#22c55e;--j600:#16a34a;--j700:#15803d;--j800:#166534;--j900:#14532d;--j950:#052e16;
+    --ink:#1c1917;--mute:#6b7280;--line:#e3ede6;--paper:#fffdf6;--lh:1.8;--fs:16px}
+  *{box-sizing:border-box;margin:0}
+  body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:#e7efe9;color:var(--ink);min-height:100vh;padding:16px}
+  h1,h2,h3,.disp{font-family:"Plus Jakarta Sans",Inter,system-ui,sans-serif}
+  button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+  svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+  .ctl{display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .ctl span{font-size:13px;color:var(--mute)}
+  .ctl button{padding:9px 16px;border-radius:999px;background:#fff;border:2px solid var(--j200);font-weight:700;font-size:13px;color:var(--j800)}
+  .ctl button.on{background:var(--j700);border-color:var(--j700);color:#fff}
+
+  .dev{margin:0 auto;position:relative;overflow:hidden;border-radius:24px;background:#0f3d24;box-shadow:0 20px 60px rgba(5,46,22,.25);transition:max-width .3s,height .3s}
+  .dev.mobile{max-width:390px;height:790px}
+  .dev.desktop{max-width:1180px;height:760px}
+  /* fondo simulado de la app, atenuado */
+  .bg{position:absolute;inset:0;background:linear-gradient(160deg,#e9f8ee,#d5eedd);opacity:.55}
+  .bg i{position:absolute;left:5%;right:5%;height:70px;border-radius:16px;background:#fff;opacity:.7}
+  .scrim{position:absolute;inset:0;background:rgba(5,46,22,.55);backdrop-filter:blur(2px)}
+
+  /* el formulario */
+  .modal{position:absolute;background:#fff;display:flex;flex-direction:column;animation:sube .35s cubic-bezier(.22,1,.36,1)}
+  @keyframes sube{from{transform:translateY(28px);opacity:0}to{transform:none;opacity:1}}
+  .mobile .modal{inset:0;border-radius:0}
+  .desktop .modal{left:50%;top:50%;transform:translate(-50%,-50%);width:min(1040px,94%);height:min(660px,92%);border-radius:22px;box-shadow:0 30px 80px rgba(0,0,0,.35);animation:none}
+
+  .top{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);flex:none;background:rgba(255,255,255,.85);backdrop-filter:blur(12px)}
+  .top h2{font-size:17px}
+  .top small{display:block;font-size:12px;color:var(--mute);font-weight:400;margin-top:1px}
+  .x{margin-left:auto;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-size:20px;color:var(--j700)}
+  .x:hover{background:var(--j50)}
+
+  .body{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:20px}
+  .desktop .body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:28px;padding:14px 26px;overflow-y:auto}
+  .desktop .col{gap:14px}
+  .col{display:flex;flex-direction:column;gap:18px;min-width:0}
+  .desktop .col.right{min-height:0}
+  .mobile .col.right{flex:1;min-height:340px}
+
+  .lbl{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--j800);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
+  .lbl em{font-style:normal;color:#dc2626;margin-left:3px}
+  .lbl small{font-weight:500;letter-spacing:0;text-transform:none;color:var(--mute);font-size:12px}
+  .inp{width:100%;border:1.5px solid var(--line);background:#fbfefb;border-radius:14px;padding:14px 16px;font:500 17px "Plus Jakarta Sans",Inter,sans-serif;color:var(--ink);outline:0;transition:border-color .15s,box-shadow .15s}
+  .inp:focus{border-color:var(--j600);box-shadow:0 0 0 4px rgba(22,163,74,.12);background:#fff}
+  select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2315803d' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;font-size:15px}
+
+  .cats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .desktop .cats{grid-template-columns:repeat(4,1fr)}
+  .desktop .cat{flex-direction:column;justify-content:center;gap:6px;padding:10px 6px;text-align:center;min-height:68px;font-size:13px}
+  .desktop .cat svg{font-size:20px}
+  .cat{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:14px;border:1.5px solid var(--line);background:#fff;font-weight:600;font-size:14px;color:var(--j800);transition:all .15s;text-align:left;min-height:48px}
+  .cat svg{font-size:18px;color:var(--j600)}
+  .cat:hover{border-color:var(--j300)}
+  .cat.on{background:var(--j50);border-color:var(--j600);color:var(--j900);box-shadow:0 0 0 3px rgba(22,163,74,.1)}
+  .cat.on svg{color:var(--j700)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{padding:11px 16px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-weight:600;font-size:14px;color:var(--j800);min-height:44px;display:flex;align-items:center;gap:6px}
+  .chip.on{background:var(--j700);border-color:var(--j700);color:#fff}
+  .loc{display:grid;gap:12px}
+  .hide{display:none!important}
+
+  /* bloc de notas */
+  .pad{flex:1;min-height:0;display:flex;flex-direction:column;border:1.5px solid var(--line);border-radius:18px;background:var(--paper);overflow:hidden;position:relative;box-shadow:inset 0 1px 0 #fff}
+  .pad:focus-within{border-color:var(--j600);box-shadow:0 0 0 4px rgba(22,163,74,.1)}
+  .tools{display:flex;align-items:center;gap:4px;padding:8px 10px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.7);backdrop-filter:blur(8px);flex:none;flex-wrap:wrap}
+  .tool{height:40px;min-width:40px;padding:0 10px;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:700;color:var(--j800)}
+  .tool svg{font-size:18px}
+  .tool:hover,.tool.on{background:var(--j100)}
+  .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+  .tools .count{margin-left:auto;font-size:12px;color:var(--mute);padding-right:6px}
+  textarea{flex:1;width:100%;min-height:0;resize:none;border:0;outline:0;background:
+      repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--lh)*var(--fs) - 1px),rgba(22,101,52,.09) calc(var(--lh)*var(--fs) - 1px),rgba(22,101,52,.09) calc(var(--lh)*var(--fs)));
+    background-attachment:local;padding:14px 18px 20px;font:400 var(--fs)/var(--lh) Inter,system-ui,sans-serif;color:#292524;white-space:pre-wrap;overflow-wrap:anywhere}
+  textarea::placeholder{color:#a8a29e}
+  .emo{position:absolute;left:10px;top:58px;z-index:5;width:min(330px,calc(100% - 20px));background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px rgba(5,46,22,.2);padding:10px;max-height:290px;overflow-y:auto}
+  .emo h5{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:6px 4px}
+  .emo div{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+  .emo button{font-size:22px;height:38px;border-radius:9px}
+  .emo button:hover{background:var(--j50)}
+
+  .foot{display:flex;gap:10px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:rgba(255,255,255,.9);backdrop-filter:blur(12px);flex:none}
+  .desktop .foot{padding:14px 26px;justify-content:flex-end}
+  .save{flex:1;background:var(--j700);color:#fff;font-weight:800;border-radius:14px;padding:15px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
+  .save:hover{background:var(--j800)}
+  .desktop .save{flex:none;padding:14px 30px}
+  .cancel{padding:15px 22px;border-radius:14px;font-weight:700;color:var(--j800);background:var(--j50)}
+  .toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%) translateY(10px);background:#052e16;color:#fff;font-size:13px;font-weight:600;padding:11px 18px;border-radius:999px;opacity:0;pointer-events:none;transition:all .3s;z-index:9;display:flex;gap:8px;align-items:center}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+  .note{max-width:600px;margin:14px auto 0;text-align:center;font-size:12.5px;color:var(--mute);line-height:1.5}
+</style>
+</head>
+<body>
+<div class="ctl">
+  <span>Ver como:</span>
+  <button id="bm" class="on" onclick="vista('mobile')">📱 Celular</button>
+  <button id="bd" onclick="vista('desktop')">💻 PC</button>
+</div>
+
+<div class="dev mobile" id="dev">
+  <div class="bg"><i style="top:60px"></i><i style="top:150px"></i><i style="top:240px"></i></div>
+  <div class="scrim"></div>
+
+  <div class="modal" id="modal">
+    <div class="top">
+      <div><h2 class="disp">Información básica</h2><small>Así te ven los turistas</small></div>
+      <button class="x" onclick="toast('Cerrar sin guardar')" aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+
+    <div class="body">
+      <div class="col">
+        <div>
+          <div class="lbl"><span>Nombre del negocio<em>*</em></span></div>
+          <input class="inp" value="Cocos Aquí Chain" maxlength="80">
+        </div>
+
+        <div>
+          <div class="lbl"><span>Categoría</span></div>
+          <div class="cats" id="cats"></div>
+        </div>
+
+        <div class="loc">
+          <div>
+            <div class="lbl"><span>Estado</span></div>
+            <select class="inp" id="estado" onchange="cambiaEstado()"></select>
+          </div>
+          <div id="muniWrap">
+            <div class="lbl"><span>Municipio</span></div>
+            <div class="chips" id="munis"></div>
+            <input class="inp hide" id="muniOtro" placeholder="Escribe el municipio o ciudad" style="margin-top:10px">
+          </div>
+        </div>
+      </div>
+
+      <div class="col right">
+        <div class="lbl" style="margin-bottom:0"><span>Descripción<em>*</em></span><small>Cuéntales qué ofreces, precios, qué te hace especial</small></div>
+        <div class="pad">
+          <div class="tools">
+            <button class="tool" id="bEmo" onclick="toggleEmo()" aria-label="Emojis"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg><span class="desk-only">Emojis</span></button>
+            <button class="tool" onclick="lista()" aria-label="Lista con viñetas"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+            <span class="sep"></span>
+            <button class="tool" onclick="interlinea()" aria-label="Espacio entre líneas" title="Espacio entre líneas"><svg viewBox="0 0 24 24"><path d="M21 6H3M17 12H3M21 18H3"/></svg><span id="lhTxt">Cómodo</span></button>
+            <button class="tool" onclick="tam(-1)" aria-label="Letra más pequeña"><svg viewBox="0 0 24 24"><path d="M4 7V4h12v3M7 20h6M10 4v16"/></svg>−</button>
+            <button class="tool" onclick="tam(1)" aria-label="Letra más grande"><svg viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>+</button>
+            <span class="count" id="cnt"></span>
+          </div>
+          <div class="emo hide" id="emo"></div>
+          <textarea id="ta" maxlength="1200" placeholder="Escribe aquí… puedes dar saltos de línea, listas y emojis."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <button class="cancel" onclick="toast('Cancelado')">Cancelar</button>
+      <button class="save" onclick="guardar()"><svg viewBox="0 0 24 24" style="font-size:18px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2ZM17 21v-8H7v8M7 3v5h8"/></svg>Guardar cambios</button>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<p class="note">Maqueta del formulario <b>Información básica</b>. En <b>celular</b> ocupa toda la pantalla, con la descripción como bloc de notas que crece; en <b>PC</b> se ve todo a la vez, datos a la izquierda y bloc de notas a la derecha. Pruébalo: elige categoría, cambia de estado, abre los emojis, cambia el espacio entre líneas y el tamaño de letra.</p>
+
+<script>
+const I = {
+  utensils:'<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+  leaf:'<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10ZM2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
+  mountain:'<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>',
+  bed:'<path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9"/>',
+  bag:'<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4ZM3 6h18M16 10a4 4 0 0 1-8 0"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  star:'<path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>'
+};
+const CATS=[['Gastronomía','utensils'],['Naturaleza','leaf'],['Aventura','mountain'],['Hospedaje','bed'],['Comercio','bag'],['Cooperativa','users'],['Otro','star']];
+const MUNIS=['Catemaco','San Andrés Tuxtla','Santiago Tuxtla'];
+const ESTADOS=['Veracruz','Oaxaca','Tabasco','Chiapas','Puebla','Ciudad de México','Otro estado…'];
+const EMO={ 'Comida y bebida':'🥥 🍹 🍺 🍷 🍸 🥤 ☕ 🍤 🦐 🐟 🍽️ 🌮 🍗 🥩 🥗 🍰 🍦 🍍 🍋 🍌 🥭 🍊 🌶️ 🥑'.split(' '),
+  'Lugar y viaje':'🌴 🌿 🌊 ⛰️ 🏞️ 🌅 🌄 🛶 🚤 🏡 🛏️ ⛺ 🚗 🗺️ 📍 🧭 🏖️ 🦜 🐒 🦋 🌺 🌞 🌧️ 🔥'.split(' '),
+  'Símbolos':'⭐ ✨ ❤️ 👍 👌 🙌 😊 😍 🎉 💚 ✅ ➡️ 📞 💬 📷 🕐 💵 💳 🅿️ 📶 🐾 🚫 ⚠️ 🔝'.split(' ')};
+let cat='Comercio', muni='Catemaco', lhIdx=1, fs=16;
+const LH=[['Compacto',1.5],['Cómodo',1.85],['Amplio',2.25]];
+const $=id=>document.getElementById(id);
+
+function svg(n){return `<svg viewBox="0 0 24 24">${I[n]}</svg>`}
+function pintaCats(){ $('cats').innerHTML=CATS.map(([n,i])=>`<button class="cat ${n===cat?'on':''}" onclick="cat='${n}';pintaCats()">${svg(i)}${n}</button>`).join('') }
+function pintaMunis(){ $('munis').innerHTML=MUNIS.map(m=>`<button class="chip ${m===muni?'on':''}" onclick="muni='${m}';pintaMunis();$('muniOtro').classList.add('hide')">${m}</button>`).join('')+`<button class="chip ${muni==='__otro'?'on':''}" onclick="muni='__otro';pintaMunis();$('muniOtro').classList.remove('hide');$('muniOtro').focus()">Otro municipio…</button>` }
+function cambiaEstado(){ const v=$('estado').value, ver=v==='Veracruz'; $('munis').classList.toggle('hide',!ver); $('muniOtro').classList.toggle('hide',ver||false); if(!ver){$('muniOtro').classList.remove('hide')} else { $('muniOtro').classList.toggle('hide', muni!=='__otro') } }
+function pintaEmo(){ $('emo').innerHTML=Object.entries(EMO).map(([t,l])=>`<h5>${t}</h5><div>${l.map(e=>`<button onclick="insertar('${e}')">${e}</button>`).join('')}</div>`).join('') }
+function toggleEmo(){ $('emo').classList.toggle('hide'); $('bEmo').classList.toggle('on') }
+function insertar(txt){ const t=$('ta'),a=t.selectionStart,b=t.selectionEnd; t.setRangeText(txt,a,b,'end'); t.focus(); cuenta() }
+function lista(){ const t=$('ta'); const ini=t.value.lastIndexOf('\n',t.selectionStart-1)+1; t.setRangeText('• ',ini,ini,'preserve'); t.focus(); cuenta() }
+function interlinea(){ lhIdx=(lhIdx+1)%3; aplica() }
+function tam(d){ fs=Math.min(20,Math.max(14,fs+d)); aplica() }
+function aplica(){ document.documentElement.style.setProperty('--lh',LH[lhIdx][1]); document.documentElement.style.setProperty('--fs',fs+'px'); $('lhTxt').textContent=LH[lhIdx][0] }
+function cuenta(){ $('cnt').textContent=$('ta').value.length+' / 1200' }
+function toast(m){ const t=$('toast'); t.innerHTML='✓ '+m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800) }
+function guardar(){ toast('Cambios guardados') }
+function vista(m){ $('dev').className='dev '+m; $('bm').classList.toggle('on',m==='mobile'); $('bd').classList.toggle('on',m==='desktop'); const mo=$('modal'); mo.style.animation='none'; void mo.offsetWidth; mo.style.animation=''; document.querySelectorAll('.desk-only').forEach(e=>e.classList.toggle('hide',m==='mobile')) }
+
+$('estado').innerHTML=ESTADOS.map(e=>`<option>${e}</option>`).join('');
+$('ta').value='🥥 Menú de bebidas\nOfrecemos aguas de coco naturales a $45 pesos, preparadas con carnita de coco al gusto.\n\nTambién contamos con:\n• Coco con alcohol + ginebra: $80 pesos\n• Coco con alcohol + Bacardí: $80 pesos\n• Cerveza Corona de cuartito: $18 pesos\n• Cerveza Victoria: $20 pesos\n\n📍 Sobre el malecón, frente al muelle.';
+pintaCats(); pintaMunis(); pintaEmo(); aplica(); cuenta(); vista('mobile');
+$('ta').addEventListener('input',cuenta);
+document.addEventListener('click',e=>{ if(!e.target.closest('#emo')&&!e.target.closest('#bEmo')) { $('emo').classList.add('hide'); $('bEmo').classList.remove('on') } });
+</script>
+</body>
+</html>

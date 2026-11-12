@@ -1,40 +1,43 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './components/LandingPage';
-import AppShell from './components/AppShell';
-import { seedDemoSiVacio, limpiarPrestadoresDemoRetirados, listarServiciosAprobadosComoLugares, cachearCatalogoAprobado, listarCatalogoCacheado } from './lib/db';
-import { setCatalogoExtendido, getCatalogoActivo } from './lib/chatbot';
-import { cargarConocimientoDinamico, obtenerFichasParaIndexar } from './lib/conocimiento';
-import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
-import { anotarCarga, embeddingsListo, indexarCatalogo, indexarConocimiento, inicializarEmbeddings, fijarEstadoEmbeddings } from './lib/embeddings';
-import DiagnosticoIA from './components/DiagnosticoIA';
 import ActualizacionDisponible from './components/ActualizacionDisponible';
 import AvisoPrivacidad from './components/AvisoPrivacidad';
-import { optimizarImagen, ANCHO_TARJETA, ANCHO_DETALLE, ANCHO_MINIATURA } from './lib/imagenOptimizada';
+import { getUsuarioLocal, type UsuarioSesion } from './lib/auth';
 
-// Pantallas poco visitadas: se descargan solo cuando se entra a ellas (el bundle
-// inicial bajó; Lighthouse marcaba ~540 KiB de JavaScript sin usar al abrir).
+// ============================================================
+// APP LIGERA — solo la landing viaja en el JS inicial
+// ============================================================
+// Lighthouse (móvil, 4G lenta, CPU 4× más lenta) medía un LCP de ~8 s porque la
+// landing esperaba a que se bajara y ejecutara TODO: chat, base de datos, motor de
+// recomendación, mapa. Ahora todo eso es un chunk aparte que se pide al entrar a
+// /app (o en la landing, unos segundos después de pintar). El arranque en sí
+// (catálogo, conocimiento, modelo de IA) vive en ./arranque.ts.
+const AppShell = lazy(() => import('./components/AppShell'));
 const ProviderPanel = lazy(() => import('./components/ProviderPanel'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const GaleriaPage = lazy(() => import('./components/GaleriaPage'));
 const TerminosPage = lazy(() => import('./components/TerminosPage'));
 const PrivacidadPage = lazy(() => import('./components/PrivacidadPage'));
 const CopyrightPage = lazy(() => import('./components/CopyrightPage'));
+const DiagnosticoIA = lazy(() => import('./components/DiagnosticoIA'));
+
+const cargarArranque = () => import('./arranque');
+
+// Entrar directo a /app: pedir el chunk de la pantalla EN PARALELO con el arranque
+// (antes se pedía recién cuando el arranque terminaba: una cascada más en la ruta crítica).
+if (typeof location !== 'undefined' && location.pathname.startsWith('/app')) {
+  void import('./components/AppShell');
+}
 
 // ============================================================
 // PWA INSTALADA — saltar la landing de marketing
 // ============================================================
-// Antes, abrir el ícono desde la pantalla de inicio SIEMPRE caía en
-// "/" (la landing de "Tu guía de Los Tuxtlas..."), igual que un
-// visitante nuevo en el navegador — aunque ya la hubieras instalado.
-// Cambiar `start_url` en el manifest (vite.config.ts) resuelve esto
-// para instalaciones NUEVAS, pero un ícono ya instalado en el
-// teléfono puede tener el `start_url` viejo grabado — así que esta
-// revisión en tiempo de carga es el respaldo real: si el navegador
-// reporta que se está corriendo como app instalada (display-mode
-// standalone en Android/desktop, `navigator.standalone` en iOS
-// Safari, que no soporta display-mode de la misma forma), entra
-// directo a la app, sin pasar por la landing.
+// Abrir el ícono desde la pantalla de inicio caía SIEMPRE en "/" (la landing),
+// aunque la app ya estuviera instalada. Cambiar `start_url` en el manifest
+// arregla las instalaciones NUEVAS, pero un ícono viejo puede traerlo grabado:
+// esta revisión en tiempo de carga es el respaldo real (display-mode standalone
+// en Android/escritorio, `navigator.standalone` en iOS Safari).
 function corriendoComoPWAInstalada(): boolean {
   if (typeof window === 'undefined') return false;
   if (window.matchMedia?.('(display-mode: standalone)').matches) return true;
@@ -42,194 +45,69 @@ function corriendoComoPWAInstalada(): boolean {
   return false;
 }
 
-// Función global para recargar catálogo (usada por GestorFotos y ProviderPanel)
-// Pre-cachea imágenes de Cloudinary para que estén disponibles offline
-async function precachearImagenes(lugares: any[]) {
-  if (!('caches' in window)) return;
-  const cache = await caches.open('cloudinary-fotos');
-  const urls: string[] = [];
-  for (const l of lugares) {
-    // Variante de tarjeta (640) y de detalle (1000) de cada foto — son las
-    // que la UI pide, así que son las que deben estar disponibles offline.
-    const originales: string[] = [];
-    if (l.imagen && l.imagen.includes('cloudinary')) originales.push(l.imagen);
-    if (l.imagenesExtra) originales.push(...l.imagenesExtra.filter((u: string) => u.includes('cloudinary')));
-    for (const u of originales) urls.push(optimizarImagen(u, ANCHO_TARJETA), optimizarImagen(u, ANCHO_DETALLE), optimizarImagen(u, ANCHO_MINIATURA));
-  }
-  // Cachear en paralelo, ignorar errores individuales
-  await Promise.allSettled(
-    urls.map(url => cache.add(url).catch(() => {}))
-  );
-}
-
-// Hallazgo real de campo: antes, si `fetch` fallaba por completo (sin
-// internet desde el arranque — el caso real de alguien capacitándose
-// con datos limitados, no solo un servidor caído), TODO el cuerpo
-// estaba dentro de un único try/catch y el catch solo hacía
-// `return []` — ni siquiera se llamaba `setCatalogoExtendido` con lo
-// que sí había disponible offline (prestadores registrados en este
-// dispositivo). Y aunque el fetch sí funcionara, la respuesta de Neon
-// nunca se guardaba en IndexedDB — solo quedaba en memoria
-// (catalogoActivo, chatbot.ts) — así que la siguiente vez que se
-// abriera la app sin conexión, el catálogo completo de prestadores de
-// la plataforma se perdía, aunque el dispositivo sí se hubiera
-// conectado antes. Ahora: (1) el fetch fallido siempre cae al
-// catálogo cacheado en IndexedDB (mismo patrón que ya usa
-// cargarConocimientoDinamico en conocimiento.ts), y (2) cada fetch
-// exitoso se guarda de vuelta en esa caché para la próxima vez.
-export async function recargarCatalogo() {
-  const aprobadosLocal = await listarServiciosAprobadosComoLugares().catch(() => []);
-
-  try {
-    // Timeout corto: navigator.onLine puede decir "true" con señal a
-    // medias (celular débil, wifi con portal cautivo) y sin esto el
-    // fetch se queda colgado sin fallar, dejando la app entera en
-    // pantalla en blanco (ver `if (!listo) return null` más abajo).
-    const control = new AbortController();
-    const avisoTiempo = setTimeout(() => control.abort(), 6_000);
-    const res = await fetch('/api/servicios/aprobados', { signal: control.signal }).finally(() =>
-      clearTimeout(avisoTiempo)
-    );
-    if (res.ok) {
-      const data = await res.json();
-      if (data.ok && data.lugares?.length > 0) {
-        // Neon gana para IDs compartidos — sus datos son siempre más frescos
-        // que los de IndexedDB local (que pueden estar desactualizados tras una edición).
-        // Los de IndexedDB solo aportan servicios que Neon todavía no conoce (raro).
-        const idsNeon = new Set(data.lugares.map((l: any) => l.id));
-        const soloLocales = aprobadosLocal.filter((l: any) => !idsNeon.has(l.id));
-        const todos = [...data.lugares, ...soloLocales];
-        setCatalogoExtendido(todos);
-        cachearCatalogoAprobado(data.lugares).catch(() => {});
-        precachearImagenes(todos).catch(() => {});
-        // Si la IA ya está activa en esta sesión, re-indexa en segundo
-        // plano para que un prestador recién aprobado aparezca de
-        // inmediato en la búsqueda semántica (no solo tras recargar).
-        if (embeddingsListo()) indexarCatalogo(todos).catch(() => {});
-        return todos;
-      }
-    }
-  } catch {
-    // sin internet o falló el fetch — cae al catálogo cacheado de abajo
-  }
-
-  // Sin internet (o Neon no devolvió datos válidos): usa el último
-  // snapshot cacheado en IndexedDB + lo registrado en este mismo
-  // dispositivo, con el mismo criterio "Neon gana" de arriba, para que
-  // el comportamiento sea consistente con o sin conexión.
-  const cacheado = await listarCatalogoCacheado().catch(() => []);
-  const idsCacheados = new Set(cacheado.map((l) => l.id));
-  const soloLocales = aprobadosLocal.filter((l) => !idsCacheados.has(l.id));
-  const todosOffline = [...cacheado, ...soloLocales];
-  setCatalogoExtendido(todosOffline);
-  if (embeddingsListo()) indexarCatalogo(todosOffline).catch(() => {});
-  return todosOffline;
+// Las pantallas que leen la base de datos / el catálogo esperan SOLO lo local
+// (nunca la red: con señal débil eso dejaba la app en blanco hasta 6 s).
+// `esperar={false}` (turista en /app): pinta YA y deja la preparación local corriendo en
+// paralelo. Inicio no depende de ella: arranca con el catálogo fijo y, cuando termina,
+// setCatalogoExtendido avisa y AppShell se actualiza. Prestador/Admin sí la esperan.
+function ConArranque({ children, esperar = true }: { children: ReactNode; esperar?: boolean }) {
+  const [listo, setListo] = useState(!esperar);
+  useEffect(() => {
+    let vivo = true;
+    cargarArranque()
+      .then(async (m) => {
+        await m.prepararLocal();
+        m.arrancarSegundoPlano();
+      })
+      .catch((e) => console.error('[TuxtlasGO] Arranque:', e))
+      .finally(() => { if (vivo) setListo(true); });
+    return () => { vivo = false; };
+  }, []);
+  return listo ? <>{children}</> : null;
 }
 
 export default function App() {
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal);
-  const [listo, setListo] = useState(false);
+  const [conDiagnostico, setConDiagnostico] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        await limpiarPrestadoresDemoRetirados();
-        await seedDemoSiVacio();
-        await recargarCatalogo();
-        await cargarConocimientoDinamico();
-      } catch (err) {
-        console.error('[TuxtlasGO] Error inicializando:', err);
-      } finally {
-        setListo(true);
-      }
-    })();
-
-    // Memoria semántica (catálogo + banco de respuestas): se activa en
-    // segundo plano, SIN bloquear el arranque de la app y SIN depender
-    // de si el LLM local llega a cargar. Antes esto solo se disparaba
-    // dentro de useLLM.ts cuando el LLM local quedaba listo — lo cual
-    // casi nunca pasa en celular — así que la búsqueda semántica
-    // (incluido el banco de respuestas que responde sin generar nada)
-    // nunca se activaba justo en los dispositivos donde más se
-    // necesita. Ahora corre siempre, en cualquier dispositivo.
-    // El arranque se retrasa unos segundos: al abrir o RECARGAR la app compiten
-    // por memoria el mapa, el catálogo y el modelo (113 MB), y en un teléfono de
-    // 4 GB la creación del modelo fallaba de forma intermitente justo al recargar.
-    // Si aun así falla, se reintenta UNA vez más a los 90 s, en silencio.
-    const arrancarEmbeddings = (reintentoTardio = false) => {
-      const inicioEmbeddings = Date.now();
-      fijarEstadoEmbeddings({ fase: 'descargando', progreso: 0 });
-      inicializarEmbeddings(({ progreso }) => fijarEstadoEmbeddings({ fase: 'descargando', progreso }))
-        .then(async () => {
-          fijarEstadoEmbeddings({ fase: 'indexando' });
-          // Primero las fichas del banco de respuestas (traen su vector ya
-          // calculado): con eso ya se puede contestar. LISTO se marca aquí.
-          await indexarConocimiento(obtenerFichasParaIndexar());
-          fijarEstadoEmbeddings({ fase: 'listo', ms: Date.now() - inicioEmbeddings });
-          // Los lugares (cuyo texto sí hay que vectorizar en el dispositivo) se
-          // indexan después, en segundo plano, sin bloquear nada.
-          indexarCatalogo(getCatalogoActivo()).catch((e) =>
-            console.warn('[TuxtlasGO] No se pudo indexar el catálogo:', e)
-          );
-        })
-        .catch((e) => {
-          // Si el modelo SÍ quedó cargado (algo posterior falló, no la carga), el
-          // estado no debe decir ERROR y apagar la etiqueta "IA: listo".
-          if (embeddingsListo()) {
-            fijarEstadoEmbeddings({ fase: 'listo', ms: Date.now() - inicioEmbeddings });
-            console.warn('[TuxtlasGO] Un paso posterior a la carga del modelo falló, pero el modelo está listo:', e);
-            return;
-          }
-          const mensaje = String(e?.message ?? e);
-          const omitido = mensaje.startsWith('EMBEDDINGS_MEMORIA') || mensaje.startsWith('EMBEDDINGS_AHORRO');
-          fijarEstadoEmbeddings({ fase: omitido ? 'omitido' : 'error', detalle: mensaje.slice(0, 300) });
-          console.warn('[TuxtlasGO] Embeddings no disponibles:', e);
-          if (!omitido && !reintentoTardio) {
-            window.setTimeout(() => arrancarEmbeddings(true), 90_000);
-          }
-        });
-    };
-    // Prueba en un Galaxy A13: el modelo falla casi siempre al RECARGAR la página
-    // (la página anterior aún no libera su memoria) y casi nunca al abrirla en
-    // una pestaña nueva. Si la navegación es una recarga o un regreso atrás, se
-    // espera más antes de pedir la memoria del modelo.
-    let esperaInicial = 25_000;
-    try {
-      const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-      if (nav && (nav.type === 'reload' || nav.type === 'back_forward')) {
-        esperaInicial = 35_000;
-        anotarCarga('recarga detectada: el modelo arranca en 35 s para dejar que se libere la memoria');
-      }
-    } catch { /* sin Performance API: se usa la espera normal */ }
-    // Los buscadores (Googlebot…) no necesitan el modelo de IA: bajarlo
-    // (~113 MB desde Hugging Face) solo les gasta presupuesto de rastreo y
-    // les llena el informe de recursos con errores. A ellos no se les arranca.
-    const esRobot = /bot|crawl|spider|slurp|lighthouse|facebookexternalhit/i.test(navigator.userAgent);
-    const temporizadorEmbeddings = esRobot ? 0 : window.setTimeout(() => arrancarEmbeddings(), esperaInicial);
-    return () => window.clearTimeout(temporizadorEmbeddings);
+    // En la landing el arranque (catálogo, conocimiento, IA) empieza unos segundos
+    // DESPUÉS de pintar, para que no compita con el LCP. Es idempotente: si el
+    // usuario entra a /app antes, ConArranque ya lo habrá iniciado.
+    const t1 = window.setTimeout(() => {
+      cargarArranque().then((m) => m.arrancarSegundoPlano()).catch(() => {});
+    }, 4000);
+    const t2 = window.setTimeout(() => setConDiagnostico(true), 6000);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
   }, []);
-
-  if (!listo) return null;
 
   return (
     <BrowserRouter>
-      <DiagnosticoIA />
+      {conDiagnostico && (
+        <Suspense fallback={null}>
+          <DiagnosticoIA />
+        </Suspense>
+      )}
       <Suspense fallback={null}>
-      <Routes>
-        <Route
-          path="/"
-          element={corriendoComoPWAInstalada() ? <AppShell /> : <LandingPage usuario={usuario} onUsuario={setUsuario} />}
-        />
-        <Route path="/app" element={<AppShell />} />
-        <Route path="/prestador" element={<ProviderPanel />} />
-        <Route path="/admin" element={<AdminPanel />} />
-        <Route path="/galeria" element={<GaleriaPage />} />
-        <Route path="/comunidad" element={<Navigate to="/app?tab=comunidad" replace />} />
-        <Route path="/terminos" element={<TerminosPage />} />
-        <Route path="/privacidad" element={<PrivacidadPage />} />
-        <Route path="/copyright" element={<CopyrightPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              corriendoComoPWAInstalada()
+                ? <ConArranque esperar={false}><AppShell /></ConArranque>
+                : <LandingPage usuario={usuario} onUsuario={setUsuario} />
+            }
+          />
+          <Route path="/app" element={<ConArranque esperar={false}><AppShell /></ConArranque>} />
+          <Route path="/prestador" element={<ConArranque><ProviderPanel /></ConArranque>} />
+          <Route path="/admin" element={<ConArranque><AdminPanel /></ConArranque>} />
+          <Route path="/galeria" element={<ConArranque><GaleriaPage /></ConArranque>} />
+          <Route path="/comunidad" element={<Navigate to="/app?tab=comunidad" replace />} />
+          <Route path="/terminos" element={<TerminosPage />} />
+          <Route path="/privacidad" element={<PrivacidadPage />} />
+          <Route path="/copyright" element={<CopyrightPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </Suspense>
       <ActualizacionDisponible />
       <AvisoPrivacidad />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiLogout, type UsuarioSesion } from '../lib/auth';
 import {
@@ -18,11 +18,11 @@ import {
 } from 'lucide-react';
 import OfflineIndicator from './OfflineIndicator';
 import NavbarLanding, { type ModoLanding } from './NavbarLanding';
-import AuthModal from './AuthModal';
 import HeroScroll from './HeroScroll';
 import RecorridoCartas from './RecorridoCartas';
 import FooterDinamico from './FooterDinamico';
 import { useT } from '../lib/i18n';
+import { useDespuesDeCarga } from '../lib/useDespuesDeCarga';
 
 interface LandingProps {
   usuario?: UsuarioSesion | null;
@@ -37,6 +37,9 @@ interface LandingProps {
 // rápida en celular con señal débil. El collage de fotos reemplaza
 // el carrusel con setInterval (menos JS corriendo todo el tiempo,
 // no solo se ve mejor).
+// Se descarga solo cuando alguien abre "Iniciar sesión / Registrarme".
+const AuthModal = lazy(() => import('./AuthModal'));
+
 export default function LandingPage({ usuario = null, onUsuario }: LandingProps) {
   const t = useT();
   // Base-visual SECTION-01: la landing tiene dos "modos" de contenido
@@ -68,6 +71,7 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
       <FooterDinamico modo={modo} />
 
       {mostrarAuth && (
+        <Suspense fallback={null}>
         <AuthModal
           onClose={() => setMostrarAuth(false)}
           onSuccess={(u) => {
@@ -75,6 +79,7 @@ export default function LandingPage({ usuario = null, onUsuario }: LandingProps)
             setMostrarAuth(false);
           }}
         />
+        </Suspense>
       )}
     </div>
   );
@@ -125,17 +130,18 @@ function TarjetaCollage({
   className: string;
   animacion: 'animate-float' | 'animate-float-delayed' | 'animate-float-slow';
 }) {
+  const listas = useDespuesDeCarga();
   return (
     <div className={`absolute rounded-3xl shadow-xl shadow-obsidiana-900/15 ${className}`}>
       <div className={`relative w-full h-full rounded-3xl overflow-hidden ${animacion}`}>
         <img
-          src={fotoA}
+          src={listas ? fotoA : undefined}
           alt="Los Tuxtlas"
           className="absolute inset-0 w-full h-full object-cover animate-crossfade-a"
           loading="eager"
         />
         <img
-          src={fotoB}
+          src={listas ? fotoB : undefined}
           alt="Los Tuxtlas"
           className="absolute inset-0 w-full h-full object-cover animate-crossfade-b"
           loading="lazy"
@@ -149,26 +155,26 @@ function PhotoCollage() {
   return (
     <div className="relative h-[420px] sm:h-[480px]">
       <TarjetaCollage
-        fotoA="/img/slide_01.jpg"
-        fotoB="/img/slide_02.jpg"
+        fotoA="/img/slide_01.webp"
+        fotoB="/img/slide_02.webp"
         className="top-0 left-4 w-[58%] h-[62%] -rotate-2"
         animacion="animate-float"
       />
       <TarjetaCollage
-        fotoA="/img/slide_05.jpg"
-        fotoB="/img/slide_06.jpg"
+        fotoA="/img/slide_05.webp"
+        fotoB="/img/slide_06.webp"
         className="top-6 right-0 w-[42%] h-[46%] rotate-3"
         animacion="animate-float-delayed"
       />
       <TarjetaCollage
-        fotoA="/img/slide_09.jpg"
-        fotoB="/img/slide_10.jpg"
+        fotoA="/img/slide_09.webp"
+        fotoB="/img/slide_10.webp"
         className="bottom-6 right-6 w-[46%] h-[42%] -rotate-3"
         animacion="animate-float-slow"
       />
       <TarjetaCollage
-        fotoA="/img/slide_13.jpg"
-        fotoB="/img/slide_14.jpg"
+        fotoA="/img/slide_13.webp"
+        fotoB="/img/slide_14.webp"
         className="bottom-0 left-0 w-[38%] h-[32%] rotate-2"
         animacion="animate-float"
       />

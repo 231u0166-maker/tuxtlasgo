@@ -635,13 +635,13 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   };
 
   const CATEGORIAS_OPCIONES = [
-    { id: 'Gastronomia', desc: 'Restaurantes, cafés y antojitos', emoji: '🍤', foto: '/lugares/hechizo-amor_1.jpg' },
-    { id: 'Naturaleza', desc: 'Cascadas, selva, lago y reservas', emoji: '🌿', foto: '/lugares/eyipantla_1.jpg' },
-    { id: 'Aventura', desc: 'Tirolesa, senderismo, kayak', emoji: '🥾', foto: '/lugares/cerro-venado_1.jpg' },
-    { id: 'Hospedaje', desc: 'Hoteles, cabañas y hostales', emoji: '🛏️', foto: '/lugares/sirena-olmeca_1.jpg' },
+    { id: 'Gastronomia', desc: 'Restaurantes, cafés y antojitos', emoji: '🍤', foto: '/lugares/hechizo-amor_1.webp' },
+    { id: 'Naturaleza', desc: 'Cascadas, selva, lago y reservas', emoji: '🌿', foto: '/lugares/eyipantla_1.webp' },
+    { id: 'Aventura', desc: 'Tirolesa, senderismo, kayak', emoji: '🥾', foto: '/lugares/cerro-venado_1.webp' },
+    { id: 'Hospedaje', desc: 'Hoteles, cabañas y hostales', emoji: '🛏️', foto: '/lugares/sirena-olmeca_1.webp' },
     { id: 'Comercio', desc: 'Tiendas, artesanías y mercados', emoji: '🛍️', foto: '/imgPrestadores/Prestador_img.jpg', pos: 'left center' },
-    { id: 'Cooperativa', desc: 'Lancheros, guías y grupos locales', emoji: '🤝', foto: '/img/slide_17.jpg', pos: 'center 80%' },
-    { id: 'Otro', desc: 'Otro tipo de servicio', emoji: '⭐', foto: '/img/slide_15.jpg', pos: 'center 85%' },
+    { id: 'Cooperativa', desc: 'Lancheros, guías y grupos locales', emoji: '🤝', foto: '/img/slide_17.webp', pos: 'center 80%' },
+    { id: 'Otro', desc: 'Otro tipo de servicio', emoji: '⭐', foto: '/img/slide_15.webp', pos: 'center 85%' },
   ];
   const esOtroMunicipio = estado !== 'Veracruz' || !MUNICIPIOS_TUXTLAS.includes(municipio);
 

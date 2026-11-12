@@ -490,6 +490,7 @@ export async function indexarConocimiento(
 ): Promise<void> {
   if (!extractor) throw new Error('EMBEDDINGS_NO_INICIALIZADO');
 
+  const { default: vectoresPrecalculados } = await import('../data/vectoresFichas.json');
   const precalculadas = (vectoresPrecalculados as { fichas: Record<string, { huella: string; vector: number[] }> }).fichas;
   for (const entrada of entradas) {
     const paraVectorizar = entrada.indexado ?? entrada.texto;

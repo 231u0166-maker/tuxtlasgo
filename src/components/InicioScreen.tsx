@@ -67,7 +67,7 @@ export default function InicioScreen({ onVerLugar, onPreguntar, onAbrirMapa, onI
           {paraTi.length > 0 ? (
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
               {paraTi.map((l, idx) => (
-                <PlaceCard key={l.id} lugar={l} prioritaria={idx < 2} onClick={() => onVerLugar(l)} />
+                <PlaceCard key={l.id} lugar={l} prioritaria={idx < 4} onClick={() => onVerLugar(l)} />
               ))}
             </div>
           ) : (

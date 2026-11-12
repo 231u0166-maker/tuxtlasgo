@@ -4,16 +4,15 @@ import {
   Sparkles, Compass, Map, MessageCircle, Heart, User, Navigation,
   PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, Users, Plus
 } from 'lucide-react';
-import { Fragment, useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
+import { Fragment, useSyncExternalStore, useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { apiLogout, getUsuarioLocal, type UsuarioSesion } from '../lib/auth';
-import AuthModal from './AuthModal';
 import BottomNav, { type Tab } from './BottomNav';
-import NotificacionesBurbuja from './NotificacionesBurbuja';
-import ExploreScreen from './ExploreScreen';
 import InicioScreen from './InicioScreen';
 import {
   getCatalogoActivo,
+  suscribirCatalogo,
+  versionDelCatalogo,
   grupoDesdeQuien,
   presupuestoDesdeNivel,
   diasDesdeFechas,
@@ -22,20 +21,27 @@ import {
 } from '../lib/chatbot';
 import { type FiltrosViajeValor } from './FiltrosViaje';
 import MapScreen from './MapScreenLazy';
-import ChatAssistant from './ChatAssistant';
+import { useDespuesDeCarga } from '../lib/useDespuesDeCarga';
+import ChatAssistant from './ChatAssistantLazy';
 import { useLLM } from '../hooks/useLLM';
-import FavoritesScreen from './FavoritesScreen';
-import SugerenciasChat from './SugerenciasChat';
-import PlaceDetail from './PlaceDetail';
-import OtrasZonasOferta from './OtrasZonasOferta';
 import AvisoModoInteligente from './AvisoModoInteligente';
-import ComunidadPage from './ComunidadPage';
 import OfflineIndicator from './OfflineIndicator';
 import SelectorIdioma from './SelectorIdioma';
 import { useT } from '../lib/i18n';
 import { estaEnLaRegion, type Lugar } from '../data/lugares';
 import { obtenerRutaPorTramos, obtenerUbicacionGPS, type Coord } from '../lib/routing';
-import PerfilScreen from './PerfilScreen';
+import PerfilScreen from './PerfilScreenLazy';
+import { perezoso } from './perezoso';
+
+// Se descargan al usarse, no con la primera pantalla.
+const AuthModal = perezoso(() => import('./AuthModal'));
+const NotificacionesBurbuja = perezoso(() => import('./NotificacionesBurbuja'));
+const ExploreScreen = perezoso(() => import('./ExploreScreen'));
+const FavoritesScreen = perezoso(() => import('./FavoritesScreen'));
+const SugerenciasChat = perezoso(() => import('./SugerenciasChat'));
+const PlaceDetail = perezoso(() => import('./PlaceDetail'));
+const OtrasZonasOferta = perezoso(() => import('./OtrasZonasOferta'));
+const ComunidadPage = perezoso(() => import('./ComunidadPage'));
 
 
 interface RutaVisible {
@@ -60,6 +66,8 @@ const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
 ];
 
 export default function AppShell() {
+  // Se vuelve a pintar cuando llega el catálogo de la API (App.tsx lo carga en segundo plano).
+  useSyncExternalStore(suscribirCatalogo, versionDelCatalogo);
   const t = useT();
   // "Empezar a chatear" / "Explorar" del menú de la landing (móvil)
   // llegan aquí como /app?tab=chat o /app?tab=explorar — se lee UNA
@@ -109,6 +117,15 @@ export default function AppShell() {
   const refMapaPrincipal = useRef<HTMLDivElement>(null);
   const refMapaInlineExplorar = useRef<HTMLDivElement>(null);
   const [destinoMapa, setDestinoMapa] = useState<HTMLDivElement | null>(null);
+  // El mapa (MapLibre: ~290 KB, ~1 s de CPU en un teléfono medio, más las teselas)
+  // ya no se monta al abrir /app si estás en Inicio: compite con la primera
+  // pantalla. Se monta al entrar a Mapa/Explorar o a los segundos de cargar, y
+  // desde ahí se queda (nunca se desmonta, como antes).
+  const mapaPrecalentado = useDespuesDeCarga(2500);
+  const [mapaMontado, setMapaMontado] = useState(false);
+  useEffect(() => {
+    if (!mapaMontado && (mapaPrecalentado || tab === 'mapa' || tab === 'explorar')) setMapaMontado(true);
+  }, [mapaPrecalentado, tab, mapaMontado]);
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(getUsuarioLocal());
   const [mostrarAuth, setMostrarAuth] = useState(registroDesdeUrl);
   const [lugarSeleccionado, setLugarSeleccionado] = useState<Lugar | null>(null);
@@ -661,7 +678,7 @@ export default function AppShell() {
         >
           <Link to="/" title={sidebarColapsado ? 'TuxtlasGO' : undefined} className="flex items-center gap-3 flex-shrink-0 min-w-0">
             <span className="h-10 w-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-              <img src="/logo-emblema.png" alt="" className="h-8 w-8 object-contain" />
+              <img src="/logo-emblema.webp" alt="" className="h-8 w-8 object-contain" />
             </span>
             {!sidebarColapsado && (
               <span className="font-display font-extrabold text-lg tracking-tight truncate">
@@ -791,7 +808,7 @@ export default function AppShell() {
           <header className="lg:hidden flex-shrink-0 flex items-center justify-between bg-jungle-900 text-white pl-4 pr-2 h-12">
             <Link to="/" className="flex items-center gap-2 min-w-0">
               <span className="h-9 w-9 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                <img src="/logo-emblema.png" alt="" className="h-7 w-7 object-contain" />
+                <img src="/logo-emblema.webp" alt="" className="h-7 w-7 object-contain" />
               </span>
               <span className="font-display font-extrabold text-base tracking-tight truncate">TuxtlasGO</span>
             </Link>
@@ -941,6 +958,7 @@ export default function AppShell() {
             <AvisoModoInteligente />
             <div className="flex-1 min-h-0">
               <ChatAssistant
+                activo={tab === 'chat'}
                 onVerLugar={verLugar}
                 onVerRutaEnMapa={verRutaEnMapa}
                 llm={llm}
@@ -1046,7 +1064,7 @@ export default function AppShell() {
             (portal) al contenedor activo — nunca se desmonta al
             cambiar de pestaña o de tamaño de pantalla, así conserva
             zoom/posición siempre. */}
-        {destinoMapa && createPortal(
+        {destinoMapa && mapaMontado && createPortal(
           <MapScreen
             onVerLugar={verLugar}
             rutaResaltada={rutaVisible?.geometria}

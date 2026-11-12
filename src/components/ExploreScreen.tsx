@@ -105,7 +105,7 @@ export default function ExploreScreen({
           <div className="relative z-10 px-5 lg:px-10 py-8 lg:py-12">
             <div className="flex items-start justify-between gap-3">
               <span className="h-20 w-20 rounded-full bg-white shadow-lg border border-jungle-100 flex items-center justify-center flex-shrink-0">
-                <img src="/logo-emblema.png" alt="TuxtlasGO" className="h-14 w-14 object-contain" />
+                <img src="/logo-emblema.webp" alt="TuxtlasGO" className="h-14 w-14 object-contain" />
               </span>
               <OfflineReadyBadge />
             </div>

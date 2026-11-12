@@ -64,11 +64,10 @@
     <meta name="copyright" content="© 2026 TuxtlasGO. Todos los derechos reservados. Prohibida su reproducción total o parcial sin autorización." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
-      rel="stylesheet" media="print" onload="this.media='all'" />
+    <!-- Fuentes: se piden DESPUÉS de que la página cargó (display=swap: se ve con la fuente del
+         sistema y cambia al llegar). Pedirlas en el <head> las metía en la ruta crítica del LCP. -->
     <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" /></noscript>
-    <link rel="preload" as="image" href="/logo-emblema.png" />
+    <link rel="preload" as="image" href="/logo-emblema.webp" />
     <style>
       /* Pantalla de carga: HTML/CSS puro dentro de #root, se pinta antes de que
          llegue el JS (conexión lenta o inestable) y React la reemplaza al montar. */
@@ -78,6 +77,10 @@
         align-items: center; justify-content: center; gap: 18px;
         background: #f0fdf4; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
       }
+      #splash.hero { background: #052e16; }
+      #splash.hero > img:first-child { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: none; opacity: .55; }
+      #splash.hero b { color: #fff; position: relative; }
+      #splash.hero img + img { position: relative; }
       #splash img { width: 96px; height: 96px; object-fit: contain; animation: splash-pulso 1.6s ease-in-out infinite; }
       #splash b { color: #14532d; font-size: 22px; font-weight: 700; letter-spacing: .2px; }
       #splash i { display: block; width: 120px; height: 3px; border-radius: 3px; background: #bbf7d0; overflow: hidden; position: relative; }
@@ -91,7 +94,7 @@
   <body>
     <div id="root">
       <div id="splash" role="status" aria-label="Cargando TuxtlasGO">
-        <img src="/logo-emblema.png" alt="" width="96" height="96" />
+        <img src="/logo-emblema.webp" alt="" width="96" height="96" />
         <b>TuxtlasGO</b>
         <i></i>
       </div>
@@ -102,9 +105,31 @@
       <p>Activa JavaScript para usar TuxtlasGO.</p>
     </noscript>
     <script>
+      (function () {
+        function fuentes() {
+          var l = document.createElement('link');
+          l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap';
+          document.head.appendChild(l);
+        }
+        if (document.readyState === 'complete') setTimeout(fuentes, 300);
+        else window.addEventListener('load', function () { setTimeout(fuentes, 300); });
+      })();
       // Canonical = la URL real de esta página (antes siempre apuntaba a "/", y Lighthouse
       // lo marcaba inválido en /app).
       try { document.querySelector('link[rel=canonical]').href = location.origin + location.pathname; } catch (e) {}
+      // Landing ("/"): la foto de la portada se pone en el propio HTML del splash, así
+      // el LCP no espera a que se baje y ejecute el JS. React la reemplaza por la misma
+      // foto (HeroScroll, escena 0). En /app no se usa, por eso solo se crea aquí.
+      if (location.pathname === '/') {
+        var s = document.getElementById('splash');
+        if (s) {
+          s.className = 'hero';
+          var im = new Image();
+          im.src = '/img/slide_05.webp'; im.alt = ''; im.width = 960; im.height = 640;
+          im.setAttribute('fetchpriority', 'high'); im.decoding = 'async';
+          s.insertBefore(im, s.firstChild);
+        }
+      }
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>

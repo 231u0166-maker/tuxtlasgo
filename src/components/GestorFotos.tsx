@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, lazy, Suspense } from 'react';
 import { Upload, X, ImagePlus, CheckCircle2, AlertCircle, Loader2, Pencil } from 'lucide-react';
 import { subirFoto } from '../lib/cloudinary';
-import { recargarCatalogo } from '../App';
+import { recargarCatalogo } from '../arranque';
 import { getToken } from '../lib/auth';
 
 // El editor (recorte, ajustes, texto) solo se descarga cuando se abre una foto.

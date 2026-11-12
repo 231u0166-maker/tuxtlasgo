@@ -24,6 +24,21 @@ let catalogoMotor: Lugar[] = [...LUGARES];
 export function setCatalogoExtendido(prestadoresAprobados: Lugar[]): void {
   catalogoActivo = [...LUGARES, ...prestadoresAprobados];
   catalogoMotor = catalogoActivo.filter((l) => estaEnLaRegion(l.coords));
+  versionCatalogo++;
+  oyentesCatalogo.forEach((fn) => fn());
+}
+
+// La app ya no espera a la red para pintar: arranca con el catálogo guardado en
+// el dispositivo y, cuando llega el de la API, avisa por aquí para que la
+// pantalla se actualice (useSyncExternalStore en AppShell).
+let versionCatalogo = 0;
+const oyentesCatalogo = new Set<() => void>();
+export function suscribirCatalogo(fn: () => void): () => void {
+  oyentesCatalogo.add(fn);
+  return () => { oyentesCatalogo.delete(fn); };
+}
+export function versionDelCatalogo(): number {
+  return versionCatalogo;
 }
 
 // Acceso de solo lectura al catálogo actual (lugares + prestadores),
@@ -37,7 +52,18 @@ export function getCatalogoRegion(): Lugar[] {
   return catalogoMotor;
 }
 
-import { buscarConocimiento } from './conocimiento';
+// La base de conocimiento (~77 KB comprimidos) solo se necesita para responder en el chat.
+// Se carga bajo demanda con asegurarConocimiento() (ChatAssistantLazy la espera antes de
+// montar el chat) para que no viaje en el JS de la primera pantalla.
+import type { buscarConocimiento as BuscarConocimiento } from './conocimiento';
+let buscarConocimiento: typeof BuscarConocimiento = () => null;
+let conocimientoPromesa: Promise<void> | null = null;
+export function asegurarConocimiento(): Promise<void> {
+  if (!conocimientoPromesa) {
+    conocimientoPromesa = import('./conocimiento').then((m) => { buscarConocimiento = m.buscarConocimiento; });
+  }
+  return conocimientoPromesa;
+}
 import { tokenizar, contieneClave, palabraCoincide, normalizar, distanciaEdicion } from './pln';
 import { vectorizar, similitudCoseno, embeddingsListo } from './embeddings';
 import { distanciaHaversine } from './routing';

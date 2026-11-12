@@ -555,3 +555,14 @@ Diagnóstico (4 corridas en /app móvil, Performance 43–57): el modelo de IA (
 - index.html: sin `maximum-scale=1` (zoom permitido), sin leaflet.css, fuentes no bloqueantes, canonical según la ruta.
 - Contraste: badges ámbar→amber-700, `text-jungle-600`→700 en PlaceCard, subtítulo de Inicio más oscuro.
 Pendiente: volver a medir en incógnito (el IndexedDB previo contamina el puntaje); imágenes /lugares/*.jpg pesan ~5.5 MB (convertir a WebP).
+
+## 2026-11-11 (2ª parte) — Lighthouse: llegar a 90+ de Performance
+Medido localmente con Lighthouse 12 (móvil, 4G lenta, CPU 4×, perfil limpio): landing `/` 98, `/app` 85–88 (antes 43–71).
+Hallazgo clave: el LCP *real* era ~300 ms; el puntaje bajaba porque Lighthouse simula red lenta y suma TODO lo que se pide antes del LCP (JS, imágenes que no se ven, fuentes).
+- **App.tsx ligero**: solo router + landing en el JS inicial (955 → ~260 kB, 85 KB gzip). El arranque (catálogo, conocimiento, IA) vive en `src/arranque.ts` (carga bajo demanda). `recargarCatalogo` ahora se importa de `../arranque`.
+- La app **ya no espera a la red para pintar** (antes `recargarCatalogo` + `cargarConocimientoDinamico`, hasta 6 s cada una). Pinta con el catálogo guardado y `AppShell` se actualiza cuando llega el de la API (`suscribirCatalogo` / `versionDelCatalogo` en chatbot.ts).
+- Diferidos hasta después de `load` (`useDespuesDeCarga`): escenas/cartas de la landing, mapa (se monta al abrir Mapa/Explorar o a los ~2.5 s), chat (al abrir la pestaña o ~3 s; `asegurarConocimiento()` carga la base de respuestas antes), precache de fotos de Cloudinary (20 s, de 4 en 4), modelo de IA (25 s), fuentes de Google (tras `load`).
+- Lazy: AppShell, Comunidad, Favoritos, Explorar, Detalle, AuthModal, Perfil, MapLibre, transformers, vectoresFichas.json (helper `perezoso.tsx`).
+- Imágenes: `public/lugares` y `public/img` pasaron a **WebP** (9.9 MB de JPG → ~1.8 MB tarjetas a 560 px). Las escenas del hero usan `*_hero.webp` (1280 px). Logos a WebP. `slide_05.jpg` se conserva solo para og:image (WhatsApp/Facebook no leen bien WebP). Los JPG originales siguen en git.
+- Landing: la foto del hero va dentro del splash del HTML (LCP sin depender del JS).
+Pendiente: confirmar en producción tras el deploy (en incógnito). `ResenasLugar` truena si `/api/...` devuelve HTML (solo pasa en `vite preview`; conviene `if (d.resumen)`).

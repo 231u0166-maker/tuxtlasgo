@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronRight, ChevronDown, Download, MapPin, Star } from 'lucide-react';
 import { LUGARES, type Lugar } from '../data/lugares';
 import { useT } from '../lib/i18n';
+import { useDespuesDeCarga } from '../lib/useDespuesDeCarga';
 
 // ============================================================
 // INICIO DE LA LANDING — historia que avanza con el scroll
@@ -19,10 +20,10 @@ import { useT } from '../lib/i18n';
 // señal débil, así que las fotos son las mismas que ya trae la app.
 
 const ESCENAS = [
-  '/img/slide_05.jpg', // lago de Catemaco
-  '/lugares/eyipantla_1.jpg', // cascada
-  '/lugares/nanciyaga_1.jpg', // selva
-  '/lugares/hechizo-amor_1.jpg', // atardecer
+  '/img/slide_05.webp', // lago de Catemaco
+  '/lugares/eyipantla_1_hero.webp', // cascada
+  '/lugares/nanciyaga_1_hero.webp', // selva
+  '/lugares/hechizo-amor_1_hero.webp', // atardecer
 ];
 
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
@@ -34,6 +35,7 @@ type Modo = 'turista' | 'prestador';
 export default function HeroScroll({ modo = 'turista' }: { modo?: Modo }) {
   const t = useT();
   const prestador = modo === 'prestador';
+  const escenasListas = useDespuesDeCarga();
 
   // Datos reales del catálogo — nada inventado.
   const destacados = useMemo(() => LUGARES.filter((l) => l.destacado).slice(0, 4), []);
@@ -246,9 +248,11 @@ export default function HeroScroll({ modo = 'turista' }: { modo?: Modo }) {
               ref={(el) => {
                 refEscenas.current[i] = el;
               }}
-              src={src}
+              src={i === 0 || escenasListas ? src : undefined}
               alt=""
               loading={i === 0 ? 'eager' : 'lazy'}
+              fetchPriority={i === 0 ? 'high' : undefined}
+              decoding="async"
               className="absolute inset-0 h-full w-full object-cover"
               style={{ opacity: i === 0 ? 1 : 0 }}
             />

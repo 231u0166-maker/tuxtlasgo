@@ -4,6 +4,7 @@ import {
   ChevronRight, WifiOff, Sparkles, Compass, Users, MapPin, Download, Percent, TrendingUp, Camera, ShieldCheck,
 } from 'lucide-react';
 import { useT } from '../lib/i18n';
+import { useDespuesDeCarga } from '../lib/useDespuesDeCarga';
 import type { Lugar } from '../data/lugares';
 
 // ============================================================
@@ -26,15 +27,15 @@ interface Foto {
 }
 
 const FOTOS_BASE: Foto[] = [
-  { src: '/img/slide_01.jpg' },
-  { src: '/lugares/eyipantla_1.jpg' },
-  { src: '/img/slide_09.jpg' },
-  { src: '/lugares/nanciyaga_1.jpg' },
-  { src: '/img/slide_05.jpg' },
-  { src: '/lugares/hechizo-amor_1.jpg' },
-  { src: '/img/slide_13.jpg' },
-  { src: '/lugares/jungla-balneario_1.jpg' },
-  { src: '/lugares/cerro-venado_1.jpg' },
+  { src: '/img/slide_01.webp' },
+  { src: '/lugares/eyipantla_1.webp' },
+  { src: '/img/slide_09.webp' },
+  { src: '/lugares/nanciyaga_1.webp' },
+  { src: '/img/slide_05.webp' },
+  { src: '/lugares/hechizo-amor_1.webp' },
+  { src: '/img/slide_13.webp' },
+  { src: '/lugares/jungla-balneario_1.webp' },
+  { src: '/lugares/cerro-venado_1.webp' },
 ];
 
 const FEATURES = [
@@ -155,6 +156,7 @@ function movimiento(p0: number, ruta: Ruta) {
 export default function RecorridoCartas({ modo = 'turista' }: { modo?: 'turista' | 'prestador' }) {
   const t = useT();
   const prestador = modo === 'prestador';
+  const fotosListas = useDespuesDeCarga();
   const FEATS = prestador ? FEATURES_PRESTADOR : FEATURES;
 
   // Turistas: las fotos de siempre. Prestadores: fotos reales de los
@@ -371,7 +373,7 @@ export default function RecorridoCartas({ modo = 'turista' }: { modo?: 'turista'
               style={{ zIndex: i + 1, opacity: 0 }}
             >
               <img
-                src={foto.src}
+                src={fotosListas ? foto.src : undefined}
                 alt={foto.nombre ?? ''}
                 loading="lazy"
                 draggable={false}

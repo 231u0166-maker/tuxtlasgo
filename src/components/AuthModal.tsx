@@ -177,7 +177,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
 
         {/* Header sticky */}
         <div className="sticky top-0 bg-white border-b border-jungle-100 px-6 py-4 flex items-center justify-between rounded-t-3xl z-10">
-          <img src="/logo-tuxtlasgo-recorte.png" alt="TuxtlasGO" className="h-12 w-auto object-contain" />
+          <img src="/logo-tuxtlasgo-recorte.webp" alt="TuxtlasGO" className="h-12 w-auto object-contain" />
           <div className="flex items-center gap-2">
             <SelectorIdioma />
             <button onClick={onClose} aria-label={t('Cerrar')} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={22} /></button>

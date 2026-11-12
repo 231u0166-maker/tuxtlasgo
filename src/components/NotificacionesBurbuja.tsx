@@ -14,7 +14,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { MessageCircle, X, Clock, ChevronRight, Users, Bell, Check, Loader2 } from 'lucide-react';
 import { getToken, getUsuarioLocal } from '../lib/auth';
 import { useT } from '../lib/i18n';
-import { recargarCatalogo } from '../App';
+import { recargarCatalogo } from '../arranque';
 
 const CLAVE_POSICION = 'tuxtlasgo-burbuja-pos';
 const TAMANO_BOTON = 56;

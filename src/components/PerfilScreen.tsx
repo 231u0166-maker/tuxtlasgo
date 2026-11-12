@@ -24,7 +24,7 @@ import GestorFotos from './GestorFotos';
 import GraficaMini from './GraficaMini';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
-import { recargarCatalogo } from '../App';
+import { recargarCatalogo } from '../arranque';
 import { useT } from '../lib/i18n';
 import { optimizarImagen, ANCHO_TARJETA } from '../lib/imagenOptimizada';
 import SelectorIdioma from './SelectorIdioma';

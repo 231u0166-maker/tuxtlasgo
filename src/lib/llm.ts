@@ -40,7 +40,6 @@ import {
   type MensajeChat,
   type PreferenciasUsuario,
 } from './chatbot';
-import { buscarConocimiento } from './conocimiento';
 import { buscarSemantico, embeddingsListo } from './embeddings';
 
 
@@ -132,6 +131,7 @@ export async function recuperarContexto(
     ),
   ].slice(0, k);
 
+  const { buscarConocimiento } = await import('./conocimiento');
   const hit = buscarConocimiento(texto);
   const conocimiento = hit ? hit.respuesta : null;
 

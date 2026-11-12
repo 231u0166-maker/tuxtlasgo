@@ -44,7 +44,7 @@ export default function NavbarLanding({
             aria-label={t('Ir al inicio')}
           >
             <img
-              src="/logo-tuxtlasgo-recorte.png"
+              src="/logo-tuxtlasgo-recorte.webp"
               alt="TuxtlasGO"
               className="h-12 w-auto object-contain"
             />

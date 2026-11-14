@@ -2,7 +2,7 @@
 // GET/POST/DELETE /api/servicios/editar?recurso=fotos → gestión de fotos (fusionado
 // aquí para no pasarnos del límite de 12 funciones serverless del plan Hobby de Vercel)
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getPool, asegurarColumnasServicio } from '../_lib/db.js';
+import { getPool, asegurarColumnasServicio, asegurarTablaEventosServicio } from '../_lib/db.js';
 import { v2 as cloudinary } from 'cloudinary';
 
 cloudinary.config({
@@ -109,6 +109,69 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       return res.status(405).json({ error: 'Método no permitido' });
+    }
+
+    // ── GET ?recurso=estadisticas — "Ganancias y estadísticas" ─────
+    // Ganancias = anticipos aprobados menos la comisión de TuxtlasGO
+    // (marketplace_fee guardado al crear el pago) menos ~5% estimado de
+    // Mercado Pago, que MP descuenta de la cuenta del prestador. Es una
+    // estimación: la tarifa real de MP puede variar un poco.
+    if (req.method === 'GET' && req.query.recurso === 'estadisticas') {
+      const srv = await pool.query(
+        `SELECT id FROM servicios WHERE usuario_id = $1 ORDER BY creado_en DESC LIMIT 1`,
+        [usuarioId]
+      );
+      if (srv.rows.length === 0) return res.status(404).json({ error: 'Sin servicio registrado' });
+      const servicioId = srv.rows[0].id;
+      const TARIFA_MP_ESTIMADA = 0.05;
+
+      const pagos = await pool.query(
+        `SELECT COALESCE(SUM(p.monto - p.marketplace_fee - ROUND(p.monto * $2, 2)), 0) AS ganancias,
+                COUNT(*) AS pagadas
+         FROM pagos_reservacion p
+         JOIN reservaciones r ON r.id = p.reservacion_id
+         WHERE r.servicio_id = $1 AND p.estado = 'aprobado'`,
+        [servicioId, TARIFA_MP_ESTIMADA]
+      );
+
+      // La tabla de eventos se auto-provisiona; si aún no existe, se crea vacía.
+      await asegurarTablaEventosServicio(pool);
+      const totales = await pool.query(
+        `SELECT tipo, COUNT(*) AS n FROM eventos_servicio WHERE servicio_id = $1 GROUP BY tipo`,
+        [servicioId]
+      );
+      const n = (tipo: string) => Number(totales.rows.find((f: { tipo: string }) => f.tipo === tipo)?.n ?? 0);
+      const vistas = n('vista');
+      const likes = n('like');
+      const iaRecomendaciones = n('ia_recomendacion');
+
+      const serieQ = await pool.query(
+        `SELECT to_char(d::date, 'YYYY-MM-DD') AS dia,
+                COUNT(*) FILTER (WHERE e.tipo = 'vista') AS vistas,
+                COUNT(*) FILTER (WHERE e.tipo = 'like') AS likes,
+                COUNT(*) FILTER (WHERE e.tipo = 'ia_recomendacion') AS ia_recomendaciones
+         FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, INTERVAL '1 day') d
+         LEFT JOIN eventos_servicio e
+           ON e.servicio_id = $1 AND e.creado_en::date = d::date
+         GROUP BY d ORDER BY d`,
+        [servicioId]
+      );
+
+      return res.status(200).json({
+        ok: true,
+        ganancias: Number(pagos.rows[0].ganancias),
+        reservasPagadas: Number(pagos.rows[0].pagadas),
+        vistas,
+        likes,
+        iaRecomendaciones,
+        porcentajeLike: vistas > 0 ? Math.min(100, Math.round((likes / vistas) * 100)) : 0,
+        serie: serieQ.rows.map((f: { dia: string; vistas: string; likes: string; ia_recomendaciones: string }) => ({
+          dia: f.dia,
+          vistas: Number(f.vistas),
+          likes: Number(f.likes),
+          ia_recomendaciones: Number(f.ia_recomendaciones),
+        })),
+      });
     }
 
     // ── PATCH normal — editar campos del servicio ──────────────

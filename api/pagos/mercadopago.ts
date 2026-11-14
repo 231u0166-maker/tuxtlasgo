@@ -14,7 +14,7 @@
 // dinero nosotros.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Pool } from 'pg';
-import { getPool } from '../_lib/db.js';
+import { getPool, asegurarTablaPagosReservacion } from '../_lib/db.js';
 import { createHmac } from 'crypto';
 
 const PRECIO_PREMIUM_MXN = 89;
@@ -259,6 +259,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(502).json({ error: mpData.message ?? 'Mercado Pago rechazó la solicitud' });
       }
 
+      await asegurarTablaPagosReservacion(pool);
       await pool.query(
         `INSERT INTO pagos_reservacion (reservacion_id, mp_preference_id, estado, monto, marketplace_fee)
          VALUES ($1, $2, 'pendiente', $3, $4)`,

@@ -1911,9 +1911,9 @@ function PanelReservacionesPrestador({
   async function publicar() {
     if (!mpConectado) return;
     // "Lo único que tiene que aceptar" antes de activar: el reparto
-    // 6% TuxtlasGO / 94% prestador en cada reservación pagada.
+    // 10% TuxtlasGO + ~5% Mercado Pago / ~85% prestador en cada reservación pagada.
     const confirmado = confirm(
-      'Al publicar reservaciones, aceptas que TuxtlasGO retenga automáticamente el 6% de comisión de cada reservación pagada dentro de la app. El 94% restante se deposita directo a tu cuenta de Mercado Pago conectada.\n\n¿Aceptas y quieres publicar?'
+      'Al publicar reservaciones, aceptas una comisión de 15% por cada reservación pagada dentro de la app: 10% para TuxtlasGO y cerca de 5% de Mercado Pago por procesar el pago. El resto (~85%) se deposita directo a tu cuenta de Mercado Pago conectada.\n\n¿Aceptas y quieres publicar?'
     );
     if (!confirmado) return;
     const ok = await onGuardarConfig({
@@ -2310,7 +2310,7 @@ function PanelResumenPrestador({
 
         <div className="px-4 pb-6 space-y-3">
           {/* Ganancias reales — suma de anticipos ya pagados de tus
-              reservaciones (94% que te toca, sin el 6% de comisión). */}
+              reservaciones (~85% que te toca, sin el 15% de comisión). */}
           <div className="bg-gradient-to-br from-jungle-900 to-jungle-950 rounded-2xl p-5 text-white relative overflow-hidden">
             <DollarSign size={72} className="absolute -right-3 -bottom-3 text-white/5" />
             <p className="text-xs text-jungle-300 uppercase tracking-wide font-semibold mb-1">Ganancias totales</p>
@@ -2319,7 +2319,7 @@ function PanelResumenPrestador({
             </p>
             <p className="text-xs text-jungle-300 mt-2 relative">
               {stats && stats.reservasPagadas > 0
-                ? `De ${stats.reservasPagadas} reservación${stats.reservasPagadas > 1 ? 'es' : ''} pagada${stats.reservasPagadas > 1 ? 's' : ''}, ya con el 6% de comisión descontado.`
+                ? `De ${stats.reservasPagadas} reservación${stats.reservasPagadas > 1 ? 'es' : ''} pagada${stats.reservasPagadas > 1 ? 's' : ''}, ya con la comisión (~15%) descontada.`
                 : servicio.acepta_reservaciones
                   ? 'Todavía no tienes anticipos pagados — aparecerán aquí en cuanto un turista pague.'
                   : 'Activa reservaciones (pestaña Reservaciones) para empezar a cobrar anticipos.'}

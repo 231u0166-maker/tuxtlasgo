@@ -54,7 +54,7 @@ export interface ServicioPrestador {
   // ── Plan Premium $89 MXN/mes (Módulo 2 — monetización) ─────
   // Beneficio contratado: posicionamiento prioritario en el
   // algoritmo de recomendación de la IA. Se factura aparte del
-  // 6% de comisión por reservación (ver Etp_Reg_Plan_Neg).
+  // 15% de comisión por reservación (10% TuxtlasGO + ~5% Mercado Pago) (ver Etp_Reg_Plan_Neg).
   premium?: boolean;
   premiumDesde?: number;
   premiumHasta?: number; // permite manejar vencimiento/renovación

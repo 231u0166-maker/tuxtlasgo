@@ -49,6 +49,24 @@ export function getPool() {
   });
 }
 
+// ── pagos_reservacion — un registro por cada intento de pago de anticipo.
+// Se auto-provisiona para que una base nueva no rompa el primer pago.
+export async function asegurarTablaPagosReservacion(pool: Pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pagos_reservacion (
+      id SERIAL PRIMARY KEY,
+      reservacion_id INT NOT NULL,
+      mp_preference_id TEXT,
+      mp_payment_id TEXT,
+      estado TEXT NOT NULL DEFAULT 'pendiente',
+      monto NUMERIC(10,2),
+      marketplace_fee NUMERIC(10,2),
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
 // ── eventos_servicio — tracking ligero para "Ganancias y
 // estadísticas" del prestador (Bug: el módulo mostraba $0.00 fijo y
 // no había ninguna gráfica real). Un evento por cada vez que:

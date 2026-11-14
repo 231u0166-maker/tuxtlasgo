@@ -284,7 +284,7 @@ El flujo de pago del Plan Premium nunca se ha probado de punta a punta con un pa
   - `PlaceDetail.tsx` → registra "vista" cada vez que se abre la ficha completa de un servicio.
   - `toggleFavorito()` en `db.ts` → registra "like" cuando alguien lo agrega a favoritos.
   - `ChatAssistant.tsx` → registra "ia_recomendacion" cada vez que el asistente muestra ese servicio en el chat.
-- Nuevo endpoint `GET /api/servicios/editar?recurso=estadisticas` — ganancias reales (suma de anticipos pagados, ya con el 6% de comisión descontado), vistas, likes, recomendaciones de IA, % de vistas que terminaron en like, y una serie diaria de 14 días.
+- Nuevo endpoint `GET /api/servicios/editar?recurso=estadisticas` — ganancias reales (suma de anticipos pagados, ya con la comisión descontada — ver sesión 2026-11-13 para el porcentaje vigente), vistas, likes, recomendaciones de IA, % de vistas que terminaron en like, y una serie diaria de 14 días.
 - El módulo "Ganancias y estadísticas" ahora muestra el monto real (no $0.00 fijo), 4 tarjetas de métricas, y 3 gráficas de barras (vistas / likes / IA) — sin agregar ninguna librería nueva, es SVG puro (`GraficaMini.tsx`) para no inflar el bundle.
 - Archivos: `api/_lib/db.ts`, `api/servicios/aprobados.ts`, `api/servicios/editar.ts`, `src/lib/eventos.ts` (nuevo), `src/components/GraficaMini.tsx` (nuevo), `src/components/PlaceDetail.tsx`, `src/lib/db.ts`, `src/components/ChatAssistant.tsx`, `src/components/PerfilScreen.tsx`
 
@@ -566,3 +566,11 @@ Hallazgo clave: el LCP *real* era ~300 ms; el puntaje bajaba porque Lighthouse s
 - Imágenes: `public/lugares` y `public/img` pasaron a **WebP** (9.9 MB de JPG → ~1.8 MB tarjetas a 560 px). Las escenas del hero usan `*_hero.webp` (1280 px). Logos a WebP. `slide_05.jpg` se conserva solo para og:image (WhatsApp/Facebook no leen bien WebP). Los JPG originales siguen en git.
 - Landing: la foto del hero va dentro del splash del HTML (LCP sin depender del JS).
 Pendiente: confirmar en producción tras el deploy (en incógnito). `ResenasLugar` truena si `/api/...` devuelve HTML (solo pasa en `vite preview`; conviene `if (d.resumen)`).
+
+# Sesión 2026-11-13 — Comisión 10 % + ~5 % Mercado Pago, y ganancias reales
+
+**Modelo de comisión vigente:** por cada reservación pagada la comisión total es ~15 %: **10 % TuxtlasGO** (`marketplace_fee`, constante `COMISION_RESERVACION = 0.10` en `api/pagos/mercadopago.ts`) y **~5 % Mercado Pago** (la descuenta MP de la cuenta del prestador; la tarifa real puede variar). Al prestador le llega ~85 %. Sustituye al 6 %/94 % anterior.
+- **Textos corregidos:** pantalla Enlaces y pagos (2 lugares), confirmación al publicar reservaciones, nota de Ganancias, Términos y Condiciones y `pruebas/maqueta-reservaciones.html`.
+- **Endpoint de ganancias que no existía:** el changelog lo daba por hecho, pero `GET /api/servicios/editar?recurso=estadisticas` nunca estuvo en `api/` (solo en el servidor simulado), así que el panel mostraba $0.00. Ahora existe en `api/servicios/editar.ts`: ganancias = anticipos aprobados − marketplace_fee − ~5 % estimado de MP, más vistas, likes, recomendaciones de IA y serie de 14 días. Probado el SQL contra Neon (sin pagos aprobados todavía).
+- **Tabla `pagos_reservacion` auto-provisionada:** `asegurarTablaPagosReservacion()` en `api/_lib/db.ts`, llamada antes de registrar un pago, para que una base nueva no rompa el primer cobro.
+- **Pendiente:** primer pago de prueba de punta a punta (cuenta de pruebas `TEST-` o un pago real mínimo) para confirmar el reparto 10 % / ~85 %; hasta entonces el flujo de pagos de reservación sigue sin confirmarse con un pago real. Desplegar para que el 10 % entre en vigor en el cobro.

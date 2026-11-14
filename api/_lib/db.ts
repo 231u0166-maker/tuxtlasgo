@@ -88,4 +88,12 @@ export async function asegurarTablaEventosServicio(pool: Pool) {
     CREATE INDEX IF NOT EXISTS eventos_servicio_lookup
       ON eventos_servicio (servicio_id, tipo, creado_en)
   `);
+  // Anti-inflado: quién generó el evento (id anónimo del navegador) y un
+  // hash de su IP. Los eventos anteriores a esto quedan con NULL.
+  await pool.query('ALTER TABLE eventos_servicio ADD COLUMN IF NOT EXISTS visitante TEXT');
+  await pool.query('ALTER TABLE eventos_servicio ADD COLUMN IF NOT EXISTS ip_hash TEXT');
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS eventos_servicio_visitante
+      ON eventos_servicio (servicio_id, tipo, visitante)
+  `);
 }

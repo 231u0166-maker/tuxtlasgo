@@ -235,18 +235,17 @@ export const db = new TuxtlasDB();
 // ─────────────── FAVORITOS ───────────────
 export async function toggleFavorito(lugarId: string): Promise<boolean> {
   const existente = await db.favoritos.get(lugarId);
+  // Solo servicios reales cuentan para las estadísticas del prestador; su id
+  // sigue el patrón 'prestador-<n>' (ver servicioComoLugar / aprobados.ts).
+  const servicioId = lugarId.startsWith('prestador-') ? Number(lugarId.slice('prestador-'.length)) : NaN;
   if (existente) {
     await db.favoritos.delete(lugarId);
+    // Quitar el favorito le resta el "like" (antes solo se sumaba).
+    if (Number.isFinite(servicioId)) registrarEventoServicio(servicioId, 'unlike');
     return false;
   }
   await db.favoritos.put({ id: lugarId, agregadoEn: Date.now() });
-  // Cuenta como "like" para las estadísticas del prestador — solo al
-  // agregar (no al quitar), y solo para servicios reales, cuyo id
-  // sigue el patrón 'prestador-<n>' (ver servicioComoLugar / aprobados.ts).
-  if (lugarId.startsWith('prestador-')) {
-    const servicioId = Number(lugarId.slice('prestador-'.length));
-    if (Number.isFinite(servicioId)) registrarEventoServicio(servicioId, 'like');
-  }
+  if (Number.isFinite(servicioId)) registrarEventoServicio(servicioId, 'like');
   return true;
 }
 

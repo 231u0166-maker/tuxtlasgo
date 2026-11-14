@@ -21,7 +21,7 @@ import { getToken, getUsuarioLocal, setUsuarioLocal, type UsuarioSesion } from '
 import { subirFoto, type ProgresoSubida } from '../lib/cloudinary';
 import { servicioComoLugar } from '../lib/db';
 import GestorFotos from './GestorFotos';
-import GraficaMini from './GraficaMini';
+import GraficaActividad from './GraficaActividad';
 import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { recargarCatalogo } from '../arranque';
@@ -2297,118 +2297,133 @@ function PanelResumenPrestador({
 
   const ganancias = stats ? formatearMXNCompleto(stats.ganancias) : null;
 
+  const hayActividad = !!stats && stats.serie.some(d => d.vistas + d.likes + d.ia_recomendaciones > 0);
+
   return (
-    <div className="fixed inset-0 z-[80] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
-      <div
-        className="bg-jungle-50 w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[85vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="sticky top-0 bg-jungle-50/95 backdrop-blur px-4 pt-4 pb-2 flex items-center justify-between">
-          <h2 className="font-display font-bold text-jungle-950">Ganancias y estadísticas</h2>
-          <button onClick={onCerrar} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={20} /></button>
-        </div>
+    <div className="fixed inset-0 z-[80] bg-jungle-50 flex flex-col" role="dialog" aria-label="Ganancias y estadísticas">
+      <div className="flex items-center gap-2.5 px-4 py-3.5 bg-white border-b border-jungle-100 flex-none" style={{ paddingTop: 'max(0.875rem, env(safe-area-inset-top))' }}>
+        <button onClick={onCerrar} aria-label="Volver" className="w-9 h-9 rounded-full grid place-items-center text-jungle-800 hover:bg-jungle-50">
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="font-display font-bold text-jungle-950 text-[17px]">Ganancias y estadísticas</h2>
+      </div>
 
-        <div className="px-4 pb-6 space-y-3">
-          {/* Ganancias reales — suma de anticipos ya pagados de tus
-              reservaciones (~85% que te toca, sin el 15% de comisión). */}
-          <div className="bg-gradient-to-br from-jungle-900 to-jungle-950 rounded-2xl p-5 text-white relative overflow-hidden">
-            <DollarSign size={72} className="absolute -right-3 -bottom-3 text-white/5" />
-            <p className="text-xs text-jungle-300 uppercase tracking-wide font-semibold mb-1">Ganancias totales</p>
-            <p className="font-display font-extrabold text-3xl">
-              {cargandoStats ? '···' : (ganancias ?? '$0.00 MXN')}
-            </p>
-            <p className="text-xs text-jungle-300 mt-2 relative">
-              {stats && stats.reservasPagadas > 0
-                ? `De ${stats.reservasPagadas} reservación${stats.reservasPagadas > 1 ? 'es' : ''} pagada${stats.reservasPagadas > 1 ? 's' : ''}, ya con la comisión (~15%) descontada.`
-                : servicio.acepta_reservaciones
-                  ? 'Todavía no tienes anticipos pagados — aparecerán aquí en cuanto un turista pague.'
-                  : 'Activa reservaciones (pestaña Reservaciones) para empezar a cobrar anticipos.'}
-            </p>
-          </div>
+      <div className="flex-1 overflow-y-auto min-h-0 p-3.5 pb-10">
+        <div className="max-w-[1100px] mx-auto grid gap-3.5 lg:grid-cols-[360px_minmax(0,1fr)] items-start">
 
-          <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-semibold text-jungle-900">Plan Premium</p>
-              {premiumActivo && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">Activo</span>
+          {/* ── Columna izquierda: dinero ── */}
+          <div className="grid gap-3.5 min-w-0">
+            {/* Ganancias reales — anticipos ya pagados de tus reservaciones
+                (~85% que te toca, sin el 15% de comisión). */}
+            <div className="bg-gradient-to-br from-jungle-900 to-jungle-950 rounded-2xl p-5 text-white relative overflow-hidden">
+              <DollarSign size={72} className="absolute -right-3 -bottom-3 text-white/5" />
+              <p className="text-[11px] text-jungle-300 uppercase tracking-wider font-bold">Ganancias totales</p>
+              <p className="font-display font-extrabold text-4xl mt-1.5 mb-1">
+                {cargandoStats ? '···' : (ganancias ?? '$0.00 MXN')}
+              </p>
+              <p className="text-xs text-jungle-200 relative">
+                {stats && stats.reservasPagadas > 0
+                  ? `De ${stats.reservasPagadas} reservación${stats.reservasPagadas > 1 ? 'es' : ''} pagada${stats.reservasPagadas > 1 ? 's' : ''}, ya con la comisión (~15%) descontada.`
+                  : servicio.acepta_reservaciones
+                    ? 'Todavía no tienes anticipos pagados — aparecerán aquí en cuanto un turista pague.'
+                    : 'Activa reservaciones (pestaña Reservaciones) para empezar a cobrar anticipos.'}
+              </p>
+              <div className="flex gap-2.5 mt-3.5 relative">
+                <div className="flex-1 bg-white/10 rounded-xl px-3 py-2.5">
+                  <b className="block text-base">{cargandoStats ? '···' : (stats?.reservasPagadas ?? 0)}</b>
+                  <span className="text-[11px] text-jungle-300">reservaciones pagadas</span>
+                </div>
+                <div className="flex-1 bg-white/10 rounded-xl px-3 py-2.5">
+                  <b className="block text-base">~85 %</b>
+                  <span className="text-[11px] text-jungle-300">te llega de cada anticipo</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-semibold text-jungle-900">Plan Premium</p>
+                {premiumActivo && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">Activo</span>
+                )}
+              </div>
+              <p className="text-xs text-jungle-500 mb-3">
+                Prioridad en las recomendaciones del asistente de IA — $89 MXN/mes.
+              </p>
+
+              {premiumActivo ? (
+                <p className="text-xs text-jungle-600 bg-jungle-50 rounded-xl px-3 py-2.5">
+                  Activo hasta el {servicio.premium_hasta ? new Date(servicio.premium_hasta).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}.
+                </p>
+              ) : (
+                <>
+                  <button
+                    onClick={pagarPremium}
+                    disabled={pagando}
+                    className="w-full flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold"
+                  >
+                    {pagando ? <Loader2 size={16} className="animate-spin" /> : <DollarSign size={16} />}
+                    Desbloquear Premium — $89 MXN
+                  </button>
+                  <p className="text-[11px] text-jungle-400 mt-2">
+                    Pagas con tarjeta, SPEI o efectivo en OXXO — se procesa con Mercado Pago.
+                    Si pagas con SPEI u OXXO, la activación puede tardar unas horas.
+                  </p>
+                  {errorPago && <p className="text-xs text-red-600 mt-2">{errorPago}</p>}
+                </>
               )}
             </div>
-            <p className="text-xs text-jungle-500 mb-3">
-              Prioridad en las recomendaciones del asistente de IA — $89 MXN/mes.
-            </p>
 
-            {premiumActivo ? (
-              <p className="text-xs text-jungle-600 bg-jungle-50 rounded-xl px-3 py-2.5">
-                Activo hasta el {servicio.premium_hasta ? new Date(servicio.premium_hasta).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}.
+            <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+              <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <BarChart3 size={12} /> Perfil completo
               </p>
-            ) : (
-              <>
-                <button
-                  onClick={pagarPremium}
-                  disabled={pagando}
-                  className="w-full flex items-center justify-center gap-2 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold"
-                >
-                  {pagando ? <Loader2 size={16} className="animate-spin" /> : <DollarSign size={16} />}
-                  Desbloquear Premium — $89 MXN
-                </button>
-                <p className="text-[11px] text-jungle-400 mt-2">
-                  Pagas con tarjeta, SPEI o efectivo en OXXO — se procesa con Mercado Pago.
-                  Si pagas con SPEI u OXXO, la activación puede tardar unas horas.
+              <BarraPerfilCompleto servicio={servicio} fotos={fotos} />
+            </div>
+          </div>
+
+          {/* ── Columna derecha: actividad ── */}
+          <div className="grid gap-3.5 min-w-0">
+            <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+              <h3 className="font-display font-bold text-jungle-950 text-[15px]">Actividad de tu ficha</h3>
+              <p className="text-xs text-gray-500">Cómo te encuentra y te ve la gente</p>
+
+              {cargandoStats ? (
+                <p className="text-xs text-gray-400 text-center py-10">Cargando…</p>
+              ) : hayActividad && stats ? (
+                <GraficaActividad serie={stats.serie} />
+              ) : (
+                <p className="text-xs text-gray-500 text-center px-3 py-8">
+                  Todavía no hay actividad registrada — en cuanto alguien vea tu ficha, la des favorito o la IA la recomiende en el chat, aparecerá aquí.
                 </p>
-                {errorPago && <p className="text-xs text-red-600 mt-2">{errorPago}</p>}
-              </>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* Interés real — quién lo vio, cuántos le dieron like, y
-              cuántas veces lo recomendó la IA. Esto reemplaza el
-              módulo que antes no mostraba ninguna gráfica. */}
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <TarjetaStat icono={Search} label="Vistas de tu ficha" valor={cargandoStats ? '···' : String(stats?.vistas ?? 0)} />
-            <TarjetaStat icono={CheckCircle2} label="Le gustó a la gente" valor={cargandoStats ? '···' : String(stats?.likes ?? 0)} />
-            <TarjetaStat icono={BarChart3} label="Recomendado por IA" valor={cargandoStats ? '···' : String(stats?.iaRecomendaciones ?? 0)} />
-            <TarjetaStat icono={DollarSign} label="% que vio y le gustó" valor={cargandoStats ? '···' : `${stats?.porcentajeLike ?? 0}%`} />
-          </div>
-
-          {!cargandoStats && stats && stats.serie.some(d => d.vistas + d.likes + d.ia_recomendaciones > 0) && (
-            <div className="bg-white rounded-2xl border border-jungle-100 p-4 space-y-3">
-              <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide flex items-center gap-1.5">
-                <BarChart3 size={12} /> Últimos 14 días
-              </p>
-              <div>
-                <p className="text-[11px] font-semibold text-jungle-600 mb-1">Vistas</p>
-                <GraficaMini datos={stats.serie.map(d => ({ dia: d.dia, valor: d.vistas }))} color="#15803d" />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold text-jungle-600 mb-1">Le gustó</p>
-                <GraficaMini datos={stats.serie.map(d => ({ dia: d.dia, valor: d.likes }))} color="#dc2626" />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold text-jungle-600 mb-1">Recomendado por IA</p>
-                <GraficaMini datos={stats.serie.map(d => ({ dia: d.dia, valor: d.ia_recomendaciones }))} color="#2563eb" />
+            {/* Interés real — todo el tiempo, no solo los últimos 14 días. */}
+            <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+              <h3 className="font-display font-bold text-jungle-950 text-[15px]">Resumen</h3>
+              <p className="text-xs text-gray-500 mb-3">Todo el tiempo</p>
+              <div className="grid grid-cols-2 gap-2.5">
+                <TarjetaStat icono={Search} label="Vistas de tu ficha" valor={cargandoStats ? '···' : String(stats?.vistas ?? 0)} />
+                <TarjetaStat icono={CheckCircle2} label="Le gustó a la gente" valor={cargandoStats ? '···' : String(stats?.likes ?? 0)} />
+                <TarjetaStat icono={BarChart3} label="Recomendado por IA" valor={cargandoStats ? '···' : String(stats?.iaRecomendaciones ?? 0)} />
+                <TarjetaStat icono={DollarSign} label="% que vio y le gustó" valor={cargandoStats ? '···' : `${stats?.porcentajeLike ?? 0}%`} />
               </div>
             </div>
-          )}
-          {!cargandoStats && stats && stats.vistas === 0 && (
-            <p className="text-[11px] text-jungle-400 text-center px-2">
-              Todavía no hay actividad registrada — en cuanto alguien vea tu ficha, la des favorito o la IA la recomiende en el chat, aparecerá aquí.
-            </p>
-          )}
 
-          {/* Estadísticas — solo métricas reales y calculables con lo
-              que ya tenemos, nada inventado. */}
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <TarjetaStat icono={Calendar} label="Prestador desde" valor={servicio.creado_en ? formatearMes(servicio.creado_en) : '—'} />
-            <TarjetaStat icono={CheckCircle2} label="Estado" valor={labelEstado} />
-            <TarjetaStat icono={ImagePlus} label="Fotos subidas" valor={String(fotos.length)} />
-            <TarjetaStat icono={Link2} label="Enlaces agregados" valor={String(enlaces.length)} />
+            {/* Estadísticas — solo métricas reales y calculables con lo
+                que ya tenemos, nada inventado. */}
+            <div className="bg-white rounded-2xl border border-jungle-100 p-4">
+              <h3 className="font-display font-bold text-jungle-950 text-[15px] mb-3">Tu servicio</h3>
+              <div className="grid grid-cols-2 gap-2.5">
+                <TarjetaStat icono={Calendar} label="Prestador desde" valor={servicio.creado_en ? formatearMes(servicio.creado_en) : '—'} />
+                <TarjetaStat icono={CheckCircle2} label="Estado" valor={labelEstado} />
+                <TarjetaStat icono={ImagePlus} label="Fotos subidas" valor={String(fotos.length)} />
+                <TarjetaStat icono={Link2} label="Enlaces agregados" valor={String(enlaces.length)} />
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-2xl border border-jungle-100 p-4">
-            <p className="text-xs font-semibold text-jungle-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-              <BarChart3 size={12} /> Perfil completo
-            </p>
-            <BarraPerfilCompleto servicio={servicio} fotos={fotos} />
-          </div>
+
         </div>
       </div>
     </div>

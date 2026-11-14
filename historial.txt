@@ -1,0 +1,340 @@
+2026-11-11 | User | mejora en usabilidad en la paginas con wag
+2026-11-11 | User | mejoras es uso wag y Lighthouse
+2026-11-11 | User | cambio en el menu de salida de cada usuario adelante
+2026-11-11 | User | btn: salida y cookings ademas mejor en salir de los menus sin que se afecte la usabilidad de la plataforma
+2026-11-11 | User | contexto xd
+2026-11-11 | User | cambio en serivicios y links de pagos
+2026-11-11 | User | cambio diferente sy ay
+2026-11-11 | User | cambios en la interfaz de usuario para subir foto editar
+2026-11-11 | User | stlye actulizacio y factoriccion de campso detllaes de turista
+2026-11-11 | User | cambio en el peso de la pagina y uso de capomdel perfil
+2026-11-11 | User | stly camvio modal de horario
+2026-11-11 | User | style: precio hora, rango y nuemro de personal con correo
+2026-11-11 | User | style: menu servicio cambios en mi servicio3
+2026-11-10 | User | style: menu servicio cambios en mi servicio2
+2026-11-10 | User | style: menu servicio cambios en mi servicio
+2026-11-10 | User | style: menu servicio app perfiles de prestador
+2026-11-10 | User | componet: estilo en el menu de prestador de serivicio
+2026-11-10 | User | FIX2: enlace de ig
+2026-11-10 | User | FIX: enlace de ig
+2026-11-10 | User | FIX: PETICION CON Y MENSAJES POR WHATSATT PETICIONES NUEVAS
+2026-11-10 | User | FIX: peticion de una solicitud rechazada con formulario mejorado
+2026-11-10 | User | FIX: peticion de una solicitud rechazada
+2026-11-10 | User | style: mejora en el formulariio 2
+2026-11-10 | User | style: mejora en el formulario
+2026-11-10 | User | style: carga
+2026-11-08 | User | fix(seo): español y sin modelo de IA para los robots
+2026-11-08 | User | fix(seo): servir español a los buscadores
+2026-11-08 | User | chore: archivo de verificacion de Search Console
+2026-11-08 | User | feat: SEO básico, login con Google, reseñas
+2026-11-08 | User | feat: login con Google, reseñas, landing y satélite Mapbox
+2026-11-08 | User | fix: comentarios usuarui a y usuario B
+2026-11-08 | User | stlye: funcioanlidad mapa stelital
+2026-11-08 | User | stlye: cambio ux/ui7
+2026-11-08 | User | style: ux/ui6
+2026-11-08 | User | ux/ui5
+2026-11-08 | User | style ux/ui4
+2026-11-08 | User | style ux/ui3
+2026-11-08 | User | sytle: ux/ui2
+2026-11-08 | User | sytle: ux/ui
+2026-11-08 | User | Merge branch 'diseno-mindtrip'
+2026-11-08 | User | style: mojara en interfaz
+2026-11-08 | User | style: mojara en interfaz
+2026-11-08 | User | stlye: hover y cambio de barra menu
+2026-11-08 | User | Quita archivo suelto main
+2026-11-08 | User | stlye: hover y cambio de barra menu
+2026-11-08 | User | Prueba: aviso del modo inteligente y sin deslizar para recargar en la app instalada
+2026-11-08 | User | Prueba: aviso cuando el modo inteligente no se activa
+2026-11-08 | User | Prueba: espera mas larga al recargar y entre intentos de carga del modelo
+2026-11-08 | User | Prueba: carga del modelo mas segura con registro de intentos y rutas entre municipios
+2026-11-08 | User | Prueba: ruta entre lugares nombrados y que lugares visitar
+2026-11-08 | User | Prueba: negocios registrados con cupo de exposicion y otras opciones en el chat
+2026-11-08 | User | Prueba: vectores precalculados, claves ampliadas, regla del banco recalibrada y terminos
+2026-11-07 | User | Prueba: reintento y recuperacion si falla la creacion del modelo
+2026-11-07 | User | Prueba: modelo multilingue e5 y panel de diagnostico (rama de pruebas)
+2026-11-07 | User | Nueva navegación: barra lateral con nombres, campana en la barra, Comunidad integrada y Nuevo chat
+2026-11-07 | User | Tarjeta de lugar: pie de una línea y alto parejo con textos largos
+2026-11-07 | User | Agrega OtrasZonasOferta, faltaba en el commit anterior
+2026-11-07 | User | Asistente: arreglos de rutas y municipio, zonas fuera de Los Tuxtlas con aviso Te puede interesar
+2026-10-06 | User | cambio de generar ia elinar tien mal aspecto eso pues
+2026-10-06 | User | cambios en el formulario de llenado
+2026-10-06 | User | cambios en formulario
+2026-10-06 | User | cambios en el mapa
+2026-10-04 | User | cambios chat 2
+2026-10-04 | User | cambios en la ia
+2026-10-04 | User | cambios ux
+2026-10-04 | User | cambios en edicion
+2026-10-04 | User | modificaiones en el mapa
+2026-10-04 | User | cambios en barra menu
+2026-10-04 | User | modulo de favoritos corregido
+2026-10-04 | User | modulo de favoritos corregido
+2026-10-04 | User | modulo de ingles
+2026-09-26 | User | cambios alternos calendario reservacions y calendario en seleccionar feha y dispo
+2026-09-26 | User | cambios alternos calendario reservacions
+2026-09-26 | User | cambios alternos calendario
+2026-09-26 | User | cambios alternos HORARIO FECHA de ux/ui v1
+2026-09-26 | User | cambios alternos HORARIO FECHA de ux/ui
+2026-09-26 | User | cambios alternos de ux/ui
+2026-09-26 | User | agrega contactos en sitios estaticos
+2026-09-25 | User | seccion nueva de contacto
+2026-09-25 | User | volvemos
+2026-09-25 | User | cambio de como llegar y bug real
+2026-09-25 | User | remove: patrocinador seccion
+2026-09-25 | User | remove: sitios ficticios
+2026-09-25 | User | delate: de sistios que no existen
+2026-09-24 | User | patrocinar plan premium
+2026-09-23 | User | cambio modelo neeg funcional al pagar
+2026-09-23 | User | cambio en la deteccion de cada categoria mejores reasoueas eee
+2026-09-23 | User | cambio en la deteccion de cada categoria
+2026-09-23 | User | cambio en el mensaje por defecto hacer que funcione
+2026-09-23 | User | cambios en el funcionamiento de salud con la ia e integrados con funcionamiento offilne online
+2026-09-23 | User | mejora en el tiempo de respuesta y perdidad en caso de poca o conexion debil
+2026-09-23 | User | cambios en el pie de pagina
+2026-09-22 | User | chore: quitar archivos de prueba de Playwright del repo y agregar .playwright-mcp/ a .gitignore
+2026-09-22 | User | cambios en el ux carrusel de cada page
+2026-09-22 | User | cambios en el ux
+2026-09-18 | User | arreglo cache de catalogo de prestadores para modo offline , fix: persistir catálogo de prestadores en IndexedDB para modo offline
+2026-09-18 | User | cambios en el ambito de chat con presupuestaod y emergencia
+2026-09-17 | User | solucion de chats inapropiados
+2026-09-17 | User | cambio en destacados
+2026-09-17 | User | cambio de inicio a destacados
+2026-09-17 | User | cambio disenio en interfaz del pie de pagina
+2026-09-17 | User | cambio en el pie pagina elminar Bines de consumo final
+2026-09-17 | User | cambio en el pie de pagina
+2026-09-17 | User | archivo de contexto de comandos con md
+2026-08-15 | User | Cambios en la estadisticas y bugs
+2026-08-15 | User | regresamos al estilo anterior
+2026-08-15 | User | quitando el estilo generico de ia
+2026-08-14 | User | configuracion cors
+2026-08-13 | User | poolon y cnfig en db.ts
+2026-08-13 | User | prueba poolig true:false
+2026-08-12 | User | actualizar
+2026-08-12 | User | ser
+2026-08-11 | User | verfiifcacion  cambios
+2026-08-11 | User | verfiifcacion foto
+2026-08-11 | User | cerrrar sesion implementado bien
+2026-08-11 | User | terminos y condiciones
+2026-08-11 | User | edicion en perfilScreen
+2026-08-11 | User | factorizacion de interfaces mejoras en ux
+2026-08-11 | User | factorizacion de interfaces
+2026-08-11 | User | Burbuja persistente
+2026-08-11 | User | notificaiones
+2026-08-11 | User | update de mapas2
+2026-08-11 | User | update de mapas
+2026-08-11 | User | update de la comunidad
+2026-08-11 | User | factorizacion en el partes de la fucnionalidad
+2026-08-11 | User | fix3: vencimiento de pagos 48h
+2026-08-11 | User | fix3:pagos por parte de turistas hacia pagos reales
+2026-08-11 | User | resoluciones en reservas
+2026-08-11 | User | mensajes y reservaciones repos:fix1
+2026-08-11 | User | mensajes y reservaciones
+2026-08-11 | User | chat envido con reservaciones
+2026-08-11 | User | correciones en reservaciones
+2026-08-11 | User | trigger: probar webhook reconectado
+2026-08-11 | User | implementacion sistema de reservaciones
+2026-08-11 | User | urls de mercado pago
+2026-08-11 | User | pagos e implementaciones en reservaciones
+2026-08-11 | User | modelaes para pc y movil en los metodos de pago
+2026-08-11 | User | integracion de pagos: mercadopago spei metodos de pago y formas de pago perfil
+2026-08-11 | User | integracion de pagos: mercadopago spei metodos de pago y formas de pago
+2026-08-11 | User | integracion de pagos: mercadopago spei metodos de pago
+2026-08-11 | User | modifaciones en perfilscreen btn de ganancias
+2026-08-11 | User | modifaciones en perfilscreen
+2026-08-10 | User | trigger: forzar redeploy en Vercel
+2026-08-10 | User | fix: consolidar endpoints de comunidad para no exceder limite de Vercel Hobby (12 funciones)
+2026-08-10 | User | comunidad - galeria
+2026-08-10 | User | expandir a gusto appsell
+2026-08-10 | User | revertir a Centro de Prestador (sin editor tipo Notion, sin archivos huerfanos)
+2026-08-10 | User | fix: quitar EditorGuiaServicio.tsx obsoleto (reemplazado por EditorInfoAdicional.tsx)
+2026-08-10 | User | mejoras en panel prestador para editar servicios estilo mas libre
+2026-08-10 | User | mejoras en panel prestador para editar servicios
+2026-08-10 | User | mejoras en panel prestador para editar servicios
+2026-08-10 | User | mejoras en panel de prestador en conjunto
+2026-08-10 | User | mejoras en panel de prestador fix7
+2026-08-10 | User | mejoras en panel de prestador fix6
+2026-08-10 | User | mejoras en panel de prestador fix5
+2026-08-10 | User | mejoras en panel de prestador fix4
+2026-08-10 | User | mejoras en panel de prestador fix3
+2026-08-10 | User | mejoras en panel de prestador:fix2
+2026-08-10 | User | mejoras en panel de prestador:fix1
+2026-08-10 | User | mejoras en panel de prestador
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:13
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:12
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:11
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:10
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:9
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:8
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:7
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:6
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:5
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:4
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:3
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:2
+2026-08-07 | User | btn de inicio cambio de interface y mejoras en el uso de la app update:1
+2026-08-07 | User | cambios de distribucion en el dising en visualizacion de iconos fix:2
+2026-08-07 | User | cambios de distribucion en el dising en visualizacion de iconos fix:1
+2026-08-07 | User | refactorazacion en los iconos en el apartado de explorar
+2026-08-07 | User | refactorazacion en los iconos y en los demas elementos que integran la app
+2026-08-07 | User | cambios de distribucion en el dising en visualizacion de iconos
+2026-08-07 | User | cambios de distribucion en el dising
+2026-08-07 | User | cambios de distribucion de entreda de chat
+2026-08-07 | User | filtro flotantes
+2026-08-07 | User | cambios en el apartado de filtros
+2026-08-05 | User | build supuesta fix de filtros
+2026-08-05 | User | build de los filtros vinculacion
+2026-08-05 | User | build de los filtros
+2026-08-05 | User | build del aspecto de landing y panaeles atumotazidos
+2026-08-05 | User | mejoras en la seccion 01 la base del dising
+2026-08-05 | User | refactorizando  en landig
+2026-08-05 | User | refactorizando
+2026-08-05 | User | refactorizando dising ahora y despues de cada actulizacion
+2026-08-05 | User | refactorizando dising
+2026-08-04 | User | llm + guardail + umbral de confianza mejorado
+2026-08-04 | User | mejoras con la el llm y en la opciones de peticiones de tareas y lugares con mascota
+2026-08-04 | User | mejoras con la el llm y la interfaz de la mascota
+2026-08-04 | User | peticon con llm y limites de peticion a la ia
+2026-08-04 | User | parches con peticon con llm
+2026-08-04 | User | cambios en el llm mejoras
+2026-08-01 | User | mejoras en caso 4 y 5 de edades menores y peticiones explicitas categorias q faltaron
+2026-08-01 | User | mejoras en caso 4 y 5 de edades menores y peticiones explicitas
+2026-07-31 | User | mejoras en chatbot y llm
+2026-07-31 | User | cambio en las conversaciones y mejoras en la logica de responder
+2026-07-31 | User | cambio en el recordar cada conversacion referente a heradar el monto exacto
+2026-07-30 | User | cambio en el prompt de grob para no alucinar distancias de un lugar
+2026-07-30 | User | fix: Mejoras en preguntas basicas de dinero y presupuesto real y basicos
+2026-07-30 | User | fix: ancla de dias para no confundir preguntas simples con pedir una ruta
+2026-07-30 | User | solucion del prompt2 presupues y dinero chatbot
+2026-07-30 | User | solucion del prompt2 presupues y dinero en una conversacion- cambios en nanciyaga con precios
+2026-07-30 | User | solucion del prompt2 presupues y dinero en una conversacion
+2026-07-29 | User | mejoras en el el prompt1_1 restriccion en el movimiento de los mapas al seleccionar o crear una ruta propia
+2026-07-29 | User | mejoras en el el prompt1_1 ubicacion mapa controles y trayectoria con routing
+2026-07-29 | User | mejoras en el el prompt1_1 ubicacion mapa controles
+2026-07-29 | User | mejoras en el el prompt1_1 ubicacion mapas y claculos
+2026-07-29 | User | solucion de promt1 sub promot1_1 ubicacion en tiempor real
+2026-07-29 | User | solucion del promt1
+2026-07-29 | User | Correcion al tokenizar todas las peticiones elminacion de string a tokens
+2026-07-28 | User | fix: aviso visible de actualizacion de la PWA (antes actualizaba en silencio)
+2026-07-28 | User | mejoras con chatbot mas conocimientos mas el asistente de chat
+2026-07-28 | User | mejoras QA RAG CHATBOT
+2026-07-24 | User | Sistema y mejoras en el panel de admin
+2026-07-24 | User | Sistema y mejoras en el panel de admin para el team de tuxtlasGO
+2026-07-23 | User | Configuracion de colores ruta y mejoras en las rutas
+2026-07-23 | User | mejoras en el parpadeo y posterior cierre del mini mapa en el chat
+2026-07-23 | User | mini mapa al dar una referencia en mapa con la ia
+2026-07-22 | User | arreglos en las respuestas y promor de la ia
+2026-07-22 | User | sistemas anti peticiones de tokens repetidos
+2026-07-22 | User | mejoras en los diseños de los box
+2026-07-21 | User | mejoras en los diseños de los box
+2026-07-21 | User | mejoras en los diseños
+2026-07-21 | User | Cambios en colores y figuras en mapa
+2026-07-21 | User | Cambios en categorias que no existian
+2026-07-21 | User | cambio con edificios extruidos
+2026-07-21 | User | cambios en el btn satelital
+2026-07-21 | User | cambios en interface
+2026-07-21 | User | mejoras en el mapa y rutas
+2026-07-20 | User | Revert "mejoras en las rutas y recorridos al ver rutas en los mapas por ia y por autoexploracion"
+2026-07-20 | User | mejoras en las rutas y recorridos al ver rutas en los mapas por ia y por autoexploracion
+2026-07-20 | User | Cambios en la ubicacion y manera de hacer rutas
+2026-07-19 | User | modifacion en ubicacion desde 3 lugares y ubicacion real y moviento camara
+2026-07-19 | User | modifacion en ubicacion desde 3 lugares y ubicacion real
+2026-07-19 | User | modifacion en ubicacion en tiempo real
+2026-07-18 | User | mejoras en el calculo y ubicacion real
+2026-07-18 | User | mejoras en el calculo y ubicacion real eb el mapa
+2026-07-18 | User | mejoras en los iconos y mapas
+2026-07-18 | User | supuestas mejoras en el mapa
+2026-07-18 | User | actualizaciones para un mejor funcionamiento
+2026-07-17 | User | mini implementacion en el sistema de panel de control
+2026-07-17 | User | ULTIMA MOD
+2026-07-15 | User | uptade modulo 1 e ui
+2026-07-15 | User | uptadate en la ia pln sin aluciones demas
+2026-07-14 | User | actuliacion en los bugs de asistente offilne
+2026-07-14 | User | cambio con pln sistema integral de ia sin  un modelo llm local de 32 , 64 bits
+2026-07-13 | User | Actulizacion modulo1 cambio para poder usar  a 64bits en general
+2026-07-10 | User | Actulizacion en error de descarga online de IA Local opfs
+2026-07-10 | User | Actulizacion en error de descarga online de IA Local
+2026-07-10 | User | arreglo en el dising para ver el error de la implementacion del modulo 1
+2026-07-10 | User | Actualizacion en el modulo de ia local baner de descarga
+2026-07-09 | User | correcion del modulo 1
+2026-07-09 | User | Cambios en los paquetes y dependicial de webllm + la integracion de elementos nuevo en la interface
+2026-07-09 | User | Actualizacion de IA en el modulo 1
+2026-07-09 | User | Correciones en el Modulo 1
+2026-07-09 | User | Actulizacion y trabajo del Modulo1-IA-mejorado
+2026-06-23 | User | Modulo 1: correcion prestador servicio
+2026-06-23 | User | Modulo 1: correcion de ing inversa en PerfilScreen con Prestador S
+2026-06-23 | User | Modulo 1: correcion de ing inversa en PerfilScreen
+2026-06-22 | User | Modulo 1: Estilo User en los taps
+2026-06-22 | User | Modulo 1: Estilo de el link Mi Perfil nuevo cambio
+2026-06-22 | User | Modulo 1: Estilo de el link Mi Perfil nuevo cambio
+2026-06-22 | User | Modulo 1: Estilo de el link Mi Perfil
+2026-06-22 | User | Modulo 1: Perfiles + Consistencia PlaceCard prestadores
+2026-06-14 | User | Sube limite de precache de Workbox para el bundle en web-llm
+2026-06-14 | User | Agrega LLM offline (WebLLM + RAG sobre prestadores) al asistente
+2026-05-24 | User | fix: IA respeta categoría y precio del usuario, variedad solo en empates
+2026-05-24 | User | fix: variedad en recomendaciones IA + municipios rotativos + respuestas naturales
+2026-05-23 | User | fix: Cloudinary offline + rutas sin internet silenciosas + pre-caché imágenes
+2026-05-23 | User | feat: Ver en el mapa traza ruta verde desde ubicación del usuario redespliegue
+2026-05-23 | User | feat: Ver en el mapa traza ruta verde desde ubicación del usuario
+2026-05-23 | User | fix: FlyToLugar e ícono resaltado en JSX del mapa
+2026-05-23 | User | feat: Ver en el mapa centra y resalta el marcador con animación
+2026-05-23 | User | fix: parsear fotos JSONB + modo edición cerrado por defecto
+2026-05-23 | User | feat: editar servicio + fotos en mapa + recarga catálogo
+2026-05-23 | User | fix: quitar transformation en upload unsigned Cloudinary
+2026-05-23 | User | feat: flujo prestador unificado en registro + panel solo gestión
+2026-05-23 | User | fix: publicId scope en GestorFotos
+2026-05-23 | User | fix: TypeScript error GestorFotos
+2026-05-23 | User | feat: fotos prestadores Cloudinary
+2026-05-23 | User | fix: modal auth centrado en desktop, backdrop full-screen
+2026-05-23 | User | feat: layout responsive desktop con sidebar de navegación
+2026-05-23 | User | fix: quitar fondo verde desktop, mantener modales centrados
+2026-05-23 | User | fix: modal auth contenido en 430px en desktop
+2026-05-23 | User | fix: desktop centrado, prestador→admin, mi-servicio, consulta Neon
+2026-05-23 | User | Fix: boton Entrar abre login, prestador registra ubicacion automaticamente
+2026-05-23 | User | Fix: ExploreScreen muestra catalogo completo incluyendo prestadores de Neon
+2026-05-23 | User | Fix: cargar servicios aprobados de Neon al iniciar la app
+2026-05-23 | User | Fix: registro prestador espera respuesta de Neon correctamente
+2026-05-23 | User | Fix: IA respeta categorias sin mezcla, registro prestador sin error
+2026-05-23 | User | Fix: registro prestador a Neon, IA respeta categorias seleccionadas
+2026-05-22 | User | agregamos prestador
+2026-05-22 | User | Cambiamos titulos del inicio
+2026-05-22 | User | Cambiamos titulos Tugia
+2026-05-22 | User | Cambiamos titulos Tugia sin limites
+2026-05-22 | User | Quitar tarjeta Modo avion del carrusel
+2026-05-22 | User | Fix: rutas de slides corregidas a /img/
+2026-05-22 | User | Carrusel automatico en landing con fotos reales
+2026-05-22 | User | PlaceDetail: modal centrado max 520px en desktop
+2026-05-22 | User | Desktop: app centrada como movil fondo verde oscuro
+2026-05-20 | User | Fix: quitar AuthScreen inexistente del App.tsx
+2026-05-20 | User | Separar panel admin en /admin, prestador solo en /prestador
+2026-05-20 | User | Panel admin y consultar estado conectados a Neon
+2026-05-20 | User | Auth: mapa de ubicacion para prestadores, categorias nuevas
+2026-05-20 | User | Auth: nuevo diseño login/registro con checkbox por prestador
+2026-05-20 | User | Fix: usar NEON_DATABASE_URL de la integracion nativa
+2026-05-20 | User | Fix: agregar pg a dependencias
+2026-05-20 | User | Fix: usar pg en lugar de neon serverlss driver
+2026-05-20 | User | Fix: cada funcion API independiente sin imports compartidos
+2026-05-20 | User | Fix: renombrar _db.ts a db.ts (Vercel ignora archivos con _)
+2026-05-20 | User | Fix: conexion Neon dentro de cada handler
+2026-05-20 | User | Fix: APIs con Node.js runtime en vez de Edge
+2026-05-20 | User | Fix: rutas API no interceptadas por rewrite
+2026-05-20 | User | Auth completo: login, registro, recuperacion conNeon
+2026-05-19 | User | Eliminar categorias Cultura y Playa
+2026-05-19 | User | Iconos con fondo blanco, logo legible en pantalla de inicio
+2026-05-19 | User | Logo real , iconos completos, 10 lugares reales con fotos
+2026-05-19 | User | 10 lugares reales con fotos verificadas y base de conocimiento actualizada
+2026-05-15 | User | Guardar rutas, aviso de mapa offline, Ver ruta desde Mis lugares
+2026-05-15 | User | Chat persistente al cambiar tabs, sin solapamiento de marcadores en ruta
+2026-05-15 | User | Chat persistente entre tabs, 10 lugares verificados
+2026-05-15 | User | Mapa: boton reset, descargar no mueve la vista , controles compatos
+2026-05-15 | User | Fix: mapa de bloqueo tactil evita que LeaFlet procese eventos detras del modal
+2026-05-15 | User | Fix: Descarga offline: 689 tiles exactos de los Tuxtlas, barra de progreso
+2026-05-15 | User | Fix: scroll tactil en placeDetail, mapa bloqueado al abrir detalle
+2026-05-15 | User | Fix: PlaceDetail con overlay de estilos, cubre pantalla completa
+2026-05-15 | User | Fix: Superposicion de screen de mapa y interfez
+2026-05-15 | User | Fix: simplificar jerarquia de z-index, botones del mapa nunca tapan modales
+2026-05-15 | User | Fix: detalle movil cubre pantalla, soy prestador visible , cerrar , ruta
+2026-05-15 | User | Rutas por carretera con cache offline + prestadores en motor
+2026-05-15 | User | Arreglo crítico: BottomNav ya no tapa el input del asistente
+2026-05-15 | User | Arreglos: caja de texto invisible, banner offline SW arreglo
+2026-05-14 | User | Arreglo: caja de texto del asistente ahora visible
+2026-05-14 | User | Asistente con PLN, base de conocimiento ampliada, sin modelos LLM
+2026-05-13 | User | Subida completa del proyecto TuxtlasGO

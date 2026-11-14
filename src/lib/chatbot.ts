@@ -905,6 +905,16 @@ export function mensajeBienvenidaConFiltros(): MensajeChat {
   };
 }
 
+// Un prestador Premium recién registrado todavía no tiene calificaciones
+// (rating 0), y por eso el plan de $89 no le servía justo al empezar:
+// quedaba al final de la lista igual que uno sin Premium. Mientras no
+// tenga calificaciones propias, su rating "efectivo" es este valor base.
+// En cuanto lo califiquen, cuenta su rating real (sea mayor o menor).
+const RATING_BASE_PREMIUM_SIN_CALIFICAR = 4.0;
+function ratingEfectivo(l: Lugar): number {
+  return l.rating > 0 ? l.rating : l.premium ? RATING_BASE_PREMIUM_SIN_CALIFICAR : 0;
+}
+
 // ─────────────── NÚCLEO: FILTRADO Y RANKING (motor de inferencia) ───────────────
 interface LugarConScore {
   lugar: Lugar;
@@ -947,7 +957,7 @@ export function filtrarLugaresConRazones(
     }
 
     // Bonus rating
-    score += lugar.rating;
+    score += ratingEfectivo(lugar);
     if (lugar.rating >= 4.6) {
       razones.push('tiene de las mejores valoraciones de la zona');
     }
@@ -1726,7 +1736,7 @@ export function seleccionarConVariedad(candidatos: Lugar[], n: number): Lugar[] 
     return [...candidatos];
   }
   // Mismo criterio de calidad que antes: rating + empate a favor de Premium
-  const puntaje = (l: Lugar) => l.rating + (l.premium ? 0.4 : 0);
+  const puntaje = (l: Lugar) => ratingEfectivo(l) + (l.premium ? 0.4 : 0);
 
   // Hallazgo real de campo (prueba en un teléfono): preguntando por
   // restaurantes en Catemaco nunca salía ninguno de los ~9 negocios que se
@@ -1742,13 +1752,19 @@ export function seleccionarConVariedad(candidatos: Lugar[], n: number): Lugar[] 
   const calificados = candidatos.filter((l) => l.rating > 0);
   if (n >= 3 && sinCalificar.length > 0 && calificados.length > 0) {
     const cupoSinCalificar = Math.min(sinCalificar.length, Math.max(1, Math.floor(n / 3)));
-    const frescos = sinCalificar.filter((l) => !fueMostradoRecientemente(l));
-    const ordenSinCalificar = [...frescos, ...sinCalificar.filter((l) => fueMostradoRecientemente(l))];
-    // al azar dentro de cada grupo (frescos primero), no siempre los mismos
+    // al azar dentro de cada grupo, no siempre los mismos. Orden de prioridad
+    // para el cupo: Premium fresco, fresco, Premium mostrado hace poco, el resto
+    // (el Premium pagó por posicionamiento, así que gana el cupo ante otro
+    // sin calificar en igualdad de condiciones).
     const mezclar = <T,>(a: T[]) => [...a].sort(() => Math.random() - 0.5);
+    const esFresco = (l: Lugar) => !fueMostradoRecientemente(l);
+    const grupo = (fresco: boolean, premium: boolean) =>
+      mezclar(sinCalificar.filter((l) => esFresco(l) === fresco && !!l.premium === premium));
     const elegidosSinCalificar = [
-      ...mezclar(ordenSinCalificar.filter((l) => !fueMostradoRecientemente(l))),
-      ...mezclar(ordenSinCalificar.filter((l) => fueMostradoRecientemente(l))),
+      ...grupo(true, true),
+      ...grupo(true, false),
+      ...grupo(false, true),
+      ...grupo(false, false),
     ].slice(0, cupoSinCalificar);
     const restoCalificados = seleccionarConVariedad(calificados, Math.min(calificados.length, n - elegidosSinCalificar.length));
     const todos = [...restoCalificados, ...elegidosSinCalificar];

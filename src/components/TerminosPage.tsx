@@ -2,7 +2,7 @@
 // TÉRMINOS Y CONDICIONES
 // ============================================================
 // Contenido real, no placeholder — reflejan exactamente cómo
-// funciona TuxtlasGO hoy (Premium $89 MXN, comisión 6% por
+// funciona TuxtlasGO hoy (Premium $89 MXN, comisión 15% por
 // reservación vía Mercado Pago, moderación de Comunidad, etc.).
 // Si el producto cambia, esta página también debe actualizarse.
 // ============================================================
@@ -66,8 +66,10 @@ export default function TerminosPage() {
               <li>
                 Puedes activar el módulo de <strong>reservaciones</strong>, independiente del Plan Premium. Para
                 esto debes conectar tu propia cuenta de Mercado Pago mediante autorización OAuth. Cuando un turista
-                paga el anticipo de una reservación, Mercado Pago reparte el pago automáticamente: TuxtlasGO retiene
-                una comisión del <strong>6%</strong> y el resto se deposita directo a tu cuenta — TuxtlasGO nunca
+                paga el anticipo de una reservación, Mercado Pago reparte el pago automáticamente: se descuenta una
+                comisión total aproximada de <strong>15%</strong> (<strong>10%</strong> para TuxtlasGO y cerca de 5% de
+                Mercado Pago por procesar el pago) y el resto, alrededor del 85%, se deposita directo a tu cuenta. La
+                comisión de Mercado Pago puede variar según su tarifa vigente — TuxtlasGO nunca
                 recibe ni retiene ese dinero de forma manual.
               </li>
               <li>

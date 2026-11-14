@@ -9,7 +9,7 @@
 // MERCADOPAGO_ACCESS_TOKEN — porque ahí el dinero es para nosotros.
 // El pago de una reservación es distinto: se crea con el
 // access_token del PRESTADOR (obtenido vía OAuth en la conexión), y
-// se le agrega marketplace_fee (nuestro 6%) — Mercado Pago reparte
+// se le agrega marketplace_fee (nuestro 10%) — Mercado Pago reparte
 // solo, el resto le llega directo al prestador. Nunca tocamos ese
 // dinero nosotros.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -19,7 +19,10 @@ import { createHmac } from 'crypto';
 
 const PRECIO_PREMIUM_MXN = 89;
 const DIAS_VIGENCIA = 30;
-const COMISION_RESERVACION = 0.06; // 6% — mismo número que en toda la app
+// 10% = lo que se queda TuxtlasGO (marketplace_fee). La comisión de Mercado Pago
+// (~5%) la descuenta MP aparte de la cuenta del prestador; por eso al prestador
+// le llega ~85% y en la app se comunica "15% por reservación" en total.
+const COMISION_RESERVACION = 0.10;
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');

@@ -1583,7 +1583,7 @@ function PerfilPrestador({
                       Conectar con Mercado Pago
                     </button>
                   )}
-                  <p className="text-xs text-jungle-500 mt-3 leading-snug">TuxtlasGO retiene 15 % por reservación pagada; tú recibes 85 % directo a tu cuenta.</p>
+                  <p className="text-xs text-jungle-500 mt-3 leading-snug">Comisión por reservación pagada: 15 % (10 % TuxtlasGO + ~5 % Mercado Pago); tú recibes ~85 % directo a tu cuenta.</p>
                 </TarjetaFormulario>
 
                 {sucioEnlaces && (
@@ -2023,7 +2023,7 @@ function PanelReservacionesPrestador({
           </div>
         ) : (
           <p className="text-xs text-jungle-500 leading-relaxed">
-            Mercado Pago conectado · TuxtlasGO retiene 15 % por reservación pagada; tú recibes 85 % directo a tu cuenta.
+            Mercado Pago conectado · Comisión por reservación pagada: 15 % (10 % TuxtlasGO + ~5 % Mercado Pago); tú recibes ~85 % directo a tu cuenta.
           </p>
         )}
       </TarjetaFormulario>

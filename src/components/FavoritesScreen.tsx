@@ -329,7 +329,7 @@ export default function FavoritesScreen({ onVerLugar, onVerRutaEnMapa }: Props) 
                     : 'bg-red-50 text-red-800 border border-red-200'
                 }`}>
                 <span className="flex-1">{mensajePago.texto}</span>
-                <button onClick={() => setMensajePago(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
+                <button onClick={() => setMensajePago(null)} className="opacity-60 hover:opacity-100" aria-label="Cerrar aviso"><X size={14} /></button>
               </div>
             )}
             {cargandoReservas && (

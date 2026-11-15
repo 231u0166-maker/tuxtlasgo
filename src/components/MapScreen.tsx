@@ -683,7 +683,8 @@ export default function MapScreen({
   }, []);
 
   return (
-    <div ref={contenedorRef} className="relative h-full">
+    <div ref={contenedorRef} role="region" aria-label={t('Mapa de lugares')} className="relative h-full">
+      <p className="sr-only">{t('El mapa es visual. Para recorrer los lugares con lector de pantalla usa la pestaña Explorar.')}</p>
       {hayZonaLibre && onSalirZonaLibre && (
         <button
           onClick={onSalirZonaLibre}
@@ -968,6 +969,7 @@ export default function MapScreen({
               <button
                 onClick={() => setMostrarAyuda(false)}
                 className="text-jungle-400 hover:text-jungle-700"
+                aria-label={t('Cerrar')}
               >
                 <X size={20} />
               </button>

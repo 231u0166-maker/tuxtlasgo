@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, Send, ImagePlus, Loader2 } from 'lucide-react';
 import { getToken } from '../lib/auth';
+import { useDialogA11y } from '../lib/useDialogA11y';
 import { subirFotoMensaje, type ProgresoSubida } from '../lib/cloudinary';
 
 interface Mensaje {
@@ -30,6 +31,7 @@ export default function ChatReservacion({
   nombreOtro: string;
   onCerrar: () => void;
 }) {
+  const dialogRef = useDialogA11y({ onClose: onCerrar, label: `Chat con ${nombreOtro}` });
   const [mensajes, setMensajes] = useState<Mensaje[] | null>(null);
   const [propioId, setPropioId] = useState<number | null>(null);
   const [texto, setTexto] = useState('');
@@ -89,7 +91,7 @@ export default function ChatReservacion({
   }
 
   return (
-    <div className="fixed inset-0 z-[95] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
+    <div ref={dialogRef} className="fixed inset-0 z-[95] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
       <div
         className="bg-amate-50 w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl h-[85vh] sm:h-[75vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -99,7 +101,7 @@ export default function ChatReservacion({
             <p className="font-display font-bold text-sm">{nombreOtro}</p>
             <p className="text-[11px] text-jungle-200">Sobre tu reservación</p>
           </div>
-          <button onClick={onCerrar} className="text-jungle-200 hover:text-white p-1"><X size={20} /></button>
+          <button onClick={onCerrar} className="text-jungle-200 hover:text-white p-1" aria-label="Cerrar chat"><X size={20} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
@@ -131,6 +133,7 @@ export default function ChatReservacion({
           <button
             onClick={() => inputFotoRef.current?.click()}
             disabled={subiendoFoto}
+            aria-label="Enviar una foto"
             className="text-jungle-500 hover:text-jungle-700 p-2 flex-shrink-0 disabled:opacity-40"
           >
             {subiendoFoto ? <Loader2 size={20} className="animate-spin" /> : <ImagePlus size={20} />}
@@ -147,6 +150,7 @@ export default function ChatReservacion({
           <button
             onClick={() => enviarMensaje()}
             disabled={enviando || !texto.trim()}
+            aria-label="Enviar mensaje"
             className="bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
           >
             <Send size={16} />

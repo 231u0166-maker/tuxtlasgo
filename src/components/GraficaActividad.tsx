@@ -158,12 +158,22 @@ export default function GraficaActividad({ serie }: { serie: PuntoActividad[] })
 
       {/* Gráfica */}
       <div ref={cajaRef} className="relative mt-2.5">
+        {/* Mismos datos de la gráfica, en tabla, para lectores de pantalla. */}
+        <table className="sr-only">
+          <caption>{`${m.plural} de los últimos ${rango} días`}</caption>
+          <thead><tr><th scope="col">Día</th><th scope="col">{m.plural}</th></tr></thead>
+          <tbody>
+            {datos.map((v, i) => (
+              <tr key={i}><th scope="row">{String(fechas[i])}</th><td>{v}</td></tr>
+            ))}
+          </tbody>
+        </table>
         <svg
           ref={svgRef}
           viewBox={`0 0 ${W} ${H}`}
           className="w-full h-auto block overflow-visible touch-none"
           role="img"
-          aria-label={`Gráfica de ${m.plural} de los últimos ${rango} días`}
+          aria-label={`Gráfica de ${m.plural} de los últimos ${rango} días. Total: ${total}. ${comparacion.texto}.`}
         >
           <defs>
             <linearGradient id={idGrad} x1="0" y1="0" x2="0" y2="1">

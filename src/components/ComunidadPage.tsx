@@ -404,6 +404,7 @@ function Composer({
           <img src={imagenUrl} alt="" className="max-h-48 rounded-xl object-cover" />
           <button
             onClick={() => setImagenUrl('')}
+            aria-label="Quitar imagen"
             className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-obsidiana-900 text-white flex items-center justify-center"
           >
             <X size={13} />
@@ -416,6 +417,7 @@ function Composer({
           <video src={video.url} controls className="max-h-48 rounded-xl" />
           <button
             onClick={() => setVideo(null)}
+            aria-label="Quitar video"
             className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-obsidiana-900 text-white flex items-center justify-center"
           >
             <X size={13} />
@@ -455,6 +457,7 @@ function Composer({
               onClick={() => setMostrarEmojis((v) => !v)}
               className="text-jungle-700 hover:text-jungle-900"
               title="Agregar emoji"
+              aria-label="Agregar emoji"
             >
               <Smile size={17} />
             </button>
@@ -594,11 +597,12 @@ function SeccionComentarios({ publicacionId, onComentario }: { publicacionId: nu
           className="flex-1 bg-jungle-50 rounded-full px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-jungle-400"
         />
         {respondiendoA && (
-          <button onClick={() => setRespondiendoA(null)} className="text-jungle-400 hover:text-jungle-700"><X size={14} /></button>
+          <button onClick={() => setRespondiendoA(null)} className="text-jungle-400 hover:text-jungle-700" aria-label="Cancelar respuesta"><X size={14} /></button>
         )}
         <button
           onClick={enviar}
           disabled={enviando || !texto.trim()}
+          aria-label="Enviar comentario"
           className="text-jungle-700 hover:text-jungle-900 disabled:opacity-40 flex-shrink-0"
         >
           {enviando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}

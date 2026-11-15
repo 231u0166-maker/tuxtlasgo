@@ -254,7 +254,7 @@ export default function NotificacionesBurbuja({ variante = 'flotante', colapsado
       <div className={clasePanel} style={estiloPanelBarra}>
           <div className="bg-jungle-800 text-white px-4 py-3 flex items-center justify-between">
             <p className="font-display font-bold text-sm">{t('Notificaciones')}</p>
-            <button onClick={() => setAbierta(false)} className="text-jungle-200 hover:text-white"><X size={16} /></button>
+            <button onClick={() => setAbierta(false)} className="text-jungle-200 hover:text-white" aria-label={t('Cerrar')}><X size={16} /></button>
           </div>
           {resultado && (
             <p role="status" className={`px-4 py-2 text-xs font-semibold ${resultado.error ? 'bg-red-50 text-red-700' : 'bg-jungle-50 text-jungle-800'}`}>
@@ -367,7 +367,8 @@ export default function NotificacionesBurbuja({ variante = 'flotante', colapsado
           ref={botonRef}
           onClick={alAbrirCerrarBarra}
           title={colapsado ? t('Notificaciones') : undefined}
-          aria-label={t('Notificaciones')}
+          aria-label={total > 0 ? `${t('Notificaciones')}: ${total}` : t('Notificaciones')}
+          aria-expanded={abierta}
           className={`relative w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
             colapsado ? 'px-0 justify-center' : 'px-3'
           } ${abierta ? 'bg-jungle-700 text-white shadow-sm' : 'text-jungle-300 hover:bg-jungle-800 hover:text-white'}`}
@@ -423,7 +424,8 @@ export default function NotificacionesBurbuja({ variante = 'flotante', colapsado
         className={`relative w-14 h-14 rounded-full bg-jungle-700 hover:bg-jungle-800 text-white shadow-xl flex items-center justify-center touch-none select-none ${
           arrastrando ? 'cursor-grabbing scale-105' : 'cursor-grab transition-colors'
         }`}
-        aria-label={t('Notificaciones — mantén presionado para mover')}
+        aria-label={`${t('Notificaciones — mantén presionado para mover')}${total > 0 ? `: ${total}` : ''}`}
+        aria-expanded={abierta}
       >
         {abierta ? <X size={22} /> : <MessageCircle size={22} />}
         {!abierta && total > 0 && (

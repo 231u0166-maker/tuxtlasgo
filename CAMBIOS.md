@@ -586,3 +586,40 @@ Pendiente: confirmar en producción tras el deploy (en incógnito). `ResenasLuga
 - **Servidor (`api/servicios/aprobados.ts`, `api/_lib/db.ts`):** columnas nuevas `visitante` e `ip_hash` en `eventos_servicio` (se crean solas). Reglas: 1 like por visitante y servicio (se resta al quitarlo); 1 vista y 1 recomendación de IA por visitante y servicio cada 24 h; el dueño del servicio no cuenta; máximo 5 eventos por tipo, servicio e IP al día; eventos sin id de visitante (versiones viejas en caché) se ignoran.
 - Probado contra Neon con un servicio falso (999999): repetidos no suman, poner/quitar/poner deja 1 like, 8 ids falsos desde una IP quedan en 5. No probado: la detección del dueño con una sesión real.
 - Los eventos anteriores a este cambio no tienen visitante y siguen contando tal cual (pueden estar inflados).
+
+
+---
+
+# Sesión 2026-11-15 — Accesibilidad para lectores de pantalla (TalkBack / VoiceOver)
+
+**Alcance:** niveles 1 a 3 del plan de accesibilidad para personas ciegas o con baja visión. No es una certificación WCAG: es la base para que un lector de pantalla pueda usar el flujo del turista. **Falta probarlo con TalkBack en un celular real** (aquí solo se verificó con el árbol de accesibilidad de Chromium).
+
+## Nivel 1 — Base
+- **Etiquetas en botones de solo ícono** (~30): cerrar, enviar, quitar foto, ojo de contraseña, copiar código, +/− de personas y de viajeros, refrescar, etc. El texto va por `t()` donde el archivo ya traducía.
+- **Diálogos modales:** nuevo hook `src/lib/useDialogA11y.ts`. Pone `role="dialog"` + `aria-modal` + nombre, mueve el foco adentro al abrir, atrapa Tab, cierra con Esc y devuelve el foco a quien lo abrió. Con modales apilados solo responde el de encima. Aplicado a: AuthModal, ModalReservacion, ChatReservacion, FiltrosViaje (Overlay y HojaInferior), GaleriaPage (lightbox), PlaceDetail (visor de fotos), PerfilScreen (`ModalEditarSeccion`), AppShell (salir), ProviderPanel (permiso de ubicación).
+- `<html lang>` ya cambiaba con el idioma (`i18n.tsx`), no hizo falta tocarlo.
+- Campos sin etiqueta: nombre en Perfil, nombre del negocio, duración personalizada.
+
+## Nivel 2 — Navegación y avisos
+- Enlace **"Saltar al contenido"** (visible solo con foco) + `<main id="contenido-principal">`.
+- `aria-label` en las dos `<nav>` y `aria-current="page"` en la pestaña activa (barra inferior y lateral).
+- **Chat:** el contenedor de mensajes es `role="log"` (anuncia los mensajes nuevos), cada burbuja lleva "Asistente:" / "Tú:" solo para lectores, indicador "está escribiendo" con `role="status"`, y las opciones de intereses usan `aria-pressed`.
+- Campana de notificaciones: el conteo entra en el nombre accesible ("Notificaciones: 3") y lleva `aria-expanded`.
+- Overlay "Calculando ruta…" con `role="status"`.
+
+## Nivel 3 — Elementos con trampa
+- **Botón dentro de botón** (los lectores no lo exponen): tarjeta de Inicio (`PlaceCard`), tarjeta de Explorar (`ExploreScreen`) e historial de chats (`HistorialChats`). El botón de favorito/borrar ahora es hermano, no hijo. El favorito dice "Favorito: <lugar>" y usa `aria-pressed`. La tarjeta de Explorar ahora muestra anillo de foco con teclado (antes `focus:outline-none` sin reemplazo).
+- Calendario semanal: las columnas de día son alcanzables con teclado (Tab, Enter/Espacio) y dicen si el día no está disponible.
+- Gráfica de actividad: el nombre del SVG incluye total y comparación, más una tabla oculta con los datos por día.
+- Mapa: región etiquetada + nota para lector de pantalla que remite a la pestaña Explorar (el mapa es visual).
+- Traducciones EN de todo lo nuevo en `src/lib/i18n-en.ts`.
+
+## Probado
+`tsc --noEmit` limpio. En el navegador (390 px de ancho): 0 elementos interactivos sin nombre en las 6 pestañas; 0 botones anidados; modal de inicio de sesión con rol, nombre, foco dentro, Tab que da la vuelta, Esc que cierra y foco que regresa al botón que lo abrió; el chat expone el log y el campo etiquetado.
+
+## Pendiente / a sabiendas
+- Probar con TalkBack real (Android) y VoiceOver (iPhone).
+- Sin cubrir: paneles de Admin y Prestador (campos solo con `placeholder`), editores de descripción/horario en pantalla completa, menús móviles de la landing, y los pines del mapa (no son enfocables).
+- Contraste de color y tamaño de texto no se auditaron.
+- Preexistente, ajeno a esto: `fetchPriority` en `PlaceCard.tsx` y `HeroScroll.tsx` da un aviso de React (debería ser `fetchpriority`).
+- Archivos: `src/lib/useDialogA11y.ts` (nuevo), `src/lib/i18n-en.ts` y ~22 componentes en `src/components/`.

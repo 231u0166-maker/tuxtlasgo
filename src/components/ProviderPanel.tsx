@@ -18,6 +18,7 @@ import { ESTADOS_MEXICO, MUNICIPIOS_TUXTLAS, componerMunicipio } from '../data/e
 // Se descarga solo al llegar al paso de precio (mismo componente que usa Mi Perfil).
 const SelectorRangoPrecio = lazy(() => import('./SelectorRangoPrecio'));
 import { NIVELES_PRECIO, formatearPrecio, type NivelPrecio } from '../lib/precio';
+import { useDialogA11y } from '../lib/useDialogA11y';
 
 // ============================================================
 // PANEL DEL PRESTADOR — v3 (ver MEJORAS DISEÑO PANEL PRESTADOR)
@@ -374,6 +375,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
   const [ubicacionAutoFallo, setUbicacionAutoFallo] = useState(false);
   const [precisionUbicacion, setPrecisionUbicacion] = useState<number | null>(null);
   const [mostrarExplicacionUbicacion, setMostrarExplicacionUbicacion] = useState(false);
+  const dialogUbicRef = useDialogA11y({ label: 'Permiso de ubicación', activo: mostrarExplicacionUbicacion });
   const intentoAutoUbicacionHecho = useRef(false);
 
   const indicePaso = ORDEN_PASOS.indexOf(paso);
@@ -1020,7 +1022,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
                 {fotoVerificacion ? (
                   <div className="relative inline-block">
                     <img src={fotoVerificacion} alt="Verificación" className="h-32 rounded-xl object-cover border border-jungle-100" />
-                    <button type="button" onClick={() => setFotoVerificacion('')}
+                    <button type="button" onClick={() => setFotoVerificacion('')} aria-label="Quitar foto"
                       className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-obsidiana-900 text-white flex items-center justify-center">
                       <X size={13} />
                     </button>
@@ -1149,7 +1151,7 @@ function RegistrarNegocio({ onVolver, onExito }: { onVolver: () => void; onExito
           entrar al paso 'contacto' si todavía no hay un pin — ver el
           useEffect de arriba. */}
       {mostrarExplicacionUbicacion && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div ref={dialogUbicRef} className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-5 max-w-sm animate-fade-in">
             <div className="w-12 h-12 rounded-full bg-jungle-100 flex items-center justify-center mb-3">
               <Navigation size={22} className="text-jungle-700" />

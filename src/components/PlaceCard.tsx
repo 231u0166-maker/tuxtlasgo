@@ -73,9 +73,10 @@ export default function PlaceCard({ lugar, onClick, compact, prioritaria }: Prop
   }
 
   return (
+    <div className="group relative w-full h-full min-w-0 bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-jungle-100 hover:border-jungle-300">
     <button
       onClick={onClick}
-      className="group w-full h-full min-w-0 bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all text-left border border-jungle-100 hover:border-jungle-300 flex flex-col"
+      className="w-full h-full text-left flex flex-col"
     >
       <div className="relative aspect-[4/3] bg-jungle-100 overflow-hidden">
         <img
@@ -89,16 +90,6 @@ export default function PlaceCard({ lugar, onClick, compact, prioritaria }: Prop
           height={480}
         onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
           />
-        <button
-          onClick={handleFav}
-          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur flex items-center justify-center hover:bg-white transition"
-          aria-label={t('Favorito')}
-        >
-          <Heart
-            size={18}
-            className={fav ? 'fill-red-500 text-red-500' : 'text-jungle-700'}
-          />
-        </button>
         <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5 max-w-[calc(100%-4.5rem)]">
           <span
             className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cat?.color || 'bg-white text-jungle-800'}`}
@@ -164,5 +155,19 @@ export default function PlaceCard({ lugar, onClick, compact, prioritaria }: Prop
         </div>
       </div>
     </button>
+    {/* Hermano del botón de la tarjeta (no hijo): un botón dentro de otro
+        no lo exponen los lectores de pantalla. */}
+    <button
+      onClick={handleFav}
+      className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur flex items-center justify-center hover:bg-white transition"
+      aria-label={`${t('Favorito')}: ${lugar.nombre}`}
+      aria-pressed={fav}
+    >
+      <Heart
+        size={18}
+        className={fav ? 'fill-red-500 text-red-500' : 'text-jungle-700'}
+      />
+    </button>
+    </div>
   );
 }

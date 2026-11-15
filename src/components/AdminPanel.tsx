@@ -829,6 +829,7 @@ export default function AdminPanel() {
                       type="button"
                       onClick={buscarUbicacion}
                       disabled={buscandoUbicacion}
+                      aria-label="Buscar ubicación"
                       className="bg-jungle-100 hover:bg-jungle-200 text-jungle-800 px-3 rounded-xl flex items-center justify-center"
                     >
                       {buscandoUbicacion ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}

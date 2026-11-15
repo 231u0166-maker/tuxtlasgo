@@ -294,7 +294,9 @@ const VistaSemana = memo(function VistaSemana({ ini, n, hoyK, sel, bloqueadas, p
           {dias.map((d) => {
             const k = aISO(d), bloq = bloqueadas.has(k);
             return (
-              <div key={k} onClick={() => onElegir(k)} role="button" aria-label={`${DIAS[dow(d)]} ${d.getDate()}`}
+              <div key={k} onClick={() => onElegir(k)} role="button" tabIndex={0} aria-pressed={k === sel}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onElegir(k); } }}
+                aria-label={`${DIAS[dow(d)]} ${d.getDate()}${bloq ? ', no disponible' : ''}`}
                 className={`relative border-l border-jungle-100 cursor-pointer ${k === sel ? 'bg-jungle-50/60' : ''}`}
                 style={{
                   height: 18 * ALTO_HORA,

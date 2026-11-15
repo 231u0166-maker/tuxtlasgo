@@ -66,26 +66,30 @@ export default function HistorialChats({ onCerrar, onAbrirChat, onNuevoChat, cha
           )}
 
           {chats?.map((c) => (
-            <button
+            <div
               key={c.id}
-              onClick={() => { onAbrirChat(c); onCerrar(); }}
-              className={`w-full flex items-center gap-2.5 py-2.5 px-3 rounded-xl text-left transition-colors ${c.id === chatActivoId ? 'bg-jungle-50' : 'hover:bg-obsidiana-900/5'
+              className={`w-full flex items-center gap-1 rounded-xl transition-colors ${c.id === chatActivoId ? 'bg-jungle-50' : 'hover:bg-obsidiana-900/5'
                 }`}
             >
-              <MessageSquare size={16} className="text-jungle-600 flex-shrink-0" />
+            <button
+              onClick={() => { onAbrirChat(c); onCerrar(); }}
+              aria-current={c.id === chatActivoId ? 'true' : undefined}
+              className="flex-1 min-w-0 flex items-center gap-2.5 py-2.5 pl-3 text-left"
+            >
+              <MessageSquare size={16} className="text-jungle-600 flex-shrink-0" aria-hidden="true" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-obsidiana-900 truncate">{c.titulo}</div>
                 <div className="text-xs text-obsidiana-800/40">{tiempoRelativo(c.actualizadoEn)}</div>
               </div>
-              <span
-                role="button"
-                onClick={(e) => eliminar(c.id, e)}
-                className="text-obsidiana-800/30 hover:text-red-500 transition-colors p-1 flex-shrink-0"
-                aria-label="Eliminar conversación"
-              >
-                <Trash2 size={14} />
-              </span>
             </button>
+            <button
+              onClick={(e) => eliminar(c.id, e)}
+              className="text-obsidiana-800/40 hover:text-red-500 transition-colors p-2.5 mr-1 flex-shrink-0"
+              aria-label={`Eliminar conversación: ${c.titulo}`}
+            >
+              <Trash2 size={14} />
+            </button>
+            </div>
           ))}
         </div>
       </Modal>

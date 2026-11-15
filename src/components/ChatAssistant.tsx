@@ -1424,7 +1424,7 @@ export default function ChatAssistant({
       )}
 
       {/* Mensajes */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-40 space-y-3">
+      <div ref={scrollRef} role="log" aria-live="polite" aria-relevant="additions text" aria-label={tr('Conversación con el asistente')} className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-40 space-y-3">
         {mensajes.map((msg) => (
           <Burbuja
             key={msg.id}
@@ -1457,7 +1457,7 @@ export default function ChatAssistant({
         ))}
 
         {escribiendo && (
-          <div className="flex flex-col gap-1.5 px-4 py-3 bg-white rounded-2xl rounded-tl-sm w-fit min-w-[180px] border border-jungle-100">
+          <div role="status" aria-label={tr('El asistente está escribiendo')} className="flex flex-col gap-1.5 px-4 py-3 bg-white rounded-2xl rounded-tl-sm w-fit min-w-[180px] border border-jungle-100">
             <div className="flex items-center gap-2">
               <span
                 className="w-2 h-2 bg-jungle-400 rounded-full animate-bounce"
@@ -1500,6 +1500,7 @@ export default function ChatAssistant({
               }
             }}
             placeholder={generandoIA ? tr('Pensando…') : tr('Escribir un mensaje...')}
+            aria-label={tr('Escribir un mensaje...')}
             disabled={generandoIA}
             rows={1}
             inputMode="text"
@@ -1549,6 +1550,7 @@ function Burbuja({
   rutaYaGuardada?: boolean;
 }) {
   const esBot = mensaje.role === 'bot';
+  const tr = useT();
 
   return (
     <div className={`flex ${esBot ? 'justify-start' : 'justify-end'}`}>
@@ -1560,6 +1562,7 @@ function Burbuja({
             : 'bg-jungle-700 text-white rounded-2xl rounded-tr-sm'
             }`}
         >
+          <span className="sr-only">{esBot ? tr('Asistente') : tr('Tú')}: </span>
           {mensaje.texto}
         </div>
 
@@ -1575,6 +1578,7 @@ function Burbuja({
                 <button
                   key={op.valor}
                   onClick={() => onOpcion(op.valor, op.label)}
+                  aria-pressed={estado === 'preguntando_intereses' && !esDone ? seleccionado : undefined}
                   className={`text-sm px-3 py-2 rounded-xl font-medium transition-colors border ${esDone
                     ? 'bg-jungle-700 text-white border-jungle-700 hover:bg-jungle-800'
                     : seleccionado

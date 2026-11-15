@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { MapPin, Calendar, Users, DollarSign, ChevronDown, Minus, Plus, X, SlidersHorizontal } from 'lucide-react';
 import CalendarioRango from './CalendarioRango';
 import { useT } from '../lib/i18n';
+import { useDialogA11y } from '../lib/useDialogA11y';
 
 // ============================================================
 // BARRA DE FILTROS — Dónde / Cuándo / Quién / Presupuesto
@@ -353,8 +354,10 @@ function Pastilla({
 // ve igual sin importar si el filtro está arriba del chat, del mapa,
 // o en cualquier otra pantalla que lo use más adelante.
 export function Overlay({ onCerrar, children }: { onCerrar: () => void; children: React.ReactNode }) {
+  const dialogRef = useDialogA11y({ onClose: onCerrar, label: 'Filtros' });
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[200] bg-obsidiana-950/45 backdrop-blur-[2px] flex items-center justify-center p-4 animate-fade-in"
       onClick={onCerrar}
     >
@@ -369,8 +372,9 @@ export function Overlay({ onCerrar, children }: { onCerrar: () => void; children
 // fuera cierra.
 function HojaInferior({ onCerrar, children }: { onCerrar: () => void; children: React.ReactNode }) {
   const t = useT();
+  const dialogRef = useDialogA11y({ onClose: onCerrar, label: t('Filtros') });
   return (
-    <div className="fixed inset-0 z-[200]">
+    <div ref={dialogRef} className="fixed inset-0 z-[200]">
       <div
         className="absolute inset-0 bg-obsidiana-950/45 animate-fade-in"
         onClick={onCerrar}
@@ -476,6 +480,7 @@ function FilaToggle({
         className={`w-[38px] h-[22px] rounded-full transition-colors relative flex-shrink-0 ${valor ? 'bg-jungle-700' : 'bg-obsidiana-900/15'
           }`}
         aria-pressed={valor}
+        aria-label={t(etiqueta)}
       >
         <span
           className={`absolute top-0.5 w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${valor ? 'translate-x-[18px]' : 'translate-x-0.5'
@@ -524,6 +529,7 @@ function ContadorQuien({
           type="button"
           onClick={() => onCambiar(Math.max(min, valor - 1))}
           disabled={valor <= min}
+          aria-label={`${t('Menos')}: ${t(etiqueta)}`}
           className="w-7 h-7 rounded-full border border-obsidiana-900/15 flex items-center justify-center text-obsidiana-800/70 disabled:opacity-30 hover:border-jungle-400 transition-colors"
         >
           <Minus size={13} />
@@ -532,6 +538,7 @@ function ContadorQuien({
         <button
           type="button"
           onClick={() => onCambiar(valor + 1)}
+          aria-label={`${t('Más')}: ${t(etiqueta)}`}
           className="w-7 h-7 rounded-full border border-obsidiana-900/15 flex items-center justify-center text-obsidiana-800/70 hover:border-jungle-400 transition-colors"
         >
           <Plus size={13} />

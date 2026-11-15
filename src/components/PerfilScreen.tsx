@@ -26,6 +26,7 @@ import type { Lugar } from '../data/lugares';
 import { CATEGORIAS } from '../data/lugares';
 import { recargarCatalogo } from '../arranque';
 import { useT } from '../lib/i18n';
+import { useDialogA11y } from '../lib/useDialogA11y';
 import { optimizarImagen, ANCHO_TARJETA } from '../lib/imagenOptimizada';
 import SelectorIdioma from './SelectorIdioma';
 import { TIPOS_ENLACE, ID_ENLACE_AUTOMATICO, nuevoEnlaceId, parseEnlaces, normalizarEnlace, textoCortoEnlace, type EnlaceServicio, type TipoEnlace } from '../lib/enlaces';
@@ -446,6 +447,7 @@ function PerfilTurista({
           <button
             onClick={() => inputFotoRef.current?.click()}
             disabled={fotoSubiendo}
+            aria-label="Cambiar foto de perfil"
             className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full shadow flex items-center justify-center border border-jungle-100"
           >
             {fotoSubiendo
@@ -459,6 +461,7 @@ function PerfilTurista({
         {/* Nombre — centrado, wrapping correcto */}
         {editando ? (
           <input
+            aria-label="Tu nombre"
             value={form.nombre}
             onChange={e => setForm({ ...form, nombre: e.target.value })}
             className="font-display font-bold text-xl text-jungle-950 border-b-2 border-jungle-400 bg-transparent focus:outline-none text-center w-full max-w-xs"
@@ -1138,7 +1141,7 @@ function PerfilPrestador({
           <button onClick={onVolver} className="flex items-center gap-1 text-white/80 hover:text-white text-sm">
             <ArrowLeft size={16} /> Inicio
           </button>
-          <button onClick={cargar} className="text-white/70 hover:text-white">
+          <button onClick={cargar} className="text-white/70 hover:text-white" aria-label="Actualizar">
             <RefreshCw size={16} />
           </button>
         </div>
@@ -1187,7 +1190,7 @@ function PerfilPrestador({
               : 'bg-red-50 text-red-800 border border-red-200'
             }`}>
               <span className="flex-1">{mensajePremium.texto}</span>
-              <button onClick={() => setMensajePremium(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
+              <button onClick={() => setMensajePremium(null)} className="opacity-60 hover:opacity-100" aria-label="Cerrar aviso"><X size={14} /></button>
             </div>
           )}
           <button
@@ -1657,7 +1660,7 @@ function PerfilPrestador({
                 <div className="space-y-5">
                   <div>
                     <label className={etiqueta}>Nombre del negocio <span className="text-red-500">*</span></label>
-                    <input value={form.nombre} maxLength={80} onChange={e => setForm({ ...form, nombre: e.target.value })} className={campo} />
+                    <input aria-label="Nombre del negocio" value={form.nombre} maxLength={80} onChange={e => setForm({ ...form, nombre: e.target.value })} className={campo} />
                   </div>
                   <div>
                     <label className={etiqueta}>Tipo de negocio</label>
@@ -2456,7 +2459,7 @@ function SelectorDuracion({ valor, onCambiar }: { valor: string; onCambiar: (s: 
         ))}
       </div>
       {esPersonalizado && (
-        <input value={valor} onChange={(e) => onCambiar(e.target.value)}
+        <input aria-label="Duración personalizada" value={valor} onChange={(e) => onCambiar(e.target.value)}
           className="w-full rounded-xl border-[1.5px] border-jungle-100 bg-white/90 px-4 py-3 text-[15px] font-medium text-jungle-950 mt-3 focus:outline-none focus:border-jungle-600 focus:ring-4 focus:ring-jungle-600/10" />
       )}
     </div>
@@ -2586,9 +2589,10 @@ function ModalEditarSeccion({
   /** Pantalla completa en celular y dos columnas en PC (los hijos son las 2 columnas). */
   formulario?: boolean; subtitulo?: string;
 }) {
+  const dialogRef = useDialogA11y({ onClose, label: titulo, clave: !!formulario });
   if (formulario) {
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.6)', backdropFilter: 'blur(3px)' }}
+      <div ref={dialogRef} style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.6)', backdropFilter: 'blur(3px)' }}
         className="flex lg:items-center lg:justify-center lg:p-8">
         <div className="bg-white w-full h-full lg:h-[min(700px,90vh)] lg:max-w-5xl lg:rounded-3xl lg:shadow-2xl flex flex-col overflow-hidden animate-fade-in">
           <div className="flex items-center gap-3 px-4 lg:px-7 py-3.5 border-b border-jungle-100 bg-white/85 backdrop-blur-xl flex-none">
@@ -2614,12 +2618,12 @@ function ModalEditarSeccion({
     );
   }
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }}
+    <div ref={dialogRef} style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }}
       className="lg:!items-center lg:!justify-center lg:p-8">
       <div className="bg-white w-full rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto lg:max-w-lg lg:max-h-[90vh] lg:shadow-2xl">
         <div className="sticky top-0 bg-white border-b border-jungle-100 px-6 py-4 flex items-center justify-between rounded-t-3xl z-10">
           <h2 className="font-display font-extrabold text-lg text-jungle-950">{titulo}</h2>
-          <button onClick={onClose} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={22} /></button>
+          <button onClick={onClose} className="text-jungle-400 hover:text-jungle-700 p-1" aria-label="Cerrar"><X size={22} /></button>
         </div>
         <div className="px-6 py-6 space-y-4">
           {children}

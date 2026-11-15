@@ -25,6 +25,7 @@ export default function BottomNav({ activa, onChange }: Props) {
   const t = useT();
   return (
     <nav
+      aria-label={t('Navegación principal')}
       className="flex-shrink-0 bg-white border-t border-jungle-100 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}
     >
@@ -36,6 +37,7 @@ export default function BottomNav({ activa, onChange }: Props) {
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
+              aria-current={activo ? 'page' : undefined}
               className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${activo ? 'text-jungle-700' : 'text-jungle-500 hover:text-jungle-700'
                 }`}
             >
@@ -48,7 +50,7 @@ export default function BottomNav({ activa, onChange }: Props) {
                 {t(tab.label)}
               </span>
               {activo && (
-                <span className="absolute top-0 w-8 h-0.5 bg-jungle-700 rounded-b" />
+                <span className="absolute top-0 w-8 h-0.5 bg-jungle-700 rounded-b" aria-hidden="true" />
               )}
             </button>
           );

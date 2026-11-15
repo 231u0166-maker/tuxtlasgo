@@ -14,9 +14,11 @@ import { getToken, getUsuarioLocal } from '../lib/auth';
 import type { Lugar } from '../data/lugares';
 import CalendarioSeleccionFecha from './CalendarioSeleccionFecha';
 import { useT } from '../lib/i18n';
+import { useDialogA11y } from '../lib/useDialogA11y';
 
 export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; onCerrar: () => void }) {
   const t = useT();
+  const dialogRef = useDialogA11y({ onClose: onCerrar, label: t('Reservar') });
   const usuario = getUsuarioLocal();
   const [fecha, setFecha] = useState('');
   const [nombreViajero, setNombreViajero] = useState(usuario?.nombre ?? '');
@@ -80,14 +82,14 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
   }
 
   return (
-    <div className="fixed inset-0 z-[90] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
+    <div ref={dialogRef} className="fixed inset-0 z-[90] bg-obsidiana-950/50 flex items-end sm:items-center justify-center" onClick={onCerrar}>
       <div
         className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[88vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 bg-white/95 backdrop-blur px-5 pt-5 pb-1 flex items-center justify-between">
           <h2 className="font-display font-bold text-jungle-950">{t('Reservar')}</h2>
-          <button onClick={onCerrar} className="text-jungle-400 hover:text-jungle-700 p-1"><X size={20} /></button>
+          <button onClick={onCerrar} className="text-jungle-400 hover:text-jungle-700 p-1" aria-label={t('Cerrar')}><X size={20} /></button>
         </div>
 
         {enviado ? (
@@ -148,9 +150,9 @@ export default function ModalReservacion({ lugar, onCerrar }: { lugar: Lugar; on
               />
               <div className="flex items-center gap-3">
                 <span className="text-xs text-jungle-500">{t('Personas')}</span>
-                <button onClick={() => setNumeroPersonas((n) => Math.max(1, n - 1))} className="w-8 h-8 rounded-full bg-jungle-100 text-jungle-700 font-bold">−</button>
+                <button onClick={() => setNumeroPersonas((n) => Math.max(1, n - 1))} aria-label={t('Menos personas')} className="w-8 h-8 rounded-full bg-jungle-100 text-jungle-700 font-bold">−</button>
                 <span className="text-sm font-semibold w-6 text-center">{numeroPersonas}</span>
-                <button onClick={() => setNumeroPersonas((n) => n + 1)} className="w-8 h-8 rounded-full bg-jungle-100 text-jungle-700 font-bold">+</button>
+                <button onClick={() => setNumeroPersonas((n) => n + 1)} aria-label={t('Más personas')} className="w-8 h-8 rounded-full bg-jungle-100 text-jungle-700 font-bold">+</button>
               </div>
             </div>
 

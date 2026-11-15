@@ -28,6 +28,7 @@ import AvisoModoInteligente from './AvisoModoInteligente';
 import OfflineIndicator from './OfflineIndicator';
 import SelectorIdioma from './SelectorIdioma';
 import { useT } from '../lib/i18n';
+import { useDialogA11y } from '../lib/useDialogA11y';
 import { estaEnLaRegion, type Lugar } from '../data/lugares';
 import { obtenerRutaPorTramos, obtenerUbicacionGPS, type Coord } from '../lib/routing';
 import PerfilScreen from './PerfilScreenLazy';
@@ -569,6 +570,7 @@ export default function AppShell() {
   //   · en otra pestaña       → regresa a Destacados
   //   · ya en Destacados      → pregunta "¿Quieres salir de TuxtlasGO?"
   const [mostrarSalir, setMostrarSalir] = useState(false);
+  const dialogSalirRef = useDialogA11y({ onClose: () => setMostrarSalir(false), label: t('¿Quieres salir de TuxtlasGO?'), activo: mostrarSalir });
   const tabRef = useRef(tab);
   tabRef.current = tab;
   const lugarAbiertoRef = useRef(false);
@@ -656,6 +658,15 @@ export default function AppShell() {
   return (
     /* ── Layout raíz ── mobile: column flex  |  desktop: row flex ── */
     <div className="flex flex-col lg:flex-row bg-jungle-50 h-screen [height:100dvh] overflow-hidden">
+      {/* Enlace "Saltar al contenido": solo aparece al recibir foco con teclado
+          o lector de pantalla; evita recorrer toda la barra lateral. */}
+      <a
+        href="#contenido-principal"
+        onClick={(e) => { e.preventDefault(); document.getElementById('contenido-principal')?.focus(); }}
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[10050] focus:bg-white focus:text-jungle-900 focus:font-semibold focus:text-sm focus:px-4 focus:py-2.5 focus:rounded-xl focus:shadow-lg"
+      >
+        {t('Saltar al contenido')}
+      </a>
       <OfflineIndicator />
 
       {/* ══════════════ SIDEBAR (solo desktop) ══════════════ */}
@@ -693,7 +704,7 @@ export default function AppShell() {
             abajo): en escritorio ya se ve el chat con solo un clic,
             así que un ícono aparte solo para el historial hubiera
             sido redundante con el botón de colapsar de arriba. */}
-        <nav className={`flex-1 py-6 space-y-2 overflow-y-auto ${sidebarColapsado ? 'px-2' : 'px-4'}`}>
+        <nav aria-label={t('Navegación principal')} className={`flex-1 py-6 space-y-2 overflow-y-auto ${sidebarColapsado ? 'px-2' : 'px-4'}`}>
           {TABS.map((tb) => {
             const Icon = tb.icon;
             const activo = tb.id === tab;
@@ -708,6 +719,8 @@ export default function AppShell() {
                   onClick={() => cambiarTab(tb.id)}
                   onDoubleClick={() => { if (tb.id === 'chat') setDispararHistorial((v) => v + 1); }}
                   title={sidebarColapsado ? t(tb.label) : undefined}
+                  aria-label={sidebarColapsado ? t(tb.label) : undefined}
+                  aria-current={activo ? 'page' : undefined}
                   className={`w-full flex items-center gap-4 py-3 rounded-xl text-sm font-semibold transition-all ${sidebarColapsado ? 'px-0 justify-center' : 'px-4'
                     } ${activo
                       ? 'bg-jungle-700 text-white shadow-sm'
@@ -777,6 +790,7 @@ export default function AppShell() {
                     onClick={async () => { await apiLogout(); setUsuario(null); }}
                     className="text-jungle-400 hover:text-red-400 transition-colors"
                     title={t('Cerrar sesión')}
+                    aria-label={t('Cerrar sesión')}
                   >
                     <LogOut size={15} />
                   </button>
@@ -820,7 +834,7 @@ export default function AppShell() {
         {errorRuta && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 bg-amber-100 border border-amber-300 text-amber-900 text-xs px-3 py-2 rounded-lg shadow-md max-w-xs text-center">
             {errorRuta}
-            <button onClick={() => setErrorRuta(null)} className="ml-2 font-bold">×</button>
+            <button onClick={() => setErrorRuta(null)} className="ml-2 font-bold" aria-label={t('Cerrar aviso')}>×</button>
           </div>
         )}
 
@@ -870,7 +884,7 @@ export default function AppShell() {
 
         {/* Overlay carga ruta */}
         {cargandoRuta && (
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" role="status" aria-live="polite">
             <div className="bg-white rounded-2xl px-6 py-5 shadow-xl flex flex-col items-center gap-3 max-w-xs">
               <div className="w-8 h-8 border-2 border-jungle-200 border-t-jungle-700 rounded-full animate-spin" />
               <div className="text-sm font-semibold text-jungle-900">{t('Calculando ruta…')}</div>
@@ -888,7 +902,7 @@ export default function AppShell() {
             sugerencias — ver SugerenciasChat, corrección de la pasada
             anterior). En móvil, a pantalla completa con "Volver". Se
             mantiene siempre montada para no perder zoom/posición. */}
-        <main ref={refContenedorMain} className="flex-1 overflow-hidden min-h-0 flex flex-col lg:flex-row">
+        <main id="contenido-principal" tabIndex={-1} ref={refContenedorMain} className="flex-1 overflow-hidden min-h-0 flex flex-col lg:flex-row">
           {/*para eacceder y poder entrar al perfil*/}
           {tab === 'perfil' && (
             <div className="flex-1 h-full overflow-y-auto">
@@ -1052,6 +1066,7 @@ export default function AppShell() {
               <button
                 onClick={() => setMapaExpandido((v) => !v)}
                 title={mapaExpandido ? t('Mostrar panel') : t('Expandir mapa')}
+                aria-label={mapaExpandido ? t('Mostrar panel') : t('Expandir mapa')}
                 className="hidden lg:flex absolute top-3 left-3 z-30 w-9 h-9 bg-white rounded-full shadow-md border border-jungle-100 items-center justify-center text-jungle-800 hover:bg-jungle-50"
               >
                 {mapaExpandido ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
@@ -1116,7 +1131,7 @@ export default function AppShell() {
       )}
 
       {mostrarSalir && (
-        <div className="fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+        <div ref={dialogSalirRef} className="fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl p-5 max-w-sm w-full animate-fade-in">
             <h3 className="font-display font-bold text-lg text-jungle-950 mb-1">
               {t('¿Quieres salir de TuxtlasGO?')}

@@ -18,6 +18,7 @@ import { X, MapPin, ChevronRight } from 'lucide-react';
 import { LUGARES, CATEGORIAS, type Categoria } from '../data/lugares';
 import { optimizarImagen, ANCHO_TARJETA, ANCHO_DETALLE } from '../lib/imagenOptimizada';
 import SubNavPublica from './SubNavPublica';
+import { useDialogA11y } from '../lib/useDialogA11y';
 
 interface FotoGaleria {
   url: string;
@@ -41,6 +42,7 @@ const FOTOS: FotoGaleria[] = LUGARES.flatMap((l) => {
 export default function GaleriaPage() {
   const [filtro, setFiltro] = useState<Categoria | 'Todas'>('Todas');
   const [fotoActiva, setFotoActiva] = useState<FotoGaleria | null>(null);
+  const dialogRef = useDialogA11y({ onClose: () => setFotoActiva(null), label: fotoActiva?.lugarNombre ?? 'Foto', activo: !!fotoActiva });
 
   const fotosFiltradas = useMemo(
     () => (filtro === 'Todas' ? FOTOS : FOTOS.filter((f) => f.categoria === filtro)),
@@ -117,6 +119,7 @@ export default function GaleriaPage() {
       {/* Lightbox */}
       {fotoActiva && (
         <div
+          ref={dialogRef}
           className="fixed inset-0 z-[70] bg-obsidiana-950/95 flex items-center justify-center p-4 sm:p-8"
           onClick={() => setFotoActiva(null)}
         >

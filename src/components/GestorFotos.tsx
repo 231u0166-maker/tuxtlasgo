@@ -243,6 +243,7 @@ export default function GestorFotos({ codigoSeguimiento, fotosIniciales = [], pi
                 onClick={() => eliminarFotoLocal(foto)}
                 className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 title="Eliminar foto"
+                aria-label="Eliminar foto"
               >
                 <X size={11} />
               </button>

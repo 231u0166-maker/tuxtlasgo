@@ -17,6 +17,7 @@ import MiniMapaChat from './MiniMapaChatLazy';
 import { TarjetaLugar, BarraPregunta } from './ExploreScreen';
 import ResenasLugar from './ResenasLugar';
 import { useT, useTd } from '../lib/i18n';
+import { useDialogA11y } from '../lib/useDialogA11y';
 import { optimizarImagen, ANCHO_DETALLE, ANCHO_TARJETA } from '../lib/imagenOptimizada';
 
 interface Props {
@@ -515,8 +516,9 @@ function GaleriaFotos({
   onCerrar: () => void;
 }) {
   const t = useT();
+  const dialogRef = useDialogA11y({ onClose: onCerrar, label: lugar.nombre });
   return (
-    <div className="fixed inset-0 z-[10000] bg-obsidiana-950 text-white flex flex-col animate-fade-in">
+    <div ref={dialogRef} className="fixed inset-0 z-[10000] bg-obsidiana-950 text-white flex flex-col animate-fade-in">
       <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-white/10">
         <button
           onClick={onCerrar}

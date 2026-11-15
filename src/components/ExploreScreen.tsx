@@ -343,12 +343,13 @@ export function TarjetaLugar({ lugar, onClick }: { lugar: Lugar; onClick: () => 
   };
 
   return (
+    <div className="group relative min-w-0">
     <div
       role="button"
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
-      className="group cursor-pointer text-left min-w-0 focus:outline-none"
+      className="cursor-pointer text-left min-w-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-jungle-600 focus-visible:ring-offset-2"
     >
       <div className="relative aspect-square rounded-2xl overflow-hidden bg-jungle-100">
         <img
@@ -358,13 +359,6 @@ export function TarjetaLugar({ lugar, onClick }: { lugar: Lugar; onClick: () => 
           onError={manejarErrorImagen(lugar.categoria, lugar.nombre)}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
-        <button
-          onClick={alternarFav}
-          aria-label={t('Favorito')}
-          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur flex items-center justify-center hover:bg-white transition"
-        >
-          <Heart size={18} className={fav ? 'fill-red-500 text-red-500' : 'text-jungle-800'} />
-        </button>
         {lugar.premium && (
           <span className="absolute bottom-3 left-3 bg-violet-600 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">
             {t('Patrocinado')}
@@ -387,6 +381,17 @@ export function TarjetaLugar({ lugar, onClick }: { lugar: Lugar; onClick: () => 
         <p className="text-sm text-jungle-600 truncate">{lugar.municipio}</p>
         <p className="text-sm text-jungle-500">{SIGNOS_PRECIO[lugar.precio]}</p>
       </div>
+    </div>
+    {/* Hermano de la tarjeta (no hijo): un botón dentro de otro botón no lo
+        exponen los lectores de pantalla. */}
+    <button
+      onClick={alternarFav}
+      aria-label={`${t('Favorito')}: ${lugar.nombre}`}
+      aria-pressed={fav}
+      className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur flex items-center justify-center hover:bg-white transition"
+    >
+      <Heart size={18} className={fav ? 'fill-red-500 text-red-500' : 'text-jungle-800'} />
+    </button>
     </div>
   );
 }

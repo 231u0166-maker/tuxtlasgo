@@ -4,6 +4,7 @@ import {
   Lock, Mail, User,
 } from 'lucide-react';
 import { useT } from '../lib/i18n';
+import { useDialogA11y } from '../lib/useDialogA11y';
 import SelectorIdioma from './SelectorIdioma';
 import { apiLogin, apiRegistro, apiRecuperar, apiLoginGoogle, type UsuarioSesion } from '../lib/auth';
 import BotonGoogle, { GOOGLE_CLIENT_ID } from './BotonGoogle';
@@ -27,6 +28,7 @@ interface Props {
 
 export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
   const t = useT();
+  const dialogRef = useDialogA11y({ onClose, label: t('Iniciar sesión') });
   const [vista, setVista] = useState<Vista>(vistaInicial ?? 'login');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
@@ -138,7 +140,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
   // ─── CÓDIGO DE RECUPERACIÓN ───
   if (vista === 'codigo') {
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }} className="auth-modal-overlay lg:!items-center lg:!justify-center lg:p-8">
+      <div ref={dialogRef} style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }} className="auth-modal-overlay lg:!items-center lg:!justify-center lg:p-8">
         <div className="bg-white w-full rounded-t-3xl lg:rounded-3xl p-6 pb-10 lg:max-w-md lg:shadow-2xl">
           <div className="text-center mb-6">
             <div className="w-16 h-16 bg-jungle-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -157,7 +159,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
               <code className="flex-1 bg-white border border-amber-200 rounded-xl px-4 py-3 text-base font-bold text-center text-jungle-900 tracking-widest">
                 {codigoMostrado}
               </code>
-              <button onClick={copiarCodigo} className="bg-amber-500 hover:bg-amber-600 text-white p-3 rounded-xl transition-colors">
+              <button onClick={copiarCodigo} aria-label={codigoCopiado ? t('Código copiado') : t('Copiar código')} className="bg-amber-500 hover:bg-amber-600 text-white p-3 rounded-xl transition-colors">
                 {codigoCopiado ? <CheckCircle2 size={18} /> : <Copy size={18} />}
               </button>
             </div>
@@ -172,7 +174,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }} className="auth-modal-overlay lg:!items-center lg:!justify-center lg:p-8">
+    <div ref={dialogRef} style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(2,44,22,0.85)', display: 'flex', alignItems: 'flex-end' }} className="auth-modal-overlay lg:!items-center lg:!justify-center lg:p-8">
       <div className="bg-white w-full rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto lg:max-w-md lg:max-h-[90vh] lg:shadow-2xl" style={{ WebkitOverflowScrolling: 'touch' }}>
 
         {/* Header sticky */}
@@ -263,7 +265,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
                     <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
                     <input type={verPass ? 'text' : 'password'} value={passLogin} onChange={e => setPassLogin(e.target.value)} required placeholder={t('Tu contraseña')}
                       className="w-full border border-jungle-200 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                    <button type="button" onClick={() => setVerPass(!verPass)}
+                    <button type="button" onClick={() => setVerPass(!verPass)} aria-label={verPass ? t('Ocultar contraseña') : t('Mostrar contraseña')} aria-pressed={verPass}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-jungle-400">
                       {verPass ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -313,7 +315,7 @@ export default function AuthModal({ onClose, onSuccess, vistaInicial }: Props) {
                     <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-jungle-400" />
                     <input type={verPass ? 'text' : 'password'} value={passReg} onChange={e => setPassReg(e.target.value)} required minLength={6} placeholder={t('Mínimo 6 caracteres')}
                       className="w-full border border-jungle-200 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400" />
-                    <button type="button" onClick={() => setVerPass(!verPass)}
+                    <button type="button" onClick={() => setVerPass(!verPass)} aria-label={verPass ? t('Ocultar contraseña') : t('Mostrar contraseña')} aria-pressed={verPass}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-jungle-400">
                       {verPass ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>

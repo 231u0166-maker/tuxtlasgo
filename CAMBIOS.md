@@ -658,3 +658,31 @@ Pendiente: confirmar en producción tras el deploy (en incógnito). `ResenasLuga
 
 ## Login del admin: ver contraseña
 Se agregó el ojo para mostrar/ocultar la contraseña en el login de `/admin` (`AdminPanel.tsx`), igual que en el de usuarios: botón con nombre accesible y `aria-pressed`, campo con `<label htmlFor>` y `autoComplete="current-password"`. Probado: alterna `password`/`text` sin perder lo escrito y Enter dentro del campo sigue enviando el formulario.
+
+
+---
+
+# Sesión 2026-11-15 (3) — Programa por día, historial de eventos y arreglo de móvil
+
+## 1. Programa de actividades por evento
+Cada evento puede traer un **programa**: lista de actividades con **día, hora, descripción, lugar, foto y video** (pensado para eventos como el Festival del Globo, con agenda distinta cada día).
+- **API** (`api/_lib/eventos.ts`): columna nueva `programa JSONB` (se agrega sola con `ALTER TABLE … IF NOT EXISTS`, compatible con la tabla que ya existe en producción). Validación estricta: máx. 60 actividades; día real, hora `HH:MM`, descripción obligatoria (≤600), foto y video solo `https://`. Se guarda ordenado por día y hora.
+- **Admin** (`AdminEventos.tsx`): sección «Programa de actividades» en el formulario: agregar/quitar actividades, el día nuevo hereda el de la anterior, el selector de día se limita a las fechas del evento, foto subida a Cloudinary. Al guardar se acomodan por día y hora.
+- **Público**: el detalle del evento muestra el programa agrupado por día; en la lista, «N actividades en el programa». Video: si el enlace es un archivo (`.mp4`, `.webm`, Cloudinary) se reproduce en la página; si es YouTube/Facebook/etc. sale «Ver video» (abre otra pestaña).
+- **Video por enlace, no por subida:** el sistema de subida de video que existe está atado a la cuota mensual de Comunidad; usarlo aquí gastaría esa cuota sin llevar la cuenta.
+
+## 2. Historial
+Un evento sigue en **Próximos** hasta que pasa su **último día** (ese día aún cuenta como vigente); después pasa solo a **Historial** (más reciente primero, hasta 100). Se pide la primera vez que se abre la pestaña y también tiene lista guardada para modo sin conexión. «Archivar» en el admin lo oculta también del historial; «Despublicar» lo regresa a borrador.
+- API: `GET …?recurso=eventos&historial=1`.
+
+## 3. Móvil que no era responsive (`/eventos`)
+Captura del usuario: el calendario y la tarjeta se salían por la derecha. Arreglo: el grid pasó a UNA columna con `minmax(0,1fr)` (`grid-cols-1`; antes la pista era `auto` y se ensanchaba a lo que midiera el texto), los textos largos se parten (`break-words`) en vez de `truncate`, y la fecha/hora/lugar ya no se recortan. Mismo arreglo en la franja de Inicio (`ProximosEventos`).
+- **Límite:** el entorno de pruebas no pudo montar el código anterior, así que **no se reprodujo el desborde viejo**; la causa es la del análisis de CSS (pista `auto` + texto sin partir) y se verificó que con los datos de la captura ya no se sale.
+
+## Probado
+`tsc` y `npm run build` limpios; **siguen siendo 12 funciones** (límite de Vercel Hobby). API contra base de pruebas: programa válido ordenado; día imposible, hora `25:99`, sin descripción, `javascript:` en video y programa que no es lista → 400; público devuelve el programa; evento terminado sale de próximos y aparece en historial; archivado desaparece del historial; PATCH solo del programa. Navegador en un `iframe` de **360 px reales** con el Festival del Globo (12–16 nov, 9:00 a. m.–11:12 p. m., 10 actividades del cartel): sin desborde en lista, detalle ni historial; 5 días agrupados, 1 video reproducible y 1 enlace; Esc cierra el detalle; el formulario del admin tampoco se sale y todos sus campos tienen etiqueta; acentos y «ñ» se guardan bien desde el panel. Datos de prueba borrados por id.
+
+## Pendiente / a sabiendas
+- **No se escribió nada en producción.** El Festival del Globo real y su programa hay que capturarlos desde el panel de admin de producción (Eventos → Editar → Programa de actividades).
+- Sin subida de video por archivo; sin mapa por actividad; el historial no tiene buscador ni filtro por año.
+- No probado en Vercel; la columna `programa` se crea en la primera petición después del despliegue.

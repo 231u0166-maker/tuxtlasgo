@@ -6,6 +6,7 @@
 // archivo suelto en api/ sino un módulo en _lib/ que despacha publicaciones.ts.)
 //
 //   GET    /api/comunidad/publicaciones?recurso=eventos            → público: eventos PUBLICADOS que aún no terminan
+//   GET    ...?recurso=eventos&historial=1 → público: eventos PUBLICADOS que ya terminaron (historial)
 //   GET    ...?recurso=eventos&admin=1  → admin: todos (borrador, publicado, archivado)
 //   POST   ...?recurso=eventos     → admin: crear
 //   PATCH  ...?recurso=eventos     → admin: editar / cambiar estado   { id, ...campos }
@@ -68,6 +69,8 @@ async function asegurarTablaEventos(pool: Pool) {
       creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
+  // Programa de actividades: [{ dia, hora, descripcion, lugar, imagen, video }], ordenado por día y hora.
+  await pool.query("ALTER TABLE eventos_turisticos ADD COLUMN IF NOT EXISTS programa JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query('CREATE INDEX IF NOT EXISTS idx_eventos_turisticos_fecha ON eventos_turisticos (estado, fecha)');
   tablaLista = true;
 }
@@ -77,7 +80,7 @@ const COLUMNAS = `
   id, titulo, descripcion, categoria,
   to_char(fecha, 'YYYY-MM-DD') AS fecha, hora_inicio,
   to_char(fecha_fin, 'YYYY-MM-DD') AS fecha_fin, hora_fin,
-  lugar, municipio, precio_entrada, organizador, contacto, enlace, imagen,
+  lugar, municipio, precio_entrada, organizador, contacto, enlace, imagen, programa,
   estado, origen, monto_publicacion, pago_estado, creado_en, actualizado_en`;
 
 // "Hoy" en Los Tuxtlas (America/Mexico_City), no en la zona del servidor (UTC):
@@ -106,11 +109,40 @@ function urlHttps(s: unknown): string | null {
 
 const texto = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+export type ItemPrograma = { dia: string; hora: string; descripcion: string; lugar: string; imagen: string; video: string };
+
+const MAX_ACTIVIDADES = 60;
+
+function validarPrograma(v: unknown): { error?: string; items?: ItemPrograma[] } {
+  if (v == null || v === '') return { items: [] };
+  if (!Array.isArray(v)) return { error: 'El programa debe ser una lista de actividades.' };
+  if (v.length > MAX_ACTIVIDADES) return { error: `Máximo ${MAX_ACTIVIDADES} actividades por evento.` };
+  const items: ItemPrograma[] = [];
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i] as Record<string, unknown> | null;
+    const n = i + 1;
+    if (!a || typeof a !== 'object' || Array.isArray(a)) return { error: `Actividad ${n}: formato no válido.` };
+    if (!fechaValida(a.dia)) return { error: `Actividad ${n}: el día no es válido.` };
+    const hora = typeof a.hora === 'string' ? a.hora.trim() : '';
+    if (hora && !RE_HORA.test(hora)) return { error: `Actividad ${n}: la hora debe tener el formato HH:MM.` };
+    const descripcion = texto(a.descripcion, 600);
+    if (!descripcion) return { error: `Actividad ${n}: falta la descripción.` };
+    const imagen = urlHttps(a.imagen);
+    if (imagen === null) return { error: `Actividad ${n}: la foto debe ser un enlace https:// válido.` };
+    const video = urlHttps(a.video);
+    if (video === null) return { error: `Actividad ${n}: el video debe ser un enlace https:// válido.` };
+    items.push({ dia: a.dia as string, hora, descripcion, lugar: texto(a.lugar, 140), imagen, video });
+  }
+  // Por día y, dentro del día, por hora (las que no tienen hora van primero).
+  items.sort((x, y) => (x.dia === y.dia ? x.hora.localeCompare(y.hora) : x.dia.localeCompare(y.dia)));
+  return { items };
+}
+
 type Campos = {
   titulo: string; descripcion: string; categoria: string;
   fecha: string; hora_inicio: string | null; fecha_fin: string | null; hora_fin: string | null;
   lugar: string; municipio: string; precio_entrada: string; organizador: string;
-  contacto: string; enlace: string; imagen: string; estado: string;
+  contacto: string; enlace: string; imagen: string; estado: string; programa: ItemPrograma[];
 };
 
 // `parcial`: en PATCH solo se validan los campos que llegaron.
@@ -159,6 +191,11 @@ function validar(body: Record<string, unknown>, parcial: boolean): { error?: str
       c[k] = u;
     }
   }
+  if (!parcial || tiene('programa')) {
+    const r = validarPrograma(body.programa);
+    if (r.error) return { error: r.error, campos: c };
+    c.programa = r.items;
+  }
   if (!parcial || tiene('estado')) {
     const e = texto(body.estado, 20) || 'borrador';
     if (!(ESTADOS as readonly string[]).includes(e)) return { error: 'Estado no válido.', campos: c };
@@ -182,11 +219,19 @@ export async function manejarEventos(req: VercelRequest, res: VercelResponse) {
 
     // ── Público: solo publicados y vigentes ─────────────────────
     if (req.method === 'GET' && !pedidoAdmin) {
+      // Un evento se queda en "próximos" hasta que pasa su ÚLTIMO día; ese mismo día ya no
+      // cuenta como terminado. Después pasa solo al historial (más reciente primero).
+      const historial = req.query.historial === '1';
       const r = await pool.query(
-        `SELECT ${COLUMNAS} FROM eventos_turisticos
-         WHERE estado = 'publicado' AND COALESCE(fecha_fin, fecha) >= ${HOY_MX}
-         ORDER BY fecha ASC, hora_inicio ASC NULLS FIRST, id ASC
-         LIMIT 200`,
+        historial
+          ? `SELECT ${COLUMNAS} FROM eventos_turisticos
+             WHERE estado = 'publicado' AND COALESCE(fecha_fin, fecha) < ${HOY_MX}
+             ORDER BY COALESCE(fecha_fin, fecha) DESC, id DESC
+             LIMIT 100`
+          : `SELECT ${COLUMNAS} FROM eventos_turisticos
+             WHERE estado = 'publicado' AND COALESCE(fecha_fin, fecha) >= ${HOY_MX}
+             ORDER BY fecha ASC, hora_inicio ASC NULLS FIRST, id ASC
+             LIMIT 200`,
       );
       res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
       // Lo que no es público (cobro, origen) no se expone al turista.
@@ -209,11 +254,11 @@ export async function manejarEventos(req: VercelRequest, res: VercelResponse) {
       const r = await pool.query(
         `INSERT INTO eventos_turisticos
            (titulo, descripcion, categoria, fecha, hora_inicio, fecha_fin, hora_fin, lugar, municipio,
-            precio_entrada, organizador, contacto, enlace, imagen, estado)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+            precio_entrada, organizador, contacto, enlace, imagen, estado, programa)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb)
          RETURNING ${COLUMNAS}`,
         [c.titulo, c.descripcion, c.categoria, c.fecha, c.hora_inicio, c.fecha_fin, c.hora_fin, c.lugar, c.municipio,
-         c.precio_entrada, c.organizador, c.contacto, c.enlace, c.imagen, c.estado],
+         c.precio_entrada, c.organizador, c.contacto, c.enlace, c.imagen, c.estado, JSON.stringify(c.programa ?? [])],
       );
       return res.status(201).json({ ok: true, evento: r.rows[0] });
     }
@@ -227,7 +272,7 @@ export async function manejarEventos(req: VercelRequest, res: VercelResponse) {
       const claves = Object.keys(campos);
       if (claves.length === 0) return res.status(400).json({ error: 'No hay cambios que guardar.' });
       // Las claves vienen de `validar` (lista fija), nunca del cliente: seguro armar el SET.
-      const set = claves.map((k, i) => `${k} = $${i + 2}`).join(', ');
+      const set = claves.map((k, i) => `${k} = $${i + 2}${k === 'programa' ? '::jsonb' : ''}`).join(', ');
       // Si el cruce de fechas depende de una columna que no vino, se revisa contra la guardada.
       if ((campos.fecha || campos.fecha_fin) && !(campos.fecha && campos.fecha_fin !== undefined)) {
         const act = await pool.query(`SELECT to_char(fecha,'YYYY-MM-DD') AS fecha, to_char(fecha_fin,'YYYY-MM-DD') AS fecha_fin FROM eventos_turisticos WHERE id = $1`, [id]);
@@ -238,7 +283,7 @@ export async function manejarEventos(req: VercelRequest, res: VercelResponse) {
       }
       const r = await pool.query(
         `UPDATE eventos_turisticos SET ${set}, actualizado_en = NOW() WHERE id = $1 RETURNING ${COLUMNAS}`,
-        [id, ...claves.map((k) => (campos as Record<string, unknown>)[k])],
+        [id, ...claves.map((k) => (k === 'programa' ? JSON.stringify(campos.programa) : (campos as Record<string, unknown>)[k]))],
       );
       if (!r.rows[0]) return res.status(404).json({ error: 'Evento no encontrado.' });
       return res.status(200).json({ ok: true, evento: r.rows[0] });

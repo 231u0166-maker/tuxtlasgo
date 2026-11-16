@@ -31,9 +31,23 @@ export interface EventoAgenda {
   contacto: string;
   enlace: string;
   imagen: string;
+  /** Actividades por día (Festival del Globo: 12 sep 19:00 inauguración, 13 sep 16:00 suelta…). */
+  programa: ItemPrograma[];
+}
+
+export interface ItemPrograma {
+  /** 'AAAA-MM-DD' */
+  dia: string;
+  /** 'HH:MM' o '' si no tiene hora fija. */
+  hora: string;
+  descripcion: string;
+  lugar: string;
+  imagen: string;
+  video: string;
 }
 
 const CLAVE_CACHE = 'tuxtlasgo:agenda-eventos';
+const CLAVE_CACHE_HISTORIAL = 'tuxtlasgo:agenda-historial';
 
 // ── Fechas ──────────────────────────────────────────────────
 /** 'AAAA-MM-DD' → Date a medianoche LOCAL (new Date('2030-03-10') sería UTC y se correría un día). */
@@ -92,33 +106,62 @@ export interface ResultadoAgenda {
   fallo: boolean;
 }
 
-function vigentes(lista: EventoAgenda[]): EventoAgenda[] {
-  const hoy = hoyISO();
-  return lista.filter((e) => finEvento(e) >= hoy);
+/** Una respuesta vieja guardada puede no traer `programa`: se normaliza. */
+function normalizar(lista: EventoAgenda[]): EventoAgenda[] {
+  return lista.map((e) => ({ ...e, programa: Array.isArray(e.programa) ? e.programa : [] }));
 }
 
-function leerCache(): EventoAgenda[] | null {
+// Un evento sigue "próximo" hasta que pasa su último día; después es historial.
+const vigentes = (lista: EventoAgenda[]) => lista.filter((e) => finEvento(e) >= hoyISO());
+const terminados = (lista: EventoAgenda[]) =>
+  lista.filter((e) => finEvento(e) < hoyISO()).sort((a, b) => (finEvento(a) < finEvento(b) ? 1 : -1));
+
+function leerCache(clave: string): EventoAgenda[] | null {
   try {
-    const raw = localStorage.getItem(CLAVE_CACHE);
+    const raw = localStorage.getItem(clave);
     if (!raw) return null;
     const lista = JSON.parse(raw);
-    return Array.isArray(lista) ? (lista as EventoAgenda[]) : null;
+    return Array.isArray(lista) ? normalizar(lista as EventoAgenda[]) : null;
   } catch { return null; }
 }
 
-export async function cargarAgenda(): Promise<ResultadoAgenda> {
+async function cargarLista(historial: boolean): Promise<ResultadoAgenda> {
+  const clave = historial ? CLAVE_CACHE_HISTORIAL : CLAVE_CACHE;
+  const filtrar = historial ? terminados : vigentes;
   try {
-    const r = await fetch('/api/comunidad/publicaciones?recurso=eventos');
+    const r = await fetch('/api/comunidad/publicaciones?recurso=eventos' + (historial ? '&historial=1' : ''));
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     if (!data?.ok || !Array.isArray(data.eventos)) throw new Error('Respuesta inesperada');
-    try { localStorage.setItem(CLAVE_CACHE, JSON.stringify(data.eventos)); } catch { /* cuota / modo privado */ }
-    return { eventos: vigentes(data.eventos), desdeCache: false, fallo: false };
+    try { localStorage.setItem(clave, JSON.stringify(data.eventos)); } catch { /* cuota / modo privado */ }
+    return { eventos: filtrar(normalizar(data.eventos)), desdeCache: false, fallo: false };
   } catch {
-    const guardada = leerCache();
-    if (guardada) return { eventos: vigentes(guardada), desdeCache: true, fallo: false };
+    const guardada = leerCache(clave);
+    if (guardada) return { eventos: filtrar(guardada), desdeCache: true, fallo: false };
     return { eventos: [], desdeCache: false, fallo: true };
   }
+}
+
+/** Eventos que aún no terminan. */
+export const cargarAgenda = () => cargarLista(false);
+/** Eventos que ya terminaron (historial), el más reciente primero. */
+export const cargarHistorial = () => cargarLista(true);
+
+/** Agrupa las actividades por día (ya vienen ordenadas del servidor, aquí se asegura). */
+export function agruparPorDia(programa: ItemPrograma[]): { dia: string; items: ItemPrograma[] }[] {
+  const orden = [...programa].sort((a, b) => (a.dia === b.dia ? a.hora.localeCompare(b.hora) : a.dia.localeCompare(b.dia)));
+  const grupos: { dia: string; items: ItemPrograma[] }[] = [];
+  for (const it of orden) {
+    const g = grupos[grupos.length - 1];
+    if (g && g.dia === it.dia) g.items.push(it);
+    else grupos.push({ dia: it.dia, items: [it] });
+  }
+  return grupos;
+}
+
+/** ¿El enlace de video es un archivo reproducible directo (no YouTube/Facebook)? */
+export function esVideoDirecto(url: string): boolean {
+  return /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url) || /res\.cloudinary\.com\/[^/]+\/video\/upload\//i.test(url);
 }
 
 /** Solo el enlace si es https (defensa extra: el servidor ya lo valida). */

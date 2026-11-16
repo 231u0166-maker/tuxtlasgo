@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import { CalendarPlus, Eye, EyeOff, Loader2, Pencil, Trash2, ImagePlus, X, Archive } from 'lucide-react';
 import { subirFoto } from '../lib/cloudinary';
-import { CATEGORIAS_EVENTO, fechaLocal, finEvento, hoyISO } from '../lib/agendaEventos';
+import { CATEGORIAS_EVENTO, fechaLocal, finEvento, hoyISO, type ItemPrograma } from '../lib/agendaEventos';
 
 const ADMIN_PWD = 'tuxtlasgo2026';
 const MUNICIPIOS = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
@@ -22,13 +22,14 @@ interface EventoAdmin {
   id: number; titulo: string; descripcion: string; categoria: string;
   fecha: string; hora_inicio: string | null; fecha_fin: string | null; hora_fin: string | null;
   lugar: string; municipio: string; precio_entrada: string; organizador: string; contacto: string;
-  enlace: string; imagen: string; estado: Estado;
+  enlace: string; imagen: string; estado: Estado; programa: ItemPrograma[];
 }
 
 const VACIO = {
   titulo: '', descripcion: '', categoria: 'Fiesta tradicional', fecha: '', hora_inicio: '', fecha_fin: '', hora_fin: '',
   lugar: '', municipio: 'Catemaco', precio_entrada: '', organizador: '', contacto: '', enlace: '', imagen: '',
   estado: 'borrador' as Estado,
+  programa: [] as ItemPrograma[],
 };
 type Form = typeof VACIO;
 
@@ -62,6 +63,7 @@ export default function AdminEventos() {
   const [guardando, setGuardando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
   const [procesando, setProcesando] = useState<number | null>(null);
+  const [subiendoFila, setSubiendoFila] = useState<number | null>(null);
 
   async function cargar() {
     setCargando(true);
@@ -84,6 +86,7 @@ export default function AdminEventos() {
       hora_inicio: e.hora_inicio ?? '', fecha_fin: e.fecha_fin ?? '', hora_fin: e.hora_fin ?? '',
       lugar: e.lugar, municipio: e.municipio, precio_entrada: e.precio_entrada, organizador: e.organizador,
       contacto: e.contacto, enlace: e.enlace, imagen: e.imagen, estado: e.estado,
+      programa: e.programa ?? [],
     });
     setAviso(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -142,6 +145,30 @@ export default function AdminEventos() {
   }
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => (f ? { ...f, [k]: v } : f));
+  // ── Programa de actividades ──
+  function agregarActividad() {
+    setForm((f) => {
+      if (!f) return f;
+      const ultima = f.programa[f.programa.length - 1];
+      return { ...f, programa: [...f.programa, { dia: ultima?.dia || f.fecha, hora: '', descripcion: '', lugar: '', imagen: '', video: '' }] };
+    });
+  }
+  function cambiarActividad(i: number, parche: Partial<ItemPrograma>) {
+    setForm((f) => (f ? { ...f, programa: f.programa.map((a, j) => (j === i ? { ...a, ...parche } : a)) } : f));
+  }
+  function quitarActividad(i: number) {
+    setForm((f) => (f ? { ...f, programa: f.programa.filter((_, j) => j !== i) } : f));
+  }
+  function subirFotoActividad(i: number, file: File | undefined) {
+    if (!file) return;
+    setSubiendoFila(i);
+    setAviso(null);
+    subirFoto(file, 'eventos', (p) => {
+      if (p.error) { setAviso('No se pudo subir la foto: ' + p.error); setSubiendoFila(null); }
+      else if (p.url) { cambiarActividad(i, { imagen: p.url }); setSubiendoFila(null); }
+    });
+  }
+
   const hoy = hoyISO();
 
   return (
@@ -149,7 +176,7 @@ export default function AdminEventos() {
       <div className="flex items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="font-display font-bold text-lg text-jungle-950">Agenda de eventos</h2>
-          <p className="text-xs text-jungle-500 mt-0.5">Lo que publiques aquí aparece en la sección pública «Eventos». Sin cobro por ahora.</p>
+          <p className="text-xs text-jungle-500 mt-0.5">Lo que publiques aquí aparece en la sección pública «Eventos»; al terminar pasa solo al Historial. Sin cobro por ahora.</p>
         </div>
         {!form && (
           <button onClick={nuevo} className="flex items-center gap-1.5 bg-jungle-700 hover:bg-jungle-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl flex-shrink-0">
@@ -246,6 +273,70 @@ export default function AdminEventos() {
             <textarea id="ev-desc" rows={4} maxLength={2000} value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} className={campo} />
           </div>
 
+          <fieldset className="border border-jungle-100 rounded-2xl p-4 min-w-0">
+            <legend className="text-sm font-bold text-jungle-900 px-1">Programa de actividades</legend>
+            <p className="text-xs text-jungle-500 mb-3">
+              Para eventos de varios días (como el Festival del Globo): agrega cada actividad con su día y hora. Se muestran ordenadas por día y hora.
+            </p>
+            {form.programa.length === 0 && <p className="text-xs text-jungle-400 mb-3">Sin actividades todavía.</p>}
+            <ul className="space-y-3">
+              {form.programa.map((a, i) => (
+                <li key={i} className="bg-jungle-50/60 border border-jungle-100 rounded-xl p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-jungle-700">Actividad {i + 1}</span>
+                    <button type="button" onClick={() => quitarActividad(i)} aria-label={`Quitar la actividad ${i + 1}`} className="flex items-center gap-1 text-xs font-semibold text-red-700 hover:bg-red-50 px-2 py-1.5 rounded-lg">
+                      <Trash2 size={13} aria-hidden="true" /> Quitar
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="min-w-0">
+                      <label htmlFor={`ev-a${i}-dia`} className={etiqueta}>Día *</label>
+                      <input id={`ev-a${i}-dia`} type="date" required min={form.fecha || undefined} max={form.fecha_fin || form.fecha || undefined} value={a.dia} onChange={(e) => cambiarActividad(i, { dia: e.target.value })} className={campo} />
+                    </div>
+                    <div className="min-w-0">
+                      <label htmlFor={`ev-a${i}-hora`} className={etiqueta}>Hora</label>
+                      <input id={`ev-a${i}-hora`} type="time" value={a.hora} onChange={(e) => cambiarActividad(i, { hora: e.target.value })} className={campo} />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor={`ev-a${i}-desc`} className={etiqueta}>Descripción de la actividad *</label>
+                    <textarea id={`ev-a${i}-desc`} required rows={2} maxLength={600} value={a.descripcion} onChange={(e) => cambiarActividad(i, { descripcion: e.target.value })} className={campo} placeholder="Ej. Suelta de globos en los barrios" />
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="min-w-0">
+                      <label htmlFor={`ev-a${i}-lugar`} className={etiqueta}>Lugar (opcional)</label>
+                      <input id={`ev-a${i}-lugar`} maxLength={140} value={a.lugar} onChange={(e) => cambiarActividad(i, { lugar: e.target.value })} className={campo} />
+                    </div>
+                    <div className="min-w-0">
+                      <label htmlFor={`ev-a${i}-video`} className={etiqueta}>Video: enlace https (opcional)</label>
+                      <input id={`ev-a${i}-video`} type="url" maxLength={300} value={a.video} onChange={(e) => cambiarActividad(i, { video: e.target.value })} className={campo} placeholder="https://youtu.be/…" />
+                    </div>
+                  </div>
+                  <div>
+                    <span className={etiqueta}>Foto (opcional)</span>
+                    {a.imagen ? (
+                      <div className="relative inline-block">
+                        <img src={a.imagen} alt={`Foto de la actividad ${i + 1}`} className="h-24 rounded-xl object-cover border border-jungle-100" />
+                        <button type="button" onClick={() => cambiarActividad(i, { imagen: '' })} aria-label={`Quitar la foto de la actividad ${i + 1}`} className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-obsidiana-900 text-white flex items-center justify-center">
+                          <X size={13} aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="inline-flex items-center gap-2 border border-dashed border-jungle-300 rounded-xl px-4 py-3 text-sm font-semibold text-jungle-700 cursor-pointer hover:bg-white focus-within:ring-2 focus-within:ring-jungle-500">
+                        {subiendoFila === i ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <ImagePlus size={16} aria-hidden="true" />}
+                        {subiendoFila === i ? 'Subiendo…' : 'Subir foto'}
+                        <input type="file" accept="image/*" disabled={subiendoFila !== null} onChange={(e) => { subirFotoActividad(i, e.target.files?.[0]); e.target.value = ''; }} className="sr-only" />
+                      </label>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <button type="button" onClick={agregarActividad} className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-jungle-800 bg-jungle-50 hover:bg-jungle-100 px-4 py-2.5 rounded-xl">
+              <CalendarPlus size={15} aria-hidden="true" /> Agregar actividad
+            </button>
+          </fieldset>
+
           <div>
             <span className={etiqueta}>Foto (opcional)</span>
             {form.imagen ? (
@@ -265,7 +356,7 @@ export default function AdminEventos() {
           </div>
 
           <div className="flex gap-3 pt-1">
-            <button type="submit" disabled={guardando || subiendo} className="bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white text-sm font-bold px-6 py-3 rounded-xl flex items-center gap-2">
+            <button type="submit" disabled={guardando || subiendo || subiendoFila !== null} className="bg-jungle-700 hover:bg-jungle-800 disabled:opacity-60 text-white text-sm font-bold px-6 py-3 rounded-xl flex items-center gap-2">
               {guardando && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
               {editandoId ? 'Guardar cambios' : 'Crear evento'}
             </button>
@@ -292,6 +383,7 @@ export default function AdminEventos() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full capitalize ${CHIP[e.estado]}`}>{e.estado}</span>
                     {pasado && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Ya pasó</span>}
+                    {e.programa.length > 0 && <span className="text-xs text-jungle-500">· {e.programa.length} {e.programa.length === 1 ? 'actividad' : 'actividades'}</span>}
                     <span className="text-xs text-jungle-500">{e.categoria}</span>
                   </div>
                   <h3 className="font-display font-bold text-jungle-950 mt-1">{e.titulo}</h3>

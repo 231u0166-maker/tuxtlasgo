@@ -31,14 +31,14 @@ export default function ProximosEventos() {
           <ChevronRight size={16} aria-hidden="true" />
         </Link>
       </div>
-      <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
         {eventos.map((e) => {
           const f = fechaLocal(e.fecha);
           return (
-            <li key={e.id}>
+            <li key={e.id} className="min-w-0">
               <Link
                 to="/eventos"
-                className="flex gap-3 items-center bg-white rounded-2xl border border-jungle-100 hover:border-jungle-300 hover:shadow-md transition-all p-3"
+                className="flex min-w-0 gap-3 items-center bg-white rounded-2xl border border-jungle-100 hover:border-jungle-300 hover:shadow-md transition-all p-3"
               >
                 <div className="flex-shrink-0 w-14 rounded-xl bg-jungle-50 text-jungle-900 flex flex-col items-center justify-center py-1.5" aria-hidden="true">
                   <span className="text-[10px] font-bold uppercase tracking-wide">{f.toLocaleDateString(loc, { month: 'short' }).replace('.', '')}</span>

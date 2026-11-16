@@ -49,7 +49,8 @@ export default function EventosPage() {
   const [mes, setMes] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [diaSel, setDiaSel] = useState<string | null>(null);
   const [categoria, setCategoria] = useState<string>('Todas');
-  const [detalle, setDetalle] = useState<EventoAgenda | null>(null);
+  // `dia` = el día que estaba elegido en el calendario al abrir el evento (null si ninguno).
+  const [detalle, setDetalle] = useState<{ evento: EventoAgenda; dia: string | null } | null>(null);
 
   function cargar() {
     if (vista === 'proximos') { setRes(null); cargarAgenda().then(setRes); }
@@ -132,7 +133,7 @@ export default function EventosPage() {
             ) : (
               <ul className="space-y-3 max-w-3xl">
                 {hist.eventos.map((e) => (
-                  <li key={e.id}><TarjetaEvento evento={e} pasado onAbrir={() => setDetalle(e)} /></li>
+                  <li key={e.id}><TarjetaEvento evento={e} pasado onAbrir={() => setDetalle({ evento: e, dia: null })} /></li>
                 ))}
               </ul>
             )}
@@ -240,7 +241,10 @@ export default function EventosPage() {
               ) : (
                 <ul className="space-y-3">
                   {filtrados.map((e) => (
-                    <li key={e.id}><TarjetaEvento evento={e} onAbrir={() => setDetalle(e)} /></li>
+                    <li key={e.id}>
+                      <TarjetaEvento evento={e} onAbrir={() => setDetalle({ evento: e, dia: diaSel })} />
+                      {diaSel && <ProgramaDelDia evento={e} dia={diaSel} onAbrir={() => setDetalle({ evento: e, dia: diaSel })} />}
+                    </li>
                   ))}
                 </ul>
               )}
@@ -249,7 +253,7 @@ export default function EventosPage() {
         )}
       </main>
 
-      {detalle && <DetalleEvento evento={detalle} onCerrar={() => setDetalle(null)} />}
+      {detalle && <DetalleEvento evento={detalle.evento} diaInicial={detalle.dia} onCerrar={() => setDetalle(null)} />}
     </div>
   );
 }
@@ -338,14 +342,47 @@ function VisorImagen({ url, alt, onCerrar }: { url: string; alt: string; onCerra
 /**
  * Programa del evento con selector de DÍAS: al elegir un día solo se ven las
  * actividades que pertenecen a ese día (no una lista larga con todo mezclado).
- * Abre en hoy si el evento está en curso; si no, en el primer día que viene.
+ * Abre en el día que se eligió en el calendario; si no hubo, en hoy (si el evento está
+ * en curso) o en el primer día que viene.
  */
-function ProgramaEvento({ programa, onFoto }: { programa: ItemPrograma[]; onFoto: (url: string, alt: string) => void }) {
+/**
+ * Al elegir un día en el calendario, cada evento que ocurre ese día muestra aquí
+ * lo que pasa ESE día (antes había que abrir el evento y buscarlo).
+ */
+function ProgramaDelDia({ evento: e, dia, onAbrir }: { evento: EventoAgenda; dia: string; onAbrir: () => void }) {
+  const { t, idioma } = useI18n();
+  const items = e.programa.filter((a) => a.dia === dia).sort((a, b) => a.hora.localeCompare(b.hora));
+  if (items.length === 0) return null;
+  const MAX = 4;
+  const loc = localeDe(idioma);
+  return (
+    <div className="mt-2 rounded-2xl bg-jungle-50 border border-jungle-100 px-4 py-3.5">
+      <h3 className="text-sm font-bold text-jungle-900">
+        {t('Programa')} · {cap(fechaLocal(dia).toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long' }))}
+      </h3>
+      <ul className="mt-2.5 space-y-2">
+        {items.slice(0, MAX).map((a, i) => (
+          <li key={i} className="flex gap-3 text-sm">
+            <span className="flex-shrink-0 w-[4.75rem] whitespace-nowrap font-bold text-jungle-900">
+              {a.hora ? formatearHora(a.hora, idioma) : (<><span aria-hidden="true">—</span><span className="sr-only">{t('Sin hora fija')}</span></>)}
+            </span>
+            <span className="min-w-0 break-words text-obsidiana-800">{a.descripcion}</span>
+          </li>
+        ))}
+      </ul>
+      <button onClick={onAbrir} className="mt-3 text-sm font-semibold text-jungle-800 hover:text-jungle-950 underline underline-offset-2">
+        {items.length > MAX ? t('Ver las {n} actividades del día', { n: items.length }) : t('Ver programa del día')}
+      </button>
+    </div>
+  );
+}
+
+function ProgramaEvento({ programa, onFoto, diaInicial }: { programa: ItemPrograma[]; onFoto: (url: string, alt: string) => void; diaInicial?: string | null }) {
   const { t, idioma } = useI18n();
   const loc = localeDe(idioma);
   const grupos = agruparPorDia(programa);
   const hoy = hoyISO();
-  const [dia, setDia] = useState(() => (grupos.find((g) => g.dia === hoy) ?? grupos.find((g) => g.dia > hoy) ?? grupos[0])?.dia ?? '');
+  const [dia, setDia] = useState(() => (diaInicial && grupos.some((g) => g.dia === diaInicial) ? diaInicial : (grupos.find((g) => g.dia === hoy) ?? grupos.find((g) => g.dia > hoy) ?? grupos[0])?.dia) ?? '');
   const actual = grupos.find((g) => g.dia === dia) ?? grupos[0];
   if (!actual) return null;
   const fActual = fechaLocal(actual.dia);
@@ -449,11 +486,13 @@ const ES_TELEFONO = /^[\d\s()+.-]{7,}$/;
  * pestañas Resumen / Programa y filas con ícono. Antes era una hoja a media
  * pantalla que dejaba ver un pedazo de la página de atrás.
  */
-function DetalleEvento({ evento: e, onCerrar }: { evento: EventoAgenda; onCerrar: () => void }) {
+function DetalleEvento({ evento: e, onCerrar, diaInicial }: { evento: EventoAgenda; onCerrar: () => void; diaInicial?: string | null }) {
   const { t, td, idioma } = useI18n();
   const ref = useDialogA11y({ onClose: onCerrar, label: e.titulo });
   const tienePrograma = e.programa.length > 0;
-  const [pestana, setPestana] = useState<'resumen' | 'programa'>('resumen');
+  // Abierto desde un día del calendario que tiene actividades → directo al programa de ESE día.
+  const diaConActividades = diaInicial && e.programa.some((a) => a.dia === diaInicial) ? diaInicial : null;
+  const [pestana, setPestana] = useState<'resumen' | 'programa'>(diaConActividades ? 'programa' : 'resumen');
   const [foto, setFoto] = useState<{ url: string; alt: string } | null>(null);
   const hora = horaTexto(e, idioma);
   const enlace = e.enlace ? enlaceSeguro(e.enlace) : null;
@@ -565,7 +604,7 @@ function DetalleEvento({ evento: e, onCerrar }: { evento: EventoAgenda; onCerrar
               </div>
             </div>
           ) : (
-            <ProgramaEvento programa={e.programa} onFoto={(url, alt) => setFoto({ url, alt })} />
+            <ProgramaEvento programa={e.programa} diaInicial={diaConActividades} onFoto={(url, alt) => setFoto({ url, alt })} />
           )}
         </div>
       </div>

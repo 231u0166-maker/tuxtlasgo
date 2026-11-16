@@ -714,3 +714,11 @@ Petición del usuario (con capturas): el detalle del evento se veía como una ho
 - No probado en Vercel.
 - El Festival del Globo real y su programa hay que capturarlos en el admin de producción (Eventos → Editar). No se escribió nada en producción.
 - Sin «copiar actividades a otro día», sin deep link a un evento concreto (por eso no hay botón de compartir) y sin subida de video por archivo.
+
+## Corrección: el programa no seguía el día elegido en el calendario
+**Síntoma (usuario):** al cambiar de día en el calendario, el detalle seguía mostrando las actividades de otro día («día 2 salen cosas del día 1»).
+**Causa:** los chips de día DENTRO del detalle sí cambiaban bien, pero el detalle no recibía el día elegido en el calendario: siempre abría en «hoy» o en el primer día.
+**Arreglo (`EventosPage.tsx`):**
+- Al elegir un día en el calendario, cada evento que ocurre ese día muestra debajo un panel «Programa · <día>» con SOLO las actividades de ese día (`ProgramaDelDia`; hermano de la tarjeta, no hijo, para no anidar botones).
+- El detalle recuerda con qué día se abrió: si ese día tiene actividades, abre directo en la pestaña **Programa** con ese día seleccionado (sea desde la tarjeta o desde el botón del panel). Sin día elegido, o en el historial, se comporta como antes.
+**Probado** (iframe de 360 px, Festival del Globo): el 13 → panel con 2 actividades y el detalle abre en «Viernes, 13 de noviembre»; el 12 → 1; el 16 → 2; sin día → Resumen; un día fuera del evento → sin panel; sin desborde. Datos de prueba borrados.

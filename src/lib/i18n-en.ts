@@ -483,4 +483,6 @@ export const EN: Record<string, string> = {
   'Ver programa': 'See schedule',
   '1 actividad': '1 activity',
   '{n} actividades': '{n} activities',
+  'Ver programa del día': "See the day's schedule",
+  'Ver las {n} actividades del día': "See all {n} activities of the day",
 };

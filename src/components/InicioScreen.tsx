@@ -4,6 +4,7 @@ import { BarraPregunta } from './ExploreScreen';
 import { useT } from '../lib/i18n';
 import type { Lugar } from '../data/lugares';
 import { getCatalogoRegion } from '../lib/chatbot';
+import ProximosEventos from './ProximosEventos';
 
 // ============================================================
 // INICIO — pantalla nueva (no existía)
@@ -76,6 +77,8 @@ export default function InicioScreen({ onVerLugar, onPreguntar, onAbrirMapa, onI
             </p>
           )}
         </section>
+
+        <ProximosEventos />
 
         {/* Consulta rápida */}
         <section className="px-4 lg:px-8 mt-6 mb-6">

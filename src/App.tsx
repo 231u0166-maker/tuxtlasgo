@@ -17,6 +17,7 @@ const AppShell = lazy(() => import('./components/AppShell'));
 const ProviderPanel = lazy(() => import('./components/ProviderPanel'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const GaleriaPage = lazy(() => import('./components/GaleriaPage'));
+const EventosPage = lazy(() => import('./components/EventosPage'));
 const TerminosPage = lazy(() => import('./components/TerminosPage'));
 const PrivacidadPage = lazy(() => import('./components/PrivacidadPage'));
 const CopyrightPage = lazy(() => import('./components/CopyrightPage'));
@@ -102,6 +103,7 @@ export default function App() {
           <Route path="/prestador" element={<ConArranque><ProviderPanel /></ConArranque>} />
           <Route path="/admin" element={<ConArranque><AdminPanel /></ConArranque>} />
           <Route path="/galeria" element={<ConArranque><GaleriaPage /></ConArranque>} />
+          <Route path="/eventos" element={<EventosPage />} />
           <Route path="/comunidad" element={<Navigate to="/app?tab=comunidad" replace />} />
           <Route path="/terminos" element={<TerminosPage />} />
           <Route path="/privacidad" element={<PrivacidadPage />} />

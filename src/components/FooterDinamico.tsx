@@ -140,6 +140,7 @@ export default function FooterDinamico({ modo = 'turista' }: { modo?: 'turista' 
                 ['/prestador', 'Para prestadores'],
                 ['/comunidad', 'Comunidad'],
                 ['/galeria', 'Galería'],
+                ['/eventos', 'Eventos'],
               ].map(([to, texto]) => (
                 <li key={to}>
                   <Link to={to} className="inline-block transition-all duration-300 hover:translate-x-1 hover:text-jungle-300">

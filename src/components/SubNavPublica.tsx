@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Menu, X } from 'lucide-react';
 
-export type SeccionPublica = 'galeria' | 'comunidad';
+export type SeccionPublica = 'galeria' | 'comunidad' | 'eventos';
 
 export default function SubNavPublica({ activa }: { activa: SeccionPublica }) {
   const [menuMovil, setMenuMovil] = useState(false);
@@ -21,6 +21,7 @@ export default function SubNavPublica({ activa }: { activa: SeccionPublica }) {
     { id: 'turistas', label: 'Para turistas', to: '/' },
     { id: 'prestadores', label: 'Para prestadores', to: '/prestador' },
     { id: 'galeria', label: 'Galería', to: '/galeria' },
+    { id: 'eventos', label: 'Eventos', to: '/eventos' },
     { id: 'comunidad', label: 'Comunidad', to: '/comunidad' },
   ];
 

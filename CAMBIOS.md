@@ -623,3 +623,34 @@ Pendiente: confirmar en producción tras el deploy (en incógnito). `ResenasLuga
 - Contraste de color y tamaño de texto no se auditaron.
 - Preexistente, ajeno a esto: `fetchPriority` en `PlaceCard.tsx` y `HeroScroll.tsx` da un aviso de React (debería ser `fetchpriority`).
 - Archivos: `src/lib/useDialogA11y.ts` (nuevo), `src/lib/i18n-en.ts` y ~22 componentes en `src/components/`.
+
+
+---
+
+# Sesión 2026-11-15 (2) — Módulo de Eventos (meta: cobro por publicar, aún NO activo)
+
+**Decisión:** la plataforma tiene pocas visitas, así que **no se cobra ni se promete nada todavía**. El módulo de eventos queda funcionando como agenda editorial gestionada desde el panel de admin; el cobro por anuncio queda como meta futura, con el modelo de datos ya preparado.
+
+## Qué hay
+- **API** `api/eventos.ts`: `GET /api/eventos` (público: solo publicados y vigentes), `GET ?admin=1`, `POST`, `PATCH`, `DELETE` (admin, cabecera `X-Admin-Password`, igual que el resto del admin). Tabla `eventos_turisticos` auto-provisionada.
+- **Sección pública** `/eventos` (`EventosPage.tsx`): calendario mensual con puntos en los días con eventos, filtro por categoría, lista y detalle en diálogo. Enlazada desde el navbar de la landing, el pie de página y `SubNavPublica`.
+- **Dentro de la app** (`/app`): franja «Próximos eventos» en Inicio (`ProximosEventos.tsx`); solo se dibuja si hay eventos publicados.
+- **Panel admin**: nueva pestaña «Eventos» (`AdminEventos.tsx`): crear, editar, publicar/despublicar, archivar y eliminar; foto por Cloudinary. Un evento nace como borrador.
+- **Sin conexión:** la última lista descargada se guarda en `localStorage` y se muestra con aviso de que puede estar desactualizada. Sin red y sin nada guardado: mensaje claro, no se inventa nada.
+- **Inglés:** textos de la interfaz traducidos (`i18n-en.ts`); el contenido de cada evento lo escribe el admin tal cual.
+- **Accesibilidad:** misma base de la sesión anterior (calendario de botones con nombre, `aria-pressed`, diálogo con foco atrapado, sin botones anidados).
+
+## Decisiones que conviene recordar
+- **No confundir** con `eventos_servicio` / `src/lib/eventos.ts`: eso cuenta vistas, likes y recomendaciones de IA del prestador. La agenda usa `eventos_turisticos` y `src/lib/agendaEventos.ts`.
+- **Fechas como `DATE` + hora en texto**, sin zona horaria, y devueltas con `to_char`: de lo contrario el driver las convierte a `Date` y se corren un día. "Hoy" se calcula en `America/Mexico_City`.
+- **Seguridad de contenido:** el servidor valida largos, fechas reales, hora `HH:MM` y que imagen/enlace sean `https://` (rechaza `javascript:`). El público nunca recibe columnas de cobro/origen.
+- **Preparado para cobrar:** la tabla ya trae `origen`, `usuario_id`, `monto_publicacion` y `pago_estado` (hoy `admin` / `0` / `sin_cobro`). Flujo previsto: enviar → admin aprueba → pago con Mercado Pago → publicado (cobrar DESPUÉS de aprobar evita reembolsos por rechazos).
+
+## Probado
+`tsc --noEmit` y `npm run build` limpios. API ejecutada localmente contra la base real: sin clave → 401; título corto, fecha imposible (31 feb), `javascript:` en imagen, fin antes de inicio → 400; borrador no sale al público; publicar lo muestra; PATCH revisa el fin contra la fecha guardada; id inexistente → 404; evento pasado no sale. En el navegador (390 px y escritorio): crear/publicar/editar desde el admin y verlo en `/eventos`, calendario, diálogo con Esc y foco de regreso, franja en Inicio, modo sin red con lista guardada, error sin nada guardado e interfaz en inglés. Datos de prueba borrados.
+
+## Pendiente / a sabiendas
+- **No probado en Vercel** (se probó con un arnés local que ejecuta el mismo handler). Al primer request en producción la tabla se crea sola.
+- **Contraseña de admin**: `tuxtlasgo2026` está escrita en el código del navegador (`AdminPanel.tsx`, `AdminEventos.tsx`) y como valor por defecto en las APIs. Cualquiera que lea el JS puede gestionar eventos. Es el patrón que ya tenía el admin; conviene pasar a un login real antes de abrir el cobro.
+- Fuera de alcance por ahora: que el público envíe anuncios, el cobro, ubicación del evento en el mapa, recordatorios.
+- Archivos: `api/eventos.ts`, `src/lib/agendaEventos.ts`, `src/components/{EventosPage,AdminEventos,ProximosEventos}.tsx` (nuevos); `AdminPanel`, `InicioScreen`, `SubNavPublica`, `NavbarLanding`, `FooterDinamico`, `App.tsx`, `i18n-en.ts`.

@@ -69,6 +69,9 @@ export default function NavbarLanding({
             <Link to="/galeria" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
               {t('Galería')}
             </Link>
+            <Link to="/eventos" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
+              {t('Eventos')}
+            </Link>
             <Link to="/comunidad" className="font-medium text-obsidiana-800/60 hover:text-obsidiana-900 transition-colors">
               {t('Comunidad')}
             </Link>
@@ -208,6 +211,7 @@ function MenuMovil({
             onClick={() => { onCambiarModo('prestador'); onCerrar(); }}
           />
           <ItemMenu label={t('Galería')} to="/galeria" onClick={onCerrar} />
+          <ItemMenu label={t('Eventos')} to="/eventos" onClick={onCerrar} />
           <ItemMenu label={t('Comunidad')} to="/comunidad" onClick={onCerrar} />
 
           <div className="h-px bg-obsidiana-900/5 my-2" />

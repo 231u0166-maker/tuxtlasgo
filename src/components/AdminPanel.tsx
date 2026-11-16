@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft, ShieldCheck, CheckCircle2, XCircle,
   Store, MapPin, Phone, DollarSign, Loader2, BookPlus,
-  Search, ImagePlus, X, ExternalLink, Sparkles, Flag, Trash2, RotateCcw
+  Search, ImagePlus, X, ExternalLink, Sparkles, Flag, Trash2, RotateCcw, CalendarDays
 } from 'lucide-react';
+import AdminEventos from './AdminEventos';
 import { agregarConocimientoDinamico } from '../lib/conocimiento';
 import { CATEGORIAS, type Categoria } from '../data/lugares';
 
@@ -16,7 +17,7 @@ type Filtro = 'pendiente' | 'aprobado' | 'rechazado' | 'baja' | 'todos';
 // baja lo que registra el público) es un flujo distinto de la Base de
 // Conocimiento (fichas de la IA + alta rápida de lugares por el
 // propio equipo). Antes vivían mezcladas en una sola pantalla.
-type Seccion = 'servicios' | 'conocimiento' | 'comunidad';
+type Seccion = 'servicios' | 'conocimiento' | 'comunidad' | 'eventos';
 
 const MUNICIPIOS = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
 const OPCIONES_IDEAL = ['solo', 'pareja', 'familia', 'amigos'];
@@ -407,7 +408,7 @@ export default function AdminPanel() {
       {/* Selector de sección — separa Administración de servicios de
           Base de Conocimiento, cada una con su propio propósito. */}
       <div className="bg-white border-b border-jungle-100 px-4">
-        <div className="max-w-3xl mx-auto flex gap-1">
+        <div className="max-w-3xl mx-auto flex gap-1 overflow-x-auto whitespace-nowrap">
           <button
             onClick={() => cambiarSeccion('servicios')}
             className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${seccion === 'servicios'
@@ -446,11 +447,23 @@ export default function AdminPanel() {
               <Flag size={15} /> Comunidad reportada
             </span>
           </button>
+          <button
+            onClick={() => cambiarSeccion('eventos')}
+            className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${seccion === 'eventos'
+              ? 'border-jungle-700 text-jungle-900'
+              : 'border-transparent text-jungle-400 hover:text-jungle-700'
+              }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <CalendarDays size={15} /> Eventos
+            </span>
+          </button>
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-6">
         {seccion === 'comunidad' && <SeccionComunidad />}
+        {seccion === 'eventos' && <AdminEventos />}
         {seccion === 'servicios' && (
           <>
             {/* Título */}

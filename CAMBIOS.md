@@ -686,3 +686,31 @@ Captura del usuario: el calendario y la tarjeta se salían por la derecha. Arreg
 - **No se escribió nada en producción.** El Festival del Globo real y su programa hay que capturarlos desde el panel de admin de producción (Eventos → Editar → Programa de actividades).
 - Sin subida de video por archivo; sin mapa por actividad; el historial no tiene buscador ni filtro por año.
 - No probado en Vercel; la columna `programa` se crea en la primera petición después del despliegue.
+
+
+---
+
+# Sesión 2026-11-15 (4) — Detalle del evento a pantalla completa y programa organizado por días
+
+Petición del usuario (con capturas): el detalle del evento se veía como una hoja a media pantalla («solo un pedazo»); quería el mismo diseño del detalle de un lugar. Y el programa se capturaba todo mezclado: cada actividad nueva repetía el mismo día, nunca avanzaba al siguiente y el formulario se sentía saturado.
+
+## 1. Detalle del evento (público) — `EventosPage.tsx`
+- **Pantalla completa**, mismo lenguaje que `PlaceDetail`: encabezado fijo con cerrar, título, chips (categoría, municipio, «Terminó»), **cartel completo sin recortar** (`object-contain`; antes `object-cover` lo cortaba) que se puede ampliar a pantalla completa, pestañas pegadas arriba **Resumen / Programa (n)** y filas con ícono (Fecha, Hora, Lugar, Entrada, Organiza, Contacto). El teléfono es un enlace `tel:`. La página de atrás no se mueve mientras está abierto.
+- **El programa cambia según el día:** selector de días (Jue 12, Vie 13…) y solo se ven las actividades del día elegido, con su hora, lugar, foto y video. Abre en HOY si el evento está en curso; si no, en el primer día que viene.
+- Esc cierra primero el visor de foto y luego el detalle (pila de diálogos).
+
+## 2. Editor del programa POR DÍAS (admin) — `EditorProgramaEvento.tsx` (nuevo)
+- Genera **una sección por cada día** del evento (de la fecha de inicio a la de fin, máx. 31) con «Día N», fecha y contador. La actividad nueva nace con el día de su sección: ya no hay mezcla ni selector de día por fila. Si cambias las fechas, los días se regeneran solos.
+- Fila compacta (hora + «¿qué pasa?»); lugar, foto y video quedan plegados («Agregar lugar, foto o video»).
+- Actividades que quedan en un día que ya no existe (al acortar fechas) salen en un aviso para **moverlas a un día válido o quitarlas**; nada se pierde en silencio.
+- Al guardar: las filas completamente vacías se descartan; si una tiene lugar/foto/video pero no descripción, se abre ese día y se avisa. Se acomodan por día y hora.
+- **Formulario del evento reorganizado** (`AdminEventos.tsx`) en 5 secciones numeradas: 1 Datos, 2 Cuándo y dónde, 3 Programa por día, 4 Más información, 5 Publicación.
+- Móvil: el nombre del día ya no se corta (contador debajo) y la descripción de cada actividad ocupa todo el ancho (antes ~65 px).
+
+## Probado
+`tsc` y `npm run build` limpios; siguen siendo 12 funciones. En un `iframe` de **360 px reales** con el Festival del Globo (12–16 nov, 10 actividades del cartel): el detalle cubre toda la pantalla; cartel completo; pestañas «Resumen» y «Programa (10)»; 5 chips de día con el 15 (hoy) preseleccionado y sus 4 actividades; al elegir el 12 solo sale 1 y al elegir el 13 salen 2; el visor se cierra con Esc sin cerrar el detalle y luego Esc cierra el detalle y se restaura el scroll. Admin: 5 secciones, 5 días con contador; actividades agregadas en los días 12, 14 y 16 quedaron guardadas en SU día, la fila vacía se descartó, el error abrió el día 16 y todo se ordenó por hora; al acortar la fecha de fin quedaron 3 días y las 7 actividades de los días 15–16 aparecieron para moverlas (al mover una, el día 14 pasó a 3 actividades). Sin desborde ni campos sin nombre en el formulario a 360 px. Datos de prueba borrados por id.
+
+## Pendiente / a sabiendas
+- No probado en Vercel.
+- El Festival del Globo real y su programa hay que capturarlos en el admin de producción (Eventos → Editar). No se escribió nada en producción.
+- Sin «copiar actividades a otro día», sin deep link a un evento concreto (por eso no hay botón de compartir) y sin subida de video por archivo.

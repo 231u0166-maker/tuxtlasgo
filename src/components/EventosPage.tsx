@@ -20,7 +20,7 @@
 // ============================================================
 
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, ExternalLink, MapPin, Play, Tag, X, WifiOff } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, ExternalLink, MapPin, Phone, Play, Tag, Ticket, User, X, WifiOff, type LucideIcon } from 'lucide-react';
 import SubNavPublica from './SubNavPublica';
 import { useI18n } from '../lib/i18n';
 import { useDialogA11y } from '../lib/useDialogA11y';
@@ -308,159 +308,269 @@ function TarjetaEvento({ evento: e, onAbrir, pasado }: { evento: EventoAgenda; o
   );
 }
 
-function ProgramaEvento({ programa }: { programa: ItemPrograma[] }) {
+/** Fila de dato con ícono, como "Cómo llegar / Horario" en el detalle de un lugar. */
+function Fila({ icono: Icono, titulo, children }: { icono: LucideIcon; titulo: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3.5 min-w-0">
+      <Icono size={20} className="text-jungle-800 flex-shrink-0 mt-0.5" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="font-semibold text-obsidiana-900 text-[15px]">{titulo}</p>
+        <div className="text-sm text-obsidiana-800/80 mt-0.5 break-words leading-relaxed">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Foto a pantalla completa (el cartel completo, sin recortar). */
+function VisorImagen({ url, alt, onCerrar }: { url: string; alt: string; onCerrar: () => void }) {
+  const { t } = useI18n();
+  const ref = useDialogA11y({ onClose: onCerrar, label: alt });
+  return (
+    <div ref={ref} className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center p-2" onClick={onCerrar}>
+      <button onClick={onCerrar} aria-label={t('Cerrar foto')} className="absolute top-3 right-3 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center">
+        <X size={22} aria-hidden="true" />
+      </button>
+      <img src={optimizarImagen(url, 1600)} alt={alt} onClick={(ev) => ev.stopPropagation()} className="max-w-full max-h-full object-contain" />
+    </div>
+  );
+}
+
+/**
+ * Programa del evento con selector de DÍAS: al elegir un día solo se ven las
+ * actividades que pertenecen a ese día (no una lista larga con todo mezclado).
+ * Abre en hoy si el evento está en curso; si no, en el primer día que viene.
+ */
+function ProgramaEvento({ programa, onFoto }: { programa: ItemPrograma[]; onFoto: (url: string, alt: string) => void }) {
   const { t, idioma } = useI18n();
   const loc = localeDe(idioma);
   const grupos = agruparPorDia(programa);
-  if (grupos.length === 0) return null;
+  const hoy = hoyISO();
+  const [dia, setDia] = useState(() => (grupos.find((g) => g.dia === hoy) ?? grupos.find((g) => g.dia > hoy) ?? grupos[0])?.dia ?? '');
+  const actual = grupos.find((g) => g.dia === dia) ?? grupos[0];
+  if (!actual) return null;
+  const fActual = fechaLocal(actual.dia);
+
   return (
-    <section className="mt-6" aria-labelledby="titulo-programa">
-      <h3 id="titulo-programa" className="font-display font-bold text-obsidiana-900">{t('Programa')}</h3>
-      <div className="mt-3 space-y-5">
-        {grupos.map((g) => (
-          <div key={g.dia}>
-            <h4 className="text-sm font-bold text-jungle-900 bg-jungle-50 rounded-lg px-3 py-1.5">
-              {cap(fechaLocal(g.dia).toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long' }))}
-            </h4>
-            <ul className="mt-2.5 space-y-3.5">
-              {g.items.map((it, i) => {
-                const enlaceVideo = it.video ? enlaceSeguro(it.video) : null;
-                return (
-                  <li key={i} className="flex gap-3">
-                    <span className="flex-shrink-0 w-[4.5rem] text-xs sm:text-sm font-semibold text-obsidiana-900 pt-0.5">
-                      {it.hora
-                        ? formatearHora(it.hora, idioma)
-                        : (<><span aria-hidden="true">—</span><span className="sr-only">{t('Sin hora fija')}</span></>)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-obsidiana-800 whitespace-pre-line break-words leading-relaxed">{it.descripcion}</p>
-                      {it.lugar && (
-                        <p className="text-xs text-obsidiana-800/60 mt-0.5 flex items-start gap-1">
-                          <MapPin size={12} aria-hidden="true" className="flex-shrink-0 mt-[2px]" />
-                          <span className="min-w-0 break-words">{it.lugar}</span>
-                        </p>
-                      )}
-                      {it.imagen && (
-                        <img src={optimizarImagen(it.imagen, ANCHO_TARJETA)} alt="" loading="lazy" className="mt-2 rounded-xl w-full max-h-56 object-cover" />
-                      )}
-                      {it.video && enlaceVideo && (
-                        esVideoDirecto(enlaceVideo) ? (
-                          <video
-                            src={enlaceVideo}
-                            controls
-                            preload="none"
-                            playsInline
-                            aria-label={`${t('Video')}: ${it.descripcion.slice(0, 60)}`}
-                            className="mt-2 rounded-xl w-full max-h-64 bg-black"
-                          />
-                        ) : (
-                          <a
-                            href={enlaceVideo}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-jungle-700 hover:text-jungle-900 underline underline-offset-2"
-                          >
-                            <Play size={14} aria-hidden="true" />
-                            {t('Ver video')}
-                            <span className="sr-only">({t('se abre en otra pestaña')})</span>
-                          </a>
-                        )
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+    <section aria-labelledby="titulo-programa">
+      <h2 id="titulo-programa" className="font-display font-bold text-xl text-obsidiana-900">{t('Programa')}</h2>
+
+      <div role="group" aria-label={t('Días del programa')} className="flex gap-2 overflow-x-auto py-3 -mx-5 px-5 sm:-mx-8 sm:px-8">
+        {grupos.map((g) => {
+          const f = fechaLocal(g.dia);
+          const sel = g.dia === actual.dia;
+          const n = g.items.length;
+          return (
+            <button
+              key={g.dia}
+              onClick={() => setDia(g.dia)}
+              aria-pressed={sel}
+              aria-label={`${cap(f.toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long' }))}, ${n === 1 ? t('1 actividad') : t('{n} actividades', { n })}`}
+              className={`flex-shrink-0 w-[4.25rem] rounded-2xl py-2.5 flex flex-col items-center border transition-colors ${sel
+                ? 'bg-jungle-900 border-jungle-900 text-white'
+                : 'bg-white border-obsidiana-900/10 text-obsidiana-800 hover:border-jungle-400'}`}
+            >
+              <span className="text-[11px] font-semibold uppercase tracking-wide">{f.toLocaleDateString(loc, { weekday: 'short' }).replace('.', '')}</span>
+              <span className="font-display font-extrabold text-2xl leading-none my-0.5">{f.getDate()}</span>
+              <span className={`text-[10px] font-medium uppercase ${sel ? 'text-white/70' : 'text-obsidiana-800/50'}`}>{f.toLocaleDateString(loc, { month: 'short' }).replace('.', '')}</span>
+            </button>
+          );
+        })}
       </div>
+
+      <h3 className="mt-2 font-display font-bold text-obsidiana-900">
+        {cap(fActual.toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long' }))}
+        <span className="ml-2 text-sm font-medium text-obsidiana-800/55">
+          {actual.items.length === 1 ? t('1 actividad') : t('{n} actividades', { n: actual.items.length })}
+        </span>
+      </h3>
+
+      <ul className="mt-4 space-y-5">
+        {actual.items.map((it, i) => {
+          const enlaceVideo = it.video ? enlaceSeguro(it.video) : null;
+          return (
+            <li key={i} className="flex gap-4">
+              <div className="flex-shrink-0 w-[5.5rem] pt-0.5">
+                <span className="inline-block whitespace-nowrap text-[13px] font-bold text-jungle-900 bg-jungle-50 rounded-lg px-2 py-1">
+                  {it.hora
+                    ? formatearHora(it.hora, idioma)
+                    : (<><span aria-hidden="true">—</span><span className="sr-only">{t('Sin hora fija')}</span></>)}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1 border-l-2 border-jungle-100 pl-4 pb-1">
+                <p className="text-[15px] text-obsidiana-900 whitespace-pre-line break-words leading-relaxed">{it.descripcion}</p>
+                {it.lugar && (
+                  <p className="text-sm text-obsidiana-800/60 mt-1 flex items-start gap-1.5">
+                    <MapPin size={14} aria-hidden="true" className="flex-shrink-0 mt-[3px]" />
+                    <span className="min-w-0 break-words">{it.lugar}</span>
+                  </p>
+                )}
+                {it.imagen && (
+                  <button onClick={() => onFoto(it.imagen, it.descripcion)} aria-label={t('Ampliar foto')} className="mt-3 block w-full overflow-hidden rounded-xl bg-jungle-50">
+                    <img src={optimizarImagen(it.imagen, ANCHO_TARJETA)} alt="" loading="lazy" className="w-full max-h-64 object-cover" />
+                  </button>
+                )}
+                {it.video && enlaceVideo && (
+                  esVideoDirecto(enlaceVideo) ? (
+                    <video
+                      src={enlaceVideo}
+                      controls
+                      preload="none"
+                      playsInline
+                      aria-label={`${t('Video')}: ${it.descripcion.slice(0, 60)}`}
+                      className="mt-3 rounded-xl w-full max-h-72 bg-black"
+                    />
+                  ) : (
+                    <a
+                      href={enlaceVideo}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-jungle-300 px-4 py-2 text-sm font-semibold text-jungle-900 hover:bg-jungle-50"
+                    >
+                      <Play size={14} aria-hidden="true" />
+                      {t('Ver video')}
+                      <span className="sr-only">({t('se abre en otra pestaña')})</span>
+                    </a>
+                  )
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
 
+const ES_TELEFONO = /^[\d\s()+.-]{7,}$/;
+
+/**
+ * Detalle del evento a PANTALLA COMPLETA (mismo lenguaje que el detalle de un
+ * lugar): encabezado fijo con cerrar, título, cartel completo sin recortar,
+ * pestañas Resumen / Programa y filas con ícono. Antes era una hoja a media
+ * pantalla que dejaba ver un pedazo de la página de atrás.
+ */
 function DetalleEvento({ evento: e, onCerrar }: { evento: EventoAgenda; onCerrar: () => void }) {
   const { t, td, idioma } = useI18n();
   const ref = useDialogA11y({ onClose: onCerrar, label: e.titulo });
+  const tienePrograma = e.programa.length > 0;
+  const [pestana, setPestana] = useState<'resumen' | 'programa'>('resumen');
+  const [foto, setFoto] = useState<{ url: string; alt: string } | null>(null);
   const hora = horaTexto(e, idioma);
   const enlace = e.enlace ? enlaceSeguro(e.enlace) : null;
   const terminado = finEvento(e) < hoyISO();
+  const cat = t(e.categoria);
+
+  // La página de atrás no debe moverse mientras el detalle está abierto.
+  useEffect(() => {
+    const previo = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previo; };
+  }, []);
+
   return (
-    <div ref={ref} className="fixed inset-0 z-[100] bg-obsidiana-950/60 flex items-end sm:items-center justify-center" onClick={onCerrar}>
-      <div
-        className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden"
-        onClick={(ev) => ev.stopPropagation()}
-      >
-        {e.imagen && (
-          <img src={optimizarImagen(e.imagen, ANCHO_DETALLE)} alt="" className="w-full max-h-56 object-cover sm:rounded-t-3xl" />
-        )}
-        <div className="p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-100 rounded-full px-2 py-0.5">
-                <Tag size={10} aria-hidden="true" /> {t(e.categoria)}
+    <div ref={ref} className="fixed inset-0 z-[100] bg-white overflow-y-auto overflow-x-hidden overscroll-contain">
+      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-obsidiana-900/8">
+        <div className="max-w-3xl mx-auto flex items-center gap-3 px-4 sm:px-6 h-14">
+          <button onClick={onCerrar} aria-label={t('Cerrar')} className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-obsidiana-900 hover:bg-obsidiana-900/5">
+            <X size={22} aria-hidden="true" />
+          </button>
+          <p className="font-display font-bold text-obsidiana-900 truncate">{t('Evento')}</p>
+        </div>
+      </header>
+
+      <div className="max-w-3xl mx-auto pb-16">
+        <div className="px-5 sm:px-8 pt-5">
+          <h1 className="font-display font-extrabold text-2xl sm:text-3xl text-obsidiana-900 leading-tight break-words">{e.titulo}</h1>
+          <div className="flex items-center gap-2 flex-wrap mt-3">
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 bg-amber-100 rounded-full px-2.5 py-1">
+              <Tag size={11} aria-hidden="true" /> {cat}
+            </span>
+            {e.municipio && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-jungle-800 bg-jungle-50 rounded-full px-2.5 py-1">
+                <MapPin size={11} aria-hidden="true" /> {e.municipio}
               </span>
-              <h2 className="font-display font-extrabold text-xl text-obsidiana-900 mt-1.5 leading-snug break-words">{e.titulo}</h2>
-            </div>
-            <button onClick={onCerrar} aria-label={t('Cerrar')} className="w-10 h-10 -mr-2 -mt-2 rounded-full flex items-center justify-center text-obsidiana-800/60 hover:bg-obsidiana-900/5 flex-shrink-0">
-              <X size={20} aria-hidden="true" />
-            </button>
+            )}
+            {terminado && <span className="text-xs font-semibold text-slate-700 bg-slate-100 rounded-full px-2.5 py-1">{t('Terminó')}</span>}
           </div>
 
-          <dl className="mt-4 space-y-2 text-sm text-obsidiana-800">
-            <div className="flex gap-2">
-              <dt className="sr-only">{t('Fecha')}</dt>
-              <CalendarDays size={16} className="mt-0.5 flex-shrink-0 text-jungle-700" aria-hidden="true" />
-              <dd className="min-w-0 break-words">{cap(formatearRango(e, idioma))}</dd>
-            </div>
-            {hora && (
-              <div className="flex gap-2">
-                <dt className="sr-only">{t('Hora')}</dt>
-                <Clock size={16} className="mt-0.5 flex-shrink-0 text-jungle-700" aria-hidden="true" />
-                <dd>{hora}</dd>
-              </div>
-            )}
-            {(e.lugar || e.municipio) && (
-              <div className="flex gap-2">
-                <dt className="sr-only">{t('Lugar')}</dt>
-                <MapPin size={16} className="mt-0.5 flex-shrink-0 text-jungle-700" aria-hidden="true" />
-                <dd className="min-w-0 break-words">{[e.lugar, e.municipio].filter(Boolean).join(', ')}</dd>
-              </div>
-            )}
-            {e.precio_entrada && (
-              <div className="flex gap-2">
-                <dt className="font-semibold">{t('Entrada')}:</dt>
-                <dd className="min-w-0 break-words">{td(e.precio_entrada)}</dd>
-              </div>
-            )}
-          </dl>
-
-          {terminado && <p className="mt-3 text-sm text-amber-800">{t('Este evento ya terminó.')}</p>}
-
-          {e.descripcion && <p className="mt-4 text-obsidiana-800/80 whitespace-pre-line break-words leading-relaxed">{e.descripcion}</p>}
-
-          <ProgramaEvento programa={e.programa} />
-
-          {(e.organizador || e.contacto) && (
-            <div className="mt-5 text-sm text-obsidiana-800/70 space-y-0.5 break-words">
-              {e.organizador && <p><span className="font-semibold">{t('Organiza')}:</span> {e.organizador}</p>}
-              {e.contacto && <p><span className="font-semibold">{t('Contacto')}:</span> {e.contacto}</p>}
-            </div>
-          )}
-
-          {enlace && (
-            <a
-              href={enlace}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-5 inline-flex items-center gap-1.5 bg-jungle-700 hover:bg-jungle-800 text-white text-sm font-semibold px-5 py-2.5 rounded-full"
+          {e.imagen && (
+            <button
+              onClick={() => setFoto({ url: e.imagen, alt: e.titulo })}
+              aria-label={t('Ver foto completa')}
+              className="mt-5 block w-full rounded-2xl overflow-hidden bg-jungle-50 border border-obsidiana-900/8"
             >
-              {t('Más información')}
-              <ExternalLink size={14} aria-hidden="true" />
-              <span className="sr-only">({t('se abre en otra pestaña')})</span>
-            </a>
+              <img src={optimizarImagen(e.imagen, ANCHO_DETALLE)} alt="" className="mx-auto w-full h-auto max-h-[70vh] object-contain" />
+            </button>
+          )}
+        </div>
+
+        {/* Pestañas — se quedan pegadas bajo el encabezado al deslizar */}
+        {tienePrograma && (
+          <div role="group" aria-label={t('Secciones del evento')} className="sticky top-14 z-10 bg-white mt-5 px-5 sm:px-8 border-b border-jungle-100 flex gap-6">
+            {(['resumen', 'programa'] as const).map((id) => (
+              <button
+                key={id}
+                onClick={() => setPestana(id)}
+                aria-pressed={pestana === id}
+                className={`py-3.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${pestana === id
+                  ? 'border-jungle-900 text-jungle-950'
+                  : 'border-transparent text-jungle-500 hover:text-jungle-800'}`}
+              >
+                {id === 'resumen' ? t('Resumen') : `${t('Programa')} (${e.programa.length})`}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="px-5 sm:px-8 pt-6">
+          {pestana === 'resumen' || !tienePrograma ? (
+            <div className="space-y-6">
+              {terminado && <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">{t('Este evento ya terminó.')}</p>}
+
+              {e.descripcion && <p className="text-[15px] text-obsidiana-900 whitespace-pre-line break-words leading-relaxed">{e.descripcion}</p>}
+
+              <div className="border-t border-jungle-100 pt-6 grid sm:grid-cols-2 gap-x-8 gap-y-5">
+                <Fila icono={CalendarDays} titulo={t('Fecha')}>{cap(formatearRango(e, idioma))}</Fila>
+                {hora && <Fila icono={Clock} titulo={t('Hora')}>{hora}</Fila>}
+                {(e.lugar || e.municipio) && <Fila icono={MapPin} titulo={t('Lugar')}>{[e.lugar, e.municipio].filter(Boolean).join(', ')}</Fila>}
+                {e.precio_entrada && <Fila icono={Ticket} titulo={t('Entrada')}>{td(e.precio_entrada)}</Fila>}
+                {e.organizador && <Fila icono={User} titulo={t('Organiza')}>{e.organizador}</Fila>}
+                {e.contacto && (
+                  <Fila icono={Phone} titulo={t('Contacto')}>
+                    {ES_TELEFONO.test(e.contacto)
+                      ? <a href={`tel:${e.contacto.replace(/[^\d+]/g, '')}`} className="font-semibold text-jungle-800 underline underline-offset-2">{e.contacto}</a>
+                      : e.contacto}
+                  </Fila>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                {tienePrograma && (
+                  <button onClick={() => setPestana('programa')} className="inline-flex items-center gap-1.5 bg-jungle-900 hover:bg-jungle-950 text-white text-sm font-semibold px-5 py-2.5 rounded-full">
+                    <CalendarDays size={15} aria-hidden="true" /> {t('Ver programa')}
+                  </button>
+                )}
+                {enlace && (
+                  <a
+                    href={enlace}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-jungle-300 px-5 py-2.5 text-sm font-semibold text-jungle-900 hover:bg-jungle-50"
+                  >
+                    {t('Más información')}
+                    <ExternalLink size={14} aria-hidden="true" />
+                    <span className="sr-only">({t('se abre en otra pestaña')})</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          ) : (
+            <ProgramaEvento programa={e.programa} onFoto={(url, alt) => setFoto({ url, alt })} />
           )}
         </div>
       </div>
+
+      {foto && <VisorImagen url={foto.url} alt={foto.alt} onCerrar={() => setFoto(null)} />}
     </div>
   );
 }

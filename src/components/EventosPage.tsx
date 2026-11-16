@@ -242,7 +242,7 @@ export default function EventosPage() {
                 <ul className="space-y-3">
                   {filtrados.map((e) => (
                     <li key={e.id}>
-                      <TarjetaEvento evento={e} onAbrir={() => setDetalle({ evento: e, dia: diaSel })} />
+                      <TarjetaEvento evento={e} diaVista={diaSel} onAbrir={() => setDetalle({ evento: e, dia: diaSel })} />
                       {diaSel && <ProgramaDelDia evento={e} dia={diaSel} onAbrir={() => setDetalle({ evento: e, dia: diaSel })} />}
                     </li>
                   ))}
@@ -258,12 +258,22 @@ export default function EventosPage() {
   );
 }
 
-function TarjetaEvento({ evento: e, onAbrir, pasado }: { evento: EventoAgenda; onAbrir: () => void; pasado?: boolean }) {
+/**
+ * `diaVista`: día elegido en el calendario. Si el evento ocurre ese día, la tarjeta se
+ * "pone" en ESE día (fecha grande, fecha larga y actividades de ese día) en vez de
+ * quedarse siempre en el día de inicio.
+ */
+function TarjetaEvento({ evento: e, onAbrir, pasado, diaVista }: { evento: EventoAgenda; onAbrir: () => void; pasado?: boolean; diaVista?: string | null }) {
   const { t, td, idioma } = useI18n();
   const loc = localeDe(idioma);
-  const f = fechaLocal(e.fecha);
+  const dia = diaVista && ocurreEn(e, diaVista) ? diaVista : null;
+  const f = fechaLocal(dia ?? e.fecha);
   const hora = horaTexto(e, idioma);
   const actividades = e.programa.length;
+  const variosDias = !!e.fecha_fin && e.fecha_fin > e.fecha;
+  const actividadesDelDia = dia ? e.programa.filter((a) => a.dia === dia).length : 0;
+  const numeroDeDia = dia ? Math.round((fechaLocal(dia).getTime() - fechaLocal(e.fecha).getTime()) / 86400000) + 1 : 0;
+  const totalDias = variosDias ? Math.round((fechaLocal(finEvento(e)).getTime() - fechaLocal(e.fecha).getTime()) / 86400000) + 1 : 1;
   return (
     <button
       onClick={onAbrir}
@@ -283,8 +293,18 @@ function TarjetaEvento({ evento: e, onAbrir, pasado }: { evento: EventoAgenda; o
         <h3 className="font-display font-bold text-obsidiana-900 mt-1 leading-snug break-words">{e.titulo}</h3>
         <p className="text-sm text-obsidiana-800/70 mt-1 flex items-start gap-1.5">
           <CalendarDays size={13} aria-hidden="true" className="flex-shrink-0 mt-[3px]" />
-          <span className="min-w-0 break-words">{cap(formatearRango(e, idioma))}{hora ? ` · ${hora}` : ''}</span>
+          <span className="min-w-0 break-words">
+            {dia
+              ? cap(fechaLocal(dia).toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long' }))
+              : cap(formatearRango(e, idioma))}
+            {hora ? ` · ${hora}` : ''}
+          </span>
         </p>
+        {dia && variosDias && (
+          <p className="text-xs text-obsidiana-800/55 mt-0.5 ml-[1.375rem] break-words">
+            {t('Día {n} de {total}', { n: numeroDeDia, total: totalDias })} · {cap(formatearRango(e, idioma))}
+          </p>
+        )}
         {(e.lugar || e.municipio) && (
           <p className="text-sm text-obsidiana-800/70 flex items-start gap-1.5">
             <MapPin size={13} aria-hidden="true" className="flex-shrink-0 mt-[3px]" />
@@ -295,7 +315,11 @@ function TarjetaEvento({ evento: e, onAbrir, pasado }: { evento: EventoAgenda; o
           {e.precio_entrada && <p className="text-sm font-semibold text-jungle-800">{td(e.precio_entrada)}</p>}
           {actividades > 0 && (
             <p className="text-xs font-medium text-obsidiana-800/60">
-              {actividades === 1 ? t('1 actividad en el programa') : t('{n} actividades en el programa', { n: actividades })}
+              {dia
+                ? (actividadesDelDia === 0
+                  ? t('Este día no tiene actividades en el programa')
+                  : actividadesDelDia === 1 ? t('1 actividad este día') : t('{n} actividades este día', { n: actividadesDelDia }))
+                : (actividades === 1 ? t('1 actividad en el programa') : t('{n} actividades en el programa', { n: actividades }))}
             </p>
           )}
         </div>

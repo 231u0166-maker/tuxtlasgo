@@ -485,4 +485,8 @@ export const EN: Record<string, string> = {
   '{n} actividades': '{n} activities',
   'Ver programa del día': "See the day's schedule",
   'Ver las {n} actividades del día': "See all {n} activities of the day",
+  'Día {n} de {total}': 'Day {n} of {total}',
+  '1 actividad este día': '1 activity this day',
+  '{n} actividades este día': '{n} activities this day',
+  'Este día no tiene actividades en el programa': 'This day has no activities in the schedule',
 };

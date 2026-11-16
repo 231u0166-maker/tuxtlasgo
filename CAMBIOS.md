@@ -655,3 +655,6 @@ Pendiente: confirmar en producción tras el deploy (en incógnito). `ResenasLuga
 - **Contraseña de admin**: `tuxtlasgo2026` está escrita en el código del navegador (`AdminPanel.tsx`, `AdminEventos.tsx`) y como valor por defecto en las APIs. Cualquiera que lea el JS puede gestionar eventos. Es el patrón que ya tenía el admin; conviene pasar a un login real antes de abrir el cobro.
 - Fuera de alcance por ahora: que el público envíe anuncios, el cobro, ubicación del evento en el mapa, recordatorios.
 - Archivos: `api/eventos.ts`, `src/lib/agendaEventos.ts`, `src/components/{EventosPage,AdminEventos,ProximosEventos}.tsx` (nuevos); `AdminPanel`, `InicioScreen`, `SubNavPublica`, `NavbarLanding`, `FooterDinamico`, `App.tsx`, `i18n-en.ts`.
+
+## Login del admin: ver contraseña
+Se agregó el ojo para mostrar/ocultar la contraseña en el login de `/admin` (`AdminPanel.tsx`), igual que en el de usuarios: botón con nombre accesible y `aria-pressed`, campo con `<label htmlFor>` y `autoComplete="current-password"`. Probado: alterna `password`/`text` sin perder lo escrito y Enter dentro del campo sigue enviando el formulario.

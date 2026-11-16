@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft, ShieldCheck, CheckCircle2, XCircle,
   Store, MapPin, Phone, DollarSign, Loader2, BookPlus,
-  Search, ImagePlus, X, ExternalLink, Sparkles, Flag, Trash2, RotateCcw, CalendarDays
+  Search, ImagePlus, X, ExternalLink, Sparkles, Flag, Trash2, RotateCcw, CalendarDays, Eye, EyeOff
 } from 'lucide-react';
 import AdminEventos from './AdminEventos';
 import { agregarConocimientoDinamico } from '../lib/conocimiento';
@@ -48,6 +48,7 @@ interface ResultadoNominatim {
 export default function AdminPanel() {
   const [autenticado, setAutenticado] = useState(false);
   const [pass, setPass] = useState('');
+  const [verPass, setVerPass] = useState(false);
   const [errorAuth, setErrorAuth] = useState('');
   const [seccion, setSeccion] = useState<Seccion>('servicios');
   const [filtro, setFiltro] = useState<Filtro>('pendiente');
@@ -356,16 +357,29 @@ export default function AdminPanel() {
           )}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="text-xs font-semibold text-jungle-700 mb-1.5 block">Contraseña de administrador</label>
-              <input
-                type="password"
-                value={pass}
-                onChange={e => setPass(e.target.value)}
-                placeholder="Ingresa la contraseña"
-                required
-                autoFocus
-                className="w-full border border-jungle-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
-              />
+              <label htmlFor="admin-pass" className="text-xs font-semibold text-jungle-700 mb-1.5 block">Contraseña de administrador</label>
+              <div className="relative">
+                <input
+                  id="admin-pass"
+                  type={verPass ? 'text' : 'password'}
+                  value={pass}
+                  onChange={e => setPass(e.target.value)}
+                  placeholder="Ingresa la contraseña"
+                  required
+                  autoFocus
+                  autoComplete="current-password"
+                  className="w-full border border-jungle-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-jungle-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => setVerPass(v => !v)}
+                  aria-label={verPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-pressed={verPass}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-lg text-jungle-500 hover:text-jungle-800 hover:bg-jungle-50"
+                >
+                  {verPass ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                </button>
+              </div>
             </div>
             <button type="submit"
               className="w-full bg-jungle-700 hover:bg-jungle-800 text-white font-bold py-3.5 rounded-2xl transition-colors">

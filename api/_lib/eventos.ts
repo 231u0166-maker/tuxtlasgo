@@ -1,12 +1,15 @@
-// api/eventos.ts
+// api/_lib/eventos.ts — se sirve desde api/comunidad/publicaciones.ts con ?recurso=eventos
 // ============================================================
 // AGENDA DE EVENTOS — calendario público de Los Tuxtlas
 // ============================================================
-//   GET    /api/eventos            → público: eventos PUBLICADOS que aún no terminan
-//   GET    /api/eventos?admin=1    → admin: todos (borrador, publicado, archivado)
-//   POST   /api/eventos            → admin: crear
-//   PATCH  /api/eventos            → admin: editar / cambiar estado   { id, ...campos }
-//   DELETE /api/eventos            → admin: eliminar                  { id }
+// (El plan Hobby de Vercel limita a 12 funciones serverless: por eso esto NO es un
+// archivo suelto en api/ sino un módulo en _lib/ que despacha publicaciones.ts.)
+//
+//   GET    /api/comunidad/publicaciones?recurso=eventos            → público: eventos PUBLICADOS que aún no terminan
+//   GET    ...?recurso=eventos&admin=1  → admin: todos (borrador, publicado, archivado)
+//   POST   ...?recurso=eventos     → admin: crear
+//   PATCH  ...?recurso=eventos     → admin: editar / cambiar estado   { id, ...campos }
+//   DELETE ...?recurso=eventos     → admin: eliminar                  { id }
 //
 // NO confundir con `eventos_servicio` (api/_lib/db.ts): esa tabla cuenta vistas,
 // likes y recomendaciones de IA para las estadísticas del prestador. Esto es la
@@ -26,7 +29,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Pool } from 'pg';
-import { getPool } from './_lib/db.js';
+import { getPool } from './db.js';
 
 const CATEGORIAS = ['Fiesta tradicional', 'Música', 'Gastronomía', 'Cultural', 'Naturaleza', 'Deportivo', 'Feria', 'Otro'] as const;
 const ESTADOS = ['borrador', 'publicado', 'archivado'] as const;
@@ -165,7 +168,7 @@ function validar(body: Record<string, unknown>, parcial: boolean): { error?: str
   return { campos: c };
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function manejarEventos(req: VercelRequest, res: VercelResponse) {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 

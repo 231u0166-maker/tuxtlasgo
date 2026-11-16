@@ -2,7 +2,7 @@
 // AGENDA DE EVENTOS — tipos, carga con caché y utilidades de fecha
 // ============================================================
 // NO confundir con src/lib/eventos.ts (conteo de vistas/likes del prestador).
-// Aquí vive la agenda pública de actividades de Los Tuxtlas (api/eventos.ts).
+// Aquí vive la agenda pública de actividades de Los Tuxtlas (api/_lib/eventos.ts).
 //
 // Offline: la app presume funcionar sin internet, así que la última lista que
 // se pudo descargar se guarda en localStorage y se muestra si no hay red,
@@ -108,7 +108,7 @@ function leerCache(): EventoAgenda[] | null {
 
 export async function cargarAgenda(): Promise<ResultadoAgenda> {
   try {
-    const r = await fetch('/api/eventos');
+    const r = await fetch('/api/comunidad/publicaciones?recurso=eventos');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     if (!data?.ok || !Array.isArray(data.eventos)) throw new Error('Respuesta inesperada');

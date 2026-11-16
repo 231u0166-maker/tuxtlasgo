@@ -632,7 +632,8 @@ Pendiente: confirmar en producción tras el deploy (en incógnito). `ResenasLuga
 **Decisión:** la plataforma tiene pocas visitas, así que **no se cobra ni se promete nada todavía**. El módulo de eventos queda funcionando como agenda editorial gestionada desde el panel de admin; el cobro por anuncio queda como meta futura, con el modelo de datos ya preparado.
 
 ## Qué hay
-- **API** `api/eventos.ts`: `GET /api/eventos` (público: solo publicados y vigentes), `GET ?admin=1`, `POST`, `PATCH`, `DELETE` (admin, cabecera `X-Admin-Password`, igual que el resto del admin). Tabla `eventos_turisticos` auto-provisionada.
+- **API** `api/_lib/eventos.ts`, servida por `api/comunidad/publicaciones.ts` con `?recurso=eventos`: `GET` (público: solo publicados y vigentes), `GET &admin=1`, `POST`, `PATCH`, `DELETE` (admin, cabecera `X-Admin-Password`, igual que el resto del admin). Tabla `eventos_turisticos` auto-provisionada.
+- **Límite de Vercel Hobby (12 funciones):** la primera versión creó `api/eventos.ts` como función suelta (la nº 13) y el despliegue falló con "No more than 12 Serverless Functions". Se movió a `_lib/` y se despacha desde `publicaciones.ts`, como ya hace el resto del proyecto. **Ahora hay exactamente 12 funciones: cualquier endpoint nuevo debe colgarse de uno existente con `?recurso=`, o habrá que pasar a Pro.**
 - **Sección pública** `/eventos` (`EventosPage.tsx`): calendario mensual con puntos en los días con eventos, filtro por categoría, lista y detalle en diálogo. Enlazada desde el navbar de la landing, el pie de página y `SubNavPublica`.
 - **Dentro de la app** (`/app`): franja «Próximos eventos» en Inicio (`ProximosEventos.tsx`); solo se dibuja si hay eventos publicados.
 - **Panel admin**: nueva pestaña «Eventos» (`AdminEventos.tsx`): crear, editar, publicar/despublicar, archivar y eliminar; foto por Cloudinary. Un evento nace como borrador.

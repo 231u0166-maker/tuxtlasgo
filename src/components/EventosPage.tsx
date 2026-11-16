@@ -2,7 +2,7 @@
 // EVENTOS — agenda pública de Los Tuxtlas
 // ============================================================
 // Calendario mensual + lista de eventos publicados desde el panel de admin
-// (api/eventos.ts). Los eventos son contenido editorial de la plataforma:
+// (api/_lib/eventos.ts). Los eventos son contenido editorial de la plataforma:
 // por ahora no se cobra por publicar ni se vende nada aquí.
 //
 // Accesible por diseño: el calendario es una cuadrícula de botones con nombre

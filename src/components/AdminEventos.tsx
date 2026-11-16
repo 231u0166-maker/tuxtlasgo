@@ -2,7 +2,7 @@
 // ADMIN — gestión de la agenda de eventos
 // ============================================================
 // Pestaña "Eventos" del panel de admin: crear, editar, publicar/despublicar y
-// eliminar eventos (api/eventos.ts). Un evento nace como BORRADOR y solo se ve
+// eliminar eventos (api/_lib/eventos.ts). Un evento nace como BORRADOR y solo se ve
 // en la sección pública /eventos cuando se publica.
 //
 // Todavía no hay cobro: las columnas de pago existen en la tabla para cuando se
@@ -42,7 +42,7 @@ const campo = 'w-full border border-jungle-200 rounded-xl px-3.5 py-2.5 text-sm 
 const etiqueta = 'block text-xs font-semibold text-jungle-700 mb-1.5';
 
 async function api(metodo: string, cuerpo?: unknown, query = '') {
-  const r = await fetch('/api/eventos' + query, {
+  const r = await fetch('/api/comunidad/publicaciones?recurso=eventos' + query, {
     method: metodo,
     headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
     body: cuerpo ? JSON.stringify(cuerpo) : undefined,
@@ -67,7 +67,7 @@ export default function AdminEventos() {
     setCargando(true);
     setError(null);
     try {
-      const d = await api('GET', undefined, '?admin=1');
+      const d = await api('GET', undefined, '&admin=1');
       setEventos(d.eventos);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudieron cargar los eventos.');

@@ -12,11 +12,13 @@
 // GET    /api/comunidad/publicaciones?recurso=comentarios&post_id=X → comentarios de un post (público)
 // POST   /api/comunidad/publicaciones?recurso=comentarios   → comentar o responder (requiere sesión)
 // GET/POST/DELETE /api/comunidad/publicaciones?recurso=resenas → reseñas de lugares: calificar, comentar, responder, "útil" (ver más abajo)
+// GET/POST/PATCH/DELETE /api/comunidad/publicaciones?recurso=eventos → agenda de eventos (ver api/_lib/eventos.ts)
 // PATCH  /api/comunidad/publicaciones                       → admin: restaurar publicación oculta
 // DELETE /api/comunidad/publicaciones                       → borrar propia, o cualquiera con admin
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Pool } from 'pg';
 import { getPool } from '../_lib/db.js';
+import { manejarEventos } from '../_lib/eventos.js';
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -102,6 +104,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const accion = typeof req.query.accion === 'string' ? req.query.accion : null;
   const recurso = typeof req.query.recurso === 'string' ? req.query.recurso : null;
+  // Agenda de eventos: lógica propia en _lib/eventos.ts (maneja sus propios métodos, CORS y auth).
+  if (recurso === 'eventos') return manejarEventos(req, res);
   const pool = getPool();
   try {
     // ── GET ?accion=cupo — cupo de video disponible este mes ──────

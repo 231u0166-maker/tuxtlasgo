@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Pool } from 'pg';
 import { getPool } from '../_lib/db.js';
+import { esAdmin } from '../_lib/seguridad.js';
 
 // ============================================================
 // BASE DE CONOCIMIENTO DINÁMICA — administrable sin tocar código
@@ -63,8 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // POST (agregar) y PATCH (desactivar) sí requieren la contraseña
     // de admin — mismo patrón que api/servicios/admin.ts.
-    const adminPwd = process.env.ADMIN_PASSWORD ?? 'tuxtlasgo2026';
-    if (req.headers['x-admin-password'] !== adminPwd) {
+    if (!esAdmin(req)) {
       return res.status(401).json({ error: 'Contraseña incorrecta' });
     }
 

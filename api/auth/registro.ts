@@ -1,8 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import bcrypt from 'bcryptjs';
 import { getPool } from '../_lib/db.js';
-
-function generarCodigo(p='TGO'){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<8;i++)s+=c[Math.floor(Math.random()*c.length)];return `${p}-${s}`;}
+import { codigoAleatorio, tokenSesion } from '../_lib/seguridad.js';
 function cors(res: VercelResponse){res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type,Authorization');}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -20,10 +19,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (existe.rows.length > 0) return res.status(409).json({ error: 'Este correo ya está registrado' });
     
     const hash = await bcrypt.hash(password, 10);
-    const codigoRecuperacion = generarCodigo('REC');
+    const codigoRecuperacion = codigoAleatorio('REC');
     const ins = await pool.query('INSERT INTO usuarios (nombre, correo, password, tipo, codigo_recuperacion) VALUES ($1,$2,$3,$4,$5) RETURNING id, nombre, correo, tipo', [nombre.trim(), correo.toLowerCase().trim(), hash, tipo, codigoRecuperacion]);
     
-    const token = generarCodigo('SES') + '-' + Date.now().toString(36);
+    const token = tokenSesion();
     const expira = new Date(Date.now() + 30*24*60*60*1000);
     await pool.query('INSERT INTO sesiones (usuario_id, token, expira_en) VALUES ($1,$2,$3)', [ins.rows[0].id, token, expira]);
     

@@ -19,6 +19,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Pool } from 'pg';
 import { getPool } from '../_lib/db.js';
 import { manejarEventos } from '../_lib/eventos.js';
+import { esAdmin } from '../_lib/seguridad.js';
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -28,10 +29,6 @@ function cors(res: VercelResponse) {
 function getToken(req: VercelRequest) {
   const a = req.headers['authorization'] ?? '';
   return typeof a === 'string' && a.startsWith('Bearer ') ? a.slice(7) : null;
-}
-function esAdmin(req: VercelRequest) {
-  const pwd = req.headers['x-admin-password'];
-  return pwd === (process.env.ADMIN_PASSWORD ?? 'tuxtlasgo2026');
 }
 async function usuarioDeSesion(pool: Pool, token: string): Promise<number | null> {
   const sess = await pool.query(

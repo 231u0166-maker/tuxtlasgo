@@ -15,10 +15,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { CalendarPlus, Eye, EyeOff, Loader2, Pencil, Trash2, ImagePlus, X, Archive } from 'lucide-react';
 import { subirFoto } from '../lib/cloudinary';
+import { adminPwd } from '../lib/adminPwd';
 import { CATEGORIAS_EVENTO, fechaLocal, finEvento, hoyISO, type ItemPrograma } from '../lib/agendaEventos';
 import EditorProgramaEvento, { conClaves, prepararPrograma, type FilaPrograma } from './EditorProgramaEvento';
 
-const ADMIN_PWD = 'tuxtlasgo2026';
 const MUNICIPIOS = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
 
 type Estado = 'borrador' | 'publicado' | 'archivado';
@@ -49,7 +49,7 @@ const etiqueta = 'block text-xs font-semibold text-jungle-700 mb-1.5';
 async function api(metodo: string, cuerpo?: unknown, query = '') {
   const r = await fetch('/api/comunidad/publicaciones?recurso=eventos' + query, {
     method: metodo,
-    headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPwd() },
     body: cuerpo ? JSON.stringify(cuerpo) : undefined,
   });
   const data = await r.json().catch(() => ({}));

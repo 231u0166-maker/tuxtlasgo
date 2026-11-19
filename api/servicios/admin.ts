@@ -1,13 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getPool } from '../_lib/db.js';
+import { esAdmin } from '../_lib/seguridad.js';
 
 function cors(res: VercelResponse) { res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-Admin-Password'); }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const adminPwd = process.env.ADMIN_PASSWORD ?? 'tuxtlasgo2026';
-  if (req.headers['x-admin-password'] !== adminPwd) return res.status(401).json({ error: 'Contraseña incorrecta' });
+  if (!esAdmin(req)) return res.status(401).json({ error: 'Contraseña incorrecta' });
   const pool = getPool();
   try {
     if (req.method === 'GET') {

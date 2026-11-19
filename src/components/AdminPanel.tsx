@@ -6,10 +6,10 @@ import {
   Search, ImagePlus, X, ExternalLink, Sparkles, Flag, Trash2, RotateCcw, CalendarDays, Eye, EyeOff
 } from 'lucide-react';
 import AdminEventos from './AdminEventos';
+import { adminPwd, fijarAdminPwd } from '../lib/adminPwd';
 import { agregarConocimientoDinamico } from '../lib/conocimiento';
 import { CATEGORIAS, type Categoria } from '../data/lugares';
 
-const ADMIN_PWD = 'tuxtlasgo2026';
 
 type Filtro = 'pendiente' | 'aprobado' | 'rechazado' | 'baja' | 'todos';
 // Sección de más alto nivel del panel — separadas a propósito: la
@@ -92,15 +92,15 @@ export default function AdminPanel() {
     try {
       if (estado === 'todos') {
         const [r1, r2, r3, r4] = await Promise.all([
-          fetch('/api/servicios/admin?estado=pendiente', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
-          fetch('/api/servicios/admin?estado=aprobado', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
-          fetch('/api/servicios/admin?estado=rechazado', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
-          fetch('/api/servicios/admin?estado=baja', { headers: { 'X-Admin-Password': ADMIN_PWD } }).then(r => r.json()),
+          fetch('/api/servicios/admin?estado=pendiente', { headers: { 'X-Admin-Password': adminPwd() } }).then(r => r.json()),
+          fetch('/api/servicios/admin?estado=aprobado', { headers: { 'X-Admin-Password': adminPwd() } }).then(r => r.json()),
+          fetch('/api/servicios/admin?estado=rechazado', { headers: { 'X-Admin-Password': adminPwd() } }).then(r => r.json()),
+          fetch('/api/servicios/admin?estado=baja', { headers: { 'X-Admin-Password': adminPwd() } }).then(r => r.json()),
         ]);
         setServicios([...(r1.servicios || []), ...(r2.servicios || []), ...(r3.servicios || []), ...(r4.servicios || [])]);
       } else {
         const res = await fetch(`/api/servicios/admin?estado=${estado}`, {
-          headers: { 'X-Admin-Password': ADMIN_PWD }
+          headers: { 'X-Admin-Password': adminPwd() }
         });
         const data = await res.json();
         setServicios(data.servicios || []);
@@ -111,14 +111,21 @@ export default function AdminPanel() {
     setCargando(false);
   }
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (pass === ADMIN_PWD) {
-      setAutenticado(true);
-      setErrorAuth('');
-      cargarServicios('pendiente');
-    } else {
-      setErrorAuth('Contraseña incorrecta');
+    // La contraseña se valida en el servidor (ya no está escrita en el código del navegador).
+    try {
+      const r = await fetch('/api/servicios/admin?estado=pendiente', { headers: { 'X-Admin-Password': pass } });
+      if (r.ok) {
+        fijarAdminPwd(pass);
+        setAutenticado(true);
+        setErrorAuth('');
+        cargarServicios('pendiente');
+      } else {
+        setErrorAuth(r.status === 401 ? 'Contraseña incorrecta' : `No se pudo verificar (error ${r.status})`);
+      }
+    } catch {
+      setErrorAuth('Sin conexión con el servidor');
     }
   }
 
@@ -127,7 +134,7 @@ export default function AdminPanel() {
     try {
       await fetch('/api/servicios/admin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPwd() },
         body: JSON.stringify({ servicioId: id, accion: 'aprobar' })
       });
       await cargarServicios(filtro);
@@ -142,7 +149,7 @@ export default function AdminPanel() {
     try {
       await fetch('/api/servicios/admin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPwd() },
         body: JSON.stringify({ servicioId: id, accion: 'rechazar', motivoRechazo: motivo || 'No cumple los requisitos' })
       });
       await cargarServicios(filtro);
@@ -157,7 +164,7 @@ export default function AdminPanel() {
     try {
       await fetch('/api/servicios/admin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPwd() },
         body: JSON.stringify({ servicioId: id, accion: 'dar_de_baja', motivoRechazo: motivo || 'Ya no está vigente' })
       });
       await cargarServicios(filtro);
@@ -179,7 +186,7 @@ export default function AdminPanel() {
         respuesta: nuevaFicha.respuesta,
         prioridad: nuevaFicha.esSeguridad ? 10 : 0,
       },
-      ADMIN_PWD
+      adminPwd()
     );
     setGuardandoFicha(false);
     if (r.ok) {
@@ -251,7 +258,7 @@ export default function AdminPanel() {
       });
       const r = await fetch('/api/conocimiento/registrar-servicio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPwd() },
         body: JSON.stringify({ imagenBase64: base64 }),
       });
 
@@ -296,7 +303,7 @@ export default function AdminPanel() {
     try {
       const r = await fetch('/api/conocimiento/registrar-servicio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPwd() },
         body: JSON.stringify({
           nombre: nuevoServicio.nombre,
           categoria: nuevoServicio.categoria,
@@ -992,7 +999,7 @@ function SeccionComunidad() {
     setCargando(true);
     try {
       const res = await fetch('/api/comunidad/publicaciones?admin=1', {
-        headers: { 'X-Admin-Password': ADMIN_PWD },
+        headers: { 'X-Admin-Password': adminPwd() },
       });
       const data = await res.json();
       if (data.ok) {
@@ -1012,7 +1019,7 @@ function SeccionComunidad() {
     try {
       await fetch('/api/comunidad/publicaciones', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPwd() },
         body: JSON.stringify({ id }),
       });
       await cargar();
@@ -1026,7 +1033,7 @@ function SeccionComunidad() {
     try {
       await fetch('/api/comunidad/publicaciones', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': ADMIN_PWD },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPwd() },
         body: JSON.stringify({ id }),
       });
       setPublicaciones((prev) => prev.filter((p) => p.id !== id));

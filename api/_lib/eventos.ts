@@ -31,6 +31,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Pool } from 'pg';
 import { getPool } from './db.js';
+import { esAdmin as esAdminReq } from './seguridad.js';
 
 const CATEGORIAS = ['Fiesta tradicional', 'Música', 'Gastronomía', 'Cultural', 'Naturaleza', 'Deportivo', 'Feria', 'Otro'] as const;
 const ESTADOS = ['borrador', 'publicado', 'archivado'] as const;
@@ -209,7 +210,7 @@ export async function manejarEventos(req: VercelRequest, res: VercelResponse) {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const esAdmin = req.headers['x-admin-password'] === (process.env.ADMIN_PASSWORD ?? 'tuxtlasgo2026');
+  const esAdmin = esAdminReq(req);
   const pedidoAdmin = req.method !== 'GET' || req.query.admin === '1';
   if (pedidoAdmin && !esAdmin) return res.status(401).json({ error: 'Contraseña incorrecta' });
 

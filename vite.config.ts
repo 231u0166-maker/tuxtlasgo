@@ -1,6 +1,14 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { readFileSync } from 'node:fs';
+
+// Mismas cabeceras de seguridad que en producción (vercel.json), para probar el CSP en local.
+const cabecerasSeguridad = Object.fromEntries(
+  (JSON.parse(readFileSync('./vercel.json', 'utf-8')).headers as { source: string; headers: { key: string; value: string }[] }[])
+    .filter((h) => h.source === '/(.*)')
+    .flatMap((h) => h.headers.map((x) => [x.key, x.value])),
+);
 
 // PWA + Workbox: cachea la app shell, los tiles del mapa OSM y las imágenes
 // para que TuxtlasGO funcione 100% offline una vez visitada con internet.
@@ -144,6 +152,7 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    headers: cabecerasSeguridad,
   },
   build: {
     target: 'es2020',

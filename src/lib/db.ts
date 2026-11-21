@@ -422,10 +422,11 @@ export async function guardarRuta(
 // Verifica si el mapa ya fue descargado para uso offline.
 export function mapaDescargado(): boolean {
   try {
-    // Estado v2 (ver lib/mapaOffline.ts). El indicador viejo "tiles-precargados"
-    // ya no cuenta: solo guardaba hasta z13 y dejaba el mapa en blanco al acercar.
-    const e = JSON.parse(localStorage.getItem('mapa-offline-estado-v2') || '{}');
-    return !!e.calles;
+    // Zonas descargadas (ver lib/mapaOffline.ts). El indicador viejo
+    // "tiles-precargados" ya no cuenta: solo guardaba hasta z13 y dejaba el
+    // mapa en blanco al acercar.
+    const z = JSON.parse(localStorage.getItem('mapa-offline-zonas-v1') || '[]');
+    return Array.isArray(z) && z.length > 0;
   } catch {
     return false;
   }

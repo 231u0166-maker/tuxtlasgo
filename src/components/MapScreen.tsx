@@ -18,15 +18,17 @@ import {
   PLANTILLA_SATELITE,
   ESTILO_MAPA_URL,
   ajustarUrlSinConexion,
-  leerEstadoOffline,
-  estimarCalles,
-  planearSatelite,
-  descargarCalles,
-  descargarSatelite,
+  leerZonas,
+  planearZona,
+  cajaDeZona,
+  descargarZona,
+  borrarZona,
   borrarMapaOffline,
-  type Caja,
-  type EstadoOffline,
+  TAMANOS,
+  type TamanoZona,
+  type ZonaOffline,
 } from '../lib/mapaOffline';
+import { olvidarGrafosZona } from '../lib/rutasOffline';
 import { useOffline } from '../hooks/useOffline';
 import NavegacionRuta from './NavegacionRuta';
 import type { Coord, ModoRuta } from '../lib/routing';
@@ -89,21 +91,24 @@ export const ESTILO_MAPA = ESTILO_MAPA_URL;
 // descarga offline necesita pedir exactamente las mismas URLs)
 const ZOOM_SATELITE_FUENTE = TOKEN_MAPBOX ? 17 : 15;
 export const ZOOM_SATELITE_MAX = TOKEN_MAPBOX ? 18 : 16;
-export const ESTILO_SATELITE = {
-  version: 8 as const,
-  sources: {
-    'satelite': {
-      type: 'raster' as const,
-      tiles: [PLANTILLA_SATELITE],
-      tileSize: 256,
-      maxzoom: ZOOM_SATELITE_FUENTE,
-      attribution: TOKEN_MAPBOX
-        ? '© Mapbox © Maxar © OpenStreetMap'
-        : 'Imágenes © Esri, Maxar, Earthstar Geographics',
+export function estiloSatelite(maxzoomFuente: number) {
+  return {
+    version: 8 as const,
+    sources: {
+      'satelite': {
+        type: 'raster' as const,
+        tiles: [PLANTILLA_SATELITE],
+        tileSize: 256,
+        maxzoom: maxzoomFuente,
+        attribution: TOKEN_MAPBOX
+          ? '© Mapbox © Maxar © OpenStreetMap'
+          : 'Imágenes © Esri, Maxar, Earthstar Geographics',
+      },
     },
-  },
-  layers: [{ id: 'satelite-capa', type: 'raster' as const, source: 'satelite' }],
-};
+    layers: [{ id: 'satelite-capa', type: 'raster' as const, source: 'satelite' }],
+  };
+}
+export const ESTILO_SATELITE = estiloSatelite(ZOOM_SATELITE_FUENTE);
 
 // Mismos 7 colores que CATEGORIAS en data/lugares.ts (ahí están en
 // clases Tailwind para badges; aquí en hex para pintar el mapa) —
@@ -518,36 +523,36 @@ export default function MapScreen({
   // que el selector de Google Maps (icono de capas → opciones).
   const [vistaSatelite, setVistaSatelite] = useState(false);
 
-  // ---- Mapas offline (calles y satélite) ----
+  // ---- Mapas offline: descarga unificada por zona ----
   const sinConexion = useOffline();
-  const [estadoOff, setEstadoOff] = useState<EstadoOffline>(() => leerEstadoOffline());
+  const [zonas, setZonas] = useState<ZonaOffline[]>(() => leerZonas());
   const [mostrarPanelOffline, setMostrarPanelOffline] = useState(false);
-  const [tarea, setTarea] = useState<{ tipo: 'calles' | 'satelite'; pct: number; etapa: string } | null>(null);
+  const [tarea, setTarea] = useState<{ pct: number; etapa: string } | null>(null);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
   const [avisoMapa, setAvisoMapa] = useState<string | null>(null);
   const cancelarRef = useRef<AbortController | null>(null);
 
-  // Zona visible actual (con un margen) — es lo que se baja en satélite
-  const cajaVisible = useCallback((): Caja => {
-    const m = mapRef.current?.getMap();
-    if (!m) return [-95.2, 18.35, -95.0, 18.5];
-    const b = m.getBounds();
-    const dx = (b.getEast() - b.getWest()) * 0.15;
-    const dy = (b.getNorth() - b.getSouth()) * 0.15;
-    return [b.getWest() - dx, b.getSouth() - dy, b.getEast() + dx, b.getNorth() + dy];
+  // Centro de lo que se ve en el mapa: la zona se descarga alrededor de ahí
+  const centroMapa = useCallback((): [number, number] => {
+    const c = mapRef.current?.getMap()?.getCenter();
+    return c ? [c.lat, c.lng] : [LOS_TUXTLAS_CENTER[0], LOS_TUXTLAS_CENTER[1]];
   }, []);
 
-  const iniciarDescarga = useCallback(async (tipo: 'calles' | 'satelite') => {
+  const iniciarDescarga = useCallback(async (tamano: TamanoZona, conSatelite: boolean) => {
     if (cancelarRef.current) return;
     const ctl = new AbortController();
     cancelarRef.current = ctl;
     setErrorDescarga(null);
-    setTarea({ tipo, pct: 0, etapa: 'Preparando…' });
-    const alAvanzar = (pct: number, etapa: string) => setTarea({ tipo, pct, etapa });
+    setTarea({ pct: 0, etapa: 'Preparando…' });
+    const centro = centroMapa();
+    const caja = cajaDeZona(tamano, centro);
+    const nombre = tamano === 'tuxtlas'
+      ? 'Los Tuxtlas'
+      : `Zona ${centro[0].toFixed(2)}, ${centro[1].toFixed(2)}`;
     try {
-      if (tipo === 'calles') await descargarCalles(alAvanzar, ctl.signal);
-      else await descargarSatelite(cajaVisible(), alAvanzar, ctl.signal);
-      setEstadoOff(leerEstadoOffline());
+      await descargarZona(caja, conSatelite, nombre, (pct, etapa) => setTarea({ pct, etapa }), ctl.signal);
+      olvidarGrafosZona();
+      setZonas(leerZonas());
       setMostrarPanelOffline(false);
     } catch (e) {
       const err = e as Error;
@@ -555,33 +560,41 @@ export default function MapScreen({
         console.error('[TuxtlasGO] Descarga de mapa offline:', err);
         setErrorDescarga(err.message || 'No se pudo completar la descarga.');
       }
-      setEstadoOff(leerEstadoOffline());
     } finally {
       cancelarRef.current = null;
       setTarea(null);
     }
-  }, [cajaVisible]);
+  }, [centroMapa]);
+
+  // Satélite guardado: el nivel más fino que tienen TODAS las zonas con
+  // satélite (conservador). Sin internet la fuente se limita a ese nivel y el
+  // mapa estira la imagen dos niveles más, en vez de dejar mosaicos en blanco.
+  const zonasConSatelite = zonas.filter((z) => z.satelite);
+  const zoomSateliteGuardado = zonasConSatelite.length
+    ? Math.min(...zonasConSatelite.map((z) => z.satelite!.zoomMax))
+    : 0;
 
   // Sin internet, el satélite solo existe si se descargó; si no, se vuelve a
   // calles en vez de dejar el mapa en blanco.
   useEffect(() => {
-    if (sinConexion && vistaSatelite && !estadoOff.satelite) {
+    if (sinConexion && vistaSatelite && zonasConSatelite.length === 0) {
       setVistaSatelite(false);
       setAvisoMapa('El satélite no está descargado: se muestran las calles. Descárgalo con internet desde "Mapa sin internet".');
     }
-  }, [sinConexion, vistaSatelite, estadoOff.satelite]);
+  }, [sinConexion, vistaSatelite, zonasConSatelite.length]);
   useEffect(() => {
     if (!avisoMapa) return;
     const id = window.setTimeout(() => setAvisoMapa(null), 6000);
     return () => window.clearTimeout(id);
   }, [avisoMapa]);
-  // Sin internet no se puede acercar más que lo realmente descargado
-  const zoomMaxSatelite = sinConexion && estadoOff.satelite
-    ? Math.min(ZOOM_SATELITE_MAX, estadoOff.satelite.zoomMax)
+  const satelitePorZonas = sinConexion && zonasConSatelite.length > 0;
+  const zoomMaxSatelite = satelitePorZonas
+    ? Math.min(ZOOM_SATELITE_MAX, zoomSateliteGuardado + 2)
     : ZOOM_SATELITE_MAX;
-  // Vista satélite (Esri) en vez de calles vectoriales (OpenFreeMap) — ver
-  // ESTILO_SATELITE arriba. El panel de capas es el mismo patrón visual que
-  // el selector de Google Maps (icono de capas → opciones).
+  const estiloSatActual = useMemo(
+    () => estiloSatelite(satelitePorZonas ? zoomSateliteGuardado : ZOOM_SATELITE_FUENTE),
+    [satelitePorZonas, zoomSateliteGuardado]
+  );
   // Al pasar a satélite, si la cámara está más cerca de lo permitido, se aleja.
   useEffect(() => {
     if (!vistaSatelite) return;
@@ -831,7 +844,7 @@ export default function MapScreen({
         onLoad={aplicarLimiteRegion}
         onIdle={aplicarLimiteRegion}
         onMoveEnd={aplicarLimiteRegion}
-        mapStyle={vistaSatelite ? (ESTILO_SATELITE as any) : ESTILO_MAPA}
+        mapStyle={vistaSatelite ? (estiloSatActual as any) : ESTILO_MAPA}
         style={{ width: '100%', height: '100%' }}
       >
         {edificiosGeoJSON.features.length > 0 && (
@@ -1039,12 +1052,12 @@ export default function MapScreen({
       {/* Botón de mapas sin internet — oculto en la vista previa chica
           de Explorar, ahí choca con el buscador que flota encima. */}
       {!vistaCompacta && (
-        <div className="absolute top-3 right-3 z-30">
+        <div className="absolute top-14 right-3 z-30">
           {tarea ? (
             <div className="bg-white shadow-lg rounded-xl px-3 py-2.5 flex flex-col gap-1 min-w-[180px]">
               <div className="flex items-center gap-2 text-sm font-semibold text-jungle-800">
                 <Loader2 size={14} className="animate-spin flex-shrink-0" />
-                {tarea.tipo === 'calles' ? t('Guardando calles…') : t('Guardando satélite…')} {tarea.pct}%
+                {t('Guardando mapa…')} {tarea.pct}%
               </div>
               <div className="w-full bg-jungle-100 rounded-full h-1.5">
                 <div className="bg-jungle-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${tarea.pct}%` }} />
@@ -1063,10 +1076,10 @@ export default function MapScreen({
               className="bg-white hover:bg-jungle-50 shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-jungle-900"
               aria-label={t('Mapa sin internet')}
             >
-              {estadoOff.calles
+              {zonas.length > 0
                 ? <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
                 : <Download size={14} className="flex-shrink-0" />}
-              <span>{estadoOff.calles ? t('Mapa offline ✓') : t('Descargar mapa')}</span>
+              <span>{zonas.length > 0 ? t('Mapa offline ✓') : t('Descargar mapa')}</span>
             </button>
           )}
         </div>
@@ -1088,7 +1101,7 @@ export default function MapScreen({
       )}
 
       {avisoMapa && (
-        <div role="status" className="absolute top-14 left-3 right-3 z-30 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold rounded-xl px-3 py-2 shadow-lg">
+        <div role="status" className="absolute top-28 left-3 right-3 z-30 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold rounded-xl px-3 py-2 shadow-lg">
           {avisoMapa}
         </div>
       )}
@@ -1096,13 +1109,14 @@ export default function MapScreen({
       {/* Panel: qué hay guardado y qué se puede descargar */}
       {mostrarPanelOffline && (
         <PanelMapaOffline
-          estado={estadoOff}
+          zonas={zonas}
           sinConexion={sinConexion}
           error={errorDescarga}
-          calculos={{ calles: estimarCalles(), satelite: planearSatelite(cajaVisible()) }}
+          centro={centroMapa()}
           onCerrar={() => setMostrarPanelOffline(false)}
           onDescargar={iniciarDescarga}
-          onBorrar={async () => { await borrarMapaOffline(); setEstadoOff(leerEstadoOffline()); }}
+          onBorrarZona={async (id) => { await borrarZona(id); olvidarGrafosZona(); setZonas(leerZonas()); }}
+          onBorrarTodo={async () => { await borrarMapaOffline(); olvidarGrafosZona(); setZonas(leerZonas()); }}
         />
       )}
     </div>
@@ -1114,17 +1128,24 @@ function fechaCorta(ms: number) {
 }
 
 function PanelMapaOffline({
-  estado, sinConexion, error, calculos, onCerrar, onDescargar, onBorrar,
+  zonas, sinConexion, error, centro, onCerrar, onDescargar, onBorrarZona, onBorrarTodo,
 }: {
-  estado: EstadoOffline;
+  zonas: ZonaOffline[];
   sinConexion: boolean;
   error: string | null;
-  calculos: { calles: { mosaicos: number; mb: number }; satelite: { zoomMax: number; mosaicos: number; mb: number } };
+  centro: [number, number];
   onCerrar: () => void;
-  onDescargar: (tipo: 'calles' | 'satelite') => void;
-  onBorrar: () => void;
+  onDescargar: (tamano: TamanoZona, conSatelite: boolean) => void;
+  onBorrarZona: (id: string) => void;
+  onBorrarTodo: () => void;
 }) {
   const t = useT();
+  const [tamano, setTamano] = useState<TamanoZona>('ciudad');
+  const [conSatelite, setConSatelite] = useState(true);
+  const plan = useMemo(
+    () => planearZona(cajaDeZona(tamano, centro), conSatelite),
+    [tamano, conSatelite, centro]
+  );
   return (
     <div className="absolute inset-0 z-40 bg-black/50 flex items-end sm:items-center justify-center p-3" onClick={onCerrar}>
       <div className="bg-white rounded-2xl p-5 w-full max-w-sm max-h-[88%] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
@@ -1134,8 +1155,8 @@ function PanelMapaOffline({
             <X size={20} />
           </button>
         </div>
-        <p className="text-xs text-jungle-600 mb-4">
-          {t('Descarga con Wi-Fi antes de salir. Sin señal tendrás el mapa, el satélite descargado y las rutas por calles hacia cualquier lugar de Los Tuxtlas.')}
+        <p className="text-xs text-jungle-600 mb-3">
+          {t('Se guarda todo junto: calles, edificios, satélite, rutas y senderos de la zona. Funciona en cualquier parte de México; elige la zona y descárgala con Wi-Fi antes de salir.')}
         </p>
 
         {error && (
@@ -1147,54 +1168,60 @@ function PanelMapaOffline({
           </p>
         )}
 
-        {/* Calles */}
-        <div className="rounded-xl border border-jungle-100 p-3 mb-3">
-          <div className="flex items-center gap-2 font-semibold text-jungle-900 text-sm">
-            <MapIcon size={16} /> {t('Calles y edificios')}
-            {estado.calles && <CheckCircle2 size={15} className="text-jungle-600 ml-auto" />}
-          </div>
-          <p className="text-xs text-jungle-600 mt-1">
-            {estado.calles
-              ? `${t('Guardado')} ${fechaCorta(estado.calles.fecha)} · ${t('toda la región de Los Tuxtlas')}.`
-              : `${t('Toda la región de Los Tuxtlas, con nombres y todos los niveles de zoom')}. ~${calculos.calles.mb} MB.`}
-          </p>
-          <button
-            disabled={sinConexion}
-            onClick={() => onDescargar('calles')}
-            className="mt-2 w-full bg-jungle-700 disabled:opacity-40 text-white py-2 rounded-xl font-semibold text-sm"
-          >
-            {estado.calles ? t('Actualizar') : t('Descargar')} (~{calculos.calles.mb} MB)
-          </button>
+        <p className="text-xs font-semibold text-jungle-800 mb-1.5">{t('Zona (centrada en lo que ves en el mapa)')}</p>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {TAMANOS.map((o) => (
+            <button
+              key={o.id}
+              onClick={() => setTamano(o.id)}
+              aria-pressed={tamano === o.id}
+              className={'text-left rounded-xl border-2 px-3 py-2 ' + (tamano === o.id
+                ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100 hover:bg-jungle-50')}
+            >
+              <div className="text-sm font-semibold text-jungle-900">{t(o.nombre)}</div>
+              <div className="text-[11px] text-jungle-600">{t(o.detalle)}</div>
+            </button>
+          ))}
         </div>
 
-        {/* Satélite */}
-        <div className="rounded-xl border border-jungle-100 p-3 mb-3">
-          <div className="flex items-center gap-2 font-semibold text-jungle-900 text-sm">
-            <Satellite size={16} /> {t('Satélite')}
-            {estado.satelite && <CheckCircle2 size={15} className="text-jungle-600 ml-auto" />}
-          </div>
-          <p className="text-xs text-jungle-600 mt-1">
-            {estado.satelite
-              ? `${t('Guardado')} ${fechaCorta(estado.satelite.fecha)} · ${estado.satelite.cajas.length} ${t('zona(s)')}. `
-              : ''}
-            {t('Se guarda la zona que estás viendo en el mapa ahora, con detalle')} ({t('acercamiento hasta')} {calculos.satelite.zoomMax}). ~{calculos.satelite.mb} MB.
-          </p>
-          <button
-            disabled={sinConexion}
-            onClick={() => onDescargar('satelite')}
-            className="mt-2 w-full bg-jungle-700 disabled:opacity-40 text-white py-2 rounded-xl font-semibold text-sm"
-          >
-            {t('Descargar esta zona en satélite')} (~{calculos.satelite.mb} MB)
-          </button>
-        </div>
+        <label className="flex items-center gap-2 text-sm text-jungle-900 font-semibold mb-3">
+          <input type="checkbox" checked={conSatelite} onChange={(e) => setConSatelite(e.target.checked)} className="w-4 h-4 accent-jungle-700" />
+          <Satellite size={15} /> {t('Incluir satélite')}
+          {conSatelite && <span className="text-[11px] font-normal text-jungle-600">({t('acercamiento hasta')} {plan.satelite.zoomMax})</span>}
+        </label>
 
-        <p className="text-[11px] text-jungle-500 mb-2">
+        <button
+          disabled={sinConexion}
+          onClick={() => onDescargar(tamano, conSatelite)}
+          className="w-full bg-jungle-700 disabled:opacity-40 text-white py-2.5 rounded-xl font-semibold text-sm"
+        >
+          {t('Descargar zona')} (~{plan.mbTotal} MB)
+        </button>
+        <p className="text-[11px] text-jungle-500 mt-1.5 mb-3">
           {t('Mantén esta pantalla abierta mientras descarga. Puedes cancelar cuando quieras.')}
         </p>
-        {(estado.calles || estado.satelite) && (
-          <button onClick={onBorrar} className="text-xs font-semibold text-red-700 underline">
-            {t('Borrar mapas descargados')}
-          </button>
+
+        {zonas.length > 0 && (
+          <div className="border-t border-jungle-100 pt-3">
+            <p className="text-xs font-semibold text-jungle-800 mb-1.5">{t('Zonas guardadas')}</p>
+            <ul className="space-y-1.5 mb-2">
+              {zonas.map((z) => (
+                <li key={z.id} className="flex items-center gap-2 text-xs text-jungle-800 bg-jungle-50 rounded-lg px-2.5 py-1.5">
+                  <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
+                  <span className="flex-1 min-w-0">
+                    <span className="font-semibold">{z.nombre}</span>
+                    <span className="block text-[10px] text-jungle-500">
+                      {fechaCorta(z.fecha)} · {z.satelite ? t('con satélite') : t('sin satélite')} · {z.grafo ? t('rutas listas') : t('sin rutas offline')}
+                    </span>
+                  </span>
+                  <button onClick={() => onBorrarZona(z.id)} className="text-red-700 font-semibold underline">{t('Borrar')}</button>
+                </li>
+              ))}
+            </ul>
+            <button onClick={onBorrarTodo} className="text-xs font-semibold text-red-700 underline">
+              {t('Borrar todos los mapas descargados')}
+            </button>
+          </div>
         )}
       </div>
     </div>

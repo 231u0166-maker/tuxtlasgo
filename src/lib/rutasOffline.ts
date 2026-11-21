@@ -14,6 +14,8 @@
 // ============================================================
 
 import type { Coord } from './routing';
+import { leerZonas, CACHE_GRAFOS, urlGrafoZona, type Caja } from './mapaOffline';
+import { LOS_TUXTLAS_BOUNDS } from '../data/lugares';
 
 export type ModoRuta = 'auto' | 'pie';
 
@@ -31,15 +33,15 @@ interface Grafo {
   lat: Float32Array;
   lng: Float32Array;
   csr: Record<ModoRuta, Csr>;
-  // Índice espacial: casillas de 0.01° → nodos
-  celdas: Map<number, number[]>;
+  // Índice espacial por modo: casillas de 0.01° → nodos con salida en ese modo
+  celdas: Record<ModoRuta, Map<number, number[]>>;
 }
 type Arista = [number, number, number, number, number, string];
 const VEL_PIE = 5 / 3.6; // m/s
 
 function construirCsr(n: number, aristas: Arista[], modo: ModoRuta): Csr {
   // Auto: respeta sentidos únicos. A pie: todo en ambos sentidos, sin autopistas.
-  const usable = (kmh: number) => modo === 'auto' || kmh < 90;
+  const usable = (kmh: number) => (modo === 'auto' ? kmh > 0 : kmh < 90);
   const sentido = (dir: number) => (modo === 'pie' ? 0 : dir);
   const grado = new Int32Array(n + 1);
   for (const [a, b, , kmh, dir] of aristas) {
@@ -97,30 +99,82 @@ function decodificar(enc: string): Coord[] {
   return out;
 }
 
-async function construirGrafo(): Promise<Grafo | null> {
-  let datos: { nodos: [number, number][]; aristas: [number, number, number, number, number, string][] };
-  try {
-    const r = await fetch(URL_GRAFO);
-    if (!r.ok) return null;
-    datos = await r.json();
-  } catch {
-    return null;
+// Componentes fuertemente conexas (Tarjan iterativo). Devuelve el id de cada nodo.
+function componentesFuertes(n: number, csr: Csr): Int32Array {
+  const { ini, dest } = csr;
+  const indice = new Int32Array(n).fill(-1);
+  const bajo = new Int32Array(n);
+  const enPila = new Uint8Array(n);
+  const comp = new Int32Array(n).fill(-1);
+  const pila: number[] = [];
+  const llamadas: number[] = [];
+  const sig = new Int32Array(n);
+  let contador = 0, nComp = 0;
+  for (let raiz = 0; raiz < n; raiz++) {
+    if (indice[raiz] !== -1) continue;
+    llamadas.push(raiz);
+    indice[raiz] = bajo[raiz] = contador++;
+    pila.push(raiz); enPila[raiz] = 1; sig[raiz] = ini[raiz];
+    while (llamadas.length) {
+      const u = llamadas[llamadas.length - 1];
+      if (sig[u] < ini[u + 1]) {
+        const v = dest[sig[u]++];
+        if (indice[v] === -1) {
+          indice[v] = bajo[v] = contador++;
+          pila.push(v); enPila[v] = 1; sig[v] = ini[v];
+          llamadas.push(v);
+        } else if (enPila[v]) {
+          if (indice[v] < bajo[u]) bajo[u] = indice[v];
+        }
+      } else {
+        llamadas.pop();
+        if (llamadas.length) {
+          const padre = llamadas[llamadas.length - 1];
+          if (bajo[u] < bajo[padre]) bajo[padre] = bajo[u];
+        }
+        if (bajo[u] === indice[u]) {
+          let w: number;
+          do { w = pila.pop()!; enPila[w] = 0; comp[w] = nComp; } while (w !== u);
+          nComp++;
+        }
+      }
+    }
   }
+  return comp;
+}
+
+function grafoDesdeDatos(datos: { nodos: [number, number][]; aristas: Arista[] }): Grafo {
   const n = datos.nodos.length;
   const lat = new Float32Array(n);
   const lng = new Float32Array(n);
-  const celdas = new Map<number, number[]>();
-  datos.nodos.forEach(([a, b], i) => {
-    lat[i] = a / 1e5;
-    lng[i] = b / 1e5;
-    const k = claveCelda(lat[i], lng[i]);
-    const c = celdas.get(k);
-    if (c) c.push(i); else celdas.set(k, [i]);
-  });
-
-  const aristas = datos.aristas as Arista[];
-  const csr = { auto: construirCsr(n, aristas, 'auto'), pie: construirCsr(n, aristas, 'pie') };
+  datos.nodos.forEach(([la, ln], i) => { lat[i] = la / 1e5; lng[i] = ln / 1e5; });
+  const csr = { auto: construirCsr(n, datos.aristas, 'auto'), pie: construirCsr(n, datos.aristas, 'pie') };
+  // Solo se puede "pegar" un punto a nodos de la componente fuertemente
+  // conexa (se puede entrar y salir): con calles de un solo sentido, un nodo
+  // suelto puede tener salida pero no llegada, y la ruta nunca lo alcanzaría.
+  const celdas = { auto: new Map<number, number[]>(), pie: new Map<number, number[]>() };
+  for (const modo of ['auto', 'pie'] as const) {
+    const comp = componentesFuertes(n, csr[modo]);
+    const tam = new Map<number, number>();
+    for (let i = 0; i < n; i++) tam.set(comp[i], (tam.get(comp[i]) ?? 0) + 1);
+    for (let i = 0; i < n; i++) {
+      if ((tam.get(comp[i]) ?? 0) < 30) continue;
+      const k = claveCelda(lat[i], lng[i]);
+      const c = celdas[modo].get(k);
+      if (c) c.push(i); else celdas[modo].set(k, [i]);
+    }
+  }
   return { n, lat, lng, csr, celdas };
+}
+
+async function construirGrafo(): Promise<Grafo | null> {
+  try {
+    const r = await fetch(URL_GRAFO);
+    if (!r.ok) return null;
+    return grafoDesdeDatos(await r.json());
+  } catch {
+    return null;
+  }
 }
 
 export function cargarGrafoVial(): Promise<Grafo | null> {
@@ -147,7 +201,7 @@ function haversine(aLat: number, aLng: number, bLat: number, bLng: number): numb
 }
 
 // Nodo del grafo más cercano al punto (null si no hay calle a ≤ MAX_SNAP_M).
-function nodoCercano(g: Grafo, p: Coord): { nodo: number; metros: number } | null {
+function nodoCercano(g: Grafo, p: Coord, modo: ModoRuta): { nodo: number; metros: number } | null {
   let mejor = -1;
   let mejorD = Infinity;
   const ci = Math.floor(p[0] / CELDA);
@@ -156,7 +210,7 @@ function nodoCercano(g: Grafo, p: Coord): { nodo: number; metros: number } | nul
     for (let di = -radio; di <= radio; di++) {
       for (let dj = -radio; dj <= radio; dj++) {
         if (Math.max(Math.abs(di), Math.abs(dj)) !== radio) continue;
-        const c = g.celdas.get((ci + di) * 100000 + (cj + dj));
+        const c = g.celdas[modo].get((ci + di) * 100000 + (cj + dj));
         if (!c) continue;
         for (const i of c) {
           const d = haversine(p[0], p[1], g.lat[i], g.lng[i]);
@@ -218,11 +272,51 @@ export interface RutaOffline {
 // Ruta más rápida en carro entre dos puntos usando solo el grafo local.
 // Devuelve null si algún extremo queda fuera de la cobertura o no hay
 // camino entre ambos.
+function enCaja(c: Caja, p: Coord, margen = 0.02): boolean {
+  return p[1] >= c[0] - margen && p[1] <= c[2] + margen && p[0] >= c[1] - margen && p[0] <= c[3] + margen;
+}
+
+// Grafos de zonas descargadas en memoria (máx. 2 a la vez para cuidar la RAM)
+const grafosZona = new Map<string, Promise<Grafo | null>>();
+function cargarGrafoZona(id: string): Promise<Grafo | null> {
+  let p = grafosZona.get(id);
+  if (!p) {
+    p = (async () => {
+      try {
+        const cache = await caches.open(CACHE_GRAFOS);
+        const r = await cache.match(urlGrafoZona(id));
+        return r ? grafoDesdeDatos(await r.json()) : null;
+      } catch { return null; }
+    })();
+    grafosZona.set(id, p);
+    if (grafosZona.size > 2) grafosZona.delete(grafosZona.keys().next().value as string);
+  }
+  return p;
+}
+export function olvidarGrafosZona(): void { grafosZona.clear(); }
+
+// Ruta más rápida usando las zonas descargadas que cubren ambos puntos
+// (y la región base de Los Tuxtlas que viene con la app).
 export async function rutaPorCallesOffline(a: Coord, b: Coord, modo: ModoRuta = 'auto'): Promise<RutaOffline | null> {
-  const g = await cargarGrafoVial();
-  if (!g) return null;
-  const sa = nodoCercano(g, a);
-  const sb = nodoCercano(g, b);
+  const zonas = leerZonas()
+    .filter((z) => z.grafo && enCaja(z.caja, a) && enCaja(z.caja, b))
+    .sort((x, y) => y.fecha - x.fecha);
+  for (const z of zonas) {
+    const g = await cargarGrafoZona(z.id);
+    const r = g ? calcularRuta(g, a, b, modo) : null;
+    if (r) return r;
+  }
+  const [[s0, w0], [n0, e0]] = LOS_TUXTLAS_BOUNDS;
+  if (enCaja([w0, s0, e0, n0], a, 0.1) && enCaja([w0, s0, e0, n0], b, 0.1)) {
+    const base = await cargarGrafoVial();
+    if (base) return calcularRuta(base, a, b, modo);
+  }
+  return null;
+}
+
+function calcularRuta(g: Grafo, a: Coord, b: Coord, modo: ModoRuta): RutaOffline | null {
+  const sa = nodoCercano(g, a, modo);
+  const sb = nodoCercano(g, b, modo);
   if (!sa || !sb) return null;
   const { ini, dest, seg, metros, forma, formaInversa } = g.csr[modo];
 
@@ -272,4 +366,12 @@ export async function rutaPorCallesOffline(a: Coord, b: Coord, modo: ModoRuta = 
   metrosRuta += sa.metros + sb.metros;
   const duracion = costo[sb.nodo] + (sa.metros + sb.metros) / (modo === 'pie' ? VEL_PIE : 25 / 3.6);
   return { geometria, distanciaMetros: metrosRuta, duracionSegundos: duracion };
+}
+
+// Para pruebas y herramientas: ruta sobre datos de grafo ya cargados
+export function rutaEnDatos(
+  datos: { nodos: [number, number][]; aristas: [number, number, number, number, number, string][] },
+  a: Coord, b: Coord, modo: ModoRuta = 'auto'
+): RutaOffline | null {
+  return calcularRuta(grafoDesdeDatos(datos), a, b, modo);
 }

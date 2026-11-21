@@ -742,3 +742,22 @@ Petición del usuario (con capturas): el detalle del evento se veía como una ho
 **Es Report-Only:** el navegador solo avisa en la consola ("violates the following Content Security Policy…"), no bloquea nada. `script-src` aún lleva `'unsafe-inline'` por los `<script>` de `index.html`; mientras esté, el CSP frena la salida de datos (`connect-src`) pero no un script inline inyectado.
 **Probado en local (Chrome):** inicio, mapa, chat y carga del modelo sin violaciones, salvo un `eval` de `protobufjs` (dentro de `@xenova/transformers`), que es un `try/catch` opcional y no necesita `unsafe-eval`. Control positivo: un `fetch` a example.com sí se reporta. **No probado:** botón de Google (la sesión demo ya estaba iniciada), pagos de Mercado Pago, subida a Cloudinary, ni nada en producción (las cabeceras de `vercel.json` solo se ven al desplegar).
 **Siguiente paso:** desplegar, navegar la app real unos días con la consola abierta, y cuando no salgan violaciones cambiar `Content-Security-Policy-Report-Only` por `Content-Security-Policy`. Idealmente antes mover el JS inline de `index.html` a un archivo y quitar `'unsafe-inline'` de `script-src`.
+
+---
+
+# Sesión 2026-11-21 — Mapas y rutas sin internet (estilo MAPS.ME / AllTrails)
+
+## Problema (hallazgos de campo)
+Sin internet: el mapa se veía en blanco al acercar (la descarga solo llegaba a z13 y la fuente llega a z14), el satélite no tenía ninguna descarga, y "Ir a un sitio" dibujaba una línea recta porque OSRM necesita internet y el caché de rutas solo tenía rutas ya calculadas antes.
+
+## Cambios
+- **Descarga unificada por zona** (`src/lib/mapaOffline.ts`, panel "Mapa sin internet" en `MapScreen.tsx`): un solo botón guarda calles y edificios (hasta z14, estilo, sprites y letras), satélite (Mapbox; Esri sin token) y la red de rutas. Se elige tamaño (6 / 15 / 30 km, o Los Tuxtlas completo) alrededor de lo que se ve en el mapa, en cualquier parte de México. Varias zonas, borrado por zona liberando espacio.
+- **Rutas sin internet** (`src/lib/rutasOffline.ts`, `src/lib/grafoDesdeMosaicos.ts`): al descargar una zona, el teléfono arma la red de calles y SENDEROS leyendo los mosaicos vectoriales ya bajados (capa `transportation`, datos de OpenStreetMap) y calcula rutas con A*. Auto (respeta sentidos únicos) y a pie (incluye senderos, andadores, ciclovías). `public/grafo-vial.json` (generado con `scripts/construir-grafo-vial.mjs`) es solo la región base de Los Tuxtlas.
+- **Navegación paso a paso** (`NavegacionRuta.tsx`, `lib/navegacion.ts`): panel En auto / A pie con tiempo y distancia, "Iniciar" sigue el GPS, siguiente giro con distancia, lo que falta, hora de llegada, recálculo al salirse de la ruta. Sin nombres de calle (el grafo no los lleva).
+- **Honestidad:** si no hay ruta por calles (sin internet y fuera de las zonas descargadas) se dibuja una línea recta y se AVISA; ya no es silencioso.
+- Service worker: mosaicos y fuentes sin expiración en el caché `mapa-offline-v1`; manifiesto/estilo con NetworkFirst; el snapshot de OpenFreeMap se reescribe por zona sin conexión.
+
+## Probado
+Build de producción + modo sin conexión del navegador: zona de 6 km descargada (calles + 662 mosaicos de satélite + grafo) en ~30 s; sin internet cargan mapa con nombres y satélite; rutas offline calculadas desde Cache Storage en 2–8 ms (auto 6.5 km/12 min, a pie 6.4 km/77 min); fuera de toda zona cae a línea recta marcada. En Node con mosaicos reales de Puebla centro: 80/80 destinos alcanzables en auto y a pie.
+**No probado:** navegación con GPS real en un teléfono; zonas muy grandes (30 km en ciudad densa pesan mucho: ~100 KB por mosaico en Puebla).
+**Pendiente:** términos de uso de Mapbox/Esri para guardar imágenes; el nivel de zoom del satélite offline es el más bajo entre las zonas guardadas.

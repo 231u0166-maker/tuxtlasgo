@@ -13,6 +13,23 @@ import {
 import { listarServiciosAprobadosComoLugares } from '../lib/db';
 import { useT } from '../lib/i18n';
 import { colorTramo } from '../lib/colores';
+import {
+  TOKEN_MAPBOX,
+  PLANTILLA_SATELITE,
+  ESTILO_MAPA_URL,
+  ajustarUrlSinConexion,
+  leerEstadoOffline,
+  estimarCalles,
+  planearSatelite,
+  descargarCalles,
+  descargarSatelite,
+  borrarMapaOffline,
+  type Caja,
+  type EstadoOffline,
+} from '../lib/mapaOffline';
+import { useOffline } from '../hooks/useOffline';
+import NavegacionRuta from './NavegacionRuta';
+import type { Coord, ModoRuta } from '../lib/routing';
 
 // Referencia estable a propósito: el Map reaplica maxBounds cada vez que
 // el prop cambia de identidad, y eso deshacería el desbloqueo para
@@ -54,7 +71,7 @@ const LIMITES_REGION: [[number, number], [number, number]] = [
 // funcionando igual. Esta migracion es solo de esta pantalla.
 // ============================================================
 
-export const ESTILO_MAPA = 'https://tiles.openfreemap.org/styles/liberty';
+export const ESTILO_MAPA = ESTILO_MAPA_URL;
 
 // ============================================================
 // CAPA SATÉLITE — para ubicarse en el mapa
@@ -68,7 +85,8 @@ export const ESTILO_MAPA = 'https://tiles.openfreemap.org/styles/liberty';
 // que en la selva a veces deja mosaicos en blanco ("Map data not yet
 // available"); por eso con Esri la fuente deja de pedir mosaicos nuevos
 // desde z15 y el mapa no deja acercar más de z16.
-const TOKEN_MAPBOX = (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined)?.trim();
+// (el token y la plantilla de URL viven en lib/mapaOffline.ts, porque la
+// descarga offline necesita pedir exactamente las mismas URLs)
 const ZOOM_SATELITE_FUENTE = TOKEN_MAPBOX ? 17 : 15;
 export const ZOOM_SATELITE_MAX = TOKEN_MAPBOX ? 18 : 16;
 export const ESTILO_SATELITE = {
@@ -76,11 +94,7 @@ export const ESTILO_SATELITE = {
   sources: {
     'satelite': {
       type: 'raster' as const,
-      tiles: [
-        TOKEN_MAPBOX
-          ? `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=${TOKEN_MAPBOX}`
-          : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      ],
+      tiles: [PLANTILLA_SATELITE],
       tileSize: 256,
       maxzoom: ZOOM_SATELITE_FUENTE,
       attribution: TOKEN_MAPBOX
@@ -321,6 +335,17 @@ interface Props {
   // la región, como siempre.
   zonaLibre?: Lugar[];
   onSalirZonaLibre?: () => void;
+  // Resumen de la ruta dibujada (modo, tiempo, distancia) y acciones del
+  // panel de ruta / navegación paso a paso (ver NavegacionRuta.tsx).
+  infoRuta?: {
+    modo: ModoRuta;
+    distanciaMetros?: number;
+    duracionSegundos?: number;
+    aproximada: boolean;
+    calculando: boolean;
+  };
+  onCambiarModoRuta?: (m: ModoRuta) => void;
+  onRecalcularRuta?: (desde: Coord, m: ModoRuta) => void;
 }
 
 // Rendimiento en celulares (sobre todo la PWA instalada en Android, donde
@@ -355,6 +380,9 @@ export default function MapScreen({
   vistaCompacta,
   zonaLibre,
   onSalirZonaLibre,
+  infoRuta,
+  onCambiarModoRuta,
+  onRecalcularRuta,
 }: Props) {
   const t = useT();
   const mapRef = useRef<MapRef>(null);
@@ -374,6 +402,36 @@ export default function MapScreen({
     observador.observe(contenedorRef.current);
     return () => observador.disconnect();
   }, []);
+
+  // Navegación paso a paso: posición GPS en vivo y si está activa
+  const [navPos, setNavPos] = useState<Coord | null>(null);
+  const [navegando, setNavegando] = useState(false);
+  const navegandoRef = useRef(false);
+  navegandoRef.current = navegando;
+  const ultimoRumbo = useRef(0);
+  const alPosicion = useCallback((pos: Coord | null, rumboGrados: number | null) => {
+    setNavPos(pos);
+    const m = mapRef.current?.getMap();
+    if (!pos || !m) return;
+    if (rumboGrados != null) ultimoRumbo.current = rumboGrados;
+    // La cámara sigue al turista, mirando hacia donde avanza
+    m.easeTo({
+      center: [pos[1], pos[0]],
+      bearing: ultimoRumbo.current,
+      pitch: 55,
+      zoom: Math.max(m.getZoom(), 16.5),
+      duration: 900,
+      essential: true,
+    });
+  }, []);
+  useEffect(() => {
+    // Si se cierra la ruta (Cerrar mapa) mientras se navega, se apaga todo
+    if (!rutaResaltada || rutaResaltada.length < 2) { setNavegando(false); setNavPos(null); }
+  }, [rutaResaltada]);
+  useEffect(() => {
+    // Al terminar la navegación se quita la inclinación y el giro
+    if (!navegando) mapRef.current?.getMap()?.easeTo({ bearing: 0, pitch: 45, duration: 600 });
+  }, [navegando]);
 
   // Posición actual del muñeco caminando sobre la ruta ([lng, lat]) —
   // null cuando no hay animación en curso.
@@ -455,20 +513,81 @@ export default function MapScreen({
     return () => window.clearTimeout(id);
   }, [zonaLibre, hayZonaLibre, aplicarLimiteRegion]);
   const [serviciosPrestadores, setServiciosPrestadores] = useState<Lugar[]>([]);
-  const [descargando, setDescargando] = useState(false);
-  const [progreso, setProgreso] = useState(0);
-  const [tilesListos, setTilesListos] = useState(false);
-  const [mostrarAyuda, setMostrarAyuda] = useState(false);
+  // Vista satélite (Mapbox/Esri) en vez de calles vectoriales (OpenFreeMap) —
+  // ver ESTILO_SATELITE arriba. El panel de capas es el mismo patrón visual
+  // que el selector de Google Maps (icono de capas → opciones).
+  const [vistaSatelite, setVistaSatelite] = useState(false);
+
+  // ---- Mapas offline (calles y satélite) ----
+  const sinConexion = useOffline();
+  const [estadoOff, setEstadoOff] = useState<EstadoOffline>(() => leerEstadoOffline());
+  const [mostrarPanelOffline, setMostrarPanelOffline] = useState(false);
+  const [tarea, setTarea] = useState<{ tipo: 'calles' | 'satelite'; pct: number; etapa: string } | null>(null);
+  const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
+  const [avisoMapa, setAvisoMapa] = useState<string | null>(null);
+  const cancelarRef = useRef<AbortController | null>(null);
+
+  // Zona visible actual (con un margen) — es lo que se baja en satélite
+  const cajaVisible = useCallback((): Caja => {
+    const m = mapRef.current?.getMap();
+    if (!m) return [-95.2, 18.35, -95.0, 18.5];
+    const b = m.getBounds();
+    const dx = (b.getEast() - b.getWest()) * 0.15;
+    const dy = (b.getNorth() - b.getSouth()) * 0.15;
+    return [b.getWest() - dx, b.getSouth() - dy, b.getEast() + dx, b.getNorth() + dy];
+  }, []);
+
+  const iniciarDescarga = useCallback(async (tipo: 'calles' | 'satelite') => {
+    if (cancelarRef.current) return;
+    const ctl = new AbortController();
+    cancelarRef.current = ctl;
+    setErrorDescarga(null);
+    setTarea({ tipo, pct: 0, etapa: 'Preparando…' });
+    const alAvanzar = (pct: number, etapa: string) => setTarea({ tipo, pct, etapa });
+    try {
+      if (tipo === 'calles') await descargarCalles(alAvanzar, ctl.signal);
+      else await descargarSatelite(cajaVisible(), alAvanzar, ctl.signal);
+      setEstadoOff(leerEstadoOffline());
+      setMostrarPanelOffline(false);
+    } catch (e) {
+      const err = e as Error;
+      if (err.name !== 'AbortError') {
+        console.error('[TuxtlasGO] Descarga de mapa offline:', err);
+        setErrorDescarga(err.message || 'No se pudo completar la descarga.');
+      }
+      setEstadoOff(leerEstadoOffline());
+    } finally {
+      cancelarRef.current = null;
+      setTarea(null);
+    }
+  }, [cajaVisible]);
+
+  // Sin internet, el satélite solo existe si se descargó; si no, se vuelve a
+  // calles en vez de dejar el mapa en blanco.
+  useEffect(() => {
+    if (sinConexion && vistaSatelite && !estadoOff.satelite) {
+      setVistaSatelite(false);
+      setAvisoMapa('El satélite no está descargado: se muestran las calles. Descárgalo con internet desde "Mapa sin internet".');
+    }
+  }, [sinConexion, vistaSatelite, estadoOff.satelite]);
+  useEffect(() => {
+    if (!avisoMapa) return;
+    const id = window.setTimeout(() => setAvisoMapa(null), 6000);
+    return () => window.clearTimeout(id);
+  }, [avisoMapa]);
+  // Sin internet no se puede acercar más que lo realmente descargado
+  const zoomMaxSatelite = sinConexion && estadoOff.satelite
+    ? Math.min(ZOOM_SATELITE_MAX, estadoOff.satelite.zoomMax)
+    : ZOOM_SATELITE_MAX;
   // Vista satélite (Esri) en vez de calles vectoriales (OpenFreeMap) — ver
   // ESTILO_SATELITE arriba. El panel de capas es el mismo patrón visual que
   // el selector de Google Maps (icono de capas → opciones).
-  const [vistaSatelite, setVistaSatelite] = useState(false);
   // Al pasar a satélite, si la cámara está más cerca de lo permitido, se aleja.
   useEffect(() => {
     if (!vistaSatelite) return;
     const m = mapRef.current?.getMap();
-    if (m && m.getZoom() > ZOOM_SATELITE_MAX) m.easeTo({ zoom: ZOOM_SATELITE_MAX, duration: 600 });
-  }, [vistaSatelite]);
+    if (m && m.getZoom() > zoomMaxSatelite) m.easeTo({ zoom: zoomMaxSatelite, duration: 600 });
+  }, [vistaSatelite, zoomMaxSatelite]);
   const [mostrarCapas, setMostrarCapas] = useState(false);
 
   useEffect(() => {
@@ -493,11 +612,6 @@ export default function MapScreen({
     })();
   }, []);
 
-  useEffect(() => {
-    if (localStorage.getItem('tiles-precargados') === 'true') {
-      setTilesListos(true);
-    }
-  }, []);
 
   // Filtro por categoría — propio del mapa, no depende de que el
   // padre pase `filtroCategorias`. Botón "Filtros" del cluster de
@@ -609,6 +723,7 @@ export default function MapScreen({
   //      calculada por OSRM — la misma línea verde que ya se dibuja.
   useEffect(() => {
     setPosicionCaminante(null);
+    if (navegandoRef.current) return;
     if (!rutaResaltada || rutaResaltada.length < 2 || !paradasResaltadas || paradasResaltadas.length === 0) {
       return;
     }
@@ -704,7 +819,8 @@ export default function MapScreen({
         pixelRatio={PIXEL_RATIO_MAPA}
         fadeDuration={GAMA_BAJA ? 0 : 300}
         minZoom={mapaLiberado ? 4 : 9}
-        maxZoom={vistaSatelite ? ZOOM_SATELITE_MAX : 18}
+        maxZoom={vistaSatelite ? zoomMaxSatelite : 18}
+        transformRequest={(url: string) => ({ url: ajustarUrlSinConexion(url) })}
         // Turista de otro estado (Tabasco, CDMX, Jalisco...): si su
         // ubicación cae fuera de Los Tuxtlas, el recuadro encerraba la
         // cámara y no podía ver su ruta ni su seguimiento. Sin origen
@@ -753,7 +869,13 @@ export default function MapScreen({
           </Marker>
         ))}
 
-        {miUbicacion && (
+        {navPos && (
+          <Marker longitude={navPos[1]} latitude={navPos[0]}>
+            <PinMiUbicacion />
+          </Marker>
+        )}
+
+        {miUbicacion && !navPos && (
           <Marker longitude={miUbicacion[1]} latitude={miUbicacion[0]}>
             <PinMiUbicacion />
           </Marker>
@@ -914,239 +1036,167 @@ export default function MapScreen({
         </button>
       )}
 
-      {/* Boton de descarga de mapa offline — oculto en la vista
-          previa chica de Explorar, ahí choca con el buscador que
-          flota encima (ver nota en Props). */}
+      {/* Botón de mapas sin internet — oculto en la vista previa chica
+          de Explorar, ahí choca con el buscador que flota encima. */}
       {!vistaCompacta && (
         <div className="absolute top-3 right-3 z-30">
-          {tilesListos ? (
-            <div className="bg-white shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-jungle-800">
-              <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
-              {t('Mapa disponible offline ✓')}
-            </div>
-          ) : descargando ? (
-            <div className="bg-white shadow-lg rounded-xl px-3 py-2.5 flex flex-col gap-1 min-w-[160px]">
+          {tarea ? (
+            <div className="bg-white shadow-lg rounded-xl px-3 py-2.5 flex flex-col gap-1 min-w-[180px]">
               <div className="flex items-center gap-2 text-sm font-semibold text-jungle-800">
                 <Loader2 size={14} className="animate-spin flex-shrink-0" />
-                {t('Guardando mapa…')} {progreso}%
+                {tarea.tipo === 'calles' ? t('Guardando calles…') : t('Guardando satélite…')} {tarea.pct}%
               </div>
               <div className="w-full bg-jungle-100 rounded-full h-1.5">
-                <div
-                  className="bg-jungle-600 h-1.5 rounded-full transition-all duration-300"
-                  style={{ width: `${progreso}%` }}
-                />
+                <div className="bg-jungle-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${tarea.pct}%` }} />
               </div>
-              <p className="text-[10px] text-jungle-500">
-                {progreso < 20
-                  ? t('Preparando…')
-                  : progreso < 70
-                    ? t('Descargando calles y edificios…')
-                    : progreso < 95
-                      ? t('Guardando estilo del mapa…')
-                      : t('Finalizando…')}
-              </p>
+              <p className="text-[10px] text-jungle-500">{tarea.etapa}</p>
+              <button
+                onClick={() => cancelarRef.current?.abort()}
+                className="text-[11px] font-semibold text-jungle-700 underline self-start"
+              >
+                {t('Cancelar')}
+              </button>
             </div>
           ) : (
             <button
-              onClick={() => setMostrarAyuda(true)}
+              onClick={() => { setErrorDescarga(null); setMostrarPanelOffline(true); }}
               className="bg-white hover:bg-jungle-50 shadow-lg rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-jungle-900"
+              aria-label={t('Mapa sin internet')}
             >
-              <Download size={14} className="flex-shrink-0" />
-              <span className="hidden xs:inline">{t('Descargar mapa')}</span>
+              {estadoOff.calles
+                ? <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
+                : <Download size={14} className="flex-shrink-0" />}
+              <span>{estadoOff.calles ? t('Mapa offline ✓') : t('Descargar mapa')}</span>
             </button>
           )}
         </div>
       )}
 
-      {/* Modal de ayuda antes de descargar */}
-      {mostrarAyuda && (
-        <div className="absolute inset-0 z-40 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-5 max-w-sm animate-fade-in">
-            <div className="flex items-start justify-between mb-2">
-              <h3 className="font-display font-bold text-lg text-jungle-950">
-                {t('Descargar mapa para usar offline')}
-              </h3>
-              <button
-                onClick={() => setMostrarAyuda(false)}
-                className="text-jungle-400 hover:text-jungle-700"
-                aria-label={t('Cerrar')}
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <p className="text-sm text-jungle-700 mb-4">
-              {t('Vamos a guardar el mapa de Los Tuxtlas en tu dispositivo. Tarda unos segundos. Después podrás ver el mapa aunque no tengas internet. Mantén esta pantalla abierta mientras descarga.')}
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMostrarAyuda(false)}
-                className="flex-1 border-2 border-jungle-200 text-jungle-800 py-2.5 rounded-xl font-semibold text-sm"
-              >
-                {t('Ahora no')}
-              </button>
-              <button
-                onClick={() => {
-                  setMostrarAyuda(false);
-                  setDescargando(true);
-                }}
-                className="flex-1 bg-jungle-700 text-white py-2.5 rounded-xl font-semibold text-sm"
-              >
-                {t('Descargar ahora')}
-              </button>
-            </div>
-          </div>
+      {rutaResaltada && rutaResaltada.length >= 2 && infoRuta && !vistaCompacta && onCambiarModoRuta && onRecalcularRuta && (
+        <NavegacionRuta
+          geometria={rutaResaltada}
+          modo={infoRuta.modo}
+          distanciaMetros={infoRuta.distanciaMetros}
+          duracionSegundos={infoRuta.duracionSegundos}
+          aproximada={infoRuta.aproximada}
+          calculando={infoRuta.calculando}
+          onCambiarModo={onCambiarModoRuta}
+          onRecalcular={onRecalcularRuta}
+          onPosicion={alPosicion}
+          onNavegando={setNavegando}
+        />
+      )}
+
+      {avisoMapa && (
+        <div role="status" className="absolute top-14 left-3 right-3 z-30 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold rounded-xl px-3 py-2 shadow-lg">
+          {avisoMapa}
         </div>
       )}
 
-      {descargando && (
-        <ControladorDescarga
-          onProgreso={setProgreso}
-          onTerminar={() => {
-            setDescargando(false);
-            setTilesListos(true);
-            localStorage.setItem('tiles-precargados', 'true');
-          }}
+      {/* Panel: qué hay guardado y qué se puede descargar */}
+      {mostrarPanelOffline && (
+        <PanelMapaOffline
+          estado={estadoOff}
+          sinConexion={sinConexion}
+          error={errorDescarga}
+          calculos={{ calles: estimarCalles(), satelite: planearSatelite(cajaVisible()) }}
+          onCerrar={() => setMostrarPanelOffline(false)}
+          onDescargar={iniciarDescarga}
+          onBorrar={async () => { await borrarMapaOffline(); setEstadoOff(leerEstadoOffline()); }}
         />
       )}
     </div>
   );
 }
 
-// ============================================================
-// DESCARGA OFFLINE - mapas vectoriales (MapLibre/OpenFreeMap)
-// ============================================================
-// Distinto del sistema anterior (tiles PNG de OpenStreetMap): aqui
-// hay que guardar TRES tipos de recursos, no solo un tipo de imagen:
-//   1. El estilo (style.json) - los colores/capas del mapa.
-//   2. El sprite (iconos de POIs) - un punado de archivos fijos.
-//   3. Los tiles vectoriales (.pbf) - los datos de calles/edificios
-//      de la region, igual que antes se enumeraban tiles PNG por
-//      x/y/zoom, pero ahora con extension .pbf.
-//
-// IMPORTANTE: la URL de los tiles vectoriales de OpenFreeMap incluye
-// un identificador de snapshot con fecha (ej. ".../planet/20260621_
-// 080001_pt/{z}/{x}/{y}.pbf") que cambia cuando ellos actualizan su
-// copia de datos - por eso NO se puede escribir esa URL fija en el
-// codigo; hay que preguntarle al manifiesto (/planet) cual es la
-// plantilla vigente CADA VEZ que se descarga, en vez de asumir que
-// siempre sera la misma.
-//
-// Los glyphs (fuentes de texto) NO se pre-descargan aqui a proposito:
-// son demasiadas combinaciones de idioma/rango de caracteres para
-// enumerar de antemano, pero se cachean solos (ver runtimeCaching en
-// vite.config.ts) conforme el mapa los va pidiendo mientras se navega
-// - para la region y el espanol, es un conjunto chico y se completa
-// solo con el uso normal de la app.
-
-function lngToTileX(lng: number, zoom: number): number {
-  return Math.floor(((lng + 180) / 360) * Math.pow(2, zoom));
+function fechaCorta(ms: number) {
+  return new Date(ms).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function latToTileY(lat: number, zoom: number): number {
-  const latRad = (lat * Math.PI) / 180;
-  return Math.floor(
-    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) *
-    Math.pow(2, zoom)
-  );
-}
-
-// Genera las URLs de tiles vectoriales que cubren Los Tuxtlas, dada
-// la plantilla vigente (con el snapshot correcto ya resuelto).
-function generarTilesVectorialesRegion(plantilla: string): string[] {
-  const [[s, w], [n, e]] = LOS_TUXTLAS_BOUNDS;
-  const margin = 0.05;
-  const urls: string[] = [];
-
-  for (let zoom = 10; zoom <= 13; zoom++) {
-    const xMin = lngToTileX(w - margin, zoom);
-    const xMax = lngToTileX(e + margin, zoom);
-    const yMin = latToTileY(n + margin, zoom);
-    const yMax = latToTileY(s - margin, zoom);
-    for (let x = xMin; x <= xMax; x++) {
-      for (let y = yMin; y <= yMax; y++) {
-        urls.push(
-          plantilla.replace('{z}', String(zoom)).replace('{x}', String(x)).replace('{y}', String(y))
-        );
-      }
-    }
-  }
-  return urls;
-}
-
-async function urlsDeRecursosFijos(): Promise<string[]> {
-  const urls = [ESTILO_MAPA];
-  const spriteBase = 'https://tiles.openfreemap.org/sprites/ofm_f384/ofm';
-  urls.push(`${spriteBase}.json`, `${spriteBase}.png`, `${spriteBase}@2x.json`, `${spriteBase}@2x.png`);
-  return urls;
-}
-
-function ControladorDescarga({
-  onProgreso,
-  onTerminar,
+function PanelMapaOffline({
+  estado, sinConexion, error, calculos, onCerrar, onDescargar, onBorrar,
 }: {
-  onProgreso: (p: number) => void;
-  onTerminar: () => void;
+  estado: EstadoOffline;
+  sinConexion: boolean;
+  error: string | null;
+  calculos: { calles: { mosaicos: number; mb: number }; satelite: { zoomMax: number; mosaicos: number; mb: number } };
+  onCerrar: () => void;
+  onDescargar: (tipo: 'calles' | 'satelite') => void;
+  onBorrar: () => void;
 }) {
-  const ejecutando = useRef(false);
+  const t = useT();
+  return (
+    <div className="absolute inset-0 z-40 bg-black/50 flex items-end sm:items-center justify-center p-3" onClick={onCerrar}>
+      <div className="bg-white rounded-2xl p-5 w-full max-w-sm max-h-[88%] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-1">
+          <h3 className="font-display font-bold text-lg text-jungle-950">{t('Mapa sin internet')}</h3>
+          <button onClick={onCerrar} className="text-jungle-400 hover:text-jungle-700" aria-label={t('Cerrar')}>
+            <X size={20} />
+          </button>
+        </div>
+        <p className="text-xs text-jungle-600 mb-4">
+          {t('Descarga con Wi-Fi antes de salir. Sin señal tendrás el mapa, el satélite descargado y las rutas por calles hacia cualquier lugar de Los Tuxtlas.')}
+        </p>
 
-  useEffect(() => {
-    if (ejecutando.current) return;
-    ejecutando.current = true;
+        {error && (
+          <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</p>
+        )}
+        {sinConexion && (
+          <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+            {t('Estás sin internet: para descargar necesitas conectarte.')}
+          </p>
+        )}
 
-    (async () => {
-      try {
-        onProgreso(5);
+        {/* Calles */}
+        <div className="rounded-xl border border-jungle-100 p-3 mb-3">
+          <div className="flex items-center gap-2 font-semibold text-jungle-900 text-sm">
+            <MapIcon size={16} /> {t('Calles y edificios')}
+            {estado.calles && <CheckCircle2 size={15} className="text-jungle-600 ml-auto" />}
+          </div>
+          <p className="text-xs text-jungle-600 mt-1">
+            {estado.calles
+              ? `${t('Guardado')} ${fechaCorta(estado.calles.fecha)} · ${t('toda la región de Los Tuxtlas')}.`
+              : `${t('Toda la región de Los Tuxtlas, con nombres y todos los niveles de zoom')}. ~${calculos.calles.mb} MB.`}
+          </p>
+          <button
+            disabled={sinConexion}
+            onClick={() => onDescargar('calles')}
+            className="mt-2 w-full bg-jungle-700 disabled:opacity-40 text-white py-2 rounded-xl font-semibold text-sm"
+          >
+            {estado.calles ? t('Actualizar') : t('Descargar')} (~{calculos.calles.mb} MB)
+          </button>
+        </div>
 
-        const manifiestoRes = await fetch('https://tiles.openfreemap.org/planet', {
-          cache: 'force-cache',
-        });
-        const manifiesto = await manifiestoRes.json();
-        const plantilla: string = manifiesto.tiles[0];
-        onProgreso(10);
+        {/* Satélite */}
+        <div className="rounded-xl border border-jungle-100 p-3 mb-3">
+          <div className="flex items-center gap-2 font-semibold text-jungle-900 text-sm">
+            <Satellite size={16} /> {t('Satélite')}
+            {estado.satelite && <CheckCircle2 size={15} className="text-jungle-600 ml-auto" />}
+          </div>
+          <p className="text-xs text-jungle-600 mt-1">
+            {estado.satelite
+              ? `${t('Guardado')} ${fechaCorta(estado.satelite.fecha)} · ${estado.satelite.cajas.length} ${t('zona(s)')}. `
+              : ''}
+            {t('Se guarda la zona que estás viendo en el mapa ahora, con detalle')} ({t('acercamiento hasta')} {calculos.satelite.zoomMax}). ~{calculos.satelite.mb} MB.
+          </p>
+          <button
+            disabled={sinConexion}
+            onClick={() => onDescargar('satelite')}
+            className="mt-2 w-full bg-jungle-700 disabled:opacity-40 text-white py-2 rounded-xl font-semibold text-sm"
+          >
+            {t('Descargar esta zona en satélite')} (~{calculos.satelite.mb} MB)
+          </button>
+        </div>
 
-        const fijos = await urlsDeRecursosFijos();
-        await Promise.allSettled(
-          fijos.map((url) => fetch(url, { cache: 'force-cache' }).catch(() => { }))
-        );
-        onProgreso(20);
-
-        const tiles = generarTilesVectorialesRegion(plantilla);
-        const LOTE = 8;
-        let cursor = 0;
-        let descargados = 0;
-        let errores = 0;
-
-        while (cursor < tiles.length) {
-          const lote = tiles.slice(cursor, cursor + LOTE);
-          cursor += LOTE;
-          await Promise.allSettled(
-            lote.map(async (url) => {
-              try {
-                const r = await fetch(url, { cache: 'force-cache' });
-                if (r.ok) descargados++;
-                else errores++;
-              } catch {
-                errores++;
-              }
-            })
-          );
-          onProgreso(20 + Math.round((cursor / tiles.length) * 75));
-          await new Promise((r) => setTimeout(r, 60));
-        }
-
-        onProgreso(100);
-        console.log(
-          `[TuxtlasGO] Mapa vectorial descargado: ${descargados} tiles ok, ${errores} errores`
-        );
-        await new Promise((r) => setTimeout(r, 400));
-      } catch (err) {
-        console.error('[TuxtlasGO] Error descargando mapa offline:', err);
-      } finally {
-        ejecutando.current = false;
-        onTerminar();
-      }
-    })();
-  }, [onProgreso, onTerminar]);
-
-  return null;
+        <p className="text-[11px] text-jungle-500 mb-2">
+          {t('Mantén esta pantalla abierta mientras descarga. Puedes cancelar cuando quieras.')}
+        </p>
+        {(estado.calles || estado.satelite) && (
+          <button onClick={onBorrar} className="text-xs font-semibold text-red-700 underline">
+            {t('Borrar mapas descargados')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }

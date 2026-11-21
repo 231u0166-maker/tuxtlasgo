@@ -25,6 +25,8 @@ export default defineConfig({
       ],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,json}'],
+        // El grafo de calles es grande: se baja aparte (runtimeCaching), no en la instalación
+        globIgnores: ['**/grafo-vial.json'],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         // Cuando el navegador rechaza por cuota, workbox limpia sus cachés.
         // Sin esto, un QuotaExceeded congela el service worker.
@@ -46,21 +48,36 @@ export default defineConfig({
             },
           },
           {
-            // OpenFreeMap: estilo, sprite, fuentes (glyphs) Y tiles
-            // vectoriales del mapa nuevo (MapLibre) — todo bajo el
-            // mismo dominio, así que una sola regla cubre los 3 tipos
-            // de recurso. maxEntries más alto que el de OSM porque un
-            // tile vectorial cubre más zoom/detalle por archivo, pero
-            // hay más tipos de archivo distintos compartiendo la cuota.
-            urlPattern: /^https:\/\/tiles\.openfreemap\.org\/.*/i,
+            // Manifiesto (/planet), estilo y sprites de OpenFreeMap: con
+            // internet siempre se pide lo vigente (el manifiesto dice qué
+            // carpeta de mosaicos existe hoy y cambia cada pocos días);
+            // sin internet se usa la copia guardada en la descarga offline.
+            urlPattern: /^https:\/\/tiles\.openfreemap\.org\/(planet\/?(\?.*)?|styles\/.*|sprites\/.*)$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'mapa-offline-v1',
+              networkTimeoutSeconds: 4,
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            // Mosaicos vectoriales y tipos de letra de OpenFreeMap, y
+            // mosaicos de satélite (Mapbox / Esri). SIN expiración: es el
+            // mismo caché que llena la descarga manual (lib/mapaOffline.ts)
+            // y lo descargado no debe borrarse solo a los 30 días.
+            urlPattern: /^https:\/\/(tiles\.openfreemap\.org\/(planet|fonts|natural_earth)\/|api\.mapbox\.com\/v4\/mapbox\.satellite\/|server\.arcgisonline\.com\/ArcGIS\/rest\/services\/World_Imagery\/)/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'openfreemap-tiles',
-              expiration: {
-                maxEntries: 2000,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
-                purgeOnQuotaError: true,
-              },
+              cacheName: 'mapa-offline-v1',
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            // Red de calles para calcular rutas sin internet
+            urlPattern: /\/grafo-vial\.json$/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'grafo-vial',
               cacheableResponse: { statuses: [200] },
             },
           },

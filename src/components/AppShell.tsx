@@ -30,7 +30,11 @@ import SelectorIdioma from './SelectorIdioma';
 import { useT } from '../lib/i18n';
 import { useDialogA11y } from '../lib/useDialogA11y';
 import { estaEnLaRegion, type Lugar } from '../data/lugares';
-import { obtenerRutaPorTramos, obtenerUbicacionGPS, type Coord } from '../lib/routing';
+import { obtenerRutaPorTramos, obtenerUbicacionGPS, type Coord, type ModoRuta } from '../lib/routing';
+
+// Honestidad: una línea recta NO es una ruta por calles; se avisa siempre.
+const AVISO_RUTA_RECTA =
+  'No hay ruta por calles disponible (sin internet y fuera de la zona guardada). La línea es solo una referencia en línea recta.';
 import PerfilScreen from './PerfilScreenLazy';
 import { perezoso } from './perezoso';
 
@@ -55,6 +59,14 @@ interface RutaVisible {
   // vez de una sola línea verde de punta a punta.
   tramos: Coord[][];
   paradas: { coord: Coord; orden: number }[];
+  // Puntos con los que se calculó (origen opcional + paradas) y cómo,
+  // para poder recalcular al cambiar a pie/auto o al salirse de la ruta.
+  puntos?: Coord[];
+  modo?: ModoRuta;
+  distanciaMetros?: number;
+  duracionSegundos?: number;
+  // true si algún tramo es solo línea recta (no hay ruta por calles)
+  aproximada?: boolean;
 }
 
 const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
@@ -439,6 +451,41 @@ export default function AppShell() {
     if (!mapaYaVisibleAlLado) cambiarTab('mapa');
   };
 
+  // Calcula (por calles, con o sin internet) y deja la ruta dibujada.
+  // Si no hay ruta por calles disponible, cae a línea recta Y lo avisa.
+  const calcularRuta = async (
+    puntos: Coord[],
+    paradas: { coord: Coord; orden: number }[],
+    modo: ModoRuta
+  ) => {
+    try {
+      if (puntos.length >= 2) {
+        const r = await obtenerRutaPorTramos(puntos, modo);
+        setRutaVisible({
+          geometria: r.tramos.flatMap((t) => t.geometria),
+          tramos: r.tramos.map((t) => t.geometria),
+          paradas,
+          puntos,
+          modo,
+          distanciaMetros: r.distanciaTotalMetros,
+          duracionSegundos: r.duracionTotalSegundos,
+          aproximada: r.hayTramosRectos,
+        });
+        if (r.hayTramosRectos) setErrorRuta(AVISO_RUTA_RECTA);
+      } else {
+        setRutaVisible({ geometria: puntos, tramos: [], paradas, puntos, modo });
+      }
+    } catch (err) {
+      console.warn('[TuxtlasGO] No se pudo calcular la ruta:', err);
+      setRutaVisible({
+        geometria: puntos,
+        tramos: puntos.length >= 2 ? [puntos] : [],
+        paradas, puntos, modo, aproximada: true,
+      });
+      if (puntos.length >= 2) setErrorRuta(AVISO_RUTA_RECTA);
+    }
+  };
+
   const verEnMapa = async () => {
     if (!lugarSeleccionado) return;
     const destino = lugarSeleccionado;
@@ -453,26 +500,7 @@ export default function AppShell() {
     const coords: Coord[] = origen
       ? [origen, destino.coords as Coord]
       : [destino.coords as Coord];
-
-    try {
-      if (coords.length >= 2) {
-        const { tramos } = await obtenerRutaPorTramos(coords);
-        setRutaVisible({
-          geometria: tramos.flatMap((t) => t.geometria),
-          tramos: tramos.map((t) => t.geometria),
-          paradas,
-        });
-      } else {
-        setRutaVisible({ geometria: coords, tramos: [], paradas });
-      }
-    } catch {
-      // Sin internet → línea recta silenciosa, sin mostrar error
-      setRutaVisible({
-        geometria: coords,
-        tramos: coords.length >= 2 ? [coords] : [],
-        paradas,
-      });
-    }
+    await calcularRuta(coords, paradas, 'auto');
     setCargandoRuta(false);
     mostrarMapaConRuta();
   };
@@ -492,23 +520,21 @@ export default function AppShell() {
     const puntosRuta: Coord[] = origen
       ? [origen, ...lugares.map((l) => l.coords as Coord)]
       : lugares.map((l) => l.coords as Coord);
+    await calcularRuta(puntosRuta, paradas, 'auto');
+    setCargandoRuta(false);
+    mostrarMapaConRuta();
+  };
 
-    try {
-      const { tramos } = await obtenerRutaPorTramos(puntosRuta);
-      setRutaVisible({
-        geometria: tramos.flatMap((t) => t.geometria),
-        tramos: tramos.map((t) => t.geometria),
-        paradas,
-      });
-      mostrarMapaConRuta();
-    } catch (err) {
-      console.warn('[TuxtlasGO] OSRM no disponible:', err);
-      // Línea recta entre paradas — silencioso, sin toast de error
-      setRutaVisible({ geometria: puntosRuta, tramos: [puntosRuta], paradas });
-      mostrarMapaConRuta();
-    } finally {
-      setCargandoRuta(false);
-    }
+  // Cambiar entre auto y a pie, o recalcular desde la posición actual
+  // (el turista se salió de la ruta mientras navegaba).
+  const recalcularRuta = async (modo: ModoRuta, desde?: Coord) => {
+    if (!rutaVisible?.puntos) return;
+    setCargandoRuta(true);
+    setErrorRuta(null);
+    const resto = rutaVisible.puntos.length > 1 ? rutaVisible.puntos.slice(1) : rutaVisible.puntos;
+    const puntos = desde ? [desde, ...resto] : rutaVisible.puntos;
+    await calcularRuta(puntos, rutaVisible.paradas, modo);
+    setCargandoRuta(false);
   };
 
   // "Te puede interesar": al abrir el asistente, si hay servicios
@@ -1087,6 +1113,15 @@ export default function AppShell() {
             paradasResaltadas={rutaVisible?.paradas}
             miUbicacion={miUbicacion ?? undefined}
             onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); }}
+            infoRuta={rutaVisible ? {
+              modo: rutaVisible.modo ?? 'auto',
+              distanciaMetros: rutaVisible.distanciaMetros,
+              duracionSegundos: rutaVisible.duracionSegundos,
+              aproximada: !!rutaVisible.aproximada,
+              calculando: cargandoRuta,
+            } : undefined}
+            onCambiarModoRuta={(m) => recalcularRuta(m)}
+            onRecalcularRuta={(desde, m) => recalcularRuta(m, desde)}
             vistaCompacta={tab === 'explorar' && !esEscritorio}
             zonaLibre={zonaLibre ?? undefined}
             onSalirZonaLibre={() => setZonaLibre(null)}

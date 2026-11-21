@@ -13,6 +13,15 @@
 // ============================================================
 
 import { db } from './db';
+import { rutaPorCallesOffline, precargarGrafoVial, type ModoRuta } from './rutasOffline';
+
+export type { ModoRuta };
+
+// Con internet, el grafo de calles local se baja en segundo plano para que
+// ya esté guardado cuando se pierda la señal.
+if (typeof window !== 'undefined') {
+  window.setTimeout(precargarGrafoVial, 4000);
+}
 
 // Coordenada en formato Leaflet: [latitud, longitud]
 export type Coord = [number, number];
@@ -27,13 +36,19 @@ export interface RutaCalculada {
   duracionSegundos: number;
   // Si vino del caché (offline) o se acaba de calcular
   desdeCache: boolean;
+  // De dónde salió el trazado:
+  //  'osrm'    → servidor en línea (calles reales)
+  //  'cache'   → una ruta ya calculada antes (calles reales)
+  //  'offline' → calculada en el teléfono con las calles guardadas
+  //  'recta'   → NO hay ruta por calles: es solo una línea recta aproximada
+  fuente: 'osrm' | 'cache' | 'offline' | 'recta';
 }
 
 // Genera una clave única para el caché basada en los puntos.
 // Redondeamos a 4 decimales (~10 metros de precisión) para que
 // pequeñas variaciones no rompan el cache.
-function claveCache(puntos: Coord[]): string {
-  return puntos
+function claveCache(puntos: Coord[], modo: ModoRuta = 'auto'): string {
+  return (modo === 'pie' ? 'pie:' : '') + puntos
     .map(([lat, lng]) => `${lat.toFixed(4)},${lng.toFixed(4)}`)
     .join('|');
 }
@@ -79,22 +94,25 @@ function decodificarPolyline(encoded: string, precision = 5): Coord[] {
 // Endpoints públicos de OSRM, en orden de preferencia. Si el primero
 // falla (p.ej. está caído, throttled, o bloqueado por red corporativa),
 // se intenta el siguiente. Todos son gratuitos y no requieren API key.
-const ENDPOINTS_OSRM = [
-  'https://router.project-osrm.org',
-  'https://routing.openstreetmap.de/routed-car',
-];
+const ENDPOINTS_OSRM: Record<ModoRuta, { base: string; perfil: string }[]> = {
+  auto: [
+    { base: 'https://router.project-osrm.org', perfil: 'driving' },
+    { base: 'https://routing.openstreetmap.de/routed-car', perfil: 'driving' },
+  ],
+  pie: [{ base: 'https://routing.openstreetmap.de/routed-foot', perfil: 'driving' }],
+};
 
 // Llama a OSRM para calcular la ruta en carro siguiendo las carreteras.
 // Intenta los endpoints en orden hasta que alguno responda.
-async function llamarOsrm(puntos: Coord[]): Promise<RutaCalculada> {
+async function llamarOsrm(puntos: Coord[], modo: ModoRuta): Promise<RutaCalculada> {
   // OSRM recibe los puntos como lng,lat (al revés de Leaflet)
   const coordsStr = puntos.map(([lat, lng]) => `${lng},${lat}`).join(';');
   let ultimoError: unknown = null;
 
-  for (const base of ENDPOINTS_OSRM) {
-    const url = `${base}/route/v1/driving/${coordsStr}?overview=full&geometries=polyline`;
+  for (const { base, perfil } of ENDPOINTS_OSRM[modo]) {
+    const url = `${base}/route/v1/${perfil}/${coordsStr}?overview=full&geometries=polyline`;
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (!resp.ok) {
         ultimoError = new Error(`${base} respondió ${resp.status}`);
         continue;
@@ -110,6 +128,7 @@ async function llamarOsrm(puntos: Coord[]): Promise<RutaCalculada> {
         distanciaMetros: ruta.distance,
         duracionSegundos: ruta.duration,
         desdeCache: false,
+        fuente: 'osrm',
       };
     } catch (e) {
       ultimoError = e;
@@ -123,13 +142,14 @@ async function llamarOsrm(puntos: Coord[]): Promise<RutaCalculada> {
 // Primero busca en el caché local; si no está y hay internet, llama a
 // OSRM y guarda el resultado. Si no hay internet ni caché, lanza error.
 export async function obtenerRutaPorCarretera(
-  puntos: Coord[]
+  puntos: Coord[],
+  modo: ModoRuta = 'auto'
 ): Promise<RutaCalculada> {
   if (puntos.length < 2) {
     throw new Error('Se necesitan al menos 2 puntos para calcular ruta');
   }
 
-  const clave = claveCache(puntos);
+  const clave = claveCache(puntos, modo);
 
   // 1. Intentar caché primero
   try {
@@ -140,14 +160,36 @@ export async function obtenerRutaPorCarretera(
         distanciaMetros: cacheado.distanciaMetros,
         duracionSegundos: cacheado.duracionSegundos,
         desdeCache: true,
+        fuente: 'cache',
       };
     }
   } catch {
     // si Dexie falla por alguna razón, seguimos al cálculo en línea
   }
 
-  // 2. Si no hay caché, llamar a OSRM
-  const resultado = await llamarOsrm(puntos);
+  // 2. Sin caché: OSRM si hay conexión; si no hay (o falla), el enrutador
+  // local sobre las calles guardadas en el teléfono (solo puntos A→B).
+  let resultado: RutaCalculada;
+  try {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error('Sin conexión');
+    }
+    resultado = await llamarOsrm(puntos, modo);
+  } catch (errRed) {
+    if (puntos.length === 2) {
+      const local = await rutaPorCallesOffline(puntos[0], puntos[1], modo).catch(() => null);
+      if (local) {
+        return {
+          geometria: local.geometria,
+          distanciaMetros: local.distanciaMetros,
+          duracionSegundos: local.duracionSegundos,
+          desdeCache: false,
+          fuente: 'offline',
+        };
+      }
+    }
+    throw errRed;
+  }
 
   // 3. Guardar en caché para uso offline futuro
   try {
@@ -172,6 +214,8 @@ export async function obtenerRutaPorCarretera(
 // en vez de una sola línea verde de punta a punta.
 export interface RutaPorTramos {
   tramos: RutaCalculada[];
+  // true si algún tramo no pudo calcularse por calles (queda en línea recta)
+  hayTramosRectos: boolean;
   distanciaTotalMetros: number;
   duracionTotalSegundos: number;
 }
@@ -204,7 +248,8 @@ export function distanciaHaversine(a: Coord, b: Coord): number {
 // los demás tramos que sí se calcularon se quedan con su trazado real
 // por carretera, en vez de tirar toda la ruta a líneas rectas.
 export async function obtenerRutaPorTramos(
-  puntos: Coord[]
+  puntos: Coord[],
+  modo: ModoRuta = 'auto'
 ): Promise<RutaPorTramos> {
   if (puntos.length < 2) {
     throw new Error('Se necesitan al menos 2 puntos para calcular ruta');
@@ -215,13 +260,14 @@ export async function obtenerRutaPorTramos(
       const a = puntos[i];
       const b = puntos[i + 1];
       try {
-        return await obtenerRutaPorCarretera([a, b]);
+        return await obtenerRutaPorCarretera([a, b], modo);
       } catch {
         return {
           geometria: [a, b],
           distanciaMetros: distanciaHaversine(a, b),
           duracionSegundos: 0,
           desdeCache: false,
+          fuente: 'recta',
         } as RutaCalculada;
       }
     })
@@ -229,6 +275,7 @@ export async function obtenerRutaPorTramos(
 
   return {
     tramos,
+    hayTramosRectos: tramos.some((t) => t.fuente === 'recta'),
     distanciaTotalMetros: tramos.reduce((s, t) => s + t.distanciaMetros, 0),
     duracionTotalSegundos: tramos.reduce((s, t) => s + t.duracionSegundos, 0),
   };

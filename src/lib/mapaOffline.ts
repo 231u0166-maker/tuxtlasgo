@@ -52,6 +52,7 @@ export interface ZonaOffline {
   mosaicosCalles: number;
   satelite: { zoomMax: number; mosaicos: number } | null;
   grafo: boolean; // red de calles/senderos lista para rutas sin internet
+  paquete?: string; // id del paquete regional (lib/paquetes.ts); el mapa vive en OPFS, no en Cache Storage
   corredor?: boolean; // true = franja a lo largo de una ruta guardada (no un cuadro)
   ruta?: { modo: 'auto' | 'pie'; distanciaMetros?: number; duracionSegundos?: number };
 }
@@ -65,7 +66,7 @@ export function leerZonas(): ZonaOffline[] {
     return [];
   }
 }
-function guardarZonas(z: ZonaOffline[]) {
+export function guardarZonas(z: ZonaOffline[]) {
   try { localStorage.setItem(CLAVE_ZONAS, JSON.stringify(z)); } catch { /* sin localStorage */ }
 }
 export const hayMapaOffline = () => leerZonas().length > 0;
@@ -425,6 +426,29 @@ export function planearCorredor(geom: CoordLL[], conSatelite: boolean): PlanZona
 }
 
 // ---------- DESCARGA UNIFICADA ----------
+// Lo común a toda descarga: manifiesto vigente, estilo, sprites y letras (sin
+// ellos no hay colores, íconos ni nombres). Lo usan las zonas y los paquetes.
+export async function descargarBase(cache: Cache, senal?: AbortSignal): Promise<{ plantilla: string; snapshot: string | null }> {
+  // El manifiesto manda: dice cuál es el snapshot vigente de los mosaicos.
+  const rm = await fetch(MANIFIESTO, { cache: 'no-store', signal: senal });
+  if (!rm.ok) throw new Error('No se pudo consultar el mapa base.');
+  await cache.put(MANIFIESTO, rm.clone());
+  const plantilla: string = (await rm.json()).tiles[0];
+  const snapshot = plantilla.match(/planet\/(\d{8}_\d{6}_pt)\//)?.[1] ?? null;
+  try { localStorage.setItem('openfreemap-plantilla', plantilla); } catch { /* nada */ }
+
+  const fijas = [
+    ESTILO_MAPA_URL,
+    `${SPRITE_BASE}.json`, `${SPRITE_BASE}.png`, `${SPRITE_BASE}@2x.json`, `${SPRITE_BASE}@2x.png`,
+    ...FUENTES.flatMap((f) =>
+      RANGOS_LETRAS.map((r) => `https://tiles.openfreemap.org/fonts/${encodeURIComponent(f)}/${r}.pbf`)
+    ),
+  ];
+  const rf = await descargarLista(cache, fijas, () => { }, senal);
+  if (rf.errores > 0 && rf.ok === 0) throw new Error('No se pudo descargar el estilo del mapa.');
+  return { plantilla, snapshot };
+}
+
 export type Pendiente =
   | { tipo: 'zona'; caja: Caja; conSatelite: boolean; nombre: string }
   | { tipo: 'ruta'; ruta: Omit<RutaGuardada, 'id' | 'fecha'>; conSatelite: boolean };
@@ -484,23 +508,7 @@ async function descargarContenidoInterno(
   const finSat = conSatelite ? 85 : 80;
 
   onProgreso(1, 'Preparando…');
-  // El manifiesto manda: dice cuál es el snapshot vigente de los mosaicos.
-  const rm = await fetch(MANIFIESTO, { cache: 'no-store', signal: senal });
-  if (!rm.ok) throw new Error('No se pudo consultar el mapa base.');
-  await cache.put(MANIFIESTO, rm.clone());
-  const plantilla: string = (await rm.json()).tiles[0];
-  const snapshot = plantilla.match(/planet\/(\d{8}_\d{6}_pt)\//)?.[1] ?? null;
-
-  // Estilo + sprites + tipos de letra (sin ellos no hay colores, íconos ni nombres)
-  const fijas = [
-    ESTILO_MAPA_URL,
-    `${SPRITE_BASE}.json`, `${SPRITE_BASE}.png`, `${SPRITE_BASE}@2x.json`, `${SPRITE_BASE}@2x.png`,
-    ...FUENTES.flatMap((f) =>
-      RANGOS_LETRAS.map((r) => `https://tiles.openfreemap.org/fonts/${encodeURIComponent(f)}/${r}.pbf`)
-    ),
-  ];
-  const rf = await descargarLista(cache, fijas, () => { }, senal);
-  if (rf.errores > 0 && rf.ok === 0) throw new Error('No se pudo descargar el estilo del mapa.');
+  const { plantilla, snapshot } = await descargarBase(cache, senal);
 
   // --- calles y edificios ---
   const urlsCalles: string[] = [];
@@ -650,11 +658,28 @@ export async function borrarZona(id: string): Promise<void> {
   } catch { /* nada */ }
 }
 
+// Borra las zonas y rutas descargadas (no los paquetes regionales: esos se
+// borran uno por uno desde su propia lista, ver lib/paquetes.ts)
 export async function borrarMapaOffline(): Promise<void> {
-  try { await caches.delete(CACHE_MAPA); } catch { /* nada */ }
-  try { await caches.delete(CACHE_GRAFOS); } catch { /* nada */ }
+  const paquetes = leerZonas().filter((z) => z.paquete);
   try {
-    localStorage.removeItem(CLAVE_ZONAS);
+    const cg = await caches.open(CACHE_GRAFOS);
+    for (const req of await cg.keys()) {
+      const esDePaquete = paquetes.some((z) => req.url.endsWith(urlGrafoZona(z.id)));
+      if (!esDePaquete) await cg.delete(req);
+    }
+  } catch { /* nada */ }
+  // Los mosaicos y el estilo comparten caché con lo que usan los paquetes (estilo,
+  // letras); solo se vacía por completo si no hay ningún paquete instalado.
+  if (paquetes.length === 0) { try { await caches.delete(CACHE_MAPA); } catch { /* nada */ } }
+  else {
+    try {
+      const cache = await caches.open(CACHE_MAPA);
+      for (const req of await cache.keys()) if (mosaicoDeUrl(req.url)) await cache.delete(req);
+    } catch { /* nada */ }
+  }
+  guardarZonas(paquetes);
+  try {
     localStorage.removeItem('mapa-offline-estado-v2');
     localStorage.removeItem('tiles-precargados');
   } catch { /* nada */ }

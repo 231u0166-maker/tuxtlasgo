@@ -41,3 +41,8 @@ public/registerSW.js
 
 .vercel
 .env*
+
+# Paquetes regionales de mapas (scripts/paquetes): archivos enormes, se alojan en el servidor de paquetes
+/tools/
+/paquetes/
+/data/

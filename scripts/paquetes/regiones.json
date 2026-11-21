@@ -1,0 +1,10 @@
+{
+  "_comentario": "Recuadros [oeste, sur, este, norte] de cada paquete regional. Pueden traslaparse; agrega o ajusta regiones aquí.",
+  "regiones": [
+    { "id": "veracruz", "nombre": "Veracruz", "descripcion": "Incluye Los Tuxtlas", "bbox": [-98.7, 17.1, -93.6, 22.5] },
+    { "id": "puebla",   "nombre": "Puebla",   "descripcion": "Estado de Puebla",   "bbox": [-99.1, 17.8, -96.7, 20.9] },
+    { "id": "oaxaca",   "nombre": "Oaxaca",   "descripcion": "Estado de Oaxaca",   "bbox": [-98.6, 15.6, -93.8, 18.7] },
+    { "id": "chiapas",  "nombre": "Chiapas",  "descripcion": "Estado de Chiapas",  "bbox": [-94.2, 14.5, -90.3, 18.0] },
+    { "id": "tabasco",  "nombre": "Tabasco",  "descripcion": "Estado de Tabasco",  "bbox": [-94.2, 17.2, -90.9, 18.7] }
+  ]
+}

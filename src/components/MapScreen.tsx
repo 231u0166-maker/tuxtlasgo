@@ -42,6 +42,12 @@ import {
 import { olvidarGrafosZona } from '../lib/rutasOffline';
 import { useOffline } from '../hooks/useOffline';
 import NavegacionRuta from './NavegacionRuta';
+import {
+  cargarCatalogo, leerCatalogoGuardado, leerInstalados, instalarPaquete, borrarPaquete,
+  leerPaquetePendiente, limpiarPaquetePendiente, hayActualizacion, hayServidorDePaquetes, opfsDisponible,
+  type PaqueteCatalogo, type PaqueteInstalado,
+} from '../lib/paquetes';
+import { estiloConPaquetes, olvidarPaquetesAbiertos } from '../lib/paquetesMapa';
 import { obtenerUbicacionGPS, type Coord, type ModoRuta } from '../lib/routing';
 
 // Referencia estable a propósito: el Map reaplica maxBounds cada vez que
@@ -569,6 +575,57 @@ export default function MapScreen({
 
   useEffect(() => { cargarIndiceMosaicos().then(cargarCobertura); }, []);
 
+  // ---- Paquetes por región (estilo MAPS.ME) ----
+  const [catalogo, setCatalogo] = useState<PaqueteCatalogo[]>(() => leerCatalogoGuardado());
+  const [instalados, setInstalados] = useState<PaqueteInstalado[]>(() => leerInstalados());
+  const [paquetePendiente, setPaquetePendiente] = useState<string | null>(() => leerPaquetePendiente());
+  useEffect(() => {
+    if (!hayServidorDePaquetes() || sinConexion) return;
+    cargarCatalogo().then(setCatalogo);
+  }, [sinConexion]);
+
+  // Con algún paquete instalado, el mapa lee los mosaicos del paquete (rápido y
+  // sin internet) y solo pide a la red lo que ningún paquete cubre.
+  const [estiloBase, setEstiloBase] = useState<string | object>(ESTILO_MAPA);
+  useEffect(() => {
+    if (instalados.length === 0) { setEstiloBase(ESTILO_MAPA); return; }
+    let vivo = true;
+    estiloConPaquetes().then((e) => { if (vivo && e) setEstiloBase(e as object); });
+    return () => { vivo = false; };
+  }, [instalados.length]);
+
+  const instalarPaqueteUI = useCallback(async (pk: PaqueteCatalogo) => {
+    if (cancelarRef.current) return;
+    const ctl = new AbortController();
+    cancelarRef.current = ctl;
+    setErrorDescarga(null);
+    setTarea({ pct: 0, etapa: 'Preparando…' });
+    try {
+      await instalarPaquete(pk, (pct, etapa) => setTarea({ pct, etapa }), ctl.signal);
+      olvidarPaquetesAbiertos();
+      olvidarGrafosZona();
+      setInstalados(leerInstalados());
+      setZonas(leerZonas());
+      setPaquetePendiente(null);
+      setMostrarPanelOffline(false);
+    } catch (e) {
+      const err = e as Error;
+      if (err.name === 'AbortError') limpiarPaquetePendiente();
+      else setErrorDescarga(err.message || 'No se pudo instalar el paquete.');
+      setPaquetePendiente(leerPaquetePendiente());
+    } finally {
+      cancelarRef.current = null;
+      setTarea(null);
+    }
+  }, []);
+  const borrarPaqueteUI = useCallback(async (id: string) => {
+    await borrarPaquete(id);
+    olvidarPaquetesAbiertos();
+    olvidarGrafosZona();
+    setInstalados(leerInstalados());
+    setZonas(leerZonas());
+  }, []);
+
   // Descarga interrumpida (se cerró la app o se fue el internet): se ofrece reanudar
   const [pendiente, setPendiente] = useState<Pendiente | null>(() => leerPendiente());
   useEffect(() => {
@@ -1016,7 +1073,7 @@ export default function MapScreen({
         onMoveEnd={() => { aplicarLimiteRegion(); revisarCobertura(); }}
         onClick={(e) => { if (elegirOrigen && onElegirOrigen) onElegirOrigen([e.lngLat.lat, e.lngLat.lng]); }}
         cursor={elegirOrigen ? 'crosshair' : undefined}
-        mapStyle={vistaSatelite ? (estiloSatActual as any) : ESTILO_MAPA}
+        mapStyle={vistaSatelite ? (estiloSatActual as any) : (estiloBase as any)}
         style={{ width: '100%', height: '100%' }}
       >
         {previewCaja && (
@@ -1318,6 +1375,16 @@ export default function MapScreen({
             </div>
           );
         }
+        const pkPend = paquetePendiente ? catalogo.find((c) => c.id === paquetePendiente) : null;
+        if (pkPend && !sinConexion) {
+          return (
+            <div role="status" className={tarjeta + 'bg-amber-50 border border-amber-300 text-amber-900'}>
+              <p className="font-semibold mb-1.5">Quedó a medias la descarga del mapa de {pkPend.nombre}. Sigue desde donde se quedó.</p>
+              <button onClick={() => instalarPaqueteUI(pkPend)} className="font-bold underline mr-3">Reanudar</button>
+              <button onClick={() => { limpiarPaquetePendiente(); setPaquetePendiente(null); }} className="underline">Descartar</button>
+            </div>
+          );
+        }
         if (pendiente && !sinConexion) {
           return (
             <div role="status" className={tarjeta + 'bg-amber-50 border border-amber-300 text-amber-900'}>
@@ -1369,6 +1436,10 @@ export default function MapScreen({
           onDescargar={iniciarDescarga}
           onAbrirRuta={abrirRutaGuardada}
           onBorrarZona={async (id) => { await borrarZona(id); olvidarGrafosZona(); setZonas(leerZonas()); }}
+          catalogo={catalogo}
+          instalados={instalados}
+          onInstalarPaquete={instalarPaqueteUI}
+          onBorrarPaquete={borrarPaqueteUI}
           onBorrarTodo={async () => { await borrarMapaOffline(); olvidarGrafosZona(); setZonas(leerZonas()); }}
         />
       )}
@@ -1382,6 +1453,7 @@ function fechaCorta(ms: number) {
 
 function PanelMapaOffline({
   zonas, sinConexion, error, centro, onCerrar, onDescargar, onAbrirRuta, onBorrarZona, onBorrarTodo, onPreview,
+  catalogo, instalados, onInstalarPaquete, onBorrarPaquete,
 }: {
   zonas: ZonaOffline[];
   sinConexion: boolean;
@@ -1393,6 +1465,10 @@ function PanelMapaOffline({
   onBorrarZona: (id: string) => void;
   onBorrarTodo: () => void;
   onPreview: (caja: Caja | null) => void;
+  catalogo: PaqueteCatalogo[];
+  instalados: PaqueteInstalado[];
+  onInstalarPaquete: (p: PaqueteCatalogo) => void;
+  onBorrarPaquete: (id: string) => void;
 }) {
   const t = useT();
   // El centro se fija al abrir el panel (si siguiera al mapa, la zona se movería sola)
@@ -1450,6 +1526,50 @@ function PanelMapaOffline({
           </p>
         )}
 
+        {(catalogo.length > 0 || instalados.length > 0) && (
+          <div className="mb-3">
+            <p className="text-xs font-semibold text-jungle-800 mb-1.5">{t('Mapas por región (recomendado)')}</p>
+            <ul className="space-y-1.5">
+              {catalogo.map((c) => {
+                const inst = instalados.find((i) => i.id === c.id);
+                const nueva = inst ? hayActualizacion(inst, catalogo) : null;
+                const mb = Math.round((c.bytesMapa + c.bytesGrafo) / 1048576);
+                return (
+                  <li key={c.id} className="flex items-center gap-2 rounded-xl border border-jungle-100 px-3 py-2">
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-semibold text-jungle-900">{c.nombre}</span>
+                      <span className="block text-[11px] text-jungle-600">
+                        {inst ? `✓ ${t('Instalado')} · ${t('funciona sin internet')}` : `${mb} MB${c.descripcion ? ' · ' + c.descripcion : ''}`}
+                      </span>
+                    </span>
+                    {inst ? (
+                      <>
+                        {nueva && (
+                          <button disabled={sinConexion} onClick={() => onInstalarPaquete(nueva)} className="text-xs font-semibold text-jungle-700 underline disabled:opacity-40">{t('Actualizar')}</button>
+                        )}
+                        <button onClick={() => onBorrarPaquete(c.id)} className="text-xs font-semibold text-red-700 underline">{t('Borrar')}</button>
+                      </>
+                    ) : (
+                      <button
+                        disabled={sinConexion || !opfsDisponible()}
+                        onClick={() => onInstalarPaquete(c)}
+                        className="bg-jungle-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg px-3 py-1.5"
+                      >
+                        {t('Descargar')}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-[11px] text-jungle-500 mt-1.5">
+              {t('Una descarga y todo funciona dentro de la región: mapa, rutas y senderos. El satélite no viene en el paquete; se guarda aparte en "Más opciones".')}
+            </p>
+          </div>
+        )}
+
+        <details open={catalogo.length === 0 && instalados.length === 0} className="mb-3">
+          <summary className="text-xs font-semibold text-jungle-800 cursor-pointer mb-2">{t('Más opciones: zona, satélite o ruta')}</summary>
         <p className="text-xs font-semibold text-jungle-800 mb-1.5">1. {t('¿Alrededor de qué punto?')}</p>
         <div className="grid grid-cols-2 gap-2 mb-1.5">
           <button
@@ -1503,12 +1623,13 @@ function PanelMapaOffline({
         <p className="text-[11px] text-jungle-500 mt-1.5 mb-3">
           {t('Si se va el internet, la descarga se pausa y sigue sola. Puedes cancelar cuando quieras.')}
         </p>
+        </details>
 
-        {zonas.length > 0 && (
+        {zonas.filter((z) => !z.paquete).length > 0 && (
           <div className="border-t border-jungle-100 pt-3">
             <p className="text-xs font-semibold text-jungle-800 mb-1.5">{t('Zonas y rutas guardadas')}</p>
             <ul className="space-y-1.5 mb-2">
-              {zonas.map((z) => (
+              {zonas.filter((z) => !z.paquete).map((z) => (
                 <li key={z.id} className="flex items-center gap-2 text-xs text-jungle-800 bg-jungle-50 rounded-lg px-2.5 py-1.5">
                   <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
                   <span className="flex-1 min-w-0">

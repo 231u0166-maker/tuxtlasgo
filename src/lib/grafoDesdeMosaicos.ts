@@ -70,9 +70,36 @@ function codificar(pts: [number, number][]): string {
 
 const cede = () => new Promise<void>((r) => setTimeout(r, 0));
 
-export async function construirGrafoDeMosaicos(
+// Los mosaicos de un archivo PMTiles vienen comprimidos con gzip
+async function descomprimirSiGzip(b: Uint8Array): Promise<Uint8Array> {
+  if (b.length > 2 && b[0] === 0x1f && b[1] === 0x8b) {
+    const flujo = new Blob([b as unknown as BlobPart]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return new Uint8Array(await new Response(flujo).arrayBuffer());
+  }
+  return b;
+}
+
+// Variante para mosaicos guardados en Cache Storage (descarga por zona)
+export function construirGrafoDeMosaicos(
   cache: Cache,
   urlDe: (x: number, y: number) => string,
+  mosaicos: [number, number][],
+  zoom: number,
+  alAvanzar?: (fraccion: number) => void
+): Promise<GrafoSerializado> {
+  return construirGrafoDeLector(
+    async (x, y) => {
+      const resp = await cache.match(urlDe(x, y));
+      return resp ? new Uint8Array(await resp.arrayBuffer()) : null;
+    },
+    mosaicos, zoom, alAvanzar
+  );
+}
+
+// Núcleo: lee los mosaicos z14 con cualquier lector (Cache Storage en el
+// teléfono, archivo PMTiles al preparar un paquete regional en el servidor).
+export async function construirGrafoDeLector(
+  leer: (x: number, y: number) => Promise<Uint8Array | null>,
   mosaicos: [number, number][],
   zoom: number,
   alAvanzar?: (fraccion: number) => void
@@ -106,11 +133,11 @@ export async function construirGrafoDeMosaicos(
 
   for (let m = 0; m < mosaicos.length; m++) {
     const [tx, ty] = mosaicos[m];
-    const resp = await cache.match(urlDe(tx, ty));
-    if (resp) {
+    const bytes = await leer(tx, ty);
+    if (bytes && bytes.length > 0) {
       let capa;
       try {
-        capa = new VectorTile(new Pbf(new Uint8Array(await resp.arrayBuffer()))).layers.transportation;
+        capa = new VectorTile(new Pbf(await descomprimirSiGzip(bytes))).layers.transportation;
       } catch { capa = undefined; }
       if (capa) {
         const aLngLat = (px: number, py: number): [number, number] => {

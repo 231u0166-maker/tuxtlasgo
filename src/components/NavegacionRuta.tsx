@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Car, Footprints, Navigation, X, Download, Check, ArrowUpLeft, ArrowUpRight, ArrowLeft, ArrowRight, Undo2, Flag, Loader2,
+  Car, Footprints, Navigation, X, Download, Check, Volume2, VolumeX, AlertTriangle, ArrowUpLeft, ArrowUpRight, ArrowLeft, ArrowRight, Undo2, Flag, Loader2,
 } from 'lucide-react';
 import type { Coord, ModoRuta } from '../lib/routing';
 import { useOffline } from '../hooks/useOffline';
@@ -8,6 +8,10 @@ import { formatearDistancia, formatearDuracion } from '../lib/routing';
 import {
   prepararRuta, proyectar, rumbo, distancia, textoManiobra, formatoDistanciaCorta, type Maniobra,
 } from '../lib/navegacion';
+import { estaCubierto } from '../lib/mapaOffline';
+import {
+  hablar, detenerVoz, precargarVoces, vozSilenciada, silenciarVoz, distanciaHablada, vozDisponible,
+} from '../lib/voz';
 
 // ============================================================
 // Panel de ruta + navegación paso a paso (estilo MAPS.ME / AllTrails)
@@ -37,6 +41,8 @@ interface Props {
   mbGuardar?: number;
   guardando?: boolean;
   guardada?: boolean;
+  // Cambia cuando se descarga/borra algo, para volver a evaluar la cobertura
+  zonasClave?: string;
 }
 
 function IconoGiro({ tipo }: { tipo: Maniobra['tipo'] }) {
@@ -59,6 +65,22 @@ export default function NavegacionRuta(props: Props) {
   const [recalculando, setRecalculando] = useState(false);
   const [llego, setLlego] = useState(false);
   const sinInternet = useOffline();
+  const [silencio, setSilencio] = useState(() => vozSilenciada());
+  const [sinVoz, setSinVoz] = useState(false);
+  const [fueraDeMapa, setFueraDeMapa] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  // ¿Todo el trayecto ya cae dentro del mapa descargado? Si sí, funciona sin
+  // internet y NO se pregunta ni se ofrece guardar nada.
+  const cubierta = useMemo(() => {
+    const paso = Math.max(1, Math.floor(geometria.length / 80));
+    for (let i = 0; i < geometria.length; i += paso) {
+      if (!estaCubierto(geometria[i][0], geometria[i][1])) return false;
+    }
+    const u = geometria[geometria.length - 1];
+    return estaCubierto(u[0], u[1]);
+  }, [geometria, props.zonasClave]); // eslint-disable-line react-hooks/exhaustive-deps
+  const anunciado = useRef({ idx: -1, nivel: 0 });
+  const fueraMapaRef = useRef(false);
 
   const ruta = useMemo(() => prepararRuta(geometria), [geometria]);
   const rutaRef = useRef(ruta);
@@ -91,6 +113,9 @@ export default function NavegacionRuta(props: Props) {
     }
     setSinGps(null);
     setLlego(false);
+    anunciado.current = { idx: -1, nivel: 0 };
+    fueraMapaRef.current = false;
+    setFueraDeMapa(false);
 
     // Mantener la pantalla encendida mientras se navega
     let wake: { release: () => Promise<void> } | null = null;
@@ -114,6 +139,40 @@ export default function NavegacionRuta(props: Props) {
         if (pr.desvio <= 40) recorridoRef.current = Math.max(recorridoRef.current, pr.recorrido);
         cbRef.current.onPosicion(nueva, rumboGps);
 
+        // Fuera del mapa descargado (solo importa sin internet)
+        if (!navigator.onLine) {
+          const cubierto = estaCubierto(nueva[0], nueva[1]);
+          if (!cubierto && !fueraMapaRef.current) {
+            hablar('Saliste del mapa descargado. Sigue la línea de la ruta.', { urgente: true });
+          }
+          fueraMapaRef.current = !cubierto;
+          setFueraDeMapa(!cubierto);
+        } else if (fueraMapaRef.current) {
+          fueraMapaRef.current = false;
+          setFueraDeMapa(false);
+        }
+
+        // Voz: aviso lejano ("en 400 metros...") y aviso cercano ("ahora")
+        {
+          const rec = recorridoRef.current;
+          const idx = r.maniobras.findIndex((m) => m.distancia > rec + 3);
+          if (idx >= 0) {
+            const m = r.maniobras[idx];
+            const d = m.distancia - rec;
+            const lejos = modoRef.current === 'pie' ? 100 : 400;
+            const cerca = modoRef.current === 'pie' ? 25 : 70;
+            if (anunciado.current.idx !== idx) anunciado.current = { idx, nivel: 0 };
+            const niv = anunciado.current.nivel;
+            if (d <= cerca && niv < 2) {
+              anunciado.current.nivel = 2;
+              hablar(m.tipo === 'llegada' ? 'Llegas a tu destino' : textoManiobra(m.tipo) + ' ahora', { urgente: true });
+            } else if (d <= lejos && d > cerca && niv < 1 && m.tipo !== 'llegada') {
+              anunciado.current.nivel = 1;
+              hablar('En ' + distanciaHablada(d) + ', ' + textoManiobra(m.tipo).toLowerCase());
+            }
+          }
+        }
+
         // Llegada
         if (r.total - recorridoRef.current < 25 && pr.desvio < 60) {
           setLlego(true);
@@ -126,6 +185,7 @@ export default function NavegacionRuta(props: Props) {
           ultimoRecalculo.current = Date.now();
           fueraRef.current = 0;
           setRecalculando(true);
+          hablar('Recalculando ruta', { urgente: true });
           cbRef.current.onRecalcular(nueva, modoRef.current);
         }
       },
@@ -138,6 +198,7 @@ export default function NavegacionRuta(props: Props) {
     );
     return () => {
       navigator.geolocation.clearWatch(id);
+      detenerVoz();
       wake?.release().catch(() => { });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -151,6 +212,26 @@ export default function NavegacionRuta(props: Props) {
   const hora = segRestantes
     ? new Date(Date.now() + segRestantes * 1000).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })
     : null;
+
+  const iniciar = () => {
+    setConfirmando(false);
+    // El primer habla debe salir de un toque del usuario (regla de los navegadores)
+    precargarVoces().then((ok) => setSinVoz(vozDisponible() && !ok));
+    hablar('Navegación iniciada', { urgente: true });
+    setNavegando(true);
+  };
+  const alternarVoz = () => {
+    const nuevo = !silencio;
+    setSilencio(nuevo);
+    silenciarVoz(nuevo);
+  };
+  const alPulsarIniciar = () => {
+    if (props.onGuardar && !sinInternet && !props.guardada && !aproximada && !cubierta) {
+      setConfirmando(true);
+      return;
+    }
+    iniciar();
+  };
 
   // ---------------- Navegación activa ----------------
   if (navegando) {
@@ -186,6 +267,17 @@ export default function NavegacionRuta(props: Props) {
               Sin ruta por calles: la guía es una línea recta de referencia.
             </div>
           )}
+          {fueraDeMapa && (
+            <div role="alert" className="self-start bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold rounded-lg px-2.5 py-1.5 shadow flex items-center gap-1.5">
+              <AlertTriangle size={14} className="flex-shrink-0" />
+              Saliste del mapa descargado: el fondo puede verse en blanco, pero la línea de la ruta sigue ahí.
+            </div>
+          )}
+          {sinVoz && !silencio && (
+            <div className="self-start bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-semibold rounded-lg px-2.5 py-1 shadow">
+              Tu teléfono no tiene voz en español. Instálala en Ajustes → Idioma → Texto a voz para oír las indicaciones.
+            </div>
+          )}
         </div>
 
         <div className="absolute bottom-3 left-3 right-3 z-30 bg-white rounded-2xl shadow-xl border border-jungle-100 px-4 py-3 flex items-center gap-3">
@@ -196,6 +288,16 @@ export default function NavegacionRuta(props: Props) {
             </div>
             {hora && <div className="text-xs text-jungle-600">Llegas a las {hora}</div>}
           </div>
+          {vozDisponible() && (
+            <button
+              onClick={alternarVoz}
+              aria-label={silencio ? 'Activar voz' : 'Silenciar voz'}
+              aria-pressed={!silencio}
+              className="w-10 h-10 rounded-xl border-2 border-jungle-200 text-jungle-800 flex items-center justify-center hover:bg-jungle-50"
+            >
+              {silencio ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
+          )}
           <button
             onClick={() => { setNavegando(false); setLlego(false); }}
             className="bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-2.5 font-semibold text-sm flex items-center gap-1.5"
@@ -204,6 +306,31 @@ export default function NavegacionRuta(props: Props) {
           </button>
         </div>
       </>
+    );
+  }
+
+  // ---------------- "Antes de salir": guardar el mapa ----------------
+  if (confirmando) {
+    return (
+      <div className="absolute bottom-3 left-3 right-3 z-30 bg-white rounded-2xl shadow-xl border border-amber-300 p-4">
+        <p className="font-display font-bold text-jungle-950 mb-1">Antes de salir</p>
+        <p className="text-xs text-jungle-700 mb-3">
+          Parte de esta ruta queda fuera del mapa que descargaste. Si pierdes la señal por el camino,
+          esa parte se verá en blanco. Agrégala ahora, con Wi-Fi o datos{props.mbGuardar ? ` (~${props.mbGuardar} MB)` : ''}.
+        </p>
+        <button
+          onClick={() => { setConfirmando(false); props.onGuardar?.(); }}
+          className="w-full bg-jungle-700 hover:bg-jungle-800 text-white rounded-xl py-2.5 font-semibold text-sm flex items-center justify-center gap-1.5 mb-2"
+        >
+          <Download size={15} /> Agregar este trayecto
+        </button>
+        <button
+          onClick={iniciar}
+          className="w-full border-2 border-jungle-200 text-jungle-800 rounded-xl py-2 font-semibold text-sm"
+        >
+          Iniciar sin guardar
+        </button>
+      </div>
     );
   }
 
@@ -227,9 +354,9 @@ export default function NavegacionRuta(props: Props) {
   );
 
   const botonGuardar = props.onGuardar && !aproximada && !calculando && (
-    props.guardada ? (
+    cubierta || props.guardada ? (
       <p className="mt-2 text-xs font-semibold text-jungle-700 flex items-center gap-1.5">
-        <Check size={14} /> Mapa y ruta guardados: funcionan sin internet
+        <Check size={14} /> Dentro de tu mapa descargado: funciona sin internet
       </p>
     ) : sinInternet ? null : (
       <button
@@ -238,7 +365,7 @@ export default function NavegacionRuta(props: Props) {
         className="mt-2 w-full border-2 border-jungle-200 hover:bg-jungle-50 disabled:opacity-60 text-jungle-800 rounded-xl py-2 text-xs font-semibold flex items-center justify-center gap-1.5"
       >
         {props.guardando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-        Guardar mapa y ruta para usar sin internet{props.mbGuardar ? ` (~${props.mbGuardar} MB)` : ''}
+        Esta ruta sale de tu mapa descargado: agregar este trayecto{props.mbGuardar ? ` (~${props.mbGuardar} MB)` : ''}
       </button>
     )
   );
@@ -272,7 +399,7 @@ export default function NavegacionRuta(props: Props) {
           )}
         </div>
         <button
-          onClick={() => setNavegando(true)}
+          onClick={alPulsarIniciar}
           disabled={calculando}
           className="bg-jungle-700 hover:bg-jungle-800 disabled:opacity-50 text-white rounded-xl px-5 py-3 font-semibold text-sm flex items-center gap-1.5"
         >

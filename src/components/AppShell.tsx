@@ -145,6 +145,12 @@ export default function AppShell() {
   const [mostrarAuth, setMostrarAuth] = useState(registroDesdeUrl);
   const [lugarSeleccionado, setLugarSeleccionado] = useState<Lugar | null>(null);
   const [rutaVisible, setRutaVisible] = useState<RutaVisible | null>(null);
+  // Sin GPS (interior, permiso negado): se pide tocar en el mapa el punto de salida
+  const [pendienteOrigen, setPendienteOrigen] = useState<{
+    destino: Coord;
+    paradas: { coord: Coord; orden: number }[];
+    nombre: string;
+  } | null>(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
   const [errorRuta, setErrorRuta] = useState<string | null>(null);
   // Posición GPS real del turista, capturada la primera vez que pide
@@ -501,10 +507,16 @@ export default function AppShell() {
 
     const paradas = [{ coord: destino.coords as Coord, orden: 1 }];
     const origen = await obtenerMiUbicacionActual();
-    const coords: Coord[] = origen
-      ? [origen, destino.coords as Coord]
-      : [destino.coords as Coord];
-    await calcularRuta(coords, paradas, 'auto', destino.nombre);
+    if (!origen) {
+      // Sin ubicación no hay desde dónde trazar: se deja el destino marcado
+      // y se pide al turista que toque su punto de salida en el mapa.
+      await calcularRuta([destino.coords as Coord], paradas, 'auto', destino.nombre);
+      setPendienteOrigen({ destino: destino.coords as Coord, paradas, nombre: destino.nombre });
+      setCargandoRuta(false);
+      mostrarMapaConRuta();
+      return;
+    }
+    await calcularRuta([origen, destino.coords as Coord], paradas, 'auto', destino.nombre);
     setCargandoRuta(false);
     mostrarMapaConRuta();
   };
@@ -529,9 +541,22 @@ export default function AppShell() {
     mostrarMapaConRuta();
   };
 
+  // El turista tocó en el mapa desde dónde sale (no hubo GPS)
+  const elegirOrigenListo = async (origen: Coord) => {
+    const pend = pendienteOrigen;
+    if (!pend) return;
+    setPendienteOrigen(null);
+    setMiUbicacion(origen);
+    setCargandoRuta(true);
+    setErrorRuta(null);
+    await calcularRuta([origen, pend.destino], pend.paradas, 'auto', pend.nombre);
+    setCargandoRuta(false);
+  };
+
   // Abre una ruta guardada (con su mapa descargado): funciona sin internet.
   const abrirRutaGuardada = (r: RutaGuardada) => {
     setErrorRuta(null);
+    setPendienteOrigen(null);
     setRutaVisible({
       geometria: r.geometria,
       tramos: [r.geometria],
@@ -1133,7 +1158,10 @@ export default function AppShell() {
             tramosResaltados={rutaVisible?.tramos}
             paradasResaltadas={rutaVisible?.paradas}
             miUbicacion={miUbicacion ?? undefined}
-            onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); }}
+            onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); setPendienteOrigen(null); }}
+            elegirOrigen={pendienteOrigen ? { nombre: pendienteOrigen.nombre } : null}
+            onElegirOrigen={elegirOrigenListo}
+            onCancelarElegirOrigen={() => setPendienteOrigen(null)}
             infoRuta={rutaVisible ? {
               modo: rutaVisible.modo ?? 'auto',
               distanciaMetros: rutaVisible.distanciaMetros,

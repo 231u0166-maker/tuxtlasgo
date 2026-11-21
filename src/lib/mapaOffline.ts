@@ -186,11 +186,27 @@ export function planearZona(caja: Caja, conSatelite: boolean): PlanZona {
   };
 }
 
-// ---------- descarga con reintentos ----------
+// ---------- descarga con reintentos y pausa sin conexión ----------
+// Si se va el internet a medias, la descarga NO falla: se pone en pausa y
+// sigue sola cuando vuelve la conexión (lo ya guardado no se repite).
+let alCambiarPausa: ((enPausa: boolean) => void) | null = null;
+function esperarConexion(senal?: AbortSignal): Promise<void> {
+  if (typeof navigator === 'undefined' || navigator.onLine) return Promise.resolve();
+  alCambiarPausa?.(true);
+  return new Promise((res, rej) => {
+    const limpiar = () => { window.removeEventListener('online', ok); senal?.removeEventListener('abort', ab); };
+    const ok = () => { limpiar(); alCambiarPausa?.(false); res(); };
+    const ab = () => { limpiar(); rej(new DOMException('Cancelado', 'AbortError')); };
+    window.addEventListener('online', ok);
+    senal?.addEventListener('abort', ab);
+  });
+}
+
 async function guardarUrl(cache: Cache, url: string, senal?: AbortSignal): Promise<'ok' | 'error'> {
   if (await cache.match(url)) return 'ok';
   for (let intento = 0; intento < 3; intento++) {
     if (senal?.aborted) throw new DOMException('Cancelado', 'AbortError');
+    await esperarConexion(senal);
     try {
       const r = await fetch(url, { signal: senal });
       if (r.ok) {
@@ -201,6 +217,8 @@ async function guardarUrl(cache: Cache, url: string, senal?: AbortSignal): Promi
     } catch (e) {
       if ((e as Error).name === 'AbortError') throw e;
     }
+    // Si fue porque se fue el internet, no cuenta como intento fallido
+    if (typeof navigator !== 'undefined' && !navigator.onLine) { intento--; continue; }
     await new Promise((res) => setTimeout(res, 400 * (intento + 1)));
   }
   return 'error';
@@ -265,6 +283,44 @@ export async function cargarIndiceMosaicos(): Promise<void> {
   } catch { /* sin caché */ }
 }
 
+// ---------- COBERTURA: ¿hay mapa guardado aquí? ----------
+const corredoresMem = new Map<string, CoordLL[]>();
+export async function cargarCobertura(): Promise<void> {
+  const ids = new Set<string>();
+  for (const z of leerZonas()) {
+    if (!z.corredor) continue;
+    ids.add(z.id);
+    if (!corredoresMem.has(z.id)) {
+      const r = await leerRutaGuardada(z.id);
+      if (r) corredoresMem.set(z.id, r.geometria);
+    }
+  }
+  for (const id of [...corredoresMem.keys()]) if (!ids.has(id)) corredoresMem.delete(id);
+}
+function distKmASegmento(la: number, ln: number, a: CoordLL, b: CoordLL): number {
+  const k = Math.cos((la * Math.PI) / 180) * 111;
+  const ax = (a[1] - ln) * k, ay = (a[0] - la) * 111, bx = (b[1] - ln) * k, by = (b[0] - la) * 111;
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2));
+  return Math.hypot(ax + t * dx, ay + t * dy);
+}
+// true si el punto cae en una zona descargada o a ≤ 2.2 km de una ruta guardada
+export function estaCubierto(la: number, ln: number): boolean {
+  for (const z of leerZonas()) {
+    if (!z.corredor) {
+      if (ln >= z.caja[0] && ln <= z.caja[2] && la >= z.caja[1] && la <= z.caja[3]) return true;
+      continue;
+    }
+    if (ln < z.caja[0] || ln > z.caja[2] || la < z.caja[1] || la > z.caja[3]) continue;
+    const g = corredoresMem.get(z.id);
+    if (!g) continue;
+    for (let i = 0; i < g.length - 1; i++) {
+      if (distKmASegmento(la, ln, g[i], g[i + 1]) <= 2.2) return true;
+    }
+  }
+  return false;
+}
+
 // ---------- CORREDOR A LO LARGO DE UNA RUTA ----------
 // "Descargar ruta" (como AllTrails): una franja de ~1 mosaico a cada lado de
 // todo el trayecto, en cada nivel de zoom.
@@ -282,7 +338,7 @@ function muestrasRuta(geom: CoordLL[], pasoKm: number): CoordLL[] {
   return out;
 }
 
-function mosaicosCorredor(geom: CoordLL[], z: number): [number, number][] {
+function mosaicosCorredor(geom: CoordLL[], z: number, r = 1): [number, number][] {
   const latMedia = geom.reduce((s, p) => s + p[0], 0) / geom.length;
   const kmMosaico = (40075 * Math.cos((latMedia * Math.PI) / 180)) / 2 ** z;
   const max = 2 ** z - 1;
@@ -290,8 +346,8 @@ function mosaicosCorredor(geom: CoordLL[], z: number): [number, number][] {
   const out: [number, number][] = [];
   for (const [la, ln] of muestrasRuta(geom, Math.max(kmMosaico / 2, 0.2))) {
     const cx = lngToX(ln, z), cy = latToY(la, z);
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dy = -r; dy <= r; dy++) {
         const x = cx + dx, y = cy + dy;
         if (x < 0 || y < 0 || x > max || y > max) continue;
         const k = x * 4194304 + y; // 2^22 > 2^z para z ≤ 16
@@ -325,11 +381,15 @@ function contenidoDeCaja(caja: Caja, conSatelite: boolean): Contenido {
   };
 }
 
+// En trayectos largos el detalle fino (z15–16) se baja solo sobre el camino
+// (1 mosaico de ancho): así la imagen no se ve borrosa al acercar sin pesar gigas.
+const MAX_MOSAICOS_DETALLE_CORREDOR = 1200;
+const radioSatCorredor = (z: number) => (z >= 15 ? 0 : 1);
 function zoomSateliteParaCorredor(geom: CoordLL[]): number {
   let acumulado = 0, zoomMax = 13;
   for (let z = 14; z <= ZOOM_SATELITE_DESCARGA; z++) {
-    acumulado += mosaicosCorredor(geom, z).length;
-    if (acumulado > MAX_MOSAICOS_DETALLE_SAT) break;
+    acumulado += mosaicosCorredor(geom, z, radioSatCorredor(z)).length;
+    if (acumulado > MAX_MOSAICOS_DETALLE_CORREDOR) break;
     zoomMax = z;
   }
   return zoomMax;
@@ -339,7 +399,9 @@ function contenidoDeCorredor(geom: CoordLL[], conSatelite: boolean): Contenido {
   return {
     caja: cajaDeRuta(geom),
     calles: (z) => mosaicosCorredor(geom, z),
-    satelite: conSatelite ? { zoomMax: zoomSateliteParaCorredor(geom), mosaicos: (z) => mosaicosCorredor(geom, z) } : null,
+    satelite: conSatelite
+      ? { zoomMax: zoomSateliteParaCorredor(geom), mosaicos: (z) => mosaicosCorredor(geom, z, radioSatCorredor(z)) }
+      : null,
   };
 }
 
@@ -363,7 +425,49 @@ export function planearCorredor(geom: CoordLL[], conSatelite: boolean): PlanZona
 }
 
 // ---------- DESCARGA UNIFICADA ----------
+export type Pendiente =
+  | { tipo: 'zona'; caja: Caja; conSatelite: boolean; nombre: string }
+  | { tipo: 'ruta'; ruta: Omit<RutaGuardada, 'id' | 'fecha'>; conSatelite: boolean };
+const CLAVE_PENDIENTE = 'mapa-offline-pendiente-v1';
+export function leerPendiente(): Pendiente | null {
+  try { return JSON.parse(localStorage.getItem(CLAVE_PENDIENTE) || 'null'); } catch { return null; }
+}
+export function limpiarPendiente() {
+  try { localStorage.removeItem(CLAVE_PENDIENTE); } catch { /* nada */ }
+}
+function guardarPendiente(p: Pendiente) {
+  try { localStorage.setItem(CLAVE_PENDIENTE, JSON.stringify(p)); } catch { /* nada */ }
+}
+
+// Envoltorio: mantiene la pantalla encendida, avisa si intentan cerrar la
+// página a medias y traduce los cortes de internet en una pausa visible.
 async function descargarContenido(
+  c: Contenido,
+  nombre: string,
+  extra: Partial<ZonaOffline>,
+  onProgreso: Progreso,
+  senal?: AbortSignal
+): Promise<ZonaOffline> {
+  let pct = 0, etapa = 'Preparando…';
+  const prog: Progreso = (p, e) => { pct = p; etapa = e; onProgreso(p, e); };
+  alCambiarPausa = (en) => onProgreso(pct, en ? 'En pausa: sin conexión. Sigue sola cuando vuelva el internet.' : etapa);
+  let wake: { release: () => Promise<void> } | null = null;
+  try {
+    wake = (await (navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } })
+      .wakeLock?.request('screen')) ?? null;
+  } catch { /* sin wake lock */ }
+  const aviso = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+  window.addEventListener('beforeunload', aviso);
+  try {
+    return await descargarContenidoInterno(c, nombre, extra, prog, senal);
+  } finally {
+    alCambiarPausa = null;
+    window.removeEventListener('beforeunload', aviso);
+    wake?.release().catch(() => { });
+  }
+}
+
+async function descargarContenidoInterno(
   c: Contenido,
   nombre: string,
   extra: Partial<ZonaOffline>,
@@ -459,6 +563,7 @@ async function descargarContenido(
   };
   guardarZonas([...leerZonas(), zona]);
   await cargarIndiceMosaicos();
+  await cargarCobertura();
   onProgreso(100, 'Listo');
   return zona;
 }
@@ -466,7 +571,24 @@ async function descargarContenido(
 export function descargarZona(
   caja: Caja, conSatelite: boolean, nombre: string, onProgreso: Progreso, senal?: AbortSignal
 ): Promise<ZonaOffline> {
-  return descargarContenido(contenidoDeCaja(caja, conSatelite), nombre, {}, onProgreso, senal);
+  return conPendiente(
+    { tipo: 'zona', caja, conSatelite, nombre },
+    () => descargarContenido(contenidoDeCaja(caja, conSatelite), nombre, {}, onProgreso, senal)
+  );
+}
+
+// Marca la descarga como pendiente mientras corre; si se corta (sin internet,
+// app cerrada) queda para reanudarla; si el usuario cancela, se descarta.
+async function conPendiente<T>(p: Pendiente, fn: () => Promise<T>): Promise<T> {
+  guardarPendiente(p);
+  try {
+    const r = await fn();
+    limpiarPendiente();
+    return r;
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') limpiarPendiente();
+    throw e;
+  }
 }
 
 // Descarga el mapa de una ruta (franja a lo largo del trayecto) y guarda la
@@ -477,13 +599,13 @@ export async function descargarRuta(
   onProgreso: Progreso,
   senal?: AbortSignal
 ): Promise<ZonaOffline> {
-  const zona = await descargarContenido(
+  const zona = await conPendiente({ tipo: 'ruta', ruta, conSatelite }, () => descargarContenido(
     contenidoDeCorredor(ruta.geometria, conSatelite),
     ruta.nombre,
     { corredor: true, ruta: { modo: ruta.modo, distanciaMetros: ruta.distanciaMetros, duracionSegundos: ruta.duracionSegundos } },
     onProgreso,
     senal
-  );
+  ));
   const completa: RutaGuardada = { ...ruta, id: zona.id, fecha: zona.fecha };
   await (await caches.open(CACHE_GRAFOS)).put(
     urlRutaGuardada(zona.id),
@@ -512,6 +634,7 @@ export async function borrarZona(id: string): Promise<void> {
     const cg = await caches.open(CACHE_GRAFOS);
     await cg.delete(urlGrafoZona(id));
     await cg.delete(urlRutaGuardada(id));
+    corredoresMem.delete(id);
   } catch { /* nada */ }
   try {
     const cache = await caches.open(CACHE_MAPA);

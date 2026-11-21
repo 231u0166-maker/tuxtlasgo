@@ -28,6 +28,12 @@ import {
   planearCorredor,
   leerRutaGuardada,
   cargarIndiceMosaicos,
+  cargarCobertura,
+  estaCubierto,
+  leerPendiente,
+  limpiarPendiente,
+  type Pendiente,
+  type Caja,
   type RutaGuardada,
   TAMANOS,
   type TamanoZona,
@@ -364,6 +370,10 @@ interface Props {
     duracionSegundos?: number;
   };
   onAbrirRutaGuardada?: (r: RutaGuardada) => void;
+  // Sin GPS: el turista toca en el mapa desde dónde sale
+  elegirOrigen?: { nombre: string } | null;
+  onElegirOrigen?: (coord: Coord) => void;
+  onCancelarElegirOrigen?: () => void;
   onCambiarModoRuta?: (m: ModoRuta) => void;
   onRecalcularRuta?: (desde: Coord, m: ModoRuta) => void;
 }
@@ -403,6 +413,9 @@ export default function MapScreen({
   infoRuta,
   datosRuta,
   onAbrirRutaGuardada,
+  elegirOrigen,
+  onElegirOrigen,
+  onCancelarElegirOrigen,
   onCambiarModoRuta,
   onRecalcularRuta,
 }: Props) {
@@ -554,7 +567,75 @@ export default function MapScreen({
   const [avisoMapa, setAvisoMapa] = useState<string | null>(null);
   const cancelarRef = useRef<AbortController | null>(null);
 
-  useEffect(() => { cargarIndiceMosaicos(); }, []);
+  useEffect(() => { cargarIndiceMosaicos().then(cargarCobertura); }, []);
+
+  // Descarga interrumpida (se cerró la app o se fue el internet): se ofrece reanudar
+  const [pendiente, setPendiente] = useState<Pendiente | null>(() => leerPendiente());
+  useEffect(() => {
+    const revisar = () => setPendiente(leerPendiente());
+    window.addEventListener('online', revisar);
+    return () => window.removeEventListener('online', revisar);
+  }, []);
+  const reanudarDescarga = useCallback(async () => {
+    const pd = leerPendiente();
+    if (!pd || cancelarRef.current) return;
+    const ctl = new AbortController();
+    cancelarRef.current = ctl;
+    setErrorDescarga(null);
+    setTarea({ pct: 0, etapa: 'Retomando…' });
+    try {
+      const prog = (pct: number, etapa: string) => setTarea({ pct, etapa });
+      if (pd.tipo === 'zona') await descargarZona(pd.caja, pd.conSatelite, pd.nombre, prog, ctl.signal);
+      else await descargarRuta(pd.ruta, pd.conSatelite, prog, ctl.signal);
+      olvidarGrafosZona();
+      setZonas(leerZonas());
+    } catch (e) {
+      const err = e as Error;
+      if (err.name !== 'AbortError') setAvisoMapa(err.message || 'No se pudo completar la descarga.');
+    } finally {
+      cancelarRef.current = null;
+      setTarea(null);
+      setPendiente(leerPendiente());
+    }
+  }, []);
+  const descartarPendiente = () => { limpiarPendiente(); setPendiente(null); };
+
+  // Aviso de bienvenida: sin ninguna zona guardada y con internet, se recuerda descargar
+  const [avisoDescargaCerrado, setAvisoDescargaCerrado] = useState(() => {
+    try { return localStorage.getItem('aviso-descarga-cerrado') === 'true'; } catch { return false; }
+  });
+  const cerrarAvisoDescarga = () => {
+    setAvisoDescargaCerrado(true);
+    try { localStorage.setItem('aviso-descarga-cerrado', 'true'); } catch { /* nada */ }
+  };
+
+  // Vista previa del cuadro a descargar (se dibuja en el mapa mientras el panel está abierto)
+  const [previewCaja, setPreviewCaja] = useState<Caja | null>(null);
+  const alPreview = useCallback((caja: Caja | null) => {
+    setPreviewCaja(caja);
+    const m = mapRef.current?.getMap();
+    if (caja && m) {
+      m.fitBounds([[caja[0], caja[1]], [caja[2], caja[3]]], {
+        padding: { top: 70, left: 24, right: 24, bottom: Math.round(window.innerHeight * 0.6) },
+        duration: 500, pitch: 0,
+      });
+    }
+  }, []);
+
+  // Sin internet y mirando una parte del mapa que no se descargó
+  const [sinMapaAqui, setSinMapaAqui] = useState(false);
+  const revisarCobertura = useCallback(() => {
+    if (navigator.onLine) { setSinMapaAqui(false); return; }
+    const c = mapRef.current?.getMap()?.getCenter();
+    if (c) setSinMapaAqui(!estaCubierto(c.lat, c.lng));
+  }, []);
+  useEffect(() => { revisarCobertura(); }, [sinConexion, zonas, revisarCobertura]);
+  const irAMapaGuardado = useCallback(() => {
+    const z = zonas[zonas.length - 1];
+    const m = mapRef.current?.getMap();
+    if (!z || !m) return;
+    m.flyTo({ center: [(z.caja[0] + z.caja[2]) / 2, (z.caja[1] + z.caja[3]) / 2], zoom: z.corredor ? 9 : 12, pitch: 0, duration: 1200 });
+  }, [zonas]);
 
   // Botón "Mi ubicación": funciona también sin internet (es GPS). Si estás
   // fuera de Los Tuxtlas, el mapa se libera y te lleva ahí.
@@ -627,13 +708,13 @@ export default function MapScreen({
     return c ? [c.lat, c.lng] : [LOS_TUXTLAS_CENTER[0], LOS_TUXTLAS_CENTER[1]];
   }, []);
 
-  const iniciarDescarga = useCallback(async (tamano: TamanoZona, conSatelite: boolean) => {
+  const iniciarDescarga = useCallback(async (tamano: TamanoZona, conSatelite: boolean, centroElegido?: [number, number]) => {
     if (cancelarRef.current) return;
     const ctl = new AbortController();
     cancelarRef.current = ctl;
     setErrorDescarga(null);
     setTarea({ pct: 0, etapa: 'Preparando…' });
-    const centro = centroMapa();
+    const centro = centroElegido ?? centroMapa();
     const caja = cajaDeZona(tamano, centro);
     const nombre = tamano === 'tuxtlas'
       ? 'Los Tuxtlas'
@@ -932,10 +1013,33 @@ export default function MapScreen({
         // mundo entero hace fallar a MapLibre.
         onLoad={aplicarLimiteRegion}
         onIdle={aplicarLimiteRegion}
-        onMoveEnd={aplicarLimiteRegion}
+        onMoveEnd={() => { aplicarLimiteRegion(); revisarCobertura(); }}
+        onClick={(e) => { if (elegirOrigen && onElegirOrigen) onElegirOrigen([e.lngLat.lat, e.lngLat.lng]); }}
+        cursor={elegirOrigen ? 'crosshair' : undefined}
         mapStyle={vistaSatelite ? (estiloSatActual as any) : ESTILO_MAPA}
         style={{ width: '100%', height: '100%' }}
       >
+        {previewCaja && (
+          <Source
+            id="preview-zona"
+            type="geojson"
+            data={{
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                  [previewCaja[0], previewCaja[1]], [previewCaja[2], previewCaja[1]],
+                  [previewCaja[2], previewCaja[3]], [previewCaja[0], previewCaja[3]], [previewCaja[0], previewCaja[1]],
+                ]],
+              },
+            } as any}
+          >
+            <Layer id="preview-zona-relleno" type="fill" paint={{ 'fill-color': '#16a34a', 'fill-opacity': 0.12 }} />
+            <Layer id="preview-zona-borde" type="line" paint={{ 'line-color': '#15803d', 'line-width': 3, 'line-dasharray': [2, 1] }} />
+          </Source>
+        )}
+
         {edificiosGeoJSON.features.length > 0 && (
           <Source id="edificios-servicios" type="geojson" data={edificiosGeoJSON as any}>
             <Layer
@@ -1199,8 +1303,53 @@ export default function MapScreen({
           mbGuardar={mbGuardarRuta}
           guardando={!!tarea}
           guardada={!!rutaResaltada && geomGuardada === rutaResaltada}
+          zonasClave={zonas.map((z) => z.id).join(',')}
         />
       )}
+
+      {/* Una sola tarjeta de aviso a la vez, por prioridad */}
+      {!vistaCompacta && !tarea && !mostrarPanelOffline && (() => {
+        const tarjeta = 'absolute top-28 left-3 right-3 z-30 rounded-xl px-3 py-2 shadow-lg text-xs ';
+        if (elegirOrigen) {
+          return (
+            <div role="status" className={tarjeta + 'bg-jungle-700 text-white'}>
+              <p className="font-semibold mb-1.5">No pude ubicarte. Toca en el mapa el punto desde donde sales para ir a {elegirOrigen.nombre}.</p>
+              <button onClick={onCancelarElegirOrigen} className="underline font-semibold">Cancelar</button>
+            </div>
+          );
+        }
+        if (pendiente && !sinConexion) {
+          return (
+            <div role="status" className={tarjeta + 'bg-amber-50 border border-amber-300 text-amber-900'}>
+              <p className="font-semibold mb-1.5">Quedó una descarga de mapa a medias. Lo ya guardado no se repite.</p>
+              <button onClick={reanudarDescarga} className="font-bold underline mr-3">Reanudar</button>
+              <button onClick={descartarPendiente} className="underline">Descartar</button>
+            </div>
+          );
+        }
+        if (sinMapaAqui) {
+          return (
+            <div role="status" className={tarjeta + 'bg-amber-50 border border-amber-300 text-amber-900'}>
+              <p className="font-semibold mb-1.5">
+                {zonas.length === 0
+                  ? 'Sin internet y sin mapa descargado: el fondo se verá en blanco.'
+                  : 'Esta parte del mapa no está descargada: se verá en blanco.'}
+              </p>
+              {zonas.length > 0 && <button onClick={irAMapaGuardado} className="font-bold underline">Ir a mi mapa guardado</button>}
+            </div>
+          );
+        }
+        if (!sinConexion && zonas.length === 0 && !avisoDescargaCerrado && !rutaResaltada) {
+          return (
+            <div role="status" className={tarjeta + 'bg-white border border-jungle-200 text-jungle-900'}>
+              <p className="font-semibold mb-1.5">¿Vas a salir de señal? Guarda el mapa ahora, con Wi-Fi, para usarlo sin internet.</p>
+              <button onClick={() => { setErrorDescarga(null); setMostrarPanelOffline(true); }} className="font-bold underline mr-3 text-jungle-700">Descargar mapa</button>
+              <button onClick={cerrarAvisoDescarga} className="underline">Ahora no</button>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {avisoMapa && (
         <div role="status" className="absolute top-28 left-3 right-3 z-30 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold rounded-xl px-3 py-2 shadow-lg">
@@ -1215,6 +1364,7 @@ export default function MapScreen({
           sinConexion={sinConexion}
           error={errorDescarga}
           centro={centroMapa()}
+          onPreview={alPreview}
           onCerrar={() => setMostrarPanelOffline(false)}
           onDescargar={iniciarDescarga}
           onAbrirRuta={abrirRutaGuardada}
@@ -1231,28 +1381,54 @@ function fechaCorta(ms: number) {
 }
 
 function PanelMapaOffline({
-  zonas, sinConexion, error, centro, onCerrar, onDescargar, onAbrirRuta, onBorrarZona, onBorrarTodo,
+  zonas, sinConexion, error, centro, onCerrar, onDescargar, onAbrirRuta, onBorrarZona, onBorrarTodo, onPreview,
 }: {
   zonas: ZonaOffline[];
   sinConexion: boolean;
   error: string | null;
   centro: [number, number];
   onCerrar: () => void;
-  onDescargar: (tamano: TamanoZona, conSatelite: boolean) => void;
+  onDescargar: (tamano: TamanoZona, conSatelite: boolean, centro: [number, number]) => void;
   onAbrirRuta: (id: string) => void;
   onBorrarZona: (id: string) => void;
   onBorrarTodo: () => void;
+  onPreview: (caja: Caja | null) => void;
 }) {
   const t = useT();
+  // El centro se fija al abrir el panel (si siguiera al mapa, la zona se movería sola)
+  const centroInicial = useRef(centro).current;
+  const [desde, setDesde] = useState<'mapa' | 'yo'>('mapa');
+  const [miPos, setMiPos] = useState<[number, number] | null>(null);
+  const [buscandoGps, setBuscandoGps] = useState(false);
+  const [avisoGps, setAvisoGps] = useState<string | null>(null);
   const [tamano, setTamano] = useState<TamanoZona>('ciudad');
   const [conSatelite, setConSatelite] = useState(true);
-  const plan = useMemo(
-    () => planearZona(cajaDeZona(tamano, centro), conSatelite),
-    [tamano, conSatelite, centro]
-  );
+  const centroEfectivo: [number, number] = desde === 'yo' && miPos ? miPos : centroInicial;
+  const caja = useMemo(() => cajaDeZona(tamano, centroEfectivo), [tamano, centroEfectivo]);
+  const plan = useMemo(() => planearZona(caja, conSatelite), [caja, conSatelite]);
+
+  // Dibuja en el mapa el cuadro que se va a descargar
+  useEffect(() => {
+    onPreview(caja);
+  }, [caja]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => onPreview(null), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const usarMiUbicacion = async () => {
+    setAvisoGps(null);
+    setBuscandoGps(true);
+    const r = await obtenerUbicacionGPS();
+    setBuscandoGps(false);
+    if (!r) {
+      setAvisoGps('No pude obtener tu ubicación. Revisa el permiso de ubicación; mientras tanto puedes mover el mapa y elegir "Lo que veo".');
+      return;
+    }
+    setMiPos(r.coord);
+    setDesde('yo');
+  };
+
   return (
-    <div className="absolute inset-0 z-40 bg-black/50 flex items-end sm:items-center justify-center p-3" onClick={onCerrar}>
-      <div className="bg-white rounded-2xl p-5 w-full max-w-sm max-h-[88%] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
+    <div className="absolute inset-0 z-40 bg-black/15 flex items-end justify-center p-3" onClick={onCerrar}>
+      <div className="bg-white rounded-2xl p-4 w-full max-w-sm max-h-[64%] overflow-y-auto animate-fade-in shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-1">
           <h3 className="font-display font-bold text-lg text-jungle-950">{t('Mapa sin internet')}</h3>
           <button onClick={onCerrar} className="text-jungle-400 hover:text-jungle-700" aria-label={t('Cerrar')}>
@@ -1260,7 +1436,9 @@ function PanelMapaOffline({
           </button>
         </div>
         <p className="text-xs text-jungle-600 mb-3">
-          {t('Se guarda todo junto: calles, edificios, satélite, rutas y senderos de la zona. Funciona en cualquier parte de México; elige la zona y descárgala con Wi-Fi antes de salir.')}
+          {zonas.length > 0
+            ? t('Ya tienes mapas guardados: todo lo que quede dentro funciona sin internet, sin preguntar nada. Agrega otra zona solo si vas a salir de ellas.')
+            : t('Guarda calles, edificios, satélite, rutas y senderos de una zona de México para usarlos sin señal. Hazlo con Wi-Fi antes de salir.')}
         </p>
 
         {error && (
@@ -1272,14 +1450,35 @@ function PanelMapaOffline({
           </p>
         )}
 
-        <p className="text-xs font-semibold text-jungle-800 mb-1.5">{t('Zona (centrada en lo que ves en el mapa)')}</p>
+        <p className="text-xs font-semibold text-jungle-800 mb-1.5">1. {t('¿Alrededor de qué punto?')}</p>
+        <div className="grid grid-cols-2 gap-2 mb-1.5">
+          <button
+            onClick={() => setDesde('mapa')}
+            aria-pressed={desde === 'mapa'}
+            className={'rounded-xl border-2 px-2 py-2 text-xs font-semibold ' + (desde === 'mapa' ? 'border-jungle-700 bg-jungle-50 text-jungle-900' : 'border-jungle-100 text-jungle-700')}
+          >
+            {t('Lo que veo en el mapa')}
+          </button>
+          <button
+            onClick={usarMiUbicacion}
+            disabled={buscandoGps}
+            aria-pressed={desde === 'yo'}
+            className={'rounded-xl border-2 px-2 py-2 text-xs font-semibold disabled:opacity-60 ' + (desde === 'yo' ? 'border-jungle-700 bg-jungle-50 text-jungle-900' : 'border-jungle-100 text-jungle-700')}
+          >
+            {buscandoGps ? t('Buscando…') : t('Donde estoy ahora')}
+          </button>
+        </div>
+        {avisoGps && <p className="text-[11px] text-amber-800 mb-1.5">{avisoGps}</p>}
+        <p className="text-[11px] text-jungle-500 mb-3">{t('El cuadro verde en el mapa es lo que se va a guardar.')}</p>
+
+        <p className="text-xs font-semibold text-jungle-800 mb-1.5">2. {t('Tamaño')}</p>
         <div className="grid grid-cols-2 gap-2 mb-3">
           {TAMANOS.map((o) => (
             <button
               key={o.id}
               onClick={() => setTamano(o.id)}
               aria-pressed={tamano === o.id}
-              className={'text-left rounded-xl border-2 px-3 py-2 ' + (tamano === o.id
+              className={'text-left rounded-xl border-2 px-3 py-1.5 ' + (tamano === o.id
                 ? 'border-jungle-700 bg-jungle-50' : 'border-jungle-100 hover:bg-jungle-50')}
             >
               <div className="text-sm font-semibold text-jungle-900">{t(o.nombre)}</div>
@@ -1296,18 +1495,18 @@ function PanelMapaOffline({
 
         <button
           disabled={sinConexion}
-          onClick={() => onDescargar(tamano, conSatelite)}
+          onClick={() => onDescargar(tamano, conSatelite, centroEfectivo)}
           className="w-full bg-jungle-700 disabled:opacity-40 text-white py-2.5 rounded-xl font-semibold text-sm"
         >
           {t('Descargar zona')} (~{plan.mbTotal} MB)
         </button>
         <p className="text-[11px] text-jungle-500 mt-1.5 mb-3">
-          {t('Mantén esta pantalla abierta mientras descarga. Puedes cancelar cuando quieras.')}
+          {t('Si se va el internet, la descarga se pausa y sigue sola. Puedes cancelar cuando quieras.')}
         </p>
 
         {zonas.length > 0 && (
           <div className="border-t border-jungle-100 pt-3">
-            <p className="text-xs font-semibold text-jungle-800 mb-1.5">{t('Zonas guardadas')}</p>
+            <p className="text-xs font-semibold text-jungle-800 mb-1.5">{t('Zonas y rutas guardadas')}</p>
             <ul className="space-y-1.5 mb-2">
               {zonas.map((z) => (
                 <li key={z.id} className="flex items-center gap-2 text-xs text-jungle-800 bg-jungle-50 rounded-lg px-2.5 py-1.5">

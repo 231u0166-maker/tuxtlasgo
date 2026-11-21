@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Download, CheckCircle2, Loader2, X, Compass, Layers, Plus, Minus, Map as MapIcon, Satellite, SlidersHorizontal } from 'lucide-react';
+import { Download, CheckCircle2, Loader2, X, Compass, LocateFixed, Layers, Plus, Minus, Map as MapIcon, Satellite, SlidersHorizontal } from 'lucide-react';
 import {
   LUGARES,
   LOS_TUXTLAS_BOUNDS,
@@ -24,6 +24,11 @@ import {
   descargarZona,
   borrarZona,
   borrarMapaOffline,
+  descargarRuta,
+  planearCorredor,
+  leerRutaGuardada,
+  cargarIndiceMosaicos,
+  type RutaGuardada,
   TAMANOS,
   type TamanoZona,
   type ZonaOffline,
@@ -31,7 +36,7 @@ import {
 import { olvidarGrafosZona } from '../lib/rutasOffline';
 import { useOffline } from '../hooks/useOffline';
 import NavegacionRuta from './NavegacionRuta';
-import type { Coord, ModoRuta } from '../lib/routing';
+import { obtenerUbicacionGPS, type Coord, type ModoRuta } from '../lib/routing';
 
 // Referencia estable a propósito: el Map reaplica maxBounds cada vez que
 // el prop cambia de identidad, y eso deshacería el desbloqueo para
@@ -349,6 +354,16 @@ interface Props {
     aproximada: boolean;
     calculando: boolean;
   };
+  // Datos de la ruta dibujada, para poder guardarla con su mapa (sin internet)
+  datosRuta?: {
+    nombre: string;
+    modo: ModoRuta;
+    puntos: Coord[];
+    paradas: { coord: Coord; orden: number }[];
+    distanciaMetros?: number;
+    duracionSegundos?: number;
+  };
+  onAbrirRutaGuardada?: (r: RutaGuardada) => void;
   onCambiarModoRuta?: (m: ModoRuta) => void;
   onRecalcularRuta?: (desde: Coord, m: ModoRuta) => void;
 }
@@ -386,6 +401,8 @@ export default function MapScreen({
   zonaLibre,
   onSalirZonaLibre,
   infoRuta,
+  datosRuta,
+  onAbrirRutaGuardada,
   onCambiarModoRuta,
   onRecalcularRuta,
 }: Props) {
@@ -451,15 +468,21 @@ export default function MapScreen({
   // ver su ruta ni su seguimiento. Se amplía el límite a todo México con
   // la API del mapa (por prop no sirve: undefined no lo limpia, null/el
   // mundo entero hacen fallar o se revierten en MapLibre).
-  const origenFueraDeRegion =
-    !!miUbicacion &&
-    (miUbicacion[0] < LOS_TUXTLAS_BOUNDS[0][0] ||
-      miUbicacion[0] > LOS_TUXTLAS_BOUNDS[1][0] ||
-      miUbicacion[1] < LOS_TUXTLAS_BOUNDS[0][1] ||
-      miUbicacion[1] > LOS_TUXTLAS_BOUNDS[1][1]);
+  // Posición propia pedida con el botón "Mi ubicación" (sirve también sin ruta)
+  const [miPosLocal, setMiPosLocal] = useState<Coord | null>(null);
+  const ubic = miUbicacion ?? miPosLocal;
+  const fueraDeRegion = (lat: number, lng: number) =>
+    lat < LOS_TUXTLAS_BOUNDS[0][0] || lat > LOS_TUXTLAS_BOUNDS[1][0] ||
+    lng < LOS_TUXTLAS_BOUNDS[0][1] || lng > LOS_TUXTLAS_BOUNDS[1][1];
+  const origenFueraDeRegion = !!ubic && fueraDeRegion(ubic[0], ubic[1]);
+  // Zonas descargadas en otras partes de México (p. ej. Puebla) también
+  // liberan el mapa: si no, no podrían verse sin internet.
+  const [zonas, setZonas] = useState<ZonaOffline[]>(() => leerZonas());
+  const hayZonaDescargadaFuera = zonas.some((z) =>
+    fueraDeRegion((z.caja[1] + z.caja[3]) / 2, (z.caja[0] + z.caja[2]) / 2));
   // También se libera cuando el turista eligió ver servicios de otra zona.
   const hayZonaLibre = !!zonaLibre && zonaLibre.length > 0;
-  const mapaLiberado = origenFueraDeRegion || hayZonaLibre;
+  const mapaLiberado = origenFueraDeRegion || hayZonaLibre || hayZonaDescargadaFuera;
   const origenFueraRef = useRef(mapaLiberado);
   origenFueraRef.current = mapaLiberado;
   // MapLibre revierte el límite a los pocos cientos de ms de aplicarlo
@@ -525,12 +548,78 @@ export default function MapScreen({
 
   // ---- Mapas offline: descarga unificada por zona ----
   const sinConexion = useOffline();
-  const [zonas, setZonas] = useState<ZonaOffline[]>(() => leerZonas());
   const [mostrarPanelOffline, setMostrarPanelOffline] = useState(false);
   const [tarea, setTarea] = useState<{ pct: number; etapa: string } | null>(null);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
   const [avisoMapa, setAvisoMapa] = useState<string | null>(null);
   const cancelarRef = useRef<AbortController | null>(null);
+
+  useEffect(() => { cargarIndiceMosaicos(); }, []);
+
+  // Botón "Mi ubicación": funciona también sin internet (es GPS). Si estás
+  // fuera de Los Tuxtlas, el mapa se libera y te lleva ahí.
+  const irAMiUbicacion = useCallback(async () => {
+    const r = await obtenerUbicacionGPS();
+    if (!r) {
+      setAvisoMapa('No pude obtener tu ubicación. Revisa el permiso de ubicación del navegador.');
+      return;
+    }
+    setMiPosLocal(r.coord);
+    window.setTimeout(() => {
+      const m = mapRef.current?.getMap();
+      if (!m) return;
+      aplicarLimiteRegion();
+      m.flyTo({ center: [r.coord[1], r.coord[0]], zoom: 14, pitch: 0, duration: 1200 });
+    }, 500);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Guardar la ruta dibujada junto con su mapa (franja de calles + satélite)
+  const [geomGuardada, setGeomGuardada] = useState<Coord[] | null>(null);
+  const rutaGuardable = !!rutaResaltada && rutaResaltada.length >= 2 && !infoRuta?.aproximada && !!datosRuta;
+  const mbGuardarRuta = useMemo(
+    () => (rutaGuardable && rutaResaltada ? planearCorredor(rutaResaltada, true).mbTotal : undefined),
+    [rutaGuardable, rutaResaltada]
+  );
+  const guardarRuta = useCallback(async () => {
+    if (!datosRuta || !rutaResaltada || cancelarRef.current) return;
+    const ctl = new AbortController();
+    cancelarRef.current = ctl;
+    setErrorDescarga(null);
+    setTarea({ pct: 0, etapa: 'Preparando…' });
+    const geom = rutaResaltada;
+    try {
+      await descargarRuta(
+        {
+          nombre: datosRuta.nombre, modo: datosRuta.modo, geometria: geom,
+          puntos: datosRuta.puntos, paradas: datosRuta.paradas,
+          distanciaMetros: datosRuta.distanciaMetros, duracionSegundos: datosRuta.duracionSegundos,
+        },
+        true,
+        (pct, etapa) => setTarea({ pct, etapa }),
+        ctl.signal
+      );
+      olvidarGrafosZona();
+      setZonas(leerZonas());
+      setGeomGuardada(geom);
+    } catch (e) {
+      const err = e as Error;
+      if (err.name !== 'AbortError') {
+        console.error('[TuxtlasGO] Guardar ruta offline:', err);
+        setAvisoMapa(err.message || 'No se pudo guardar la ruta.');
+      }
+    } finally {
+      cancelarRef.current = null;
+      setTarea(null);
+    }
+  }, [datosRuta, rutaResaltada]);
+
+  const abrirRutaGuardada = useCallback(async (id: string) => {
+    const r = await leerRutaGuardada(id);
+    if (!r) { setAvisoMapa('No se encontró esa ruta guardada.'); return; }
+    setMostrarPanelOffline(false);
+    setGeomGuardada(r.geometria as Coord[]);
+    onAbrirRutaGuardada?.(r);
+  }, [onAbrirRutaGuardada]);
 
   // Centro de lo que se ve en el mapa: la zona se descarga alrededor de ahí
   const centroMapa = useCallback((): [number, number] => {
@@ -888,8 +977,8 @@ export default function MapScreen({
           </Marker>
         )}
 
-        {miUbicacion && !navPos && (
-          <Marker longitude={miUbicacion[1]} latitude={miUbicacion[0]}>
+        {ubic && !navPos && (
+          <Marker longitude={ubic[1]} latitude={ubic[0]}>
             <PinMiUbicacion />
           </Marker>
         )}
@@ -1024,6 +1113,15 @@ export default function MapScreen({
           </button>
         </div>
 
+        <button
+          onClick={irAMiUbicacion}
+          className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-jungle-800 hover:bg-jungle-50 border border-jungle-100"
+          title={t('Mi ubicación')}
+          aria-label={t('Ir a mi ubicación')}
+        >
+          <LocateFixed size={18} />
+        </button>
+
         {/* Brujula/reset */}
         <button
           onClick={resetearVista}
@@ -1097,6 +1195,10 @@ export default function MapScreen({
           onRecalcular={onRecalcularRuta}
           onPosicion={alPosicion}
           onNavegando={setNavegando}
+          onGuardar={rutaGuardable ? guardarRuta : undefined}
+          mbGuardar={mbGuardarRuta}
+          guardando={!!tarea}
+          guardada={!!rutaResaltada && geomGuardada === rutaResaltada}
         />
       )}
 
@@ -1115,6 +1217,7 @@ export default function MapScreen({
           centro={centroMapa()}
           onCerrar={() => setMostrarPanelOffline(false)}
           onDescargar={iniciarDescarga}
+          onAbrirRuta={abrirRutaGuardada}
           onBorrarZona={async (id) => { await borrarZona(id); olvidarGrafosZona(); setZonas(leerZonas()); }}
           onBorrarTodo={async () => { await borrarMapaOffline(); olvidarGrafosZona(); setZonas(leerZonas()); }}
         />
@@ -1128,7 +1231,7 @@ function fechaCorta(ms: number) {
 }
 
 function PanelMapaOffline({
-  zonas, sinConexion, error, centro, onCerrar, onDescargar, onBorrarZona, onBorrarTodo,
+  zonas, sinConexion, error, centro, onCerrar, onDescargar, onAbrirRuta, onBorrarZona, onBorrarTodo,
 }: {
   zonas: ZonaOffline[];
   sinConexion: boolean;
@@ -1136,6 +1239,7 @@ function PanelMapaOffline({
   centro: [number, number];
   onCerrar: () => void;
   onDescargar: (tamano: TamanoZona, conSatelite: boolean) => void;
+  onAbrirRuta: (id: string) => void;
   onBorrarZona: (id: string) => void;
   onBorrarTodo: () => void;
 }) {
@@ -1211,9 +1315,12 @@ function PanelMapaOffline({
                   <span className="flex-1 min-w-0">
                     <span className="font-semibold">{z.nombre}</span>
                     <span className="block text-[10px] text-jungle-500">
-                      {fechaCorta(z.fecha)} · {z.satelite ? t('con satélite') : t('sin satélite')} · {z.grafo ? t('rutas listas') : t('sin rutas offline')}
+                      {z.ruta ? `${t('Ruta')} · ${z.ruta.distanciaMetros ? Math.round(z.ruta.distanciaMetros / 1000) + ' km · ' : ''}` : ''}{fechaCorta(z.fecha)} · {z.satelite ? t('con satélite') : t('sin satélite')} · {z.grafo ? t('rutas listas') : t('sin rutas offline')}
                     </span>
                   </span>
+                  {z.ruta && (
+                    <button onClick={() => onAbrirRuta(z.id)} className="text-jungle-700 font-semibold underline">{t('Abrir')}</button>
+                  )}
                   <button onClick={() => onBorrarZona(z.id)} className="text-red-700 font-semibold underline">{t('Borrar')}</button>
                 </li>
               ))}

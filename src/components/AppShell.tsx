@@ -30,6 +30,7 @@ import SelectorIdioma from './SelectorIdioma';
 import { useT } from '../lib/i18n';
 import { useDialogA11y } from '../lib/useDialogA11y';
 import { estaEnLaRegion, type Lugar } from '../data/lugares';
+import type { RutaGuardada } from '../lib/mapaOffline';
 import { obtenerRutaPorTramos, obtenerUbicacionGPS, type Coord, type ModoRuta } from '../lib/routing';
 
 // Honestidad: una línea recta NO es una ruta por calles; se avisa siempre.
@@ -67,6 +68,7 @@ interface RutaVisible {
   duracionSegundos?: number;
   // true si algún tramo es solo línea recta (no hay ruta por calles)
   aproximada?: boolean;
+  nombre?: string; // para guardarla con nombre ("Nanciyaga", "Ruta de 3 paradas")
 }
 
 const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
@@ -456,7 +458,8 @@ export default function AppShell() {
   const calcularRuta = async (
     puntos: Coord[],
     paradas: { coord: Coord; orden: number }[],
-    modo: ModoRuta
+    modo: ModoRuta,
+    nombre?: string
   ) => {
     try {
       if (puntos.length >= 2) {
@@ -470,17 +473,18 @@ export default function AppShell() {
           distanciaMetros: r.distanciaTotalMetros,
           duracionSegundos: r.duracionTotalSegundos,
           aproximada: r.hayTramosRectos,
+          nombre,
         });
         if (r.hayTramosRectos) setErrorRuta(AVISO_RUTA_RECTA);
       } else {
-        setRutaVisible({ geometria: puntos, tramos: [], paradas, puntos, modo });
+        setRutaVisible({ geometria: puntos, tramos: [], paradas, puntos, modo, nombre });
       }
     } catch (err) {
       console.warn('[TuxtlasGO] No se pudo calcular la ruta:', err);
       setRutaVisible({
         geometria: puntos,
         tramos: puntos.length >= 2 ? [puntos] : [],
-        paradas, puntos, modo, aproximada: true,
+        paradas, puntos, modo, aproximada: true, nombre,
       });
       if (puntos.length >= 2) setErrorRuta(AVISO_RUTA_RECTA);
     }
@@ -500,7 +504,7 @@ export default function AppShell() {
     const coords: Coord[] = origen
       ? [origen, destino.coords as Coord]
       : [destino.coords as Coord];
-    await calcularRuta(coords, paradas, 'auto');
+    await calcularRuta(coords, paradas, 'auto', destino.nombre);
     setCargandoRuta(false);
     mostrarMapaConRuta();
   };
@@ -520,8 +524,25 @@ export default function AppShell() {
     const puntosRuta: Coord[] = origen
       ? [origen, ...lugares.map((l) => l.coords as Coord)]
       : lugares.map((l) => l.coords as Coord);
-    await calcularRuta(puntosRuta, paradas, 'auto');
+    await calcularRuta(puntosRuta, paradas, 'auto', `Ruta a ${lugares[lugares.length - 1].nombre} (${lugares.length} paradas)`);
     setCargandoRuta(false);
+    mostrarMapaConRuta();
+  };
+
+  // Abre una ruta guardada (con su mapa descargado): funciona sin internet.
+  const abrirRutaGuardada = (r: RutaGuardada) => {
+    setErrorRuta(null);
+    setRutaVisible({
+      geometria: r.geometria,
+      tramos: [r.geometria],
+      paradas: r.paradas,
+      puntos: r.puntos,
+      modo: r.modo,
+      distanciaMetros: r.distanciaMetros,
+      duracionSegundos: r.duracionSegundos,
+      aproximada: false,
+      nombre: r.nombre,
+    });
     mostrarMapaConRuta();
   };
 
@@ -533,7 +554,7 @@ export default function AppShell() {
     setErrorRuta(null);
     const resto = rutaVisible.puntos.length > 1 ? rutaVisible.puntos.slice(1) : rutaVisible.puntos;
     const puntos = desde ? [desde, ...resto] : rutaVisible.puntos;
-    await calcularRuta(puntos, rutaVisible.paradas, modo);
+    await calcularRuta(puntos, rutaVisible.paradas, modo, rutaVisible.nombre);
     setCargandoRuta(false);
   };
 
@@ -1120,6 +1141,15 @@ export default function AppShell() {
               aproximada: !!rutaVisible.aproximada,
               calculando: cargandoRuta,
             } : undefined}
+            datosRuta={rutaVisible?.puntos ? {
+              nombre: rutaVisible.nombre ?? 'Ruta',
+              modo: rutaVisible.modo ?? 'auto',
+              puntos: rutaVisible.puntos,
+              paradas: rutaVisible.paradas,
+              distanciaMetros: rutaVisible.distanciaMetros,
+              duracionSegundos: rutaVisible.duracionSegundos,
+            } : undefined}
+            onAbrirRutaGuardada={abrirRutaGuardada}
             onCambiarModoRuta={(m) => recalcularRuta(m)}
             onRecalcularRuta={(desde, m) => recalcularRuta(m, desde)}
             vistaCompacta={tab === 'explorar' && !esEscritorio}

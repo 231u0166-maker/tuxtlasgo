@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Car, Footprints, Navigation, X, ArrowUpLeft, ArrowUpRight, ArrowLeft, ArrowRight, Undo2, Flag, Loader2,
+  Car, Footprints, Navigation, X, Download, Check, ArrowUpLeft, ArrowUpRight, ArrowLeft, ArrowRight, Undo2, Flag, Loader2,
 } from 'lucide-react';
 import type { Coord, ModoRuta } from '../lib/routing';
+import { useOffline } from '../hooks/useOffline';
 import { formatearDistancia, formatearDuracion } from '../lib/routing';
 import {
   prepararRuta, proyectar, rumbo, distancia, textoManiobra, formatoDistanciaCorta, type Maniobra,
@@ -31,6 +32,11 @@ interface Props {
   // Posición/rumbo para que el mapa dibuje el marcador y mueva la cámara
   onPosicion: (pos: Coord | null, rumboGrados: number | null) => void;
   onNavegando: (activa: boolean) => void;
+  // "Guardar mapa y ruta": descarga la franja del trayecto para usarla sin internet
+  onGuardar?: () => void;
+  mbGuardar?: number;
+  guardando?: boolean;
+  guardada?: boolean;
 }
 
 function IconoGiro({ tipo }: { tipo: Maniobra['tipo'] }) {
@@ -52,6 +58,7 @@ export default function NavegacionRuta(props: Props) {
   const [sinGps, setSinGps] = useState<string | null>(null);
   const [recalculando, setRecalculando] = useState(false);
   const [llego, setLlego] = useState(false);
+  const sinInternet = useOffline();
 
   const ruta = useMemo(() => prepararRuta(geometria), [geometria]);
   const rutaRef = useRef(ruta);
@@ -219,6 +226,23 @@ export default function NavegacionRuta(props: Props) {
     </div>
   );
 
+  const botonGuardar = props.onGuardar && !aproximada && !calculando && (
+    props.guardada ? (
+      <p className="mt-2 text-xs font-semibold text-jungle-700 flex items-center gap-1.5">
+        <Check size={14} /> Mapa y ruta guardados: funcionan sin internet
+      </p>
+    ) : sinInternet ? null : (
+      <button
+        onClick={props.onGuardar}
+        disabled={props.guardando}
+        className="mt-2 w-full border-2 border-jungle-200 hover:bg-jungle-50 disabled:opacity-60 text-jungle-800 rounded-xl py-2 text-xs font-semibold flex items-center justify-center gap-1.5"
+      >
+        {props.guardando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+        Guardar mapa y ruta para usar sin internet{props.mbGuardar ? ` (~${props.mbGuardar} MB)` : ''}
+      </button>
+    )
+  );
+
   return (
     <div className="absolute bottom-3 left-3 right-3 z-30 bg-white rounded-2xl shadow-xl border border-jungle-100 p-3">
       {unidades}
@@ -255,6 +279,7 @@ export default function NavegacionRuta(props: Props) {
           <Navigation size={16} /> Iniciar
         </button>
       </div>
+      {botonGuardar}
     </div>
   );
 }

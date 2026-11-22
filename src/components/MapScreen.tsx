@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Download, Check, CheckCircle2, Loader2, X, Compass, LocateFixed, Layers, Plus, Minus, Map as MapIcon, Satellite, SlidersHorizontal } from 'lucide-react';
+import { Download, Check, Navigation, CheckCircle2, Loader2, X, Compass, LocateFixed, Layers, Plus, Minus, Map as MapIcon, Satellite, SlidersHorizontal } from 'lucide-react';
 import {
   LUGARES,
   LOS_TUXTLAS_BOUNDS,
@@ -48,7 +48,7 @@ import {
   type PaqueteCatalogo, type PaqueteInstalado,
 } from '../lib/paquetes';
 import { estiloConPaquetes, olvidarPaquetesAbiertos } from '../lib/paquetesMapa';
-import { obtenerUbicacionGPS, type Coord, type ModoRuta } from '../lib/routing';
+import { obtenerUbicacionGPS, distanciaHaversine, formatearDistancia, type Coord, type ModoRuta } from '../lib/routing';
 
 // Referencia estable a propósito: el Map reaplica maxBounds cada vez que
 // el prop cambia de identidad, y eso deshacería el desbloqueo para
@@ -236,6 +236,38 @@ function PinLugar({ categoria, onClick }: { categoria: string; onClick: () => vo
   );
 }
 
+// Pin del lugar que el turista tocó en el mapa (gota roja, punta abajo)
+function PinElegido() {
+  return (
+    <svg width="30" height="40" viewBox="0 0 30 40" style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.4))' }}>
+      <path d="M15 39C15 39 2 24.5 2 14.5C2 7 7.8 1.5 15 1.5C22.2 1.5 28 7 28 14.5C28 24.5 15 39 15 39Z" fill="#dc2626" stroke="white" strokeWidth="2.5" />
+      <circle cx="15" cy="14.5" r="5" fill="white" />
+    </svg>
+  );
+}
+
+// Tipos de lugar del mapa base (capa "poi" de OpenMapTiles) → etiqueta y emoji
+const TIPOS_POI: Record<string, [string, string]> = {
+  hospital: ['Hospital', '🏥'], clinic: ['Clínica', '🏥'], doctors: ['Consultorio', '🩺'], dentist: ['Dentista', '🦷'],
+  pharmacy: ['Farmacia', '💊'], police: ['Policía', '🚓'], fire_station: ['Bomberos', '🚒'],
+  school: ['Escuela', '🏫'], kindergarten: ['Escuela', '🏫'], college: ['Universidad', '🎓'], university: ['Universidad', '🎓'],
+  library: ['Biblioteca', '📚'], bank: ['Banco', '🏦'], atm: ['Cajero', '🏧'], post: ['Correos', '📮'],
+  fuel: ['Gasolinera', '⛽'], parking: ['Estacionamiento', '🅿️'], bus: ['Autobuses', '🚌'], bus_station: ['Autobuses', '🚌'],
+  restaurant: ['Restaurante', '🍽️'], fast_food: ['Comida rápida', '🍔'], cafe: ['Café', '☕'], bar: ['Bar', '🍺'], pub: ['Bar', '🍺'],
+  lodging: ['Hospedaje', '🛏️'], hotel: ['Hotel', '🛏️'], hostel: ['Hostal', '🛏️'], camp_site: ['Campamento', '⛺'],
+  grocery: ['Tienda', '🛒'], supermarket: ['Supermercado', '🛒'], convenience: ['Tienda', '🛒'], shop: ['Tienda', '🛍️'],
+  clothing_store: ['Ropa', '👕'], butcher: ['Carnicería', '🥩'], bakery: ['Panadería', '🥖'], marketplace: ['Mercado', '🧺'],
+  place_of_worship: ['Iglesia / templo', '⛪'], park: ['Parque', '🌳'], playground: ['Juegos', '🛝'], zoo: ['Zoológico', '🦁'],
+  museum: ['Museo', '🏛️'], monument: ['Monumento', '🗿'], attraction: ['Atracción', '📍'], viewpoint: ['Mirador', '🔭'],
+  beach: ['Playa', '🏖️'], harbor: ['Puerto', '⚓'], ferry_terminal: ['Embarcadero', '⛴️'], stadium: ['Estadio', '🏟️'],
+  swimming: ['Alberca', '🏊'], golf: ['Golf', '⛳'], cinema: ['Cine', '🎬'], theatre: ['Teatro', '🎭'], town_hall: ['Ayuntamiento', '🏛️'],
+};
+function describirPoi(clase?: string, subclase?: string): { etiqueta: string; emoji: string } {
+  const par = TIPOS_POI[subclase ?? ''] ?? TIPOS_POI[clase ?? ''];
+  return par ? { etiqueta: par[0], emoji: par[1] } : { etiqueta: 'Lugar', emoji: '📍' };
+}
+interface LugarElegido { coord: Coord; nombre: string; etiqueta: string; emoji: string }
+
 // Circulo numerado para las paradas de una ruta (1, 2, 3...)
 function PinParada({ orden }: { orden: number }) {
   return (
@@ -380,6 +412,8 @@ interface Props {
   elegirOrigen?: { nombre: string } | null;
   onElegirOrigen?: (coord: Coord) => void;
   onCancelarElegirOrigen?: () => void;
+  // Ruta a un lugar tocado en el mapa (ícono del mapa base o punto libre)
+  onIrALugarElegido?: (coord: Coord, nombre: string) => void;
   onCambiarModoRuta?: (m: ModoRuta) => void;
   onRecalcularRuta?: (desde: Coord, m: ModoRuta) => void;
 }
@@ -422,6 +456,7 @@ export default function MapScreen({
   elegirOrigen,
   onElegirOrigen,
   onCancelarElegirOrigen,
+  onIrALugarElegido,
   onCambiarModoRuta,
   onRecalcularRuta,
 }: Props) {
@@ -443,6 +478,39 @@ export default function MapScreen({
     observador.observe(contenedorRef.current);
     return () => observador.disconnect();
   }, []);
+
+  // Lugar tocado en el mapa (ícono del mapa base o punto libre) → pin + tarjeta "Ir"
+  const [lugarElegido, setLugarElegido] = useState<LugarElegido | null>(null);
+  const elegirLugarEnMapa = useCallback((e: { target: maplibregl.Map; point: { x: number; y: number }; lngLat: { lat: number; lng: number } }) => {
+    const m = e.target;
+    const { x, y } = e.point;
+    // Los íconos son chicos: se busca en un cuadrito alrededor del toque
+    const feats = m.queryRenderedFeatures([[x - 16, y - 16], [x + 16, y + 16]]);
+    const pois = feats
+      .filter((f) => f.sourceLayer === 'poi' && f.geometry.type === 'Point' && (f.properties?.name || f.properties?.class))
+      .map((f) => {
+        const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates as [number, number];
+        const p = m.project([lng, lat]);
+        return { f, lat, lng, d: Math.hypot(p.x - x, p.y - y) };
+      })
+      .sort((a, b) => a.d - b.d);
+    if (pois.length > 0) {
+      const { f, lat, lng } = pois[0];
+      const { etiqueta, emoji } = describirPoi(f.properties?.class as string, f.properties?.subclass as string);
+      const nombre = (f.properties?.['name:es'] as string) || (f.properties?.name as string) || etiqueta;
+      setLugarElegido({ coord: [lat, lng], nombre, etiqueta, emoji });
+      return;
+    }
+    const calle = feats.find((f) => f.sourceLayer === 'transportation_name' && f.properties?.name);
+    setLugarElegido({
+      coord: [e.lngLat.lat, e.lngLat.lng],
+      nombre: (calle?.properties?.name as string) || 'Punto en el mapa',
+      etiqueta: calle ? 'Punto en la calle' : 'Punto elegido',
+      emoji: '📍',
+    });
+  }, []);
+  // Al aparecer una ruta, el lugar elegido ya cumplió: se quita
+  useEffect(() => { if (rutaResaltada) setLugarElegido(null); }, [rutaResaltada]);
 
   // Navegación paso a paso: posición GPS en vivo y si está activa
   const [navPos, setNavPos] = useState<Coord | null>(null);
@@ -1085,7 +1153,12 @@ export default function MapScreen({
         onLoad={aplicarLimiteRegion}
         onIdle={aplicarLimiteRegion}
         onMoveEnd={() => { aplicarLimiteRegion(); revisarCobertura(); const z = mapRef.current?.getMap()?.getZoom(); if (z !== undefined) setZoomVista(z); }}
-        onClick={(e) => { if (elegirOrigen && onElegirOrigen) onElegirOrigen([e.lngLat.lat, e.lngLat.lng]); }}
+        onClick={(e) => {
+          if (elegirOrigen && onElegirOrigen) { onElegirOrigen([e.lngLat.lat, e.lngLat.lng]); return; }
+          // Solo en el mapa grande y sin ruta, panel ni navegación en curso
+          if (vistaCompacta || rutaResaltada || mostrarPanelOffline || navegandoRef.current || !onIrALugarElegido) return;
+          elegirLugarEnMapa(e);
+        }}
         cursor={elegirOrigen ? 'crosshair' : undefined}
         mapStyle={vistaSatelite ? (estiloSatActual as any) : (estiloBase as any)}
         style={{ width: '100%', height: '100%' }}
@@ -1139,6 +1212,12 @@ export default function MapScreen({
             </Marker>
           );
         })}
+
+        {lugarElegido && !rutaResaltada && (
+          <Marker longitude={lugarElegido.coord[1]} latitude={lugarElegido.coord[0]} anchor="bottom">
+            <PinElegido />
+          </Marker>
+        )}
 
         {paradasResaltadas?.map((p) => (
           <Marker key={`parada-${p.orden}`} longitude={p.coord[1]} latitude={p.coord[0]}>
@@ -1362,6 +1441,38 @@ export default function MapScreen({
               </button>
             </div>
           ) : null}
+        </div>
+      )}
+
+      {lugarElegido && !rutaResaltada && !vistaCompacta && !mostrarPanelOffline && !elegirOrigen && (
+        <div
+          role="dialog"
+          aria-label={lugarElegido.nombre}
+          className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/85 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-xl border border-white/60 p-3"
+        >
+          <div className="flex items-center gap-3">
+            <span className="w-11 h-11 rounded-2xl bg-jungle-100 flex items-center justify-center text-xl flex-none">{lugarElegido.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-display font-bold text-jungle-950 leading-tight truncate">{lugarElegido.nombre}</p>
+              <p className="text-xs text-jungle-600 truncate">
+                {lugarElegido.etiqueta}
+                {ubic && ' · ' + formatearDistancia(distanciaHaversine(ubic, lugarElegido.coord)) + ' ' + t('en línea recta')}
+              </p>
+            </div>
+            <button
+              onClick={() => setLugarElegido(null)}
+              className="w-8 h-8 rounded-full bg-white/70 hover:bg-white text-jungle-700 flex items-center justify-center flex-none"
+              aria-label={t('Cerrar')}
+            >
+              <X size={17} />
+            </button>
+          </div>
+          <button
+            onClick={() => { const l = lugarElegido; setLugarElegido(null); onIrALugarElegido?.(l.coord, l.nombre); }}
+            className="mt-3 w-full bg-jungle-700 hover:bg-jungle-800 text-white rounded-2xl py-2.5 font-semibold text-sm flex items-center justify-center gap-1.5 shadow-md"
+          >
+            <Navigation size={16} /> {t('Ir')}
+          </button>
         </div>
       )}
 

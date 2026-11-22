@@ -503,21 +503,27 @@ export default function AppShell() {
     setLugarSeleccionado(null);
     // Un servicio de otra zona libera el mapa para poder verlo.
     if (!estaEnLaRegion(destino.coords)) setZonaLibre([destino]);
+    await irAPunto(destino.coords as Coord, destino.nombre);
+  };
+
+  // Ruta desde mi ubicación hasta CUALQUIER punto (un lugar de nuestro catálogo,
+  // un ícono del mapa base como un hospital, o un punto tocado en el mapa).
+  const irAPunto = async (destinoCoords: Coord, nombre: string) => {
     setCargandoRuta(true);
     setErrorRuta(null);
 
-    const paradas = [{ coord: destino.coords as Coord, orden: 1 }];
+    const paradas = [{ coord: destinoCoords, orden: 1 }];
     const origen = await obtenerMiUbicacionActual();
     if (!origen) {
       // Sin ubicación no hay desde dónde trazar: se deja el destino marcado
       // y se pide al turista que toque su punto de salida en el mapa.
-      await calcularRuta([destino.coords as Coord], paradas, 'auto', destino.nombre);
-      setPendienteOrigen({ destino: destino.coords as Coord, paradas, nombre: destino.nombre });
+      await calcularRuta([destinoCoords], paradas, 'auto', nombre);
+      setPendienteOrigen({ destino: destinoCoords, paradas, nombre });
       setCargandoRuta(false);
       mostrarMapaConRuta();
       return;
     }
-    await calcularRuta([origen, destino.coords as Coord], paradas, 'auto', destino.nombre);
+    await calcularRuta([origen, destinoCoords], paradas, 'auto', nombre);
     setCargandoRuta(false);
     mostrarMapaConRuta();
   };
@@ -1174,6 +1180,7 @@ export default function AppShell() {
             onLimpiarRuta={() => { setRutaVisible(null); setMiUbicacion(null); setPendienteOrigen(null); }}
             elegirOrigen={pendienteOrigen ? { nombre: pendienteOrigen.nombre } : null}
             onElegirOrigen={elegirOrigenListo}
+            onIrALugarElegido={irAPunto}
             onCancelarElegirOrigen={() => setPendienteOrigen(null)}
             infoRuta={rutaVisible ? {
               modo: rutaVisible.modo ?? 'auto',

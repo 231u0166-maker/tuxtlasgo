@@ -73,6 +73,16 @@ export default defineConfig({
             },
           },
           {
+            // Mosaicos de altura (perfil de elevación de las rutas): se conservan al verlos
+            // con internet para poder dibujar el perfil después sin conexión
+            urlPattern: /^https:\/\/s3\.amazonaws\.com\/elevation-tiles-prod\/terrarium\//i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'mapa-offline-v1',
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
             // Red de calles para calcular rutas sin internet
             urlPattern: /\/grafo-vial\.json$/i,
             handler: 'StaleWhileRevalidate',

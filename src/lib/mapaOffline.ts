@@ -17,6 +17,7 @@
 
 import { LOS_TUXTLAS_BOUNDS } from '../data/lugares';
 import { construirGrafoDeMosaicos } from './grafoDesdeMosaicos';
+import { urlTerreno } from './elevacion';
 
 export const CACHE_MAPA = 'mapa-offline-v1';
 export const CACHE_GRAFOS = 'grafo-zonas-v1';
@@ -377,6 +378,8 @@ interface Contenido {
   caja: Caja;
   calles: (z: number) => [number, number][]; // z = 0..14
   satelite: { zoomMax: number; mosaicos: (z: number) => [number, number][] } | null;
+  // Mosaicos de altura para el perfil de elevación (pocos y chicos)
+  terreno: () => { z: number; mosaicos: [number, number][] };
 }
 
 function contenidoDeCaja(caja: Caja, conSatelite: boolean, alta = false): Contenido {
@@ -384,6 +387,10 @@ function contenidoDeCaja(caja: Caja, conSatelite: boolean, alta = false): Conten
     caja,
     calles: (z) => mosaicosDeCaja(z <= 9 ? conMargen(caja, 1.5) : caja, z),
     satelite: conSatelite ? { zoomMax: zoomSateliteParaCaja(caja, alta), mosaicos: (z) => mosaicosDeCaja(caja, z) } : null,
+    terreno: () => {
+      const fino = mosaicosDeCaja(caja, 12);
+      return fino.length <= 150 ? { z: 12, mosaicos: fino } : { z: 11, mosaicos: mosaicosDeCaja(caja, 11) };
+    },
   };
 }
 
@@ -408,6 +415,10 @@ function contenidoDeCorredor(geom: CoordLL[], conSatelite: boolean): Contenido {
     satelite: conSatelite
       ? { zoomMax: zoomSateliteParaCorredor(geom), mosaicos: (z) => mosaicosCorredor(geom, z, radioSatCorredor(z)) }
       : null,
+    terreno: () => {
+      const fino = mosaicosCorredor(geom, 12, 0);
+      return fino.length <= 300 ? { z: 12, mosaicos: fino } : { z: 11, mosaicos: mosaicosCorredor(geom, 11, 0) };
+    },
   };
 }
 
@@ -547,6 +558,14 @@ async function descargarContenidoInterno(
       throw new Error(`Faltaron ${rs.errores} imágenes de satélite; revisa tu conexión e inténtalo de nuevo.`);
     }
     satelite = { zoomMax: c.satelite.zoomMax, mosaicos: rs.ok };
+  }
+
+  // --- alturas (perfil de elevación sin internet); si fallan no se aborta la descarga ---
+  try {
+    const { z: zt, mosaicos: mt } = c.terreno();
+    await descargarLista(cache, mt.map(([x, y]) => urlTerreno(zt, x, y)), () => { }, senal);
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e;
   }
 
   // --- red de calles y senderos para rutas sin internet ---

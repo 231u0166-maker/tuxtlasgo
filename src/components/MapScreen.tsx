@@ -540,6 +540,18 @@ export default function MapScreen({
       }
     } catch { /* el usuario canceló */ }
   }, []);
+  // Encuadra toda la ruta (botón de la barra de navegación); la cámara vuelve a seguirte con el siguiente GPS
+  const verRutaCompleta = useCallback(() => {
+    const m = mapRef.current?.getMap();
+    if (!m || !rutaResaltada || rutaResaltada.length < 2) return;
+    const ini = [rutaResaltada[0][1], rutaResaltada[0][0]] as [number, number];
+    const caja = rutaResaltada.reduce(
+      (b, [lat, lng]) => b.extend([lng, lat]),
+      new maplibregl.LngLatBounds(ini, ini)
+    );
+    m.fitBounds(caja, { padding: { top: 120, left: 40, right: 40, bottom: 380 }, duration: 800, pitch: 0, bearing: 0 });
+  }, [rutaResaltada]);
+
   // Al aparecer una ruta, el lugar elegido ya cumplió: se quita
   useEffect(() => { if (rutaResaltada) setLugarElegido(null); }, [rutaResaltada]);
 
@@ -1624,6 +1636,7 @@ export default function MapScreen({
           destino={infoRuta.destino}
           alternativas={alternativas}
           onElegirAlternativa={onElegirAlternativa}
+          onVerRutaCompleta={verRutaCompleta}
         />
       )}
 

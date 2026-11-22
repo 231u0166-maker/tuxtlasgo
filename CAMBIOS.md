@@ -804,3 +804,7 @@ Build de producción + modo sin conexión del navegador: zona de 6 km descargada
 
 ## Scrollbars transparentes en toda la app
 - `src/styles/index.css`: sin pista de fondo ni flechas; control delgado (8 px) y translúcido (18 % de verde, 40 % al pasar el cursor). Chrome/Edge/Safari con `::-webkit-scrollbar`; Firefox con `scrollbar-color` (solo ahí, vía `@supports not selector(...)`, para no anular lo anterior). Probado en Chromium de escritorio; Firefox y Safari no se probaron.
+
+## Anuncio "¿Vas a salir de señal?" flotante en toda la app
+- Pasó de ser una tarjeta dentro del mapa a un anuncio flotante global (`components/AvisoDescargaMapa.tsx`, montado en `AppShell`): aparece ~2 s después de abrir la app, sobre cualquier pantalla, mientras no haya ningún mapa guardado y haya internet. Mismo diseño de cristal. "Descargar mapa" lleva al mapa y abre el panel de descarga (petición por `sessionStorage` + evento `abrir-panel-offline`); "Ahora no" lo cierra para siempre en ese dispositivo; se esconde solo al guardar un mapa o al perder internet.
+- Probado en móvil (412×915): flota en Destacados, al tocarlo abre mapa + panel, y desaparece. Escritorio: mismo componente, centrado arriba (no se capturó).

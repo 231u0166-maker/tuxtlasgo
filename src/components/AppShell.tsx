@@ -31,6 +31,7 @@ import { useT } from '../lib/i18n';
 import { useDialogA11y } from '../lib/useDialogA11y';
 import { estaEnLaRegion, type Lugar } from '../data/lugares';
 import type { RutaGuardada } from '../lib/mapaOffline';
+import AvisoDescargaMapa from './AvisoDescargaMapa';
 import { obtenerRutaPorTramos, obtenerUbicacionGPS, type Coord, type ModoRuta } from '../lib/routing';
 
 // Honestidad: una línea recta NO es una ruta por calles; se avisa siempre.
@@ -901,6 +902,17 @@ export default function AppShell() {
             <NotificacionesBurbuja variante="barra-movil" onIrATab={cambiarTab} />
           </header>
         )}
+
+        {/* Anuncio flotante: guardar el mapa antes de salir de señal */}
+        <AvisoDescargaMapa
+          onDescargar={() => {
+            // El mapa puede no estar montado aún: se deja la petición en sessionStorage
+            // (la lee al montarse) y también se avisa por evento por si ya está.
+            try { sessionStorage.setItem('abrir-panel-offline', '1'); } catch { /* nada */ }
+            window.dispatchEvent(new Event('abrir-panel-offline'));
+            cambiarTab('mapa');
+          }}
+        />
 
         {/* Toast error ruta */}
         {errorRuta && (

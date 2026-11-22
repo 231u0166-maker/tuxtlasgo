@@ -657,14 +657,23 @@ export default function MapScreen({
   }, []);
   const descartarPendiente = () => { limpiarPendiente(); setPendiente(null); };
 
-  // Aviso de bienvenida: sin ninguna zona guardada y con internet, se recuerda descargar
-  const [avisoDescargaCerrado, setAvisoDescargaCerrado] = useState(() => {
-    try { return localStorage.getItem('aviso-descarga-cerrado') === 'true'; } catch { return false; }
-  });
-  const cerrarAvisoDescarga = () => {
-    setAvisoDescargaCerrado(true);
-    try { localStorage.setItem('aviso-descarga-cerrado', 'true'); } catch { /* nada */ }
-  };
+  // El anuncio "¿Vas a salir de señal?" ahora flota sobre toda la app
+  // (AvisoDescargaMapa.tsx); al tocar "Descargar mapa" pide abrir este panel.
+  useEffect(() => {
+    const abrir = () => {
+      try { sessionStorage.removeItem('abrir-panel-offline'); } catch { /* nada */ }
+      setErrorDescarga(null);
+      setMostrarPanelOffline(true);
+    };
+    try {
+      if (sessionStorage.getItem('abrir-panel-offline') === '1') {
+        sessionStorage.removeItem('abrir-panel-offline');
+        abrir();
+      }
+    } catch { /* nada */ }
+    window.addEventListener('abrir-panel-offline', abrir);
+    return () => window.removeEventListener('abrir-panel-offline', abrir);
+  }, []);
 
   // Vista previa del cuadro a descargar (se dibuja en el mapa mientras el panel está abierto)
   const [previewCaja, setPreviewCaja] = useState<Caja | null>(null);
@@ -1408,15 +1417,6 @@ export default function MapScreen({
                   : 'Esta parte del mapa no está descargada: se verá en blanco.'}
               </p>
               {zonas.length > 0 && <button onClick={irAMapaGuardado} className="font-bold underline">Ir a mi mapa guardado</button>}
-            </div>
-          );
-        }
-        if (!sinConexion && zonas.length === 0 && !avisoDescargaCerrado && !rutaResaltada) {
-          return (
-            <div role="status" className={tarjeta + 'bg-white/80 border-white/60 text-jungle-900'}>
-              <p className="font-semibold mb-1.5">¿Vas a salir de señal? Guarda el mapa ahora, con Wi-Fi, para usarlo sin internet.</p>
-              <button onClick={() => { setErrorDescarga(null); setMostrarPanelOffline(true); }} className="font-bold underline mr-3 text-jungle-700">Descargar mapa</button>
-              <button onClick={cerrarAvisoDescarga} className="underline">Ahora no</button>
             </div>
           );
         }

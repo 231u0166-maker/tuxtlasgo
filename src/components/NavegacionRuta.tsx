@@ -40,6 +40,13 @@ interface Props {
   guardada?: boolean;
   // Cambia cuando se descarga/borra algo, para volver a evaluar la cobertura
   zonasClave?: string;
+  // Tiempo del otro modo (se muestra en su pestaña), y los nombres de origen y destino
+  alterna?: { modo: ModoRuta; duracionSegundos?: number; distanciaMetros?: number };
+  origen?: string;
+  destino?: string;
+  // Rutas alternas al mismo destino y cómo elegir una
+  alternativas?: { geometria: Coord[]; distanciaMetros: number; duracionSegundos: number }[];
+  onElegirAlternativa?: (indice: number) => void;
 }
 
 function IconoGiro({ tipo }: { tipo: Maniobra['tipo'] }) {
@@ -63,6 +70,7 @@ export default function NavegacionRuta(props: Props) {
   const [llego, setLlego] = useState(false);
   const sinInternet = useOffline();
   const [fueraDeMapa, setFueraDeMapa] = useState(false);
+  const [velocidad, setVelocidad] = useState<number | null>(null); // km/h según el GPS
   const [confirmando, setConfirmando] = useState(false);
   // ¿Todo el trayecto ya cae dentro del mapa descargado? Si sí, funciona sin
   // internet y NO se pregunta ni se ofrece guardar nada.
@@ -126,6 +134,7 @@ export default function NavegacionRuta(props: Props) {
         if (!previa || distancia(previa, nueva) > 2) ultimaPos.current = nueva;
         setPos(nueva);
         setSinGps(null);
+        setVelocidad(g.coords.speed != null && !Number.isNaN(g.coords.speed) ? Math.max(0, g.coords.speed * 3.6) : null);
 
         const r = rutaRef.current;
         const pr = proyectar(r, nueva, recorridoRef.current);
@@ -175,6 +184,7 @@ export default function NavegacionRuta(props: Props) {
   const restante = Math.max(ruta.total - recorrido, 0);
   const siguiente = ruta.maniobras.find((m) => m.distancia > recorrido + 3) ?? ruta.maniobras[ruta.maniobras.length - 1];
   const distAlGiro = siguiente ? Math.max(siguiente.distancia - recorrido, 0) : 0;
+  const avance = ruta.total > 0 ? Math.min(1, Math.max(0, recorrido / ruta.total)) : 0;
   const segRestantes = duracionSegundos && ruta.total > 0 ? duracionSegundos * (restante / ruta.total) : 0;
   const hora = segRestantes
     ? new Date(Date.now() + segRestantes * 1000).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })
@@ -196,7 +206,13 @@ export default function NavegacionRuta(props: Props) {
   if (navegando) {
     return (
       <>
-        <div className="absolute top-14 left-3 right-3 z-30 flex flex-col gap-2 pointer-events-none">
+        {velocidad != null && (
+          <div className="absolute top-14 right-3 z-30 bg-white/85 backdrop-blur-xl border border-white/70 shadow-lg rounded-2xl px-3 py-1.5 text-jungle-950 pointer-events-none" aria-label="Velocidad">
+            <span className="font-display font-extrabold text-lg tabular-nums">{Math.round(velocidad)}</span>
+            <span className="text-[11px] font-semibold text-jungle-600 ml-1">km/h</span>
+          </div>
+        )}
+        <div className="absolute top-14 left-3 right-16 z-30 flex flex-col gap-2 pointer-events-none">
           {sinGps ? (
             <div role="status" className="self-start bg-amber-50 border border-amber-300 text-amber-900 text-sm font-semibold rounded-xl px-3 py-2 shadow-lg">
               {sinGps}
@@ -234,20 +250,23 @@ export default function NavegacionRuta(props: Props) {
           )}
         </div>
 
-        <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/85 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-xl border border-jungle-100 px-4 py-3 flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="font-display font-bold text-jungle-950 text-lg leading-tight">
-              {formatearDistancia(restante)}
-              {segRestantes > 0 && <span className="text-jungle-700"> · {formatearDuracion(segRestantes)}</span>}
+        <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/90 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-2xl border border-white/60 px-4 pt-3 pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0 flex items-baseline gap-x-3 flex-wrap">
+              <span className="font-display font-extrabold text-jungle-950 text-xl leading-none">{formatearDistancia(restante)}</span>
+              {segRestantes > 0 && <span className="font-display font-bold text-jungle-700 text-base leading-none">{formatearDuracion(segRestantes)}</span>}
+              {hora && <span className="text-sm text-jungle-600 leading-none">{hora}</span>}
             </div>
-            {hora && <div className="text-xs text-jungle-600">Llegas a las {hora}</div>}
+            <button
+              onClick={() => { setNavegando(false); setLlego(false); }}
+              className="bg-white hover:bg-red-50 text-red-700 border-2 border-red-200 rounded-2xl px-4 py-2 font-semibold text-sm flex items-center gap-1.5"
+            >
+              <X size={16} /> Detener
+            </button>
           </div>
-          <button
-            onClick={() => { setNavegando(false); setLlego(false); }}
-            className="bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-2.5 font-semibold text-sm flex items-center gap-1.5"
-          >
-            <X size={16} /> Detener
-          </button>
+          <div className="mt-3 h-1.5 rounded-full bg-jungle-100 overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(avance * 100)}>
+            <div className="h-full rounded-full bg-laguna-600 transition-all duration-500" style={{ width: Math.round(avance * 100) + '%' }} />
+          </div>
         </div>
       </>
     );
@@ -278,35 +297,50 @@ export default function NavegacionRuta(props: Props) {
     );
   }
 
-  // ---------------- Hoja con resumen de la ruta ----------------
-  const unidades = (
-    <div className="flex gap-2 mb-3">
-      {([['auto', 'En auto', Car], ['pie', 'A pie', Footprints]] as const).map(([m, texto, Icono]) => (
-        <button
-          key={m}
-          onClick={() => m !== modo && props.onCambiarModo(m)}
-          disabled={calculando}
-          aria-pressed={modo === m}
-          className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-semibold border-2 disabled:opacity-60 ${modo === m
-            ? 'border-jungle-700 bg-jungle-50 text-jungle-900'
-            : 'border-jungle-100 text-jungle-600 hover:bg-jungle-50'}`}
-        >
-          <Icono size={17} /> {texto}
-        </button>
-      ))}
-    </div>
-  );
+  // ---------------- Hoja con resumen de la ruta (estilo MAPS.ME) ----------------
+  const llegada = duracionSegundos
+    ? new Date(Date.now() + duracionSegundos * 1000).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })
+    : null;
+
+  // Pestañas de modo: la elegida va más ancha y con tiempo + distancia; la otra, con su tiempo
+  const pestana = (m: ModoRuta) => {
+    const activa = modo === m;
+    const Icono = m === 'auto' ? Car : Footprints;
+    const nombre = m === 'auto' ? 'En auto' : 'A pie';
+    const dur = activa ? duracionSegundos : props.alterna?.modo === m ? props.alterna.duracionSegundos : undefined;
+    const dist = activa ? distanciaMetros : props.alterna?.modo === m ? props.alterna.distanciaMetros : undefined;
+    return (
+      <button
+        key={m}
+        onClick={() => !activa && props.onCambiarModo(m)}
+        disabled={calculando}
+        aria-pressed={activa}
+        aria-label={nombre}
+        className={'rounded-2xl border-2 px-3 py-2 flex items-center gap-2.5 disabled:opacity-60 transition-all ' + (activa
+          ? 'flex-[1.5] border-jungle-700 bg-white shadow-sm'
+          : 'flex-1 border-transparent bg-white/50 hover:bg-white/80')}
+      >
+        <Icono size={activa ? 22 : 20} className={activa ? 'text-jungle-800' : 'text-jungle-600'} />
+        <span className="min-w-0 text-left leading-tight">
+          <span className={'block font-display font-bold ' + (activa ? 'text-jungle-950 text-base' : 'text-jungle-700 text-sm')}>
+            {dur ? formatearDuracion(dur) : activa && calculando ? '…' : '—'}
+          </span>
+          {activa && dist ? <span className="block text-[11px] text-jungle-600">{formatearDistancia(dist)}</span> : null}
+        </span>
+      </button>
+    );
+  };
 
   const botonGuardar = props.onGuardar && !aproximada && !calculando && (
     cubierta || props.guardada ? (
-      <p className="mt-2 text-xs font-semibold text-jungle-700 flex items-center gap-1.5">
+      <p className="mt-3 text-xs font-semibold text-jungle-700 flex items-center gap-1.5">
         <Check size={14} /> Dentro de tu mapa descargado: funciona sin internet
       </p>
     ) : sinInternet ? null : (
       <button
         onClick={props.onGuardar}
         disabled={props.guardando}
-        className="mt-2 w-full border-2 border-jungle-200 hover:bg-jungle-50 disabled:opacity-60 text-jungle-800 rounded-xl py-2 text-xs font-semibold flex items-center justify-center gap-1.5"
+        className="mt-3 w-full border-2 border-jungle-200 hover:bg-jungle-50 disabled:opacity-60 text-jungle-800 rounded-2xl py-2 text-xs font-semibold flex items-center justify-center gap-1.5"
       >
         {props.guardando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
         Esta ruta sale de tu mapa descargado: agregar este trayecto{props.mbGuardar ? ` (~${props.mbGuardar} MB)` : ''}
@@ -315,41 +349,76 @@ export default function NavegacionRuta(props: Props) {
   );
 
   return (
-    <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/85 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-xl border border-jungle-100 p-3">
-      {unidades}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          {calculando ? (
-            <div className="flex items-center gap-2 text-jungle-700 font-semibold text-sm">
-              <Loader2 size={16} className="animate-spin" /> Calculando ruta…
-            </div>
-          ) : aproximada ? (
-            <>
-              <div className="font-display font-bold text-jungle-950">
-                {distanciaMetros ? `≈ ${formatearDistancia(distanciaMetros)} en línea recta` : 'Sin ruta por calles'}
-              </div>
-              <div className="text-xs text-amber-800">No hay ruta por calles disponible aquí.</div>
-            </>
-          ) : (
-            <>
-              <div className="font-display font-bold text-jungle-950 text-lg leading-tight">
-                {duracionSegundos ? formatearDuracion(duracionSegundos) : '—'}
-                {distanciaMetros ? <span className="text-jungle-600 font-semibold"> · {formatearDistancia(distanciaMetros)}</span> : null}
-              </div>
-              <div className="text-xs text-jungle-600">
-                {modo === 'pie' ? 'Caminando, por calles y carreteras' : 'En auto, la más rápida'}
-              </div>
-            </>
-          )}
-        </div>
-        <button
-          onClick={alPulsarIniciar}
-          disabled={calculando}
-          className="bg-jungle-700 hover:bg-jungle-800 disabled:opacity-50 text-white rounded-xl px-5 py-3 font-semibold text-sm flex items-center gap-1.5"
-        >
-          <Navigation size={16} /> Iniciar
-        </button>
+    <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/90 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-2xl border border-white/60 px-4 pt-2.5 pb-4">
+      <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-jungle-900/15" aria-hidden="true" />
+
+      <div className="flex gap-2 mb-3">
+        {pestana('auto')}
+        {pestana('pie')}
       </div>
+
+      {/* Origen → destino */}
+      <div className="rounded-2xl bg-jungle-50/70 border border-jungle-100 px-3.5 py-3 mb-3">
+        <div className="flex items-center gap-3">
+          <span className="w-5 h-5 rounded-full bg-laguna-600 border-[3px] border-white shadow flex-none" aria-hidden="true" />
+          <span className="text-sm font-semibold text-jungle-950 truncate">{props.origen ?? 'Mi ubicación'}</span>
+        </div>
+        <div className="ml-[9px] my-1 h-3 border-l-2 border-dotted border-jungle-300" aria-hidden="true" />
+        <div className="flex items-center gap-3">
+          <span className="w-5 h-5 rounded-full bg-sun-500 text-white flex items-center justify-center flex-none shadow" aria-hidden="true"><Flag size={11} strokeWidth={3} /></span>
+          <span className="text-sm font-semibold text-jungle-950 truncate">{props.destino ?? 'Destino'}</span>
+        </div>
+      </div>
+
+      {calculando ? (
+        <div className="flex items-center gap-2 text-jungle-700 font-semibold text-sm mb-3">
+          <Loader2 size={16} className="animate-spin" /> Calculando ruta…
+        </div>
+      ) : aproximada ? (
+        <div className="mb-3">
+          <div className="font-display font-bold text-jungle-950">
+            {distanciaMetros ? `≈ ${formatearDistancia(distanciaMetros)} en línea recta` : 'Sin ruta por calles'}
+          </div>
+          <div className="text-xs text-amber-800">No hay ruta por calles disponible aquí.</div>
+        </div>
+      ) : (
+        <p className="text-xs text-jungle-600 mb-3">
+          {modo === 'pie' ? 'Caminando, por calles y carreteras' : 'En auto, la ruta más rápida'}
+          {llegada ? ' · Llegas a las ' + llegada : ''}
+        </p>
+      )}
+
+      {!calculando && !aproximada && props.alternativas && props.alternativas.length > 0 && (
+        <div className="mb-3">
+          <p className="text-[11px] font-semibold text-jungle-700 mb-1.5">Otras rutas</p>
+          <div className="flex gap-2 overflow-x-auto pb-0.5">
+            {props.alternativas.map((a, i) => {
+              const dMin = Math.round((a.duracionSegundos - (duracionSegundos ?? 0)) / 60);
+              return (
+                <button
+                  key={i}
+                  onClick={() => props.onElegirAlternativa?.(i)}
+                  className="flex-none rounded-2xl border-2 border-slate-300 bg-white/70 hover:bg-white px-3 py-1.5 text-left"
+                >
+                  <span className="block font-display font-bold text-sm text-jungle-950 leading-tight">
+                    {formatearDuracion(a.duracionSegundos)}
+                    <span className="text-xs font-semibold text-slate-500"> {dMin === 0 ? '≈ igual' : (dMin > 0 ? '+' : '−') + Math.abs(dMin) + ' min'}</span>
+                  </span>
+                  <span className="block text-[11px] text-jungle-600">{formatearDistancia(a.distanciaMetros)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={alPulsarIniciar}
+        disabled={calculando}
+        className="w-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-50 text-white rounded-2xl py-3.5 font-display font-bold text-base flex items-center justify-center gap-2 shadow-md"
+      >
+        <Navigation size={18} /> Iniciar
+      </button>
       {botonGuardar}
     </div>
   );

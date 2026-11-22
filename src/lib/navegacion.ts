@@ -135,3 +135,30 @@ export function formatoDistanciaCorta(m: number): string {
   if (m < 1000) return `${Math.max(5, Math.round(m / 5) * 5)} m`;
   return `${(m / 1000).toFixed(1)} km`;
 }
+
+// ¿Qué parte de la ruta A va por las MISMAS calles que la ruta B? (0 a 1).
+// Un punto de A cuenta como compartido si hay un punto de B a menos de umbralM.
+export function fraccionCompartida(a: Coord[], b: Coord[], umbralM = 30): number {
+  if (a.length === 0 || b.length === 0) return 0;
+  const celda = 0.0004; // ~44 m
+  const clave = (lat: number, lng: number) => Math.floor(lat / celda) * 1e6 + Math.floor(lng / celda);
+  const rejilla = new Map<number, Coord[]>();
+  for (const p of b) {
+    const k = clave(p[0], p[1]);
+    const c = rejilla.get(k);
+    if (c) c.push(p); else rejilla.set(k, [p]);
+  }
+  let comunes = 0;
+  for (const p of a) {
+    let cerca = false;
+    const ci = Math.floor(p[0] / celda), cj = Math.floor(p[1] / celda);
+    for (let di = -1; di <= 1 && !cerca; di++) {
+      for (let dj = -1; dj <= 1 && !cerca; dj++) {
+        const c = rejilla.get((ci + di) * 1e6 + (cj + dj));
+        if (c) for (const q of c) if (distancia(p, q) <= umbralM) { cerca = true; break; }
+      }
+    }
+    if (cerca) comunes++;
+  }
+  return comunes / a.length;
+}

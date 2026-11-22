@@ -9,7 +9,7 @@
 
 import maplibregl from 'maplibre-gl';
 import { PMTiles, type Source, type RangeResponse } from 'pmtiles';
-import { ESTILO_MAPA_URL, ajustarUrlSinConexion } from './mapaOffline';
+import { ESTILO_MAPA_URL, PLANTILLA_SATELITE, TOKEN_MAPBOX, ajustarUrlSinConexion } from './mapaOffline';
 import { abrirArchivoPaquete, leerInstalados, type PaqueteInstalado } from './paquetes';
 
 class FuenteOpfs implements Source {
@@ -120,5 +120,47 @@ export async function estiloConPaquetes(): Promise<maplibregl.StyleSpecification
       attribution: atribucion,
     };
     return estilo as maplibregl.StyleSpecification;
+  } catch { return null; }
+}
+
+// Satélite CON nombres: la imagen de satélite abajo y, encima, solo las etiquetas
+// del mapa de calles (calles, colonias, lugares, agua), en blanco con contorno
+// oscuro para que se lean sobre la foto. Las etiquetas salen de los mismos
+// mosaicos del mapa (paquete instalado, zona descargada o internet), así que
+// también funcionan sin internet dentro de lo descargado.
+const CAPAS_CON_ETIQUETA = new Set(['transportation_name', 'place', 'water_name', 'poi', 'mountain_peak', 'park', 'aerodrome_label']);
+
+export async function estiloHibrido(maxzoomSat: number): Promise<maplibregl.StyleSpecification | null> {
+  registrarProtocoloPaquetes();
+  try {
+    const r = await fetch(ESTILO_MAPA_URL);
+    if (!r.ok) return null;
+    const base = await r.json();
+    const conPaquetes = leerInstalados().length > 0;
+    const vectorial = conPaquetes
+      ? { type: 'vector', tiles: ['paquete://{z}/{x}/{y}'], minzoom: 0, maxzoom: 14, attribution: base.sources?.openmaptiles?.attribution ?? '' }
+      : base.sources.openmaptiles;
+    const etiquetas = (base.layers as Array<Record<string, any>>)
+      .filter((l) => l.type === 'symbol' && l.source === 'openmaptiles' && CAPAS_CON_ETIQUETA.has(l['source-layer']) && !/transit|bus/.test(String(l.id)))
+      .map((l) => ({
+        ...l,
+        paint: { ...(l.paint ?? {}), 'text-color': '#ffffff', 'text-halo-color': 'rgba(0,0,0,0.85)', 'text-halo-width': 1.6, 'text-halo-blur': 0.4 },
+      }));
+    return {
+      version: 8,
+      glyphs: base.glyphs,
+      sprite: base.sprite,
+      sources: {
+        satelite: {
+          type: 'raster',
+          tiles: [PLANTILLA_SATELITE],
+          tileSize: 256,
+          maxzoom: maxzoomSat,
+          attribution: TOKEN_MAPBOX ? '© Mapbox © Maxar © OpenStreetMap' : 'Imágenes © Esri, Maxar, Earthstar Geographics',
+        },
+        openmaptiles: vectorial,
+      },
+      layers: [{ id: 'satelite-capa', type: 'raster', source: 'satelite' }, ...etiquetas],
+    } as unknown as maplibregl.StyleSpecification;
   } catch { return null; }
 }

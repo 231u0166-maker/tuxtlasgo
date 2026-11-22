@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Download, Check, Navigation, CheckCircle2, Loader2, X, Compass, LocateFixed, Layers, Plus, Minus, Map as MapIcon, Satellite, SlidersHorizontal } from 'lucide-react';
+import { Download, Check, Navigation, Share2, CheckCircle2, Loader2, X, Compass, LocateFixed, Layers, Plus, Minus, Map as MapIcon, Satellite, SlidersHorizontal } from 'lucide-react';
 import {
   LUGARES,
   LOS_TUXTLAS_BOUNDS,
@@ -47,8 +47,8 @@ import {
   leerPaquetePendiente, limpiarPaquetePendiente, hayActualizacion, hayServidorDePaquetes, opfsDisponible,
   type PaqueteCatalogo, type PaqueteInstalado,
 } from '../lib/paquetes';
-import { estiloConPaquetes, olvidarPaquetesAbiertos } from '../lib/paquetesMapa';
-import { obtenerUbicacionGPS, distanciaHaversine, formatearDistancia, type Coord, type ModoRuta } from '../lib/routing';
+import { estiloConPaquetes, estiloHibrido, olvidarPaquetesAbiertos } from '../lib/paquetesMapa';
+import { obtenerUbicacionGPS, distanciaHaversine, formatearDistancia, formatearDuracion, type Coord, type ModoRuta } from '../lib/routing';
 
 // Referencia estable a propósito: el Map reaplica maxBounds cada vez que
 // el prop cambia de identidad, y eso deshacería el desbloqueo para
@@ -240,8 +240,19 @@ function PinLugar({ categoria, onClick }: { categoria: string; onClick: () => vo
 function PinElegido() {
   return (
     <svg width="30" height="40" viewBox="0 0 30 40" style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.4))' }}>
-      <path d="M15 39C15 39 2 24.5 2 14.5C2 7 7.8 1.5 15 1.5C22.2 1.5 28 7 28 14.5C28 24.5 15 39 15 39Z" fill="#dc2626" stroke="white" strokeWidth="2.5" />
+      <path d="M15 39C15 39 2 24.5 2 14.5C2 7 7.8 1.5 15 1.5C22.2 1.5 28 7 28 14.5C28 24.5 15 39 15 39Z" fill="#f59e0b" stroke="white" strokeWidth="2.5" />
       <circle cx="15" cy="14.5" r="5" fill="white" />
+    </svg>
+  );
+}
+
+// Pin de destino de una ruta: mismo pin dorado con una banderita verde
+function PinDestino() {
+  return (
+    <svg width="34" height="44" viewBox="0 0 30 40" style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.4))' }}>
+      <path d="M15 39C15 39 2 24.5 2 14.5C2 7 7.8 1.5 15 1.5C22.2 1.5 28 7 28 14.5C28 24.5 15 39 15 39Z" fill="#f59e0b" stroke="white" strokeWidth="2.5" />
+      <line x1="11" y1="8" x2="11" y2="22" stroke="#14532d" strokeWidth="2" strokeLinecap="round" />
+      <path d="M11 8.5L21 11.5L11 15Z" fill="#14532d" />
     </svg>
   );
 }
@@ -397,6 +408,10 @@ interface Props {
     duracionSegundos?: number;
     aproximada: boolean;
     calculando: boolean;
+    // Tiempo del OTRO modo (a pie si vas en auto y al revés), para mostrarlo en su pestaña
+    alterna?: { modo: ModoRuta; duracionSegundos?: number; distanciaMetros?: number };
+    origen?: string;
+    destino?: string;
   };
   // Datos de la ruta dibujada, para poder guardarla con su mapa (sin internet)
   datosRuta?: {
@@ -414,6 +429,9 @@ interface Props {
   onCancelarElegirOrigen?: () => void;
   // Ruta a un lugar tocado en el mapa (ícono del mapa base o punto libre)
   onIrALugarElegido?: (coord: Coord, nombre: string) => void;
+  // Rutas alternas al mismo destino ("atajos") y cómo elegir una
+  alternativas?: { geometria: Coord[]; distanciaMetros: number; duracionSegundos: number }[];
+  onElegirAlternativa?: (indice: number) => void;
   onCambiarModoRuta?: (m: ModoRuta) => void;
   onRecalcularRuta?: (desde: Coord, m: ModoRuta) => void;
 }
@@ -457,6 +475,8 @@ export default function MapScreen({
   onElegirOrigen,
   onCancelarElegirOrigen,
   onIrALugarElegido,
+  alternativas,
+  onElegirAlternativa,
   onCambiarModoRuta,
   onRecalcularRuta,
 }: Props) {
@@ -508,6 +528,17 @@ export default function MapScreen({
       etiqueta: calle ? 'Punto en la calle' : 'Punto elegido',
       emoji: '📍',
     });
+  }, []);
+  // Compartir el lugar: hoja nativa del teléfono, o copiar el enlace
+  const compartirLugar = useCallback(async (l: LugarElegido) => {
+    const url = 'https://www.openstreetmap.org/?mlat=' + l.coord[0] + '&mlon=' + l.coord[1] + '#map=18/' + l.coord[0] + '/' + l.coord[1];
+    try {
+      if (navigator.share) await navigator.share({ title: l.nombre, text: l.nombre, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        setAvisoMapa('Enlace copiado');
+      }
+    } catch { /* el usuario canceló */ }
   }, []);
   // Al aparecer una ruta, el lugar elegido ya cumplió: se quita
   useEffect(() => { if (rutaResaltada) setLugarElegido(null); }, [rutaResaltada]);
@@ -786,7 +817,17 @@ export default function MapScreen({
     window.setTimeout(() => {
       const m = mapRef.current?.getMap();
       if (!m) return;
-      aplicarLimiteRegion();
+      // Fuera de Los Tuxtlas (p. ej. en Puebla) se libera el límite de la región AHORA,
+      // antes de mover la cámara; si no, el mapa se queda atorado en el borde.
+      if (fueraDeRegion(r.coord[0], r.coord[1])) {
+        origenFueraRef.current = true;
+        m.setMinZoom(4);
+        m.setMaxBounds(LIMITES_MEXICO);
+        // MapLibre toma los límites nuevos para la cámara en el siguiente movimiento: se fuerza uno sin efecto
+        m.jumpTo({ center: m.getCenter(), zoom: m.getZoom(), pitch: m.getPitch(), bearing: m.getBearing() });
+      } else {
+        aplicarLimiteRegion();
+      }
       m.flyTo({ center: [r.coord[1], r.coord[0]], zoom: 14, pitch: 0, duration: 1200 });
     }, 500);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -900,10 +941,16 @@ export default function MapScreen({
   const zoomMaxSatelite = satelitePorZonas
     ? Math.min(ZOOM_SATELITE_MAX, zoomSateliteGuardado + 2)
     : ZOOM_SATELITE_MAX;
-  const estiloSatActual = useMemo(
-    () => estiloSatelite(satelitePorZonas ? zoomSateliteGuardado : ZOOM_SATELITE_FUENTE),
-    [satelitePorZonas, zoomSateliteGuardado]
-  );
+  // Satélite con nombres de calles: empieza con el satélite solo y, en cuanto
+  // se arma el estilo híbrido (satélite + etiquetas), lo reemplaza.
+  const maxzoomSat = satelitePorZonas ? zoomSateliteGuardado : ZOOM_SATELITE_FUENTE;
+  const [estiloSatActual, setEstiloSatActual] = useState<object>(() => estiloSatelite(maxzoomSat));
+  useEffect(() => {
+    let vivo = true;
+    if (!vistaSatelite) { setEstiloSatActual(estiloSatelite(maxzoomSat)); return; }
+    estiloHibrido(maxzoomSat).then((e) => { if (vivo) setEstiloSatActual((e as object) ?? estiloSatelite(maxzoomSat)); });
+    return () => { vivo = false; };
+  }, [vistaSatelite, maxzoomSat, instalados.length]);
   // Al pasar a satélite, si la cámara está más cerca de lo permitido, se aleja.
   useEffect(() => {
     if (!vistaSatelite) return;
@@ -1024,14 +1071,15 @@ export default function MapScreen({
       type: 'FeatureCollection' as const,
       features: tramosValidos.map((tramo, i) => ({
         type: 'Feature' as const,
-        properties: { color: colorTramo(i) },
+        // Un solo destino → color laguna (el del agua/mapa en la plataforma); itinerarios con varias paradas conservan un color por tramo
+        properties: { color: (paradasResaltadas?.length ?? 0) <= 1 ? '#0891b2' : colorTramo(i) },
         geometry: {
           type: 'LineString' as const,
           coordinates: tramo.map(([lat, lng]) => [lng, lat]),
         },
       })),
     };
-  }, [rutaResaltada, tramosResaltados]);
+  }, [rutaResaltada, tramosResaltados, paradasResaltadas]);
 
   // Secuencia cinematográfica cuando aparece una ruta nueva:
   //   1) La cámara recorre las paradas en orden INVERSO (última,
@@ -1222,10 +1270,48 @@ export default function MapScreen({
         )}
 
         {paradasResaltadas?.map((p) => (
-          <Marker key={`parada-${p.orden}`} longitude={p.coord[1]} latitude={p.coord[0]}>
-            <PinParada orden={p.orden} />
-          </Marker>
+          paradasResaltadas.length === 1 ? (
+            <Marker key={`parada-${p.orden}`} longitude={p.coord[1]} latitude={p.coord[0]} anchor="bottom">
+              <PinDestino />
+            </Marker>
+          ) : (
+            <Marker key={`parada-${p.orden}`} longitude={p.coord[1]} latitude={p.coord[0]}>
+              <PinParada orden={p.orden} />
+            </Marker>
+          )
         ))}
+
+        {rutaResaltada && alternativas && !navegando && infoRuta?.duracionSegundos && alternativas.map((a, i) => {
+          if (a.geometria.length < 2) return null;
+          const punto = a.geometria[Math.floor(a.geometria.length * (i % 2 === 0 ? 0.35 : 0.65))];
+          const dMin = Math.round((a.duracionSegundos - (infoRuta.duracionSegundos ?? 0)) / 60);
+          const dMetros = a.distanciaMetros - (infoRuta.distanciaMetros ?? 0);
+          const signo = (n: number) => (n >= 0 ? '+' : '−');
+          return (
+            <Marker key={'alt-' + i} longitude={punto[1]} latitude={punto[0]} anchor="center">
+              <button
+                onClick={(e) => { e.stopPropagation(); onElegirAlternativa?.(i); }}
+                className="bg-slate-600 hover:bg-slate-700 text-white text-[11px] font-bold rounded-lg px-2 py-1 shadow-lg border border-white/70 whitespace-nowrap"
+                aria-label={t('Elegir ruta alterna')}
+              >
+                {dMin === 0 ? '≈ igual' : signo(dMin) + Math.abs(dMin) + ' min'} · {signo(dMetros)}{formatearDistancia(Math.abs(dMetros))}
+              </button>
+            </Marker>
+          );
+        })}
+
+        {/* Etiqueta con tiempo y distancia sobre la ruta (como MAPS.ME) */}
+        {rutaResaltada && rutaResaltada.length >= 2 && infoRuta?.duracionSegundos && !infoRuta.aproximada && !navegando && (() => {
+          const mid = rutaResaltada[Math.floor(rutaResaltada.length / 2)];
+          return (
+            <Marker longitude={mid[1]} latitude={mid[0]} anchor="center">
+              <div className="bg-laguna-600 text-white text-[11px] font-bold rounded-lg px-2 py-1 shadow-lg border border-white/70 whitespace-nowrap pointer-events-none">
+                {formatearDuracion(infoRuta.duracionSegundos)}
+                {infoRuta.distanciaMetros ? ' · ' + formatearDistancia(infoRuta.distanciaMetros) : ''}
+              </div>
+            </Marker>
+          );
+        })()}
 
         {navPos && (
           <Marker longitude={navPos[1]} latitude={navPos[0]}>
@@ -1239,13 +1325,37 @@ export default function MapScreen({
           </Marker>
         )}
 
+        {rutaResaltada && alternativas && alternativas.length > 0 && !navegando && (
+          <Source
+            id="ruta-alt"
+            type="geojson"
+            data={{
+              type: 'FeatureCollection',
+              features: alternativas.map((a, i) => ({
+                type: 'Feature',
+                properties: { i },
+                geometry: { type: 'LineString', coordinates: a.geometria.map(([lat, lng]) => [lng, lat]) },
+              })),
+            } as any}
+          >
+            <Layer id="ruta-alt-contorno" type="line" layout={{ 'line-cap': 'round', 'line-join': 'round' }} paint={{ 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.9 }} />
+            <Layer id="ruta-alt-linea" type="line" layout={{ 'line-cap': 'round', 'line-join': 'round' }} paint={{ 'line-color': '#64748b', 'line-width': 5, 'line-opacity': 0.95 }} />
+          </Source>
+        )}
+
         {rutaGeoJSON && (
           <Source id="ruta-dia" type="geojson" data={rutaGeoJSON as any}>
+            <Layer
+              id="ruta-dia-contorno"
+              type="line"
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              paint={{ 'line-color': '#ffffff', 'line-width': 10, 'line-opacity': 0.95 }}
+            />
             <Layer
               id="ruta-dia-linea"
               type="line"
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-              paint={{ 'line-color': ['get', 'color'], 'line-width': 5, 'line-opacity': 0.85 }}
+              paint={{ 'line-color': ['get', 'color'], 'line-width': 6, 'line-opacity': 1 }}
             />
           </Source>
         )}
@@ -1450,31 +1560,45 @@ export default function MapScreen({
         <div
           role="dialog"
           aria-label={lugarElegido.nombre}
-          className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/85 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-xl border border-white/60 p-3"
+          className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/90 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-2xl border border-white/60 px-4 pt-2.5 pb-4"
         >
-          <div className="flex items-center gap-3">
-            <span className="w-11 h-11 rounded-2xl bg-jungle-100 flex items-center justify-center text-xl flex-none">{lugarElegido.emoji}</span>
+          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-jungle-900/15" aria-hidden="true" />
+          <div className="flex items-start gap-3">
+            <span className="w-12 h-12 rounded-2xl bg-jungle-50 border border-jungle-100 flex items-center justify-center text-2xl flex-none">{lugarElegido.emoji}</span>
             <div className="flex-1 min-w-0">
-              <p className="font-display font-bold text-jungle-950 leading-tight truncate">{lugarElegido.nombre}</p>
-              <p className="text-xs text-jungle-600 truncate">
-                {lugarElegido.etiqueta}
-                {ubic && ' · ' + formatearDistancia(distanciaHaversine(ubic, lugarElegido.coord)) + ' ' + t('en línea recta')}
+              <p className="font-display font-bold text-jungle-950 text-lg leading-tight truncate">{lugarElegido.nombre}</p>
+              <div className="flex items-center gap-1.5 mt-1 text-xs text-jungle-700">
+                <span className="rounded-full bg-jungle-100 text-jungle-800 px-2 py-0.5 font-semibold">{lugarElegido.etiqueta}</span>
+                {ubic && <span>{t('a')} {formatearDistancia(distanciaHaversine(ubic, lugarElegido.coord))} {t('en línea recta')}</span>}
+              </div>
+              <p className="text-[11px] text-jungle-500 mt-1 tabular-nums">
+                {lugarElegido.coord[0].toFixed(5)}, {lugarElegido.coord[1].toFixed(5)}
               </p>
             </div>
             <button
               onClick={() => setLugarElegido(null)}
-              className="w-8 h-8 rounded-full bg-white/70 hover:bg-white text-jungle-700 flex items-center justify-center flex-none"
+              className="w-8 h-8 rounded-full bg-jungle-50 hover:bg-jungle-100 text-jungle-700 flex items-center justify-center flex-none"
               aria-label={t('Cerrar')}
             >
               <X size={17} />
             </button>
           </div>
-          <button
-            onClick={() => { const l = lugarElegido; setLugarElegido(null); onIrALugarElegido?.(l.coord, l.nombre); }}
-            className="mt-3 w-full bg-jungle-700 hover:bg-jungle-800 text-white rounded-2xl py-2.5 font-semibold text-sm flex items-center justify-center gap-1.5 shadow-md"
-          >
-            <Navigation size={16} /> {t('Ir')}
-          </button>
+          <div className="mt-3.5 flex gap-2">
+            <button
+              onClick={() => { const l = lugarElegido; setLugarElegido(null); onIrALugarElegido?.(l.coord, l.nombre); }}
+              className="flex-1 bg-jungle-700 hover:bg-jungle-800 text-white rounded-2xl py-3 font-semibold text-sm flex items-center justify-center gap-2 shadow-md"
+            >
+              <Navigation size={17} /> {t('Cómo llegar')}
+            </button>
+            <button
+              onClick={() => compartirLugar(lugarElegido)}
+              className="w-12 rounded-2xl border-2 border-jungle-200 hover:bg-jungle-50 text-jungle-800 flex items-center justify-center"
+              aria-label={t('Compartir lugar')}
+              title={t('Compartir lugar')}
+            >
+              <Share2 size={18} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1495,6 +1619,11 @@ export default function MapScreen({
           guardando={!!tarea}
           guardada={!!rutaResaltada && geomGuardada === rutaResaltada}
           zonasClave={zonas.map((z) => z.id).join(',')}
+          alterna={infoRuta.alterna}
+          origen={infoRuta.origen}
+          destino={infoRuta.destino}
+          alternativas={alternativas}
+          onElegirAlternativa={onElegirAlternativa}
         />
       )}
 

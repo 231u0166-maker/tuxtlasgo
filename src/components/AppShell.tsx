@@ -32,7 +32,8 @@ import { useDialogA11y } from '../lib/useDialogA11y';
 import { estaEnLaRegion, type Lugar } from '../data/lugares';
 import type { RutaGuardada } from '../lib/mapaOffline';
 import AvisoDescargaMapa from './AvisoDescargaMapa';
-import { obtenerRutaPorTramos, obtenerUbicacionGPS, type Coord, type ModoRuta } from '../lib/routing';
+import { fraccionCompartida } from '../lib/navegacion';
+import { obtenerRutaPorTramos, obtenerAlternativas, obtenerUbicacionGPS, type Coord, type ModoRuta, type RutaAlternativa } from '../lib/routing';
 
 // Honestidad: una línea recta NO es una ruta por calles; se avisa siempre.
 const AVISO_RUTA_RECTA =
@@ -70,6 +71,12 @@ interface RutaVisible {
   // true si algún tramo es solo línea recta (no hay ruta por calles)
   aproximada?: boolean;
   nombre?: string; // para guardarla con nombre ("Nanciyaga", "Ruta de 3 paradas")
+  // Cómo se llama el punto de salida en pantalla ("Mi ubicación" o "Punto de salida")
+  origenNombre?: string;
+  // Tiempo del otro modo (auto ↔ a pie), calculado aparte para mostrarlo en su pestaña
+  alterna?: { modo: ModoRuta; duracionSegundos?: number; distanciaMetros?: number };
+  // Rutas alternas ("atajos") al mismo destino; al elegir una se intercambia con la principal
+  alternativas?: RutaAlternativa[];
 }
 
 const TABS: { id: Tab; label: string; icon: typeof Compass }[] = [
@@ -466,7 +473,8 @@ export default function AppShell() {
     puntos: Coord[],
     paradas: { coord: Coord; orden: number }[],
     modo: ModoRuta,
-    nombre?: string
+    nombre?: string,
+    origenNombre?: string
   ) => {
     try {
       if (puntos.length >= 2) {
@@ -481,8 +489,32 @@ export default function AppShell() {
           duracionSegundos: r.duracionTotalSegundos,
           aproximada: r.hayTramosRectos,
           nombre,
+          origenNombre,
         });
         if (r.hayTramosRectos) setErrorRuta(AVISO_RUTA_RECTA);
+        // Un solo destino: también se calcula el otro modo, para que su pestaña muestre el tiempo
+        if (paradas.length <= 1 && !r.hayTramosRectos) {
+          const otro: ModoRuta = modo === 'auto' ? 'pie' : 'auto';
+          obtenerRutaPorTramos(puntos, otro)
+            .then((ra) => setRutaVisible((prev) => (prev && prev.puntos === puntos
+              ? { ...prev, alterna: { modo: otro, duracionSegundos: ra.hayTramosRectos ? undefined : ra.duracionTotalSegundos, distanciaMetros: ra.distanciaTotalMetros } }
+              : prev)))
+            .catch(() => { /* sin tiempo del otro modo: la pestaña muestra "—" */ });
+          // Y las rutas alternas del mismo modo (con internet o con las calles guardadas)
+          obtenerAlternativas(puntos, modo)
+            .then((alts) => {
+              // Solo sirven las que van por OTRAS calles: se descartan las que recorren
+              // más del 75 % de la principal (es la misma ruta con una variación mínima),
+              // y las que tardan más del doble.
+              const principal = r.tramos.flatMap((t) => t.geometria);
+              const utiles = alts.filter((a) =>
+                fraccionCompartida(a.geometria, principal) < 0.75 &&
+                a.duracionSegundos < r.duracionTotalSegundos * 2 + 120);
+              if (utiles.length === 0) return;
+              setRutaVisible((prev) => (prev && prev.puntos === puntos ? { ...prev, alternativas: utiles } : prev));
+            })
+            .catch(() => { /* sin alternas */ });
+        }
       } else {
         setRutaVisible({ geometria: puntos, tramos: [], paradas, puntos, modo, nombre });
       }
@@ -556,8 +588,29 @@ export default function AppShell() {
     setMiUbicacion(origen);
     setCargandoRuta(true);
     setErrorRuta(null);
-    await calcularRuta([origen, pend.destino], pend.paradas, 'auto', pend.nombre);
+    await calcularRuta([origen, pend.destino], pend.paradas, 'auto', pend.nombre, 'Punto de salida');
     setCargandoRuta(false);
+  };
+
+  // Elegir una ruta alterna: pasa a ser la principal y la anterior queda como alterna
+  const elegirAlternativa = (i: number) => {
+    setRutaVisible((prev) => {
+      if (!prev?.alternativas?.[i]) return prev;
+      const alt = prev.alternativas[i];
+      const anterior: RutaAlternativa = {
+        geometria: prev.geometria,
+        distanciaMetros: prev.distanciaMetros ?? 0,
+        duracionSegundos: prev.duracionSegundos ?? 0,
+      };
+      return {
+        ...prev,
+        geometria: alt.geometria,
+        tramos: [alt.geometria],
+        distanciaMetros: alt.distanciaMetros,
+        duracionSegundos: alt.duracionSegundos,
+        alternativas: prev.alternativas.map((a, j) => (j === i ? anterior : a)),
+      };
+    });
   };
 
   // Abre una ruta guardada (con su mapa descargado): funciona sin internet.
@@ -586,7 +639,7 @@ export default function AppShell() {
     setErrorRuta(null);
     const resto = rutaVisible.puntos.length > 1 ? rutaVisible.puntos.slice(1) : rutaVisible.puntos;
     const puntos = desde ? [desde, ...resto] : rutaVisible.puntos;
-    await calcularRuta(puntos, rutaVisible.paradas, modo, rutaVisible.nombre);
+    await calcularRuta(puntos, rutaVisible.paradas, modo, rutaVisible.nombre, rutaVisible.origenNombre);
     setCargandoRuta(false);
   };
 
@@ -1181,6 +1234,8 @@ export default function AppShell() {
             elegirOrigen={pendienteOrigen ? { nombre: pendienteOrigen.nombre } : null}
             onElegirOrigen={elegirOrigenListo}
             onIrALugarElegido={irAPunto}
+            alternativas={rutaVisible?.alternativas}
+            onElegirAlternativa={elegirAlternativa}
             onCancelarElegirOrigen={() => setPendienteOrigen(null)}
             infoRuta={rutaVisible ? {
               modo: rutaVisible.modo ?? 'auto',
@@ -1188,6 +1243,9 @@ export default function AppShell() {
               duracionSegundos: rutaVisible.duracionSegundos,
               aproximada: !!rutaVisible.aproximada,
               calculando: cargandoRuta,
+              alterna: rutaVisible.alterna,
+              origen: rutaVisible.origenNombre ?? 'Mi ubicación',
+              destino: rutaVisible.nombre,
             } : undefined}
             datosRuta={rutaVisible?.puntos ? {
               nombre: rutaVisible.nombre ?? 'Ruta',

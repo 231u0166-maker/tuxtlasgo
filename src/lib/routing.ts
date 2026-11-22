@@ -13,7 +13,7 @@
 // ============================================================
 
 import { db } from './db';
-import { rutaPorCallesOffline, precargarGrafoVial, type ModoRuta } from './rutasOffline';
+import { rutaPorCallesOffline, rutasAlternativasOffline, precargarGrafoVial, type ModoRuta } from './rutasOffline';
 
 export type { ModoRuta };
 
@@ -136,6 +136,37 @@ async function llamarOsrm(puntos: Coord[], modo: ModoRuta): Promise<RutaCalculad
     }
   }
   throw ultimoError ?? new Error('Ningún endpoint de OSRM respondió');
+}
+
+// Rutas alternas ("atajos") entre dos puntos, además de la principal.
+export interface RutaAlternativa {
+  geometria: Coord[];
+  distanciaMetros: number;
+  duracionSegundos: number;
+}
+export async function obtenerAlternativas(puntos: Coord[], modo: ModoRuta = 'auto'): Promise<RutaAlternativa[]> {
+  if (puntos.length !== 2) return [];
+  // Con internet: OSRM entrega alternas reales de su red completa
+  if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+    const coordsStr = puntos.map(([lat, lng]) => `${lng},${lat}`).join(';');
+    for (const { base, perfil } of ENDPOINTS_OSRM[modo]) {
+      try {
+        const resp = await fetch(`${base}/route/v1/${perfil}/${coordsStr}?overview=full&geometries=polyline&alternatives=true`, { signal: AbortSignal.timeout(8000) });
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        if (data.code !== 'Ok' || !data.routes?.length) continue;
+        return (data.routes as { geometry: string; distance: number; duration: number }[])
+          .slice(1, 3)
+          .map((r) => ({ geometria: decodificarPolyline(r.geometry), distanciaMetros: r.distance, duracionSegundos: r.duration }));
+      } catch { /* prueba el siguiente servidor */ }
+    }
+  }
+  // Sin internet (o sin respuesta): con las calles guardadas en el teléfono
+  try {
+    return await rutasAlternativasOffline(puntos[0], puntos[1], modo, 2);
+  } catch {
+    return [];
+  }
 }
 
 // Función principal: pide la ruta entre N puntos siguiendo carreteras.

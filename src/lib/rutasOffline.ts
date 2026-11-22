@@ -297,24 +297,81 @@ export function olvidarGrafosZona(): void { grafosZona.clear(); }
 
 // Ruta más rápida usando las zonas descargadas que cubren ambos puntos
 // (y la región base de Los Tuxtlas que viene con la app).
-export async function rutaPorCallesOffline(a: Coord, b: Coord, modo: ModoRuta = 'auto'): Promise<RutaOffline | null> {
+async function grafoConRuta(a: Coord, b: Coord, modo: ModoRuta): Promise<{ g: Grafo; principal: RutaConAristas } | null> {
   const zonas = leerZonas()
     .filter((z) => z.grafo && enCaja(z.caja, a) && enCaja(z.caja, b))
     .sort((x, y) => y.fecha - x.fecha);
   for (const z of zonas) {
     const g = await cargarGrafoZona(z.id);
     const r = g ? calcularRuta(g, a, b, modo) : null;
-    if (r) return r;
+    if (g && r) return { g, principal: r };
   }
   const [[s0, w0], [n0, e0]] = LOS_TUXTLAS_BOUNDS;
   if (enCaja([w0, s0, e0, n0], a, 0.1) && enCaja([w0, s0, e0, n0], b, 0.1)) {
     const base = await cargarGrafoVial();
-    if (base) return calcularRuta(base, a, b, modo);
+    const r = base ? calcularRuta(base, a, b, modo) : null;
+    if (base && r) return { g: base, principal: r };
   }
   return null;
 }
 
-function calcularRuta(g: Grafo, a: Coord, b: Coord, modo: ModoRuta): RutaOffline | null {
+export async function rutaPorCallesOffline(a: Coord, b: Coord, modo: ModoRuta = 'auto'): Promise<RutaOffline | null> {
+  const sel = await grafoConRuta(a, b, modo);
+  if (!sel) return null;
+  const { aristas: _aristas, ...ruta } = sel.principal;
+  void _aristas;
+  return ruta;
+}
+
+// Rutas alternas sin internet (método de penalización): se vuelve a calcular la
+// ruta haciendo "más caras" las calles que ya usa la principal, así aparece otro
+// camino real. Solo se aceptan las que se parecen poco a las anteriores y no son
+// absurdamente más lentas.
+export async function rutasAlternativasOffline(a: Coord, b: Coord, modo: ModoRuta = 'auto', max = 2): Promise<RutaOffline[]> {
+  const sel = await grafoConRuta(a, b, modo);
+  if (!sel) return [];
+  return alternativasEnGrafo(sel.g, sel.principal, a, b, modo, max);
+}
+
+function alternativasEnGrafo(g: Grafo, principal: RutaConAristas, a: Coord, b: Coord, modo: ModoRuta, max: number): RutaOffline[] {
+  const { metros } = g.csr[modo];
+  const penalizadas = new Set(principal.aristas);
+  const previas: Set<number>[] = [new Set(principal.aristas)];
+  const salida: RutaOffline[] = [];
+  const parecido = (aristas: number[], contra: Set<number>) => {
+    let comun = 0, total = 0;
+    for (const e of aristas) { total += metros[e]; if (contra.has(e)) comun += metros[e]; }
+    return total > 0 ? comun / total : 1;
+  };
+  for (let k = 0; k < max + 1 && salida.length < max; k++) {
+    const alt = calcularRuta(g, a, b, modo, { aristas: penalizadas, factor: 2.2 });
+    if (!alt) break;
+    const repetida = previas.some((p) => parecido(alt.aristas, p) > 0.7);
+    const muyLenta = alt.duracionSegundos > principal.duracionSegundos * 1.7 + 60;
+    for (const e of alt.aristas) penalizadas.add(e); // la siguiente intenta otro camino distinto
+    if (repetida || muyLenta) continue;
+    previas.push(new Set(alt.aristas));
+    const { aristas: _a, ...ruta } = alt;
+    void _a;
+    salida.push(ruta);
+  }
+  return salida;
+}
+
+// Para pruebas: alternas sobre datos de grafo ya cargados
+export function alternativasEnDatos(
+  datos: { nodos: [number, number][]; aristas: [number, number, number, number, number, string][] },
+  a: Coord, b: Coord, modo: ModoRuta = 'auto', max = 2
+): RutaOffline[] {
+  const g = grafoDesdeDatos(datos);
+  const principal = calcularRuta(g, a, b, modo);
+  return principal ? alternativasEnGrafo(g, principal, a, b, modo, max) : [];
+}
+
+interface Penalizacion { aristas: Set<number>; factor: number }
+type RutaConAristas = RutaOffline & { aristas: number[] };
+
+function calcularRuta(g: Grafo, a: Coord, b: Coord, modo: ModoRuta, penal?: Penalizacion): RutaConAristas | null {
   const sa = nodoCercano(g, a, modo);
   const sb = nodoCercano(g, b, modo);
   if (!sa || !sb) return null;
@@ -337,7 +394,7 @@ function calcularRuta(g: Grafo, a: Coord, b: Coord, modo: ModoRuta): RutaOffline
     if (u === sb.nodo) break;
     for (let e = ini[u]; e < ini[u + 1]; e++) {
       const v = dest[e];
-      const c = costo[u] + seg[e];
+      const c = costo[u] + seg[e] * (penal && penal.aristas.has(e) ? penal.factor : 1);
       if (c < costo[v]) {
         costo[v] = c; previo[v] = u; aristaPrevia[v] = e;
         cola.push(c + h(v), v);
@@ -348,9 +405,13 @@ function calcularRuta(g: Grafo, a: Coord, b: Coord, modo: ModoRuta): RutaOffline
 
   // Reconstruir de atrás hacia adelante
   const tramos: Coord[][] = [];
+  const usadas: number[] = [];
   let metrosRuta = 0;
+  let segReal = 0; // tiempo SIN penalización (el de verdad)
   for (let v = sb.nodo; previo[v] !== -1; v = previo[v]) {
     const e = aristaPrevia[v];
+    usadas.push(e);
+    segReal += seg[e];
     const u = previo[v];
     const interm = forma[e] ? decodificar(forma[e]!) : [];
     if (formaInversa[e]) interm.reverse();
@@ -364,8 +425,8 @@ function calcularRuta(g: Grafo, a: Coord, b: Coord, modo: ModoRuta): RutaOffline
 
   // El trayecto del punto a la calle (inicio/fin) se hace a ~25 km/h
   metrosRuta += sa.metros + sb.metros;
-  const duracion = costo[sb.nodo] + (sa.metros + sb.metros) / (modo === 'pie' ? VEL_PIE : 25 / 3.6);
-  return { geometria, distanciaMetros: metrosRuta, duracionSegundos: duracion };
+  const duracion = segReal + (sa.metros + sb.metros) / (modo === 'pie' ? VEL_PIE : 25 / 3.6);
+  return { geometria, distanciaMetros: metrosRuta, duracionSegundos: duracion, aristas: usadas };
 }
 
 // Para pruebas y herramientas: ruta sobre datos de grafo ya cargados
@@ -373,5 +434,9 @@ export function rutaEnDatos(
   datos: { nodos: [number, number][]; aristas: [number, number, number, number, number, string][] },
   a: Coord, b: Coord, modo: ModoRuta = 'auto'
 ): RutaOffline | null {
-  return calcularRuta(grafoDesdeDatos(datos), a, b, modo);
+  const r = calcularRuta(grafoDesdeDatos(datos), a, b, modo);
+  if (!r) return null;
+  const { aristas: _a, ...ruta } = r;
+  void _a;
+  return ruta;
 }

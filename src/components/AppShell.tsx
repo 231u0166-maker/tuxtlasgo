@@ -1134,10 +1134,11 @@ export default function AppShell() {
             {tab === 'mapa' && (
               <button
                 onClick={() => { setRutaVisible(null); setMiUbicacion(null); cambiarTab(tabAntesDeMapa); }}
-                className="absolute top-3 left-3 z-30 bg-jungle-700 hover:bg-jungle-800 text-white shadow-lg rounded-full pl-3 pr-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold"
+                className="absolute top-3 left-3 z-30 w-10 h-10 rounded-full bg-white/85 hover:bg-white backdrop-blur-md border border-white/70 shadow-lg text-jungle-800 flex items-center justify-center"
                 aria-label={t('Cerrar mapa')}
+                title={t('Cerrar mapa')}
               >
-                <X size={14} /> {t('Cerrar mapa')}
+                <X size={19} />
               </button>
             )}
 

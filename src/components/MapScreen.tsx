@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Map, Marker, Source, Layer, type MapRef } from '@vis.gl/react-maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Download, CheckCircle2, Loader2, X, Compass, LocateFixed, Layers, Plus, Minus, Map as MapIcon, Satellite, SlidersHorizontal } from 'lucide-react';
+import { Download, Check, CheckCircle2, Loader2, X, Compass, LocateFixed, Layers, Plus, Minus, Map as MapIcon, Satellite, SlidersHorizontal } from 'lucide-react';
 import {
   LUGARES,
   LOS_TUXTLAS_BOUNDS,
@@ -1185,6 +1185,24 @@ export default function MapScreen({
         style={{ position: 'absolute', bottom: '140px', right: '12px', zIndex: 30 }}
         className="flex flex-col items-end gap-2"
       >
+        {/* Mapa sin internet: mismo lenguaje que el resto de controles (círculo
+            de cristal con ícono); la palomita verde indica que ya hay un mapa guardado. */}
+        {!vistaCompacta && (
+          <button
+            onClick={() => { setErrorDescarga(null); setMostrarPanelOffline(true); }}
+            className="relative w-10 h-10 bg-white/85 hover:bg-white backdrop-blur-md rounded-full shadow-lg flex items-center justify-center text-jungle-800 border border-white/70"
+            title={t('Mapa sin internet')}
+            aria-label={t('Mapa sin internet')}
+          >
+            <Download size={18} />
+            {zonas.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-jungle-600 text-white flex items-center justify-center border-2 border-white">
+                <Check size={9} strokeWidth={4} />
+              </span>
+            )}
+          </button>
+        )}
+
         {/* Filtros — categorías reales del catálogo. Blanco como el
             resto del cluster a propósito: un botón verde sólido aquí
             competía visualmente con los pines y con "Cerrar ruta" —
@@ -1343,18 +1361,7 @@ export default function MapScreen({
                 {t('Cancelar')}
               </button>
             </div>
-          ) : (
-            <button
-              onClick={() => { setErrorDescarga(null); setMostrarPanelOffline(true); }}
-              className="bg-white/80 hover:bg-white backdrop-blur-md border border-white/70 shadow-lg rounded-2xl px-3 py-2 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-jungle-900"
-              aria-label={t('Mapa sin internet')}
-            >
-              {zonas.length > 0
-                ? <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
-                : <Download size={14} className="flex-shrink-0" />}
-              <span>{zonas.length > 0 ? t('Mapa offline ✓') : t('Descargar mapa')}</span>
-            </button>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -1484,16 +1491,19 @@ function PanelMapaOffline({
   const t = useT();
   // El centro se fija al abrir el panel (si siguiera al mapa, la zona se movería sola)
   const centroInicial = useRef(centro).current;
-  const [desde, setDesde] = useState<'mapa' | 'yo'>('mapa');
+  const [usarMiPos, setUsarMiPos] = useState(false);
   const [miPos, setMiPos] = useState<[number, number] | null>(null);
   const [buscandoGps, setBuscandoGps] = useState(false);
   const [avisoGps, setAvisoGps] = useState<string | null>(null);
   const [tamano, setTamano] = useState<TamanoZona>('ciudad');
   const [conSatelite, setConSatelite] = useState(true);
   const [alta, setAlta] = useState(false);
-  const centroEfectivo: [number, number] = desde === 'yo' && miPos ? miPos : centroInicial;
+  const hayPaquetes = catalogo.length > 0 || instalados.length > 0;
+  const centroEfectivo: [number, number] = usarMiPos && miPos ? miPos : centroInicial;
   const caja = useMemo(() => cajaDeZona(tamano, centroEfectivo), [tamano, centroEfectivo]);
   const plan = useMemo(() => planearZona(caja, conSatelite, alta), [caja, conSatelite, alta]);
+  // La alta calidad solo cambia algo en la zona más chica
+  const mostrarAlta = conSatelite && tamano === 'pequena';
 
   // Dibuja en el mapa el cuadro que se va a descargar
   useEffect(() => {
@@ -1501,65 +1511,68 @@ function PanelMapaOffline({
   }, [caja]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onPreview(null), []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const usarMiUbicacion = async () => {
+  const alternarMiUbicacion = async () => {
+    if (usarMiPos) { setUsarMiPos(false); return; }
     setAvisoGps(null);
+    if (miPos) { setUsarMiPos(true); return; }
     setBuscandoGps(true);
     const r = await obtenerUbicacionGPS();
     setBuscandoGps(false);
     if (!r) {
-      setAvisoGps('No pude obtener tu ubicación. Revisa el permiso de ubicación; mientras tanto puedes mover el mapa y elegir "Lo que veo".');
+      setAvisoGps(t('No pude obtener tu ubicación. Revisa el permiso, o mueve el mapa a donde quieras guardar.'));
       return;
     }
     setMiPos(r.coord);
-    setDesde('yo');
+    setUsarMiPos(true);
   };
+
+  const opciones: { id: TamanoZona; nombre: string; km: string }[] = [
+    { id: 'pequena', nombre: t('Cerca'), km: '6 km' },
+    { id: 'ciudad', nombre: t('Ciudad'), km: '15 km' },
+    { id: 'region', nombre: t('Región'), km: '30 km' },
+  ];
+  const zonasPropias = zonas.filter((z) => !z.paquete);
 
   return (
     <div className="absolute inset-0 z-40 pointer-events-none">
       <div
         role="dialog"
         aria-label={t('Mapa sin internet')}
-        className="pointer-events-auto absolute left-3 right-3 bottom-3 max-h-[62%] flex flex-col rounded-3xl bg-white/80 backdrop-blur-xl backdrop-saturate-150 border border-white/60 shadow-2xl lg:left-6 lg:right-auto lg:top-20 lg:bottom-auto lg:max-h-[calc(100%-6.5rem)] lg:w-[400px]"
+        className="pointer-events-auto absolute left-3 right-3 bottom-3 max-h-[62%] flex flex-col rounded-3xl bg-white/80 backdrop-blur-xl backdrop-saturate-150 border border-white/60 shadow-2xl lg:left-6 lg:right-auto lg:top-20 lg:bottom-auto lg:max-h-[calc(100%-6.5rem)] lg:w-[380px]"
       >
-        <div className="flex items-center gap-3 px-4 pt-4 pb-2 flex-none">
-          <span className="w-9 h-9 rounded-full bg-jungle-700 text-white flex items-center justify-center flex-none"><Download size={17} /></span>
+        <div className="flex items-center gap-3 px-4 pt-4 pb-1 flex-none">
           <div className="flex-1 min-w-0">
             <h3 className="font-display font-bold text-lg text-jungle-950 leading-tight">{t('Mapa sin internet')}</h3>
+            <p className="text-xs text-jungle-700">{t('Descárgalo con Wi-Fi y úsalo sin señal.')}</p>
           </div>
           <button onClick={onCerrar} className="w-8 h-8 rounded-full bg-white/70 hover:bg-white text-jungle-700 flex items-center justify-center flex-none" aria-label={t('Cerrar')}>
             <X size={17} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
-        <p className="text-xs text-jungle-700 mb-3">
-          {zonas.length > 0
-            ? t('Ya tienes mapas guardados: todo lo que quede dentro funciona sin internet, sin preguntar nada. Agrega otra zona solo si vas a salir de ellas.')
-            : t('Guarda calles, edificios, satélite, rutas y senderos de una zona de México para usarlos sin señal. Hazlo con Wi-Fi antes de salir.')}
-        </p>
 
-        {error && (
-          <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</p>
-        )}
-        {sinConexion && (
-          <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-            {t('Estás sin internet: para descargar necesitas conectarte.')}
-          </p>
-        )}
+        <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2">
+          {error && (
+            <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50/90 border border-red-200 rounded-xl px-3 py-2 mb-3">{error}</p>
+          )}
+          {sinConexion && (
+            <p className="text-xs font-semibold text-amber-800 bg-amber-50/90 border border-amber-200 rounded-xl px-3 py-2 mb-3">
+              {t('Sin internet: para descargar necesitas conectarte.')}
+            </p>
+          )}
 
-        {(catalogo.length > 0 || instalados.length > 0) && (
-          <div className="mb-3">
-            <p className="text-xs font-semibold text-jungle-800 mb-1.5">{t('Mapas por región (recomendado)')}</p>
-            <ul className="space-y-1.5">
+          {/* Lo más fácil: un estado entero con un toque */}
+          {hayPaquetes && (
+            <ul className="space-y-2 mb-3">
               {catalogo.map((c) => {
                 const inst = instalados.find((i) => i.id === c.id);
                 const nueva = inst ? hayActualizacion(inst, catalogo) : null;
                 const mb = Math.round((c.bytesMapa + c.bytesGrafo) / 1048576);
                 return (
-                  <li key={c.id} className="flex items-center gap-2 rounded-2xl border border-white/80 bg-white/70 px-3 py-2.5">
+                  <li key={c.id} className="flex items-center gap-3 rounded-2xl border border-white/80 bg-white/70 px-3.5 py-2.5">
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm font-semibold text-jungle-900">{c.nombre}</span>
                       <span className="block text-[11px] text-jungle-600">
-                        {inst ? `✓ ${t('Instalado')} · ${t('funciona sin internet')}` : `${mb} MB${c.descripcion ? ' · ' + c.descripcion : ''}`}
+                        {inst ? `✓ ${t('Listo para usar sin internet')}` : `${mb} MB`}
                       </span>
                     </span>
                     {inst ? (
@@ -1573,7 +1586,7 @@ function PanelMapaOffline({
                       <button
                         disabled={sinConexion || !opfsDisponible()}
                         onClick={() => onInstalarPaquete(c)}
-                        className="bg-jungle-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg px-3 py-1.5"
+                        className="bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white text-xs font-semibold rounded-xl px-3.5 py-2"
                       >
                         {t('Descargar')}
                       </button>
@@ -1582,105 +1595,104 @@ function PanelMapaOffline({
                 );
               })}
             </ul>
-            <p className="text-[11px] text-jungle-500 mt-1.5">
-              {t('Una descarga y todo funciona dentro de la región: mapa, rutas y senderos. El satélite no viene en el paquete; se guarda aparte en "Más opciones".')}
-            </p>
-          </div>
-        )}
+          )}
 
-        <details open={catalogo.length === 0 && instalados.length === 0} className="mb-3 rounded-2xl bg-white/45 border border-white/70 px-3 py-2.5">
-          <summary className="text-xs font-semibold text-jungle-800 cursor-pointer">{t('Más opciones: zona, satélite o ruta')}</summary>
-        <p className="text-xs font-semibold text-jungle-800 mb-1.5">1. {t('¿Alrededor de qué punto?')}</p>
-        <div className="grid grid-cols-2 gap-2 mb-1.5">
-          <button
-            onClick={() => setDesde('mapa')}
-            aria-pressed={desde === 'mapa'}
-            className={'rounded-2xl border-2 px-2 py-2 text-xs font-semibold ' + (desde === 'mapa' ? 'border-jungle-700 bg-white text-jungle-900' : 'border-jungle-200/80 bg-white/55 text-jungle-700')}
-          >
-            {t('Lo que veo en el mapa')}
-          </button>
-          <button
-            onClick={usarMiUbicacion}
-            disabled={buscandoGps}
-            aria-pressed={desde === 'yo'}
-            className={'rounded-2xl border-2 px-2 py-2 text-xs font-semibold disabled:opacity-60 ' + (desde === 'yo' ? 'border-jungle-700 bg-white text-jungle-900' : 'border-jungle-200/80 bg-white/55 text-jungle-700')}
-          >
-            {buscandoGps ? t('Buscando…') : t('Donde estoy ahora')}
-          </button>
-        </div>
-        {avisoGps && <p className="text-[11px] text-amber-800 mb-1.5">{avisoGps}</p>}
-        <p className="text-[11px] text-jungle-500 mb-3">{t('El cuadro verde en el mapa es lo que se va a guardar.')}</p>
+          {/* Otra zona (y satélite) */}
+          <details open={!hayPaquetes} className="rounded-2xl bg-white/45 border border-white/70 px-3.5 py-2.5 mb-3">
+            <summary className="text-sm font-semibold text-jungle-900 cursor-pointer">
+              {hayPaquetes ? t('Otra zona o satélite') : t('Descargar una zona')}
+            </summary>
 
-        <p className="text-xs font-semibold text-jungle-800 mb-1.5">2. {t('Tamaño')}</p>
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          {TAMANOS.map((o) => (
-            <button
-              key={o.id}
-              onClick={() => setTamano(o.id)}
-              aria-pressed={tamano === o.id}
-              className={'text-left rounded-2xl border-2 px-3 py-1.5 ' + (tamano === o.id
-                ? 'border-jungle-700 bg-white' : 'border-jungle-200/80 bg-white/55 hover:bg-white/80')}
-            >
-              <div className="text-sm font-semibold text-jungle-900">{t(o.nombre)}</div>
-              <div className="text-[11px] text-jungle-600">{t(o.detalle)}</div>
-            </button>
-          ))}
-        </div>
-
-        <label className="flex items-center gap-2 text-sm text-jungle-900 font-semibold mb-3">
-          <input type="checkbox" checked={conSatelite} onChange={(e) => setConSatelite(e.target.checked)} className="w-4 h-4 accent-jungle-700" />
-          <Satellite size={15} /> {t('Incluir satélite')}
-          {conSatelite && <span className="text-[11px] font-normal text-jungle-600">({t('acercamiento hasta')} {plan.satelite.zoomMax})</span>}
-        </label>
-        {conSatelite && (
-          <label className="flex items-start gap-2 text-xs text-jungle-800 mb-3 -mt-1.5 ml-6">
-            <input type="checkbox" checked={alta} onChange={(e) => setAlta(e.target.checked)} className="w-4 h-4 mt-0.5 accent-jungle-700" />
-            <span>
-              <span className="font-semibold">{t('Satélite en alta calidad')}</span>
-              <span className="block text-[11px] text-jungle-600">
-                {t('Más nítido al acercar sin internet, pero pesa mucho más; con zonas grandes casi no cambia. Conviene en "Cerca de aquí".')}
-              </span>
-            </span>
-          </label>
-        )}
-
-        <button
-          disabled={sinConexion}
-          onClick={() => onDescargar(tamano, conSatelite, centroEfectivo, conSatelite && alta)}
-          className="w-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white py-3 rounded-2xl font-semibold text-sm shadow-md"
-        >
-          {t('Descargar zona')} (~{plan.mbTotal} MB)
-        </button>
-        <p className="text-[11px] text-jungle-500 mt-1.5 mb-3">
-          {t('Si se va el internet, la descarga se pausa y sigue sola. Puedes cancelar cuando quieras.')}
-        </p>
-        </details>
-
-        {zonas.filter((z) => !z.paquete).length > 0 && (
-          <div className="border-t border-white/70 pt-3">
-            <p className="text-xs font-semibold text-jungle-800 mb-1.5">{t('Zonas y rutas guardadas')}</p>
-            <ul className="space-y-1.5 mb-2">
-              {zonas.filter((z) => !z.paquete).map((z) => (
-                <li key={z.id} className="flex items-center gap-2 text-xs text-jungle-800 bg-white/60 border border-white/70 rounded-xl px-2.5 py-1.5">
-                  <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
-                  <span className="flex-1 min-w-0">
-                    <span className="font-semibold">{z.nombre}</span>
-                    <span className="block text-[10px] text-jungle-500">
-                      {z.ruta ? `${t('Ruta')} · ${z.ruta.distanciaMetros ? Math.round(z.ruta.distanciaMetros / 1000) + ' km · ' : ''}` : ''}{fechaCorta(z.fecha)} · {z.satelite ? t('con satélite') : t('sin satélite')} · {z.grafo ? t('rutas listas') : t('sin rutas offline')}
-                    </span>
-                  </span>
-                  {z.ruta && (
-                    <button onClick={() => onAbrirRuta(z.id)} className="text-jungle-700 font-semibold underline">{t('Abrir')}</button>
+            <div className="mt-3 space-y-3">
+              <div>
+                <div className="grid grid-cols-3 gap-2">
+                  {opciones.map((o) => (
+                    <button
+                      key={o.id}
+                      onClick={() => setTamano(o.id)}
+                      aria-pressed={tamano === o.id}
+                      className={'rounded-xl border-2 py-2 text-center ' + (tamano === o.id
+                        ? 'border-jungle-700 bg-white' : 'border-jungle-200/80 bg-white/55 hover:bg-white/80')}
+                    >
+                      <span className="block text-sm font-semibold text-jungle-900 leading-tight">{o.nombre}</span>
+                      <span className="block text-[11px] text-jungle-600">{o.km}</span>
+                    </button>
+                  ))}
+                </div>
+                {!hayPaquetes && (
+                  <button
+                    onClick={() => setTamano('tuxtlas')}
+                    aria-pressed={tamano === 'tuxtlas'}
+                    className={'mt-2 w-full rounded-xl border-2 py-2 text-sm font-semibold text-jungle-900 ' + (tamano === 'tuxtlas'
+                      ? 'border-jungle-700 bg-white' : 'border-jungle-200/80 bg-white/55 hover:bg-white/80')}
+                  >
+                    {t('Los Tuxtlas completo')}
+                  </button>
+                )}
+                <p className="text-[11px] text-jungle-600 mt-1.5">
+                  {tamano === 'tuxtlas'
+                    ? t('Toda la región de Los Tuxtlas.')
+                    : usarMiPos
+                      ? t('Alrededor de donde estás ahora.')
+                      : t('Alrededor de lo que ves en el mapa.')}{' '}
+                  {tamano !== 'tuxtlas' && (
+                    <button onClick={alternarMiUbicacion} disabled={buscandoGps} className="font-semibold underline text-jungle-700 disabled:opacity-60">
+                      {buscandoGps ? t('Buscando…') : usarMiPos ? t('Usar lo que veo') : t('Usar mi ubicación')}
+                    </button>
                   )}
-                  <button onClick={() => onBorrarZona(z.id)} className="text-red-700 font-semibold underline">{t('Borrar')}</button>
-                </li>
-              ))}
-            </ul>
-            <button onClick={onBorrarTodo} className="text-xs font-semibold text-red-700 underline">
-              {t('Borrar todos los mapas descargados')}
-            </button>
-          </div>
-        )}
+                </p>
+                {avisoGps && <p className="text-[11px] text-amber-800 mt-1">{avisoGps}</p>}
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 text-sm text-jungle-900 font-semibold">
+                  <input type="checkbox" checked={conSatelite} onChange={(e) => setConSatelite(e.target.checked)} className="w-4 h-4 accent-jungle-700" />
+                  <Satellite size={15} /> {t('Incluir satélite')}
+                </label>
+                {mostrarAlta && (
+                  <label className="flex items-center gap-2 text-xs text-jungle-800 mt-1.5 ml-6">
+                    <input type="checkbox" checked={alta} onChange={(e) => setAlta(e.target.checked)} className="w-4 h-4 accent-jungle-700" />
+                    {t('Alta calidad (pesa más)')}
+                  </label>
+                )}
+              </div>
+
+              <button
+                disabled={sinConexion}
+                onClick={() => onDescargar(tamano, conSatelite, centroEfectivo, conSatelite && alta)}
+                className="w-full bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white py-3 rounded-2xl font-semibold text-sm shadow-md"
+              >
+                {t('Descargar')} · ~{plan.mbTotal} MB
+              </button>
+            </div>
+          </details>
+
+          {/* Lo que ya tienes */}
+          {zonasPropias.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-jungle-800 mb-1.5">{t('Guardado en tu teléfono')}</p>
+              <ul className="space-y-1.5 mb-2">
+                {zonasPropias.map((z) => (
+                  <li key={z.id} className="flex items-center gap-2 text-xs text-jungle-800 bg-white/60 border border-white/70 rounded-xl px-2.5 py-1.5">
+                    <CheckCircle2 size={14} className="text-jungle-600 flex-shrink-0" />
+                    <span className="flex-1 min-w-0">
+                      <span className="font-semibold">{z.nombre}</span>
+                      <span className="block text-[10px] text-jungle-500">
+                        {z.ruta ? `${t('Ruta')} · ` : ''}{fechaCorta(z.fecha)}{z.satelite ? ` · ${t('con satélite')}` : ''}
+                      </span>
+                    </span>
+                    {z.ruta && (
+                      <button onClick={() => onAbrirRuta(z.id)} className="text-jungle-700 font-semibold underline">{t('Abrir')}</button>
+                    )}
+                    <button onClick={() => onBorrarZona(z.id)} className="text-red-700 font-semibold underline">{t('Borrar')}</button>
+                  </li>
+                ))}
+              </ul>
+              <button onClick={onBorrarTodo} className="text-xs font-semibold text-red-700 underline">
+                {t('Borrar todo')}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Car, Footprints, Navigation, X, Download, Check, Volume2, VolumeX, AlertTriangle, ArrowUpLeft, ArrowUpRight, ArrowLeft, ArrowRight, Undo2, Flag, Loader2,
+  Car, Footprints, Navigation, X, Download, Check, AlertTriangle, ArrowUpLeft, ArrowUpRight, ArrowLeft, ArrowRight, Undo2, Flag, Loader2,
 } from 'lucide-react';
 import type { Coord, ModoRuta } from '../lib/routing';
 import { useOffline } from '../hooks/useOffline';
@@ -9,9 +9,6 @@ import {
   prepararRuta, proyectar, rumbo, distancia, textoManiobra, formatoDistanciaCorta, type Maniobra,
 } from '../lib/navegacion';
 import { estaCubierto } from '../lib/mapaOffline';
-import {
-  hablar, detenerVoz, precargarVoces, vozSilenciada, silenciarVoz, distanciaHablada, vozDisponible,
-} from '../lib/voz';
 
 // ============================================================
 // Panel de ruta + navegación paso a paso (estilo MAPS.ME / AllTrails)
@@ -65,8 +62,6 @@ export default function NavegacionRuta(props: Props) {
   const [recalculando, setRecalculando] = useState(false);
   const [llego, setLlego] = useState(false);
   const sinInternet = useOffline();
-  const [silencio, setSilencio] = useState(() => vozSilenciada());
-  const [sinVoz, setSinVoz] = useState(false);
   const [fueraDeMapa, setFueraDeMapa] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   // ¿Todo el trayecto ya cae dentro del mapa descargado? Si sí, funciona sin
@@ -79,7 +74,6 @@ export default function NavegacionRuta(props: Props) {
     const u = geometria[geometria.length - 1];
     return estaCubierto(u[0], u[1]);
   }, [geometria, props.zonasClave]); // eslint-disable-line react-hooks/exhaustive-deps
-  const anunciado = useRef({ idx: -1, nivel: 0 });
   const fueraMapaRef = useRef(false);
 
   const ruta = useMemo(() => prepararRuta(geometria), [geometria]);
@@ -113,7 +107,6 @@ export default function NavegacionRuta(props: Props) {
     }
     setSinGps(null);
     setLlego(false);
-    anunciado.current = { idx: -1, nivel: 0 };
     fueraMapaRef.current = false;
     setFueraDeMapa(false);
 
@@ -142,35 +135,11 @@ export default function NavegacionRuta(props: Props) {
         // Fuera del mapa descargado (solo importa sin internet)
         if (!navigator.onLine) {
           const cubierto = estaCubierto(nueva[0], nueva[1]);
-          if (!cubierto && !fueraMapaRef.current) {
-            hablar('Saliste del mapa descargado. Sigue la línea de la ruta.', { urgente: true });
-          }
           fueraMapaRef.current = !cubierto;
           setFueraDeMapa(!cubierto);
         } else if (fueraMapaRef.current) {
           fueraMapaRef.current = false;
           setFueraDeMapa(false);
-        }
-
-        // Voz: aviso lejano ("en 400 metros...") y aviso cercano ("ahora")
-        {
-          const rec = recorridoRef.current;
-          const idx = r.maniobras.findIndex((m) => m.distancia > rec + 3);
-          if (idx >= 0) {
-            const m = r.maniobras[idx];
-            const d = m.distancia - rec;
-            const lejos = modoRef.current === 'pie' ? 100 : 400;
-            const cerca = modoRef.current === 'pie' ? 25 : 70;
-            if (anunciado.current.idx !== idx) anunciado.current = { idx, nivel: 0 };
-            const niv = anunciado.current.nivel;
-            if (d <= cerca && niv < 2) {
-              anunciado.current.nivel = 2;
-              hablar(m.tipo === 'llegada' ? 'Llegas a tu destino' : textoManiobra(m.tipo) + ' ahora', { urgente: true });
-            } else if (d <= lejos && d > cerca && niv < 1 && m.tipo !== 'llegada') {
-              anunciado.current.nivel = 1;
-              hablar('En ' + distanciaHablada(d) + ', ' + textoManiobra(m.tipo).toLowerCase());
-            }
-          }
         }
 
         // Llegada
@@ -185,7 +154,6 @@ export default function NavegacionRuta(props: Props) {
           ultimoRecalculo.current = Date.now();
           fueraRef.current = 0;
           setRecalculando(true);
-          hablar('Recalculando ruta', { urgente: true });
           cbRef.current.onRecalcular(nueva, modoRef.current);
         }
       },
@@ -198,7 +166,6 @@ export default function NavegacionRuta(props: Props) {
     );
     return () => {
       navigator.geolocation.clearWatch(id);
-      detenerVoz();
       wake?.release().catch(() => { });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,15 +182,7 @@ export default function NavegacionRuta(props: Props) {
 
   const iniciar = () => {
     setConfirmando(false);
-    // El primer habla debe salir de un toque del usuario (regla de los navegadores)
-    precargarVoces().then((ok) => setSinVoz(vozDisponible() && !ok));
-    hablar('Navegación iniciada', { urgente: true });
     setNavegando(true);
-  };
-  const alternarVoz = () => {
-    const nuevo = !silencio;
-    setSilencio(nuevo);
-    silenciarVoz(nuevo);
   };
   const alPulsarIniciar = () => {
     if (props.onGuardar && !sinInternet && !props.guardada && !aproximada && !cubierta) {
@@ -273,14 +232,9 @@ export default function NavegacionRuta(props: Props) {
               Saliste del mapa descargado: el fondo puede verse en blanco, pero la línea de la ruta sigue ahí.
             </div>
           )}
-          {sinVoz && !silencio && (
-            <div className="self-start bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-semibold rounded-lg px-2.5 py-1 shadow">
-              Tu teléfono no tiene voz en español. Instálala en Ajustes → Idioma → Texto a voz para oír las indicaciones.
-            </div>
-          )}
         </div>
 
-        <div className="absolute bottom-3 left-3 right-3 z-30 bg-white rounded-2xl shadow-xl border border-jungle-100 px-4 py-3 flex items-center gap-3">
+        <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/85 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-xl border border-jungle-100 px-4 py-3 flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <div className="font-display font-bold text-jungle-950 text-lg leading-tight">
               {formatearDistancia(restante)}
@@ -288,16 +242,6 @@ export default function NavegacionRuta(props: Props) {
             </div>
             {hora && <div className="text-xs text-jungle-600">Llegas a las {hora}</div>}
           </div>
-          {vozDisponible() && (
-            <button
-              onClick={alternarVoz}
-              aria-label={silencio ? 'Activar voz' : 'Silenciar voz'}
-              aria-pressed={!silencio}
-              className="w-10 h-10 rounded-xl border-2 border-jungle-200 text-jungle-800 flex items-center justify-center hover:bg-jungle-50"
-            >
-              {silencio ? <VolumeX size={18} /> : <Volume2 size={18} />}
-            </button>
-          )}
           <button
             onClick={() => { setNavegando(false); setLlego(false); }}
             className="bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-2.5 font-semibold text-sm flex items-center gap-1.5"
@@ -312,7 +256,7 @@ export default function NavegacionRuta(props: Props) {
   // ---------------- "Antes de salir": guardar el mapa ----------------
   if (confirmando) {
     return (
-      <div className="absolute bottom-3 left-3 right-3 z-30 bg-white rounded-2xl shadow-xl border border-amber-300 p-4">
+      <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/85 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-xl border border-amber-300 p-4">
         <p className="font-display font-bold text-jungle-950 mb-1">Antes de salir</p>
         <p className="text-xs text-jungle-700 mb-3">
           Parte de esta ruta queda fuera del mapa que descargaste. Si pierdes la señal por el camino,
@@ -371,7 +315,7 @@ export default function NavegacionRuta(props: Props) {
   );
 
   return (
-    <div className="absolute bottom-3 left-3 right-3 z-30 bg-white rounded-2xl shadow-xl border border-jungle-100 p-3">
+    <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/85 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-xl border border-jungle-100 p-3">
       {unidades}
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">

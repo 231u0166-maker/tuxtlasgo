@@ -12,14 +12,36 @@
 // paquetes/paquetes.json (el catálogo). Todo eso se sube al servidor de paquetes.
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, createWriteStream } from 'node:fs';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { RAIZ, DIR_PAQUETES, construirGrafoDePmtiles, sha256, tamano, actualizarCatalogo } from './lib-paquete.mjs';
 
 const JAR = join(RAIZ, 'tools', 'planetiler.jar');
 const XMX = process.env.JAVA_XMX || '8g';
-const AREA = process.env.PAQUETES_AREA || 'mexico'; // área de Geofabrik
+// Extractos de OpenStreetMap POR ESTADO (OpenStreetMap France; ~10–50 MB cada uno y
+// descargan rápido). Se bajan una vez a data/sources/<id>.osm.pbf.
+// (Geofabrik solo ofrece México completo, 650 MB, y desde aquí bajaba a ~16 KB/s;
+// tampoco se usa --area de Planetiler: su lector del índice de Geofabrik falla.)
+const URL_BASE_PBF = process.env.PAQUETES_PBF_BASE || 'https://download.openstreetmap.fr/extracts/north-america/mexico';
+
+async function asegurarPbf(region) {
+  const ruta = join(RAIZ, 'data', 'sources', `${region.id}.osm.pbf`);
+  if (existsSync(ruta)) return ruta;
+  await mkdir(join(RAIZ, 'data', 'sources'), { recursive: true });
+  const url = region.pbf || `${URL_BASE_PBF}/${region.id}.osm.pbf`;
+  console.log(`Bajando OpenStreetMap de ${region.nombre} (${url})…`);
+  const r = await fetch(url, { redirect: 'follow' });
+  if (!r.ok || !r.body) throw new Error(`No se pudo bajar el extracto de ${region.nombre} (HTTP ${r.status})`);
+  const parcial = ruta + '.parcial';
+  await pipeline(Readable.fromWeb(r.body), createWriteStream(parcial));
+  const { rename } = await import('node:fs/promises');
+  await rename(parcial, ruta);
+  console.log('  listo.');
+  return ruta;
+}
 
 const { regiones } = JSON.parse(await readFile(join(RAIZ, 'scripts', 'paquetes', 'regiones.json'), 'utf8'));
 const pedido = process.argv[2];
@@ -46,10 +68,11 @@ for (const r of lista) {
   const dir = join(DIR_PAQUETES, r.id);
   await mkdir(dir, { recursive: true });
   const mapa = join(dir, 'mapa.pmtiles');
+  const rutaPbf = await asegurarPbf(r);
   console.log(`\n=== ${r.nombre} ===\n1/3 Generando el mapa con Planetiler (puede tardar un buen rato)…`);
   await correr('java', [
     `-Xmx${XMX}`, '-jar', JAR,
-    `--area=${AREA}`, '--download',
+    `--osm-path=${rutaPbf}`, '--download',
     `--bounds=${r.bbox.join(',')}`,
     `--output=${mapa}`,
     '--maxzoom=14',

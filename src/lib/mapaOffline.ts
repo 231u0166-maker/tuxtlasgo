@@ -38,6 +38,10 @@ export const ZOOM_SATELITE_DESCARGA = TOKEN_MAPBOX ? 16 : 15;
 const KB_POR_MOSAICO_SAT = TOKEN_MAPBOX ? 75 : 28;
 const KB_POR_MOSAICO_CALLES = 55; // promedio ciudad/campo en z10–14
 const MAX_MOSAICOS_DETALLE_SAT = 800;
+// "Alta calidad": un nivel más fino (z17 con Mapbox) y más mosaicos. Pesa ~4 veces
+// más por nivel, así que en la práctica solo cabe en zonas chicas.
+const MAX_MOSAICOS_DETALLE_SAT_ALTA = 2500;
+const ZOOM_SATELITE_ALTA = TOKEN_MAPBOX ? 17 : ZOOM_SATELITE_DESCARGA;
 
 export type Caja = [number, number, number, number]; // [oeste, sur, este, norte]
 export type Progreso = (porcentaje: number, etapa: string) => void;
@@ -162,21 +166,22 @@ function urlsSatelite(caja: Caja, zoomMax: number): string[] {
 }
 
 // Elige el zoom de satélite más fino que cabe en el tope de mosaicos
-function zoomSateliteParaCaja(caja: Caja): number {
-  let zoomMax = ZOOM_SATELITE_DESCARGA;
+function zoomSateliteParaCaja(caja: Caja, alta = false): number {
+  let zoomMax = alta ? ZOOM_SATELITE_ALTA : ZOOM_SATELITE_DESCARGA;
+  const tope = alta ? MAX_MOSAICOS_DETALLE_SAT_ALTA : MAX_MOSAICOS_DETALLE_SAT;
   const detalle = (zm: number) => {
     let n = 0;
     for (let z = 14; z <= zm; z++) n += mosaicosDeCaja(caja, z).length;
     return n;
   };
-  while (zoomMax > 13 && detalle(zoomMax) > MAX_MOSAICOS_DETALLE_SAT) zoomMax--;
+  while (zoomMax > 13 && detalle(zoomMax) > tope) zoomMax--;
   return zoomMax;
 }
 
-export function planearZona(caja: Caja, conSatelite: boolean): PlanZona {
+export function planearZona(caja: Caja, conSatelite: boolean, alta = false): PlanZona {
   const mosaicosCalles = mosaicosCallesZona(caja);
   const mbCalles = Math.round((mosaicosCalles * KB_POR_MOSAICO_CALLES) / 1024) + 1;
-  const zoomMax = zoomSateliteParaCaja(caja);
+  const zoomMax = zoomSateliteParaCaja(caja, alta);
   const sat = conSatelite ? urlsSatelite(caja, zoomMax).length : 0;
   const mbSat = Math.round((sat * KB_POR_MOSAICO_SAT) / 1024);
   return {
@@ -374,11 +379,11 @@ interface Contenido {
   satelite: { zoomMax: number; mosaicos: (z: number) => [number, number][] } | null;
 }
 
-function contenidoDeCaja(caja: Caja, conSatelite: boolean): Contenido {
+function contenidoDeCaja(caja: Caja, conSatelite: boolean, alta = false): Contenido {
   return {
     caja,
     calles: (z) => mosaicosDeCaja(z <= 9 ? conMargen(caja, 1.5) : caja, z),
-    satelite: conSatelite ? { zoomMax: zoomSateliteParaCaja(caja), mosaicos: (z) => mosaicosDeCaja(caja, z) } : null,
+    satelite: conSatelite ? { zoomMax: zoomSateliteParaCaja(caja, alta), mosaicos: (z) => mosaicosDeCaja(caja, z) } : null,
   };
 }
 
@@ -450,7 +455,7 @@ export async function descargarBase(cache: Cache, senal?: AbortSignal): Promise<
 }
 
 export type Pendiente =
-  | { tipo: 'zona'; caja: Caja; conSatelite: boolean; nombre: string }
+  | { tipo: 'zona'; caja: Caja; conSatelite: boolean; nombre: string; alta?: boolean }
   | { tipo: 'ruta'; ruta: Omit<RutaGuardada, 'id' | 'fecha'>; conSatelite: boolean };
 const CLAVE_PENDIENTE = 'mapa-offline-pendiente-v1';
 export function leerPendiente(): Pendiente | null {
@@ -577,11 +582,11 @@ async function descargarContenidoInterno(
 }
 
 export function descargarZona(
-  caja: Caja, conSatelite: boolean, nombre: string, onProgreso: Progreso, senal?: AbortSignal
+  caja: Caja, conSatelite: boolean, nombre: string, onProgreso: Progreso, senal?: AbortSignal, alta = false
 ): Promise<ZonaOffline> {
   return conPendiente(
-    { tipo: 'zona', caja, conSatelite, nombre },
-    () => descargarContenido(contenidoDeCaja(caja, conSatelite), nombre, {}, onProgreso, senal)
+    { tipo: 'zona', caja, conSatelite, nombre, alta },
+    () => descargarContenido(contenidoDeCaja(caja, conSatelite, alta), nombre, {}, onProgreso, senal)
   );
 }
 

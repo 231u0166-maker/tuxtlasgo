@@ -784,3 +784,20 @@ Build de producción + modo sin conexión del navegador: zona de 6 km descargada
 - **App:** `lib/paquetes.ts` (catálogo, descarga reanudable por rangos a OPFS, instalar/borrar/actualizar), `lib/paquetesMapa.ts` (protocolo `paquete://` de MapLibre: lee el mosaico del paquete instalado; si ninguno lo tiene y hay internet lo pide a OpenFreeMap), panel "Mapas por región" arriba y "Más opciones" (zona/satélite/ruta) colapsado. Se activa con `VITE_PAQUETES_URL`; sin ella la sección no aparece.
 - **Probado** con un paquete de prueba (Catemaco, 2.7 MB) servido en local: se instaló (archivo OPFS = tamaño del catálogo), y con el internet cortado y recargando, Catemaco se vio con calles y nombres desde el paquete. La red de rutas se armó en Node leyendo el PMTiles con el mismo código.
 - **NO probado / pendiente:** (1) generar los paquetes reales: requiere bajar y correr `planetiler.jar` (el asistente no pudo por política del entorno; lo corres tú, ver README); (2) tamaños reales de cada estado (hoy solo estimaciones); (3) alojamiento (Cloudflare R2 recomendado) + CORS + variable `VITE_PAQUETES_URL` en Vercel; (4) rutas offline con la red de un paquete grande (una región completa pesa mucho más que el de prueba); (5) Safari/iOS (OPFS `createWritable`); (6) el satélite no viene en los paquetes.
+
+## Paquetes reales generados: Tabasco, Puebla, Veracruz (2026-11-21)
+- Fuente: extractos por estado de OpenStreetMap France (Geofabrik solo da México completo y bajaba a ~16 KB/s) + Planetiler (`tools/planetiler.jar`, no versionado). `construir-paquete.mjs` ahora baja `data/sources/<id>.osm.pbf` solo.
+- **Tamaños reales:** Tabasco 11 MB mapa + 3 MB rutas · Puebla 34 + 16 MB · Veracruz 56 + 18 MB (todos z0–14, 15 capas, esquema OpenMapTiles).
+- **Probado con el paquete real de Veracruz** (servidor local, internet cortado): se instala (archivo OPFS = tamaño del catálogo) y las rutas se calculan con su red completa: Catemaco→San Andrés 11.9 km (358 ms incluyendo cargar la red de 18 MB), Veracruz puerto→Xalapa 104.6 km (13 ms), Veracruz puerto→Catemaco 169 km (27 ms); Tuxtla→Puebla (fuera del paquete) cae a línea recta marcada.
+- **Pendiente:** subir `paquetes/` a un servidor con Range+CORS (R2) y poner `VITE_PAQUETES_URL` en Vercel; probar la interfaz táctil en un teléfono; ver el mapa renderizado del paquete real de Veracruz en pantalla (solo se probó el render con el paquete de prueba de Catemaco).
+- Se quitó la voz de la navegación (decisión del usuario): `lib/voz.ts` eliminado.
+
+## Satélite en alta calidad (opcional) y aviso de menor detalle
+- Casilla "Satélite en alta calidad" en "Más opciones" (zona): baja un nivel más fino (z17 con Mapbox) con tope de 2 500 mosaicos de detalle (antes 800). Tamaños medidos con el planificador: "Cerca de aquí" z16 ~53 MB → z17 ~182 MB; "Ciudad" z14 ~41 MB → z15 ~95 MB; "Región" sin cambio (~136 MB, z14). Solo conviene en zonas chicas. No aplica a "guardar ruta" (sigue con detalle fino solo sobre el camino).
+- Sin internet, si el turista acerca más de lo guardado, aparece "Satélite guardado en menor detalle: la imagen se estira al acercar" (antes parecía una falla).
+- No probado visualmente en el navegador (solo el planificador y tsc).
+
+## Rediseño del panel "Mapa sin internet" y avisos (estilo de la plataforma)
+- Panel y avisos en cristal esmerilado (`bg-white/80 backdrop-blur-xl`, como la barra del asistente), sin fondo oscuro: el mapa y el cuadro verde de la zona se siguen viendo. En escritorio el panel va a la izquierda (400 px, se ajusta a su contenido) y en móvil como hoja inferior; el aviso "¿Vas a salir de señal?" es una tarjeta compacta, no una barra de lado a lado. La hoja de ruta ("Iniciar") queda centrada y de 440 px en escritorio.
+- No pude reproducir el cuadro gris que se veía sobre el panel en las capturas de escritorio (parecía un artefacto de la animación); el nuevo panel ya no usa esa animación.
+- Probado en el navegador a 1920×940 y 412×915 con los paquetes reales de R2.

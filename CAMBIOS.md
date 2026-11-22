@@ -801,3 +801,6 @@ Build de producción + modo sin conexión del navegador: zona de 6 km descargada
 - Panel y avisos en cristal esmerilado (`bg-white/80 backdrop-blur-xl`, como la barra del asistente), sin fondo oscuro: el mapa y el cuadro verde de la zona se siguen viendo. En escritorio el panel va a la izquierda (400 px, se ajusta a su contenido) y en móvil como hoja inferior; el aviso "¿Vas a salir de señal?" es una tarjeta compacta, no una barra de lado a lado. La hoja de ruta ("Iniciar") queda centrada y de 440 px en escritorio.
 - No pude reproducir el cuadro gris que se veía sobre el panel en las capturas de escritorio (parecía un artefacto de la animación); el nuevo panel ya no usa esa animación.
 - Probado en el navegador a 1920×940 y 412×915 con los paquetes reales de R2.
+
+## Scrollbars transparentes en toda la app
+- `src/styles/index.css`: sin pista de fondo ni flechas; control delgado (8 px) y translúcido (18 % de verde, 40 % al pasar el cursor). Chrome/Edge/Safari con `::-webkit-scrollbar`; Firefox con `scrollbar-color` (solo ahí, vía `@supports not selector(...)`, para no anular lo anterior). Probado en Chromium de escritorio; Firefox y Safari no se probaron.

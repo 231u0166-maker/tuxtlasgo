@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Car, Footprints, Navigation, X, Download, Check, AlertTriangle, ArrowUpLeft, ArrowUpRight, ArrowLeft, ArrowRight, Undo2, Flag, Loader2,
+  Car, Footprints, Navigation, X, Download, Check, AlertTriangle, ChevronDown, Route as RutaIcono, ArrowUpLeft, ArrowUpRight, ArrowLeft, ArrowRight, Undo2, Flag, Loader2,
 } from 'lucide-react';
 import type { Coord, ModoRuta } from '../lib/routing';
 import { useOffline } from '../hooks/useOffline';
@@ -9,6 +9,8 @@ import {
   prepararRuta, proyectar, rumbo, distancia, textoManiobra, formatoDistanciaCorta, type Maniobra,
 } from '../lib/navegacion';
 import { estaCubierto } from '../lib/mapaOffline';
+import { perfilElevacion, type PerfilElevacion as Perfil } from '../lib/elevacion';
+import PerfilElevacionGrafica from './PerfilElevacion';
 
 // ============================================================
 // Panel de ruta + navegación paso a paso (estilo MAPS.ME / AllTrails)
@@ -47,6 +49,8 @@ interface Props {
   // Rutas alternas al mismo destino y cómo elegir una
   alternativas?: { geometria: Coord[]; distanciaMetros: number; duracionSegundos: number }[];
   onElegirAlternativa?: (indice: number) => void;
+  // Encuadra toda la ruta en el mapa (la cámara vuelve a seguirte con la siguiente lectura del GPS)
+  onVerRutaCompleta?: () => void;
 }
 
 function IconoGiro({ tipo }: { tipo: Maniobra['tipo'] }) {
@@ -71,6 +75,17 @@ export default function NavegacionRuta(props: Props) {
   const sinInternet = useOffline();
   const [fueraDeMapa, setFueraDeMapa] = useState(false);
   const [velocidad, setVelocidad] = useState<number | null>(null); // km/h según el GPS
+  const [perfil, setPerfil] = useState<Perfil | null>(null);
+  const [verPerfil, setVerPerfil] = useState(true);
+  // El perfil de elevación se calcula una vez por ruta (con internet, o con los mosaicos ya guardados)
+  useEffect(() => {
+    let vivo = true;
+    setPerfil(null);
+    if (!aproximada && geometria.length >= 2) {
+      perfilElevacion(geometria).then((pf) => { if (vivo) setPerfil(pf); }).catch(() => { });
+    }
+    return () => { vivo = false; };
+  }, [geometria, aproximada]);
   const [confirmando, setConfirmando] = useState(false);
   // ¿Todo el trayecto ya cae dentro del mapa descargado? Si sí, funciona sin
   // internet y NO se pregunta ni se ofrece guardar nada.
@@ -206,12 +221,11 @@ export default function NavegacionRuta(props: Props) {
   if (navegando) {
     return (
       <>
-        {velocidad != null && (
-          <div className="absolute top-14 right-3 z-30 bg-white/85 backdrop-blur-xl border border-white/70 shadow-lg rounded-2xl px-3 py-1.5 text-jungle-950 pointer-events-none" aria-label="Velocidad">
-            <span className="font-display font-extrabold text-lg tabular-nums">{Math.round(velocidad)}</span>
-            <span className="text-[11px] font-semibold text-jungle-600 ml-1">km/h</span>
-          </div>
-        )}
+        <div className="absolute top-14 right-3 z-30 bg-white/85 backdrop-blur-xl border border-white/70 shadow-lg rounded-2xl pl-2.5 pr-3 py-1.5 text-jungle-950 pointer-events-none flex items-center gap-1.5" aria-label="Velocidad">
+          {modo === 'pie' ? <Footprints size={16} className="text-jungle-600" /> : <Car size={16} className="text-jungle-600" />}
+          <span className="font-display font-extrabold text-base tabular-nums">{(velocidad ?? 0).toFixed(1)}</span>
+          <span className="text-[11px] font-semibold text-jungle-600">km/h</span>
+        </div>
         <div className="absolute top-14 left-3 right-16 z-30 flex flex-col gap-2 pointer-events-none">
           {sinGps ? (
             <div role="status" className="self-start bg-amber-50 border border-amber-300 text-amber-900 text-sm font-semibold rounded-xl px-3 py-2 shadow-lg">
@@ -250,23 +264,42 @@ export default function NavegacionRuta(props: Props) {
           )}
         </div>
 
-        <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/90 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-2xl border border-white/60 px-4 pt-3 pb-3.5">
+        <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/90 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-2xl border border-white/60 px-3.5 pt-3 pb-3.5">
+          {/* fila de datos: ver toda la ruta · distancia · tiempo · hora de llegada · mostrar/ocultar gráfica */}
           <div className="flex items-center gap-3">
-            <div className="flex-1 min-w-0 flex items-baseline gap-x-3 flex-wrap">
-              <span className="font-display font-extrabold text-jungle-950 text-xl leading-none">{formatearDistancia(restante)}</span>
-              {segRestantes > 0 && <span className="font-display font-bold text-jungle-700 text-base leading-none">{formatearDuracion(segRestantes)}</span>}
-              {hora && <span className="text-sm text-jungle-600 leading-none">{hora}</span>}
-            </div>
             <button
-              onClick={() => { setNavegando(false); setLlego(false); }}
-              className="bg-white hover:bg-red-50 text-red-700 border-2 border-red-200 rounded-2xl px-4 py-2 font-semibold text-sm flex items-center gap-1.5"
+              onClick={props.onVerRutaCompleta}
+              className="w-11 h-11 rounded-2xl bg-jungle-50 border border-jungle-100 hover:bg-jungle-100 text-jungle-800 flex items-center justify-center flex-none"
+              aria-label="Ver toda la ruta"
+              title="Ver toda la ruta"
             >
-              <X size={16} /> Detener
+              <RutaIcono size={20} />
             </button>
+            <div className="flex-1 min-w-0 flex items-baseline justify-between gap-x-2 flex-wrap">
+              <span className="font-display font-extrabold text-jungle-950 text-2xl leading-none">{formatearDistancia(restante)}</span>
+              {segRestantes > 0 && <span className="font-display font-extrabold text-jungle-950 text-2xl leading-none">{formatearDuracion(segRestantes)}</span>}
+              {hora && <span className="font-display font-extrabold text-jungle-950 text-2xl leading-none">{hora}</span>}
+            </div>
+            {perfil && (
+              <button
+                onClick={() => setVerPerfil((v) => !v)}
+                className="w-11 h-11 rounded-2xl bg-jungle-50 border border-jungle-100 hover:bg-jungle-100 text-jungle-800 flex items-center justify-center flex-none"
+                aria-label={verPerfil ? 'Ocultar perfil de elevación' : 'Mostrar perfil de elevación'}
+                aria-expanded={verPerfil}
+              >
+                <ChevronDown size={20} className={'transition-transform ' + (verPerfil ? '' : 'rotate-180')} />
+              </button>
+            )}
           </div>
-          <div className="mt-3 h-1.5 rounded-full bg-jungle-100 overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(avance * 100)}>
-            <div className="h-full rounded-full bg-laguna-600 transition-all duration-500" style={{ width: Math.round(avance * 100) + '%' }} />
-          </div>
+
+          {perfil && verPerfil && <PerfilElevacionGrafica perfil={perfil} avance={avance} />}
+
+          <button
+            onClick={() => { setNavegando(false); setLlego(false); }}
+            className="mt-3 w-full bg-red-600 hover:bg-red-700 text-white rounded-2xl py-3.5 font-display font-bold text-base flex items-center justify-center gap-2 shadow-md"
+          >
+            <X size={18} /> Detener
+          </button>
         </div>
       </>
     );

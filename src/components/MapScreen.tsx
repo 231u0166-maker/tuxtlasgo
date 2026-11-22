@@ -1157,6 +1157,8 @@ export default function MapScreen({
           if (elegirOrigen && onElegirOrigen) { onElegirOrigen([e.lngLat.lat, e.lngLat.lng]); return; }
           // Solo en el mapa grande y sin ruta, panel ni navegación en curso
           if (vistaCompacta || rutaResaltada || mostrarPanelOffline || navegandoRef.current || !onIrALugarElegido) return;
+          // Un toque sobre un pin propio (prestador) ya abre su ficha: no se marca otro lugar encima
+          if ((e.originalEvent?.target as HTMLElement | null)?.closest?.('.maplibregl-marker')) return;
           elegirLugarEnMapa(e);
         }}
         cursor={elegirOrigen ? 'crosshair' : undefined}

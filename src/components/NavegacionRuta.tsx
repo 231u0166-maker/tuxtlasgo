@@ -303,31 +303,45 @@ export default function NavegacionRuta(props: Props) {
     : null;
 
   // Pestañas de modo: la elegida va más ancha y con tiempo + distancia; la otra, con su tiempo
+  // Fila de modos (como MAPS.ME): el modo elegido es un recuadro con su tiempo y
+  // distancia; el otro es solo su ícono (su tiempo queda en la etiqueta accesible).
   const pestana = (m: ModoRuta) => {
     const activa = modo === m;
     const Icono = m === 'auto' ? Car : Footprints;
     const nombre = m === 'auto' ? 'En auto' : 'A pie';
     const dur = activa ? duracionSegundos : props.alterna?.modo === m ? props.alterna.duracionSegundos : undefined;
     const dist = activa ? distanciaMetros : props.alterna?.modo === m ? props.alterna.distanciaMetros : undefined;
+    const etiqueta = nombre + (dur ? ': ' + formatearDuracion(dur) : '');
+    if (!activa) {
+      return (
+        <button
+          key={m}
+          onClick={() => props.onCambiarModo(m)}
+          disabled={calculando}
+          aria-pressed={false}
+          aria-label={etiqueta}
+          title={etiqueta}
+          className="w-12 h-12 rounded-2xl flex items-center justify-center text-jungle-600 hover:bg-white/80 hover:text-jungle-900 disabled:opacity-60 transition-colors"
+        >
+          <Icono size={24} />
+        </button>
+      );
+    }
     return (
-      <button
+      <div
         key={m}
-        onClick={() => !activa && props.onCambiarModo(m)}
-        disabled={calculando}
-        aria-pressed={activa}
-        aria-label={nombre}
-        className={'rounded-2xl border-2 px-3 py-2 flex items-center gap-2.5 disabled:opacity-60 transition-all ' + (activa
-          ? 'flex-[1.5] border-jungle-700 bg-white shadow-sm'
-          : 'flex-1 border-transparent bg-white/50 hover:bg-white/80')}
+        aria-pressed="true"
+        aria-label={etiqueta}
+        className="rounded-2xl border-2 border-jungle-800 bg-white px-3.5 py-2 flex items-center gap-3 shadow-sm"
       >
-        <Icono size={activa ? 22 : 20} className={activa ? 'text-jungle-800' : 'text-jungle-600'} />
-        <span className="min-w-0 text-left leading-tight">
-          <span className={'block font-display font-bold ' + (activa ? 'text-jungle-950 text-base' : 'text-jungle-700 text-sm')}>
-            {dur ? formatearDuracion(dur) : activa && calculando ? '…' : '—'}
+        <Icono size={26} className="text-jungle-900 flex-none" />
+        <span className="leading-tight">
+          <span className="block font-display font-extrabold text-jungle-950 text-xl">
+            {dur ? formatearDuracion(dur) : calculando ? '…' : '—'}
           </span>
-          {activa && dist ? <span className="block text-[11px] text-jungle-600">{formatearDistancia(dist)}</span> : null}
+          {dist ? <span className="block text-xs text-jungle-600">{formatearDistancia(dist)}</span> : null}
         </span>
-      </button>
+      </div>
     );
   };
 
@@ -352,7 +366,7 @@ export default function NavegacionRuta(props: Props) {
     <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:w-[440px] sm:-translate-x-1/2 z-30 bg-white/90 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-2xl border border-white/60 px-4 pt-2.5 pb-4">
       <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-jungle-900/15" aria-hidden="true" />
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex items-center gap-3 mb-3">
         {pestana('auto')}
         {pestana('pie')}
       </div>

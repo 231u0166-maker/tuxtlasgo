@@ -17,7 +17,8 @@ function leerCerrado(): boolean {
   try { return localStorage.getItem(CLAVE_CERRADO) === 'true'; } catch { return false; }
 }
 
-export default function AvisoDescargaMapa({ onDescargar }: { onDescargar: () => void }) {
+// `ocultar`: mientras hay una ruta en pantalla (o se navega) el anuncio no debe tapar el mapa.
+export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { onDescargar: () => void; ocultar?: boolean }) {
   const t = useT();
   const sinInternet = useOffline();
   const [cerrado, setCerrado] = useState(leerCerrado);
@@ -37,7 +38,7 @@ export default function AvisoDescargaMapa({ onDescargar }: { onDescargar: () => 
     return () => window.clearInterval(id);
   }, []);
 
-  if (!listo || cerrado || oculto || hayMapa || sinInternet) return null;
+  if (!listo || cerrado || oculto || hayMapa || sinInternet || ocultar) return null;
 
   const cerrarParaSiempre = () => {
     setCerrado(true);

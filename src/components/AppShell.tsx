@@ -964,6 +964,7 @@ export default function AppShell() {
 
         {/* Anuncio flotante: guardar el mapa antes de salir de señal */}
         <AvisoDescargaMapa
+          ocultar={!!rutaVisible}
           onDescargar={() => {
             // El mapa puede no estar montado aún: se deja la petición en sessionStorage
             // (la lee al montarse) y también se avisa por evento por si ya está.

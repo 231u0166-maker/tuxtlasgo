@@ -51,6 +51,8 @@ interface Props {
   onElegirAlternativa?: (indice: number) => void;
   // Encuadra toda la ruta en el mapa (la cámara vuelve a seguirte con la siguiente lectura del GPS)
   onVerRutaCompleta?: () => void;
+  // Quita la ruta y deja el mapa normal (sin tener que cerrar y reabrir el mapa)
+  onCancelar?: () => void;
 }
 
 function IconoGiro({ tipo }: { tipo: Maniobra['tipo'] }) {
@@ -402,6 +404,16 @@ export default function NavegacionRuta(props: Props) {
       <div className="flex items-center gap-3 mb-3">
         {pestana('auto')}
         {pestana('pie')}
+        {props.onCancelar && (
+          <button
+            onClick={props.onCancelar}
+            className="ml-auto w-10 h-10 rounded-full bg-jungle-50 hover:bg-jungle-100 text-jungle-700 flex items-center justify-center flex-none self-start"
+            aria-label="Cancelar ruta"
+            title="Cancelar ruta"
+          >
+            <X size={20} />
+          </button>
+        )}
       </div>
 
       {/* Origen → destino */}

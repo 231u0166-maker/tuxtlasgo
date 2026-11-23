@@ -1637,6 +1637,7 @@ export default function MapScreen({
           alternativas={alternativas}
           onElegirAlternativa={onElegirAlternativa}
           onVerRutaCompleta={verRutaCompleta}
+          onCancelar={onLimpiarRuta}
         />
       )}
 

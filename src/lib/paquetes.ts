@@ -16,7 +16,10 @@ import {
   type Caja, type Progreso, type ZonaOffline,
 } from './mapaOffline';
 
-export const URL_PAQUETES = ((import.meta.env.VITE_PAQUETES_URL as string | undefined) ?? '').trim().replace(/\/$/, '');
+// Dirección pública del bucket de R2 (no es secreta: la descarga es pública).
+// Si VITE_PAQUETES_URL existe y no está vacía, esa tiene prioridad.
+const URL_PAQUETES_DEFECTO = 'https://pub-692c6db091f44bbea826698c33a6544f.r2.dev';
+export const URL_PAQUETES = ((import.meta.env.VITE_PAQUETES_URL as string | undefined)?.trim() || URL_PAQUETES_DEFECTO).replace(/\/$/, '');
 export const hayServidorDePaquetes = () => URL_PAQUETES.length > 0;
 
 export interface PaqueteCatalogo {

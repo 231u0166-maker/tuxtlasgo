@@ -57,6 +57,23 @@ export function paquetesParaUbicacion(coord: [number, number], catalogo: Paquete
   return dentro.sort((a, b) => dist(a) - dist(b));
 }
 
+// Punto de referencia de Los Tuxtlas (Catemaco) para saber qué paquete cubre la región.
+export const PUNTO_TUXTLAS: [number, number] = [18.42, -95.11];
+
+// Qué paquetes bajar para visitar Los Tuxtlas desde donde está el turista:
+//  - su estado (para moverse ahí) + el paquete que cubre Los Tuxtlas (Veracruz);
+//  - si su estado ya es el de Los Tuxtlas, solo ese;
+//  - si está fuera de Puebla/Tabasco/Veracruz, solo el de Los Tuxtlas.
+// El trazado sin internet entre los dos paquetes lo resuelve rutasOffline.ts (los une
+// por su zona de traslape).
+export function planVisitaTuxtlas(coord: [number, number] | null, catalogo: PaqueteCatalogo[]): PaqueteCatalogo[] {
+  const deTuxtlas = paquetesParaUbicacion(PUNTO_TUXTLAS, catalogo)[0];
+  if (!deTuxtlas) return [];
+  const suyo = coord ? paquetesParaUbicacion(coord, catalogo)[0] : undefined;
+  if (!suyo || suyo.id === deTuxtlas.id) return [deTuxtlas];
+  return [suyo, deTuxtlas];
+}
+
 export const idZonaDePaquete = (id: string) => `pk-${id}`;
 
 // ---------- almacenamiento OPFS ----------

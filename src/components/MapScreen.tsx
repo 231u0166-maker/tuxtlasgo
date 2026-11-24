@@ -790,6 +790,41 @@ export default function MapScreen({
     return () => window.removeEventListener('abrir-panel-offline', abrir);
   }, []);
 
+  // Flujo de entrada (AvisoDescargaMapa): baja de corrido los paquetes propuestos
+  // (tu estado + el que cubre Los Tuxtlas) y marca tu ubicación actual en el mapa.
+  useEffect(() => {
+    const instalar = async () => {
+      let ids: string[] = [];
+      try {
+        ids = JSON.parse(sessionStorage.getItem('instalar-paquetes') || '[]');
+        sessionStorage.removeItem('instalar-paquetes');
+      } catch { /* nada */ }
+      if (!Array.isArray(ids) || ids.length === 0) return;
+      const cat = await cargarCatalogo();
+      for (const id of ids) {
+        const pk = cat.find((c) => c.id === id);
+        if (!pk || leerInstalados().some((i) => i.id === id)) continue;
+        await instalarPaqueteUI(pk);
+        if (!leerInstalados().some((i) => i.id === id)) return; // falló o se canceló: no seguir
+      }
+      setAvisoMapa('Mapa listo. Toca tu ubicación y un lugar de Los Tuxtlas para trazar la ruta, con o sin internet.');
+    };
+    const marcarUbicacion = () => {
+      try {
+        const v = JSON.parse(sessionStorage.getItem('ubicacion-inicial') || 'null');
+        if (Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number')) setMiPosLocal([v[0], v[1]]);
+      } catch { /* nada */ }
+    };
+    void instalar();
+    marcarUbicacion();
+    window.addEventListener('instalar-paquetes', instalar);
+    window.addEventListener('ubicacion-inicial', marcarUbicacion);
+    return () => {
+      window.removeEventListener('instalar-paquetes', instalar);
+      window.removeEventListener('ubicacion-inicial', marcarUbicacion);
+    };
+  }, [instalarPaqueteUI]);
+
   // Vista previa del cuadro a descargar (se dibuja en el mapa mientras el panel está abierto)
   const [previewCaja, setPreviewCaja] = useState<Caja | null>(null);
   const alPreview = useCallback((caja: Caja | null) => {

@@ -882,3 +882,11 @@ Build de producción + modo sin conexión del navegador: zona de 6 km descargada
 - `AvisoDescargaMapa.tsx`: «Ahora no» ya no se guarda para siempre (sessionStorage): vuelve a preguntar en cada visita mientras no haya mapa guardado.
 - Probado en navegador con los paquetes reales servidos localmente y GPS simulado: Puebla (50 MB + Veracruz 74 MB), Villahermosa (Tabasco 14 MB, descarga e instalación completas), CDMX (fuera de zona) y permiso denegado.
 - PENDIENTE (ya anotado): sin `VITE_PAQUETES_URL` apuntando al hosting (R2) el catálogo queda vacío y este bloque no aparece.
+
+## Flujo de entrada: ubicar → proponer mapa → descargar → trazar (Puebla / Tabasco / Veracruz → Los Tuxtlas)
+- `AvisoDescargaMapa.tsx` (reescrito): 1) pide/usa tu ubicación (automático si ya diste el permiso) y la marca en el mapa (`sessionStorage ubicacion-inicial` + evento); 2) propone «Estás en Puebla. ¿Descargar el mapa de Puebla + Veracruz para visitar Los Tuxtlas, con o sin internet? (N MB)»; 3) «Descargar» baja los paquetes de corrido (`instalar-paquetes` → MapScreen) y avisa «Mapa listo». «Ahora no» solo cierra esta visita. Cierra la explicación vieja de ubicación para no preguntar dos veces.
+- `paquetes.ts`: `planVisitaTuxtlas()` → tu estado + el paquete que cubre Los Tuxtlas (Veracruz); si ya estás en Veracruz, solo ese; fuera de los 3 estados, solo Los Tuxtlas.
+- `rutasOffline.ts`: NUEVO trazado sin internet ENTRE paquetes. Antes exigía que un solo paquete cubriera origen y destino (Tabasco→Tuxtlas fallaba). Ahora une dos paquetes vecinos por las calles que comparten en su traslape (mismas coordenadas redondeadas). Verificado: Villahermosa→Catemaco sin internet = 309 km / 4.3 h (OSRM en línea: 299 km / 4.0 h), 435 ms.
+- Probado en navegador con paquetes reales y GPS simulado: Villahermosa (Tabasco + Veracruz, 88 MB, instalados) y Puebla (Puebla + Veracruz, 123 MB).
+- Límites: la unión carga dos grafos en RAM (Veracruz ≈ 254 mil nodos): falta probarlo en un celular de gama baja. Sigue pendiente el hosting de paquetes (`VITE_PAQUETES_URL`).
+- Para replicar en otros estados: ver respuesta de la sesión (los servicios y `estaEnLaRegion` siguen siendo de Los Tuxtlas).

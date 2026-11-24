@@ -390,12 +390,17 @@ export default function AppShell() {
   // aparece cuando lo piden con el botón "Ver mapa", y ese momento
   // sigue disparando el aviso desde cambiarTab (más abajo).
   useEffect(() => {
-    if (!window.matchMedia('(min-width: 1024px)').matches) return;
+    // El flujo de entrada (AvisoDescargaMapa) ya pide y obtiene la ubicación: si lo logra,
+    // esta explicación sobra y se cierra para no preguntar dos veces.
+    const yaUbicado = () => setMostrarExplicacionUbicacion(false);
+    window.addEventListener('ubicacion-inicial', yaUbicado);
+    if (!window.matchMedia('(min-width: 1024px)').matches) return () => window.removeEventListener('ubicacion-inicial', yaUbicado);
     try {
       if (localStorage.getItem('ubicacion-explicada') !== 'true') {
         setMostrarExplicacionUbicacion(true);
       }
     } catch { /* no crítico */ }
+    return () => window.removeEventListener('ubicacion-inicial', yaUbicado);
   }, []);
 
   // Instancia ÚNICA y compartida del hook de IA: vive aquí (no dentro
@@ -965,11 +970,17 @@ export default function AppShell() {
         {/* Anuncio flotante: guardar el mapa antes de salir de señal */}
         <AvisoDescargaMapa
           ocultar={!!rutaVisible}
-          onDescargar={() => {
+          onDescargar={(ids) => {
             // El mapa puede no estar montado aún: se deja la petición en sessionStorage
             // (la lee al montarse) y también se avisa por evento por si ya está.
-            try { sessionStorage.setItem('abrir-panel-offline', '1'); } catch { /* nada */ }
-            window.dispatchEvent(new Event('abrir-panel-offline'));
+            if (ids && ids.length > 0) {
+              // Flujo por ubicación: baja directo los paquetes propuestos (estado + Los Tuxtlas)
+              try { sessionStorage.setItem('instalar-paquetes', JSON.stringify(ids)); } catch { /* nada */ }
+              window.dispatchEvent(new Event('instalar-paquetes'));
+            } else {
+              try { sessionStorage.setItem('abrir-panel-offline', '1'); } catch { /* nada */ }
+              window.dispatchEvent(new Event('abrir-panel-offline'));
+            }
             cambiarTab('mapa');
           }}
         />

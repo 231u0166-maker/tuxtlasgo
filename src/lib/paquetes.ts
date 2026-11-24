@@ -11,6 +11,7 @@
 // las zonas. La descarga se reanuda sola desde donde se quedó.
 // ============================================================
 
+import { descargarIndice, borrarIndice } from './busquedaOffline';
 import {
   CACHE_MAPA, CACHE_GRAFOS, urlGrafoZona, descargarBase, leerZonas, guardarZonas,
   type Caja, type Progreso, type ZonaOffline,
@@ -29,6 +30,9 @@ export interface PaqueteCatalogo {
   archivoGrafo: string;
   bytesMapa: number;
   bytesGrafo: number;
+  // Índice de nombres para buscar sin internet (scripts/paquetes/construir-indice.mjs)
+  archivoBusqueda?: string;
+  bytesBusqueda?: number;
 }
 
 export interface PaqueteInstalado {
@@ -221,6 +225,10 @@ export async function instalarPaquete(
     new Response(await rg.text(), { headers: { 'Content-Type': 'application/json' } })
   );
 
+  // Índice de búsqueda sin internet (pequeño). Si falla, el paquete sirve igual: se reintenta
+  // la próxima vez que se abra el buscador con internet.
+  if (p.archivoBusqueda) await descargarIndice(p.id, `${URL_PAQUETES}/${p.archivoBusqueda}`, senal);
+
   // El paquete cuenta como zona descargada: así la cobertura y las rutas lo usan igual
   const zona: ZonaOffline = {
     id: idZonaDePaquete(p.id), nombre: p.nombre, caja: p.bbox, fecha: Date.now(),
@@ -238,6 +246,7 @@ export async function instalarPaquete(
 export async function borrarPaquete(id: string): Promise<void> {
   try { await (await carpetaPaquetes()).removeEntry(`${id}.pmtiles`); } catch { /* ya no estaba */ }
   try { await (await caches.open(CACHE_GRAFOS)).delete(urlGrafoZona(idZonaDePaquete(id))); } catch { /* nada */ }
+  await borrarIndice(id);
   guardarZonas(leerZonas().filter((z) => z.id !== idZonaDePaquete(id)));
   guardarInstalados(leerInstalados().filter((i) => i.id !== id));
   if (leerPaquetePendiente() === id) limpiarPaquetePendiente();

@@ -77,3 +77,80 @@ export async function actualizarCatalogo(entrada) {
 }
 
 export async function tamano(ruta) { return (await stat(ruta)).size; }
+
+// ---------- Índice de búsqueda sin internet ----------
+// Lee los mosaicos z14 y junta los NOMBRES con su posición. Formato compacto en columnas:
+//   { v:1, tipos:[...], nombres:"a\nb\n…", t:[tipo de cada nombre], la:[lat·1e5], ln:[lng·1e5] }
+// Solo se toma lo que cae DENTRO de cada mosaico (los bordes se repiten en el vecino).
+const E_MOSAICO = 4096;
+const KM_CALLE = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service']);
+export async function construirIndiceDePmtiles(rutaPmtiles, bbox, registrar = console.log) {
+  const { VectorTile } = await import('@mapbox/vector-tile');
+  const { default: Pbf } = await import('pbf');
+  const fuente = new FuenteArchivo(rutaPmtiles);
+  const pm = new PMTiles(fuente);
+  const mosaicos = mosaicosDeCaja(bbox, 14);
+  registrar(`Leyendo ${mosaicos.length} mosaicos z14 para el índice de búsqueda…`);
+  const tipos = [], idTipo = new Map();
+  const tipoId = (k) => { let i = idTipo.get(k); if (i === undefined) { i = tipos.length; tipos.push(k); idTipo.set(k, i); } return i; };
+  const nombres = [], T = [], LA = [], LN = [];
+  const vistos = new Set();
+  const agregar = (nombre, tipo, lat, lng, celda) => {
+    nombre = nombre.replace(/\s+/g, ' ').trim();
+    if (nombre.length < 2) return;
+    const clave = `${nombre}|${tipo}|${Math.floor(lat * celda)}|${Math.floor(lng * celda)}`;
+    if (vistos.has(clave)) return;
+    vistos.add(clave);
+    nombres.push(nombre); T.push(tipoId(tipo)); LA.push(Math.round(lat * 1e5)); LN.push(Math.round(lng * 1e5));
+  };
+  let hecho = 0, ultimo = -1;
+  try {
+    for (const [x, y] of mosaicos) {
+      const r = await pm.getZxy(14, x, y);
+      if (++hecho % 500 === 0) { const p = Math.floor((hecho / mosaicos.length) * 20); if (p !== ultimo) { ultimo = p; registrar(`  índice ${p * 5}%`); } }
+      if (!r) continue;
+      const vt = new VectorTile(new Pbf(new Uint8Array(r.data)));
+      const aLngLat = (px, py) => {
+        const n = 2 ** 14;
+        const lng = ((x + px / E_MOSAICO) / n) * 360 - 180;
+        const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + py / E_MOSAICO)) / n))) * 180) / Math.PI;
+        return [lat, lng];
+      };
+      const dentro = (px, py) => px >= 0 && px < E_MOSAICO && py >= 0 && py < E_MOSAICO;
+      for (const [capa, tipoDe, celda] of [
+        ['place', (p) => `lugar:${p.class ?? ''}`, 400],
+        ['poi', (p) => `poi:${p.subclass || p.class || ''}`, 4000],
+        ['water_name', () => 'agua', 100],
+        ['mountain_peak', () => 'cerro', 400],
+      ]) {
+        const c = vt.layers[capa];
+        if (!c) continue;
+        for (let i = 0; i < c.length; i++) {
+          const f = c.feature(i);
+          const nombre = f.properties['name:es'] || f.properties.name;
+          if (!nombre || f.type !== 1) continue; // puntos
+          const [p] = f.loadGeometry()[0] ?? [];
+          if (!p || !dentro(p.x, p.y)) continue;
+          const [lat, lng] = aLngLat(p.x, p.y);
+          agregar(String(nombre), tipoDe(f.properties), lat, lng, celda);
+        }
+      }
+      // Calles: un punto (la mitad del trazo) por nombre y por cuadrícula de ~2 km
+      const calles = vt.layers.transportation_name;
+      if (calles) {
+        for (let i = 0; i < calles.length; i++) {
+          const f = calles.feature(i);
+          const nombre = f.properties['name:es'] || f.properties.name;
+          if (!nombre || f.type !== 2 || !KM_CALLE.has(f.properties.class)) continue;
+          const partes = f.loadGeometry();
+          const linea = partes.reduce((a, b) => (b.length > a.length ? b : a), partes[0] ?? []);
+          const m = linea[Math.floor(linea.length / 2)];
+          if (!m || !dentro(m.x, m.y)) continue;
+          const [lat, lng] = aLngLat(m.x, m.y);
+          agregar(String(nombre), 'calle', lat, lng, 50);
+        }
+      }
+    }
+  } finally { await fuente.cerrar(); }
+  return { v: 1, tipos, nombres: nombres.join('\n'), t: T, la: LA, ln: LN };
+}

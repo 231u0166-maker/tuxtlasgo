@@ -753,6 +753,11 @@ export default function MapScreen({
   // Buscador: lugares de TuxtlasGO (catálogo + prestadores) y resultados de OpenStreetMap.
   // Elegir uno vuela ahí y abre la tarjeta «Cómo llegar» (la misma de tocar un punto del mapa).
   const lugaresBuscables = useMemo(() => [...LUGARES, ...serviciosPrestadores], [serviciosPrestadores]);
+  // Para ordenar los resultados por cercanía: lo que estás mirando en el mapa y, si no hay, tu ubicación
+  const obtenerReferencia = useCallback((): Coord | null => {
+    const c = mapRef.current?.getMap()?.getCenter();
+    return c ? [c.lat, c.lng] : (ubic ?? null);
+  }, [ubic]);
   const irABusqueda = useCallback((r: ResultadoBusqueda) => {
     cancelarViaje.current?.(); // si la cámara iba a abrirse al panorama del viaje, ya no
     setLugarElegido({ coord: r.coord, nombre: r.nombre, etiqueta: r.etiqueta, emoji: r.emoji });
@@ -1312,7 +1317,7 @@ export default function MapScreen({
     <div ref={contenedorRef} role="region" aria-label={t('Mapa de lugares')} className="relative h-full">
       <p className="sr-only">{t('El mapa es visual. Para recorrer los lugares con lector de pantalla usa la pestaña Explorar.')}</p>
       {!vistaCompacta && !rutaResaltada && !mostrarPanelOffline && !elegirOrigen && !navPos && (
-        <BuscadorMapa lugares={lugaresBuscables} onElegir={irABusqueda} />
+        <BuscadorMapa lugares={lugaresBuscables} onElegir={irABusqueda} obtenerReferencia={obtenerReferencia} />
       )}
       {hayZonaLibre && onSalirZonaLibre && (
         <button

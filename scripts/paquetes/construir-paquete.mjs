@@ -18,6 +18,7 @@ import { pipeline } from 'node:stream/promises';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { RAIZ, DIR_PAQUETES, construirGrafoDePmtiles, sha256, tamano, actualizarCatalogo } from './lib-paquete.mjs';
+import { indexarPaquete } from './construir-indice.mjs';
 
 const JAR = join(RAIZ, 'tools', 'planetiler.jar');
 const XMX = process.env.JAVA_XMX || '8g';
@@ -90,6 +91,13 @@ for (const r of lista) {
   console.log('3/3 Registrando en el catálogo…');
   const bytesMapa = await tamano(mapa), bytesGrafo = await tamano(rutaGrafo);
   const ruta = await actualizarCatalogo({
+    id: r.id, nombre: r.nombre, descripcion: r.descripcion, bbox: r.bbox,
+    version: new Date().toISOString().slice(0, 10),
+    archivoMapa: `${r.id}/mapa.pmtiles`, archivoGrafo: `${r.id}/grafo.json`,
+    bytesMapa, bytesGrafo, sha256Mapa: await sha256(mapa),
+  });
+  console.log('Índice de búsqueda sin internet (calles, colonias, lugares)…');
+  await indexarPaquete({
     id: r.id, nombre: r.nombre, descripcion: r.descripcion, bbox: r.bbox,
     version: new Date().toISOString().slice(0, 10),
     archivoMapa: `${r.id}/mapa.pmtiles`, archivoGrafo: `${r.id}/grafo.json`,

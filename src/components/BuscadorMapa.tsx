@@ -1,19 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X, Loader2, MapPin } from 'lucide-react';
 import { useT } from '../lib/i18n';
 import { useOffline } from '../hooks/useOffline';
 import type { Lugar } from '../data/lugares';
+import type { Coord } from '../lib/routing';
 import { buscarEnCatalogo, buscarEnOsm, type ResultadoBusqueda } from '../lib/buscarLugares';
+import { buscarSinInternet, descargarIndice, indiceGuardado } from '../lib/busquedaOffline';
+import { leerInstalados, leerCatalogoGuardado, cargarCatalogo, hayServidorDePaquetes, URL_PAQUETES } from '../lib/paquetes';
 
 // ============================================================
 // Buscador del mapa (estilo Google Maps)
 // ============================================================
-// Escribes y ves al instante los lugares de TuxtlasGO; con Enter (o la lupa) busca también
-// en OpenStreetMap, solo en Puebla, Tabasco y Veracruz (incluye Los Tuxtlas). Al elegir un
-// resultado el mapa vuela ahí y sale la tarjeta «Cómo llegar» (el flujo de siempre).
+// Escribes y ves al instante:
+//   · los lugares de TuxtlasGO, y
+//   · calles, colonias, negocios y localidades de tus mapas descargados (Puebla, Tabasco,
+//     Veracruz) — SIN internet, con el índice que viene en cada paquete.
+// Con internet, Enter (o «Buscar») consulta además OpenStreetMap, solo en esos tres estados.
+// Al elegir un resultado el mapa vuela ahí y sale la tarjeta «Cómo llegar» (el flujo de siempre).
 // ============================================================
 
-export default function BuscadorMapa({ lugares, onElegir }: { lugares: Lugar[]; onElegir: (r: ResultadoBusqueda) => void }) {
+export default function BuscadorMapa({
+  lugares, onElegir, obtenerReferencia,
+}: {
+  lugares: Lugar[];
+  onElegir: (r: ResultadoBusqueda) => void;
+  /** Punto para ordenar por cercanía: tu ubicación o, si no hay, el centro del mapa. */
+  obtenerReferencia?: () => Coord | null;
+}) {
   const t = useT();
   const sinInternet = useOffline();
   const [texto, setTexto] = useState('');
@@ -22,11 +35,55 @@ export default function BuscadorMapa({ lugares, onElegir }: { lugares: Lugar[]; 
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [buscado, setBuscado] = useState('');
+  const [conIndice, setConIndice] = useState<string[] | null>(null); // paquetes con índice sin internet
+  const [descargados, setDescargados] = useState<ResultadoBusqueda[]>([]);
+  const [buscandoDescargados, setBuscandoDescargados] = useState(false);
   const control = useRef<AbortController | null>(null);
   const raiz = useRef<HTMLDivElement>(null);
 
   // Lo del catálogo se filtra mientras escribes (es local, no pega a ningún servidor)
   const locales = useMemo(() => buscarEnCatalogo(texto, lugares), [texto, lugares]);
+
+  // Paquetes instalados con índice de búsqueda. Si a alguno le falta (se instaló antes de existir
+  // el índice) y hay internet, se baja ahora: pesa unos MB.
+  const revisarIndices = useCallback(async () => {
+    const instalados = leerInstalados();
+    if (instalados.length === 0) { setConIndice([]); return; }
+    let catalogo = leerCatalogoGuardado();
+    const listos: string[] = [];
+    for (const p of instalados) {
+      if (await indiceGuardado(p.id)) { listos.push(p.id); continue; }
+      if (!navigator.onLine || !hayServidorDePaquetes()) continue;
+      if (catalogo.length === 0) catalogo = await cargarCatalogo();
+      const c = catalogo.find((x) => x.id === p.id);
+      if (c?.archivoBusqueda && await descargarIndice(p.id, `${URL_PAQUETES}/${c.archivoBusqueda}`)) listos.push(p.id);
+    }
+    setConIndice(listos);
+  }, []);
+  useEffect(() => { void revisarIndices(); }, [revisarIndices, sinInternet]);
+
+  // Búsqueda en tus mapas descargados mientras escribes (local: no hay límite de uso que cuidar).
+  // La primera vez carga el índice en memoria (unos cientos de ms): mientras tanto se muestra «Buscando…».
+  const referenciaRef = useRef(obtenerReferencia);
+  referenciaRef.current = obtenerReferencia;
+  useEffect(() => {
+    const q = texto.trim();
+    if (q.length < 2) { setDescargados([]); setBuscandoDescargados(false); return; }
+    let vivo = true;
+    setBuscandoDescargados(true);
+    const id = window.setTimeout(async () => {
+      try {
+        const ids: string[] = [];
+        for (const p of leerInstalados()) if (await indiceGuardado(p.id)) ids.push(p.id);
+        if (!vivo) return;
+        setConIndice(ids);
+        const r = ids.length > 0 ? await buscarSinInternet(q, ids, referenciaRef.current?.() ?? null) : [];
+        if (vivo) setDescargados(r);
+      } catch { if (vivo) setDescargados([]); }
+      finally { if (vivo) setBuscandoDescargados(false); }
+    }, 200);
+    return () => { vivo = false; window.clearTimeout(id); };
+  }, [texto]);
 
   // Al cambiar el texto, lo encontrado en OpenStreetMap de la búsqueda anterior ya no aplica
   useEffect(() => { if (texto.trim() !== buscado) setOsm(null); }, [texto, buscado]);
@@ -41,7 +98,7 @@ export default function BuscadorMapa({ lugares, onElegir }: { lugares: Lugar[]; 
 
   const buscarOsm = async () => {
     const q = texto.trim();
-    if (q.length < 3 || cargando) return; // ≥3 letras y una a la vez (política de Nominatim: 1 por segundo)
+    if (q.length < 3 || cargando || sinInternet) return; // ≥3 letras y una a la vez (política de Nominatim: 1 por segundo)
     control.current?.abort();
     const ctl = new AbortController();
     control.current = ctl;
@@ -68,12 +125,16 @@ export default function BuscadorMapa({ lugares, onElegir }: { lugares: Lugar[]; 
 
   const hayTexto = texto.trim().length > 0;
   const mostrar = abierto && hayTexto;
+  // Con el resultado de OpenStreetMap a la vista, lo de «tus mapas» sería lo mismo repetido
+  const verDescargados = descargados.length > 0 && (sinInternet || osm === null);
+  const sinPaquetes = conIndice !== null && conIndice.length === 0;
+  const sinNada = mostrar && !cargando && !buscandoDescargados && !error && locales.length === 0 && !verDescargados
+    && (osm !== null ? osm.length === 0 : sinInternet && !sinPaquetes && texto.trim().length >= 2);
   // Avisa a los anuncios flotantes (p. ej. el de descarga) para que no tapen la lista de resultados
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('buscador-mapa-abierto', { detail: mostrar }));
     return () => { window.dispatchEvent(new CustomEvent('buscador-mapa-abierto', { detail: false })); };
   }, [mostrar]);
-  const sinNada = mostrar && !cargando && !error && locales.length === 0 && osm !== null && osm.length === 0;
 
   const fila = (r: ResultadoBusqueda) => (
     <li key={r.id}>
@@ -121,13 +182,15 @@ export default function BuscadorMapa({ lugares, onElegir }: { lugares: Lugar[]; 
             <X size={16} />
           </button>
         )}
-        <button
-          type="submit"
-          disabled={texto.trim().length < 3 || cargando || sinInternet}
-          className="h-8 px-3 rounded-xl bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white text-xs font-semibold flex items-center gap-1 flex-none"
-        >
-          {cargando ? <Loader2 size={14} className="animate-spin" /> : t('Buscar')}
-        </button>
+        {!sinInternet && (
+          <button
+            type="submit"
+            disabled={texto.trim().length < 3 || cargando}
+            className="h-8 px-3 rounded-xl bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white text-xs font-semibold flex items-center gap-1 flex-none"
+          >
+            {cargando ? <Loader2 size={14} className="animate-spin" /> : t('Buscar')}
+          </button>
+        )}
       </form>
 
       {mostrar && (
@@ -139,6 +202,15 @@ export default function BuscadorMapa({ lugares, onElegir }: { lugares: Lugar[]; 
             </>
           )}
 
+          {verDescargados && (
+            <>
+              <p className="px-3.5 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-jungle-500">
+                {sinInternet ? t('En tus mapas descargados (sin internet)') : t('En tus mapas descargados')}
+              </p>
+              <ul>{descargados.map(fila)}</ul>
+            </>
+          )}
+
           {osm && osm.length > 0 && (
             <>
               <p className="px-3.5 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-jungle-500">{t('En el mapa (OpenStreetMap)')}</p>
@@ -146,6 +218,11 @@ export default function BuscadorMapa({ lugares, onElegir }: { lugares: Lugar[]; 
             </>
           )}
 
+          {buscandoDescargados && descargados.length === 0 && !cargando && (
+            <p role="status" className="px-3.5 py-3 text-xs text-jungle-700 flex items-center gap-2">
+              <Loader2 size={14} className="animate-spin" /> {t('Buscando en tus mapas descargados…')}
+            </p>
+          )}
           {cargando && (
             <p role="status" className="px-3.5 py-3 text-xs text-jungle-700 flex items-center gap-2">
               <Loader2 size={14} className="animate-spin" /> {t('Buscando en el mapa…')}
@@ -154,15 +231,20 @@ export default function BuscadorMapa({ lugares, onElegir }: { lugares: Lugar[]; 
           {error && <p role="alert" className="px-3.5 py-3 text-xs font-semibold text-red-700">{error}</p>}
           {sinNada && (
             <p className="px-3.5 py-3 text-xs text-jungle-700 flex items-center gap-2">
-              <MapPin size={14} /> {t('No encontré ese lugar en Puebla, Tabasco o Veracruz. Prueba con el nombre completo de la calle y la ciudad (ej. Calle Carranza Catemaco).')}
+              <MapPin size={14} className="flex-none" />
+              {sinInternet
+                ? t('No encontré ese lugar en tus mapas descargados. Prueba con otro nombre.')
+                : t('No encontré ese lugar en Puebla, Tabasco o Veracruz. Prueba con el nombre completo de la calle y la ciudad (ej. Calle Carranza Catemaco).')}
             </p>
           )}
 
-          {/* Invitación a buscar en el mapa mientras todavía no se ha hecho */}
+          {/* Pie: qué más se puede buscar según haya o no internet y mapas descargados */}
           {!cargando && osm === null && !error && (
             <p className="px-3.5 py-2.5 text-[11px] text-jungle-600 border-t border-jungle-100 mt-1">
               {sinInternet
-                ? t('Sin internet: solo se buscan los lugares de TuxtlasGO.')
+                ? (sinPaquetes
+                    ? t('Sin internet solo se buscan los lugares de TuxtlasGO. Descarga el mapa de tu zona para buscar también calles y colonias.')
+                    : t('Sin internet: se busca en TuxtlasGO y en tus mapas descargados.'))
                 : texto.trim().length < 3
                   ? t('Escribe al menos 3 letras para buscar en el mapa.')
                   : t('Pulsa Enter o «Buscar» para buscar también en el mapa de Puebla, Tabasco y Veracruz.')}

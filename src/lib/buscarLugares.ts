@@ -27,7 +27,7 @@ export interface ResultadoBusqueda {
   detalle: string;
   etiqueta: string;
   emoji: string;
-  origen: 'catalogo' | 'osm';
+  origen: 'catalogo' | 'osm' | 'offline';
 }
 
 const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
@@ -73,7 +73,7 @@ interface FilaNominatim {
 }
 
 // Etiqueta y emoji según lo que devuelve Nominatim (categoría + tipo de OSM)
-function describirOsm(categoria = '', tipo = ''): { etiqueta: string; emoji: string } {
+export function describirOsm(categoria = '', tipo = ''): { etiqueta: string; emoji: string } {
   const t = tipo.toLowerCase();
   const mapa: Record<string, [string, string]> = {
     restaurant: ['Restaurante', '🍽️'], fast_food: ['Comida rápida', '🍔'], cafe: ['Café', '☕'], bar: ['Bar', '🍺'],

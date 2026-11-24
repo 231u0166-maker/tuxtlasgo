@@ -30,6 +30,16 @@ La primera corrida baja los datos de México (~1–2 GB) y tarda; las siguientes
 **Tamaños:** todavía no se han medido paquetes reales (solo el de prueba). Se espera del orden de cientos de MB
 por estado; ajusta con `--maxzoom` o `--exclude-layers` en `construir-paquete.mjs` si salen muy grandes.
 
+### Índice de búsqueda sin internet
+`construir-paquete.mjs` termina corriendo `construir-indice.mjs`, que lee los mosaicos z14 del `mapa.pmtiles` y genera
+`paquetes/<id>/buscar.json` (nombres de localidades, colonias, negocios/lugares, calles, lagos y cerros con su posición;
+~0.6 MB Tabasco, 3 MB Puebla, 4.3 MB Veracruz). También se puede generar sin Planetiler sobre un mapa ya hecho:
+```bash
+node scripts/paquetes/construir-indice.mjs all     # o tabasco | puebla | veracruz
+```
+Límite: sale de lo que trae el mapa; lo que OpenStreetMap dibuja como polígono o plaza sin punto de interés
+(p. ej. el Zócalo de Puebla) NO aparece sin internet. Tampoco hay números de casa (se excluyen del paquete).
+
 ## 3. Alojar
 Los archivos son estáticos y necesitan **peticiones por rango (Range)** y **CORS**:
 
@@ -37,6 +47,8 @@ Los archivos son estáticos y necesitan **peticiones por rango (Range)** y **COR
   actívale acceso público (o un dominio propio) y sube la carpeta `paquetes/` completa.
 - CORS del bucket: métodos `GET, HEAD`; orígenes tu dominio de la app (y `http://localhost:5173` para probar);
   cabeceras permitidas `Range`; cabeceras expuestas `Content-Range, Content-Length, ETag, Accept-Ranges`.
+- **CSP:** cuando se active la Content-Security-Policy (hoy está en Report-Only en `vercel.json`), agrega el host de los
+  paquetes (el de `VITE_PAQUETES_URL`) a `connect-src`, o las descargas se bloquearán.
 - En Vercel (o `.env.local`): `VITE_PAQUETES_URL=https://<tu-bucket-o-dominio>` (sin `/` final) y vuelve a desplegar.
   Sin esa variable la app oculta la sección de paquetes y usa solo las zonas.
 
@@ -57,5 +69,8 @@ Eso NO es el proceso de producción: solo sirve para probar la app y el servidor
   guardando por zona o ruta desde "Más opciones".
 - **Navegador:** guardar un archivo tan grande usa el sistema de archivos privado del navegador (OPFS) y
   `createWritable`: funciona en Chrome/Edge (Android y escritorio); en Safari/iOS aún no.
-- Una ruta entre dos paquetes distintos (p. ej. Puebla → Veracruz) no se calcula sin internet: cada paquete
+- **Rutas entre paquetes:** sin internet, una ruta cuyo origen y destino caen en paquetes distintos (p. ej. Tabasco →
+  Los Tuxtlas) se calcula uniendo los dos grafos por sus calles compartidas (src/lib/rutasOffline.ts, `grafoUnido`);
+  solo funciona si las cajas de los paquetes se traslapan o se tocan.
+- (Nota histórica, ya resuelta arriba) Una ruta entre dos paquetes distintos no se calculaba sin internet: cada paquete
   tiene su propia red. Con internet siempre funciona.

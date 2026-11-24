@@ -87,6 +87,20 @@ export function describirOsm(categoria = '', tipo = ''): { etiqueta: string; emo
     hamlet: ['Localidad', '🏘️'], suburb: ['Colonia', '🏘️'], neighbourhood: ['Colonia', '🏘️'], quarter: ['Colonia', '🏘️'],
     residential: ['Calle', '🛣️'], primary: ['Carretera', '🛣️'], secondary: ['Carretera', '🛣️'], tertiary: ['Calle', '🛣️'],
     lake: ['Laguna / lago', '🌊'], water: ['Agua', '🌊'], nature_reserve: ['Reserva natural', '🌿'],
+    // Tipos que salen del índice de los paquetes (extracto completo de OpenStreetMap)
+    square: ['Plaza', '🏛️'], townhall: ['Ayuntamiento', '🏛️'], theme_park: ['Parque temático', '🎢'], mall: ['Plaza comercial', '🛍️'],
+    cemetery: ['Panteón', '🪦'], bakery: ['Panadería', '🥖'], butcher: ['Carnicería', '🥩'], convenience: ['Tienda', '🛒'],
+    clothes: ['Ropa', '👕'], hairdresser: ['Estética', '💇'], dentist: ['Dentista', '🦷'], doctors: ['Consultorio', '🩺'],
+    veterinary: ['Veterinaria', '🐾'], taxi: ['Taxis', '🚕'], kindergarten: ['Escuela', '🏫'], college: ['Escuela', '🏫'],
+    library: ['Biblioteca', '📚'], cinema: ['Cine', '🎬'], theatre: ['Teatro', '🎭'], stadium: ['Estadio', '🏟️'],
+    sports_centre: ['Deportivo', '🏟️'], fitness_centre: ['Gimnasio', '🏋️'], garden: ['Jardín', '🌷'], monument: ['Monumento', '🗿'],
+    memorial: ['Memorial', '🗿'], ruins: ['Ruinas', '🏚️'], archaeological_site: ['Zona arqueológica', '🏺'], castle: ['Castillo', '🏰'],
+    building: ['Edificio', '🏢'], shop: ['Tienda', '🛍️'], tower: ['Torre', '🗼'], lighthouse: ['Faro', '🗼'],
+    aerodrome: ['Aeropuerto', '✈️'], railway_station: ['Estación de tren', '🚉'], post_office: ['Correos', '📮'],
+    fire_station: ['Bomberos', '🚒'], courthouse: ['Juzgado', '⚖️'], community_centre: ['Centro comunitario', '🏘️'],
+    nightclub: ['Antro', '🎶'], ice_cream: ['Helados', '🍦'], hospital_: ['Hospital', '🏥'], beach_resort: ['Balneario', '🏖️'],
+    resort: ['Resort', '🏖️'], apartment: ['Departamentos', '🏢'], gallery: ['Galería', '🖼️'], zoo: ['Zoológico', '🦁'],
+    theme: ['Parque temático', '🎢'],
   };
   if (mapa[t]) return { etiqueta: mapa[t][0], emoji: mapa[t][1] };
   if (categoria === 'highway') return { etiqueta: 'Calle', emoji: '🛣️' };

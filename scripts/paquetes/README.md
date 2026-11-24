@@ -31,14 +31,16 @@ La primera corrida baja los datos de México (~1–2 GB) y tarda; las siguientes
 por estado; ajusta con `--maxzoom` o `--exclude-layers` en `construir-paquete.mjs` si salen muy grandes.
 
 ### Índice de búsqueda sin internet
-`construir-paquete.mjs` termina corriendo `construir-indice.mjs`, que lee los mosaicos z14 del `mapa.pmtiles` y genera
-`paquetes/<id>/buscar.json` (nombres de localidades, colonias, negocios/lugares, calles, lagos y cerros con su posición;
-~0.6 MB Tabasco, 3 MB Puebla, 4.3 MB Veracruz). También se puede generar sin Planetiler sobre un mapa ya hecho:
+`construir-paquete.mjs` termina corriendo `construir-indice.mjs`, que genera `paquetes/<id>/buscar.json`: nombres de
+localidades, colonias, plazas, iglesias, edificios, negocios/lugares, calles, ríos, lagos y cerros con su posición
+(~0.7 MB Tabasco, 3.4 MB Puebla, 4.8 MB Veracruz). Lo lee del extracto original `data/sources/<id>.osm.pbf` con un
+lector propio (`lib-osm-pbf.mjs`, 3 pasadas, segundos) y, si ese archivo no está, de los mosaicos del mapa (trae menos).
+También se puede generar sin Planetiler sobre un mapa ya hecho:
 ```bash
 node scripts/paquetes/construir-indice.mjs all     # o tabasco | puebla | veracruz
 ```
-Límite: sale de lo que trae el mapa; lo que OpenStreetMap dibuja como polígono o plaza sin punto de interés
-(p. ej. el Zócalo de Puebla) NO aparece sin internet. Tampoco hay números de casa (se excluyen del paquete).
+Límite: solo entra lo que tiene nombre en el extracto (los datos de OpenStreetMap de esa fecha). No hay números de casa
+ni direcciones «Calle X #123». Si falta algo, con internet el buscador lo busca en Nominatim.
 
 ## 3. Alojar
 Los archivos son estáticos y necesitan **peticiones por rango (Range)** y **CORS**:

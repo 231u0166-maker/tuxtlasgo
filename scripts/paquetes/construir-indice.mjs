@@ -9,12 +9,19 @@
 // paquetes/paquetes.json. NO hace falta Planetiler: solo lee el mapa ya generado.
 // (construir-paquete.mjs también lo corre como último paso.)
 import { readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { DIR_PAQUETES, construirIndiceDePmtiles, actualizarCatalogo, tamano } from './lib-paquete.mjs';
+import { RAIZ, DIR_PAQUETES, construirIndiceDePmtiles, actualizarCatalogo, tamano } from './lib-paquete.mjs';
+import { construirIndiceDePbf } from './lib-osm-pbf.mjs';
 
 export async function indexarPaquete(entrada) {
   const dir = join(DIR_PAQUETES, entrada.id);
-  const indice = await construirIndiceDePmtiles(join(dir, 'mapa.pmtiles'), entrada.bbox);
+  // Con el extracto original de OpenStreetMap (data/sources/<id>.osm.pbf) el índice sale COMPLETO (plazas, iglesias,
+  // edificios, parques, ríos…). Si no está, se lee de los mosaicos del mapa (trae menos cosas).
+  const pbf = join(RAIZ, 'data', 'sources', `${entrada.id}.osm.pbf`);
+  const indice = existsSync(pbf)
+    ? await construirIndiceDePbf(pbf, entrada.bbox)
+    : await construirIndiceDePmtiles(join(dir, 'mapa.pmtiles'), entrada.bbox);
   const ruta = join(dir, 'buscar.json');
   await writeFile(ruta, JSON.stringify(indice));
   const bytes = await tamano(ruta);

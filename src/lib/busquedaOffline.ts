@@ -27,6 +27,8 @@ interface Indice {
   la: Float32Array;
   ln: Float32Array;
   lugares: number[]; // posiciones de ciudades/pueblos/colonias (para decir «cerca de X»)
+  cerca: Int32Array;  // por cada nombre: la localidad (cualquier tipo) más próxima, o -1
+  ciudad: Int32Array; // por cada nombre: la ciudad/pueblo (no colonia) más próximo, o -1
 }
 
 const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -65,12 +67,33 @@ function cargarIndice(id: string): Promise<Indice | null> {
         const n = nombres.length;
         const lugares: number[] = [];
         const esLugar = d.tipos.map((x) => /^lugar:(city|town|village|suburb|neighbourhood|quarter)$/.test(x));
+        const esCiudad = d.tipos.map((x) => /^lugar:(city|town|village)$/.test(x));
         for (let i = 0; i < n; i++) if (esLugar[d.t[i]]) lugares.push(i);
+        const la = Float32Array.from(d.la, (v) => v / 1e5), ln = Float32Array.from(d.ln, (v) => v / 1e5);
+        // Cuadrícula de 0.1° (~11 km) para encontrar rápido la localidad más próxima de cada nombre
+        const celda = (a: number, o: number) => Math.floor(a * 10) * 10000 + Math.floor(o * 10);
+        const rejilla = new Map<number, number[]>();
+        for (const i of lugares) { const k = celda(la[i], ln[i]); const c = rejilla.get(k); if (c) c.push(i); else rejilla.set(k, [i]); }
+        const cerca = new Int32Array(n).fill(-1), ciudad = new Int32Array(n).fill(-1);
+        for (let i = 0; i < n; i++) {
+          let mejorA = -1, dA = 1e9, mejorC = -1, dC = 1e9;
+          const fa = Math.floor(la[i] * 10), fo = Math.floor(ln[i] * 10);
+          for (let da = -1; da <= 1; da++) for (let dob = -1; dob <= 1; dob++) {
+            const c = rejilla.get((fa + da) * 10000 + (fo + dob));
+            if (!c) continue;
+            for (const j of c) {
+              if (j === i) continue;
+              const dx = (ln[j] - ln[i]) * 0.945, dy = la[j] - la[i], dd = dx * dx + dy * dy; // ~cos(19°)
+              if (dd < dA) { dA = dd; mejorA = j; }
+              if (esCiudad[d.t[j]] && dd < dC) { dC = dd; mejorC = j; }
+            }
+          }
+          cerca[i] = mejorA; ciudad[i] = mejorC;
+        }
         return {
           id, n, nombres, norm: nombres.map(normalizar), tipos: d.tipos,
           t: d.tipos.length < 256 ? Uint8Array.from(d.t) : Uint16Array.from(d.t),
-          la: Float32Array.from(d.la, (v) => v / 1e5), ln: Float32Array.from(d.ln, (v) => v / 1e5),
-          lugares,
+          la, ln, lugares, cerca, ciudad,
         };
       } catch { return null; }
     })();
@@ -102,7 +125,7 @@ function describirTipo(tipo: string): { etiqueta: string; emoji: string } {
   const [grupo, sub] = tipo.split(':');
   if (grupo === 'lugar' && sub === 'island') return { etiqueta: 'Isla', emoji: '🏝️' };
   if (grupo === 'lugar' && sub === 'hamlet') return { etiqueta: 'Localidad', emoji: '🏘️' };
-  return describirOsm(grupo === 'lugar' ? 'place' : 'amenity', sub === 'townhall' ? 'town_hall' : sub);
+  return describirOsm(grupo === 'lugar' ? 'place' : 'amenity', sub);
 }
 
 /** Busca en los paquetes con índice guardado. `ref` ordena por cercanía (tu ubicación o el centro del mapa). */
@@ -116,16 +139,25 @@ export async function buscarSinInternet(texto: string, idsPaquetes: string[], re
     const ix = await cargarIndice(id);
     if (!ix) continue;
     let tomados = 0;
-    for (let i = 0; i < ix.n && tomados < 3000; i++) {
+    for (let i = 0; i < ix.n && tomados < 20000; i++) {
       const nm = ix.norm[i];
-      if (!tokens.every((tk) => nm.includes(tk))) continue;
+      // Cada palabra debe estar en el nombre o en la localidad donde queda («palacio municipal catemaco»),
+      // pero al menos una tiene que ser del nombre mismo (si no, «catemaco» devolvería media región).
+      let enNombre = 0, ok = true, loc: string | null = null;
+      for (const tk of tokens) {
+        if (nm.includes(tk)) { enNombre++; continue; }
+        if (loc === null) loc = (ix.ciudad[i] >= 0 ? ix.norm[ix.ciudad[i]] : '') + ' ' + (ix.cerca[i] >= 0 ? ix.norm[ix.cerca[i]] : '');
+        if (!loc.includes(tk)) { ok = false; break; }
+      }
+      if (!ok || enNombre === 0) continue;
       tomados++;
       const tipo = ix.tipos[ix.t[i]];
       // 0 = igual, 1 = empieza con, 2 = una palabra empieza con, 3 = lo contiene
       const base = nm === q ? 0 : nm.startsWith(q) ? 1 : nm.includes(' ' + q) ? 2 : 3;
       const d = ref ? km(ref[0], ref[1], ix.la[i], ix.ln[i]) : 0;
       // La distancia pesa poco frente al tipo/coincidencia, pero ordena entre iguales (la «Calle Juárez» de tu ciudad)
-      const puntos = base + pesoTipo(tipo) + Math.min(d, 400) / 80;
+      // Cada palabra que solo coincide por la localidad resta un poco de relevancia
+      const puntos = base + pesoTipo(tipo) + Math.min(d, 400) / 80 + (tokens.length - enNombre) * 0.25;
       candidatos.push({
         puntos,
         r: {

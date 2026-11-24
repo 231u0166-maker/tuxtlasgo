@@ -1,7 +1,7 @@
 import {
   Mail,
   X, Star, MapPin, Clock, DollarSign, Calendar, Navigation, Heart, Route, Lightbulb, BadgeCheck,
-  PawPrint, Instagram, Facebook, MessageCircle, Phone, Globe, CalendarCheck, Share2, ChevronDown, Maximize2, Minimize2,
+  PawPrint, Eye, Instagram, Facebook, MessageCircle, Phone, Globe, CalendarCheck, Share2, ChevronDown, Maximize2, Minimize2,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import LogoRed from './LogoRed';
@@ -210,6 +210,11 @@ export default function PlaceDetail({ lugar, onClose, onVerEnMapa, onVerLugar, o
               <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${cat?.color}`}>
                 {cat?.emoji} {t(lugar.categoria)}
               </span>
+              {!!lugar.vistas && lugar.vistas > 0 && (
+                <span className="inline-flex items-center gap-1 text-xs bg-jungle-50 text-jungle-700 px-2.5 py-1 rounded-full font-medium">
+                  <Eye size={12} /> {lugar.vistas === 1 ? t('1 vista') : t('{n} vistas', { n: lugar.vistas })}
+                </span>
+              )}
               {lugar.verificado && (
                 <span className="inline-flex items-center gap-1 text-xs bg-jungle-100 text-jungle-800 px-2.5 py-1 rounded-full font-medium">
                   <BadgeCheck size={12} /> {t('Info verificada')}

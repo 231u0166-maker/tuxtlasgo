@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { I18nProvider } from './lib/i18n';
 import './styles/index.css';
+import { registrarVisitaSitio } from './lib/eventos';
+
+registrarVisitaSitio();
 
 // El registro del Service Worker ahora vive en
 // src/components/ActualizacionDisponible.tsx, usando el hook

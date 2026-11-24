@@ -138,6 +138,8 @@ export const EN: Record<string, string> = {
   'Destacado': 'Featured',
   'Patrocinado': 'Sponsored',
   'Prestador local': 'Local provider',
+  '{n} vistas': '{n} views',
+  '1 vista': '1 view',
   'Fuera de Los Tuxtlas': 'Outside Los Tuxtlas',
   'Nuevo chat': 'New chat',
   'El modo inteligente no se activó en esta carga (poca memoria). El asistente sigue funcionando con respuestas básicas, incluso sin internet. Para activarlo, cierra la app por completo y vuelve a abrirla.': 'Smart mode did not start this time (low memory). The assistant keeps working with basic answers, even offline. To turn it on, close the app completely and open it again.',

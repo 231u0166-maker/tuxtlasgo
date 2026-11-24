@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft, ShieldCheck, CheckCircle2, XCircle,
   Store, MapPin, Phone, DollarSign, Loader2, BookPlus,
-  Search, ImagePlus, X, ExternalLink, Sparkles, Flag, Trash2, RotateCcw, CalendarDays, Eye, EyeOff
+  Search, ImagePlus, X, ExternalLink, Sparkles, Flag, Trash2, RotateCcw, CalendarDays, Eye, EyeOff, BarChart3
 } from 'lucide-react';
 import AdminEventos from './AdminEventos';
+import AdminVisitas from './AdminVisitas';
 import { adminPwd, fijarAdminPwd } from '../lib/adminPwd';
 import { agregarConocimientoDinamico } from '../lib/conocimiento';
 import { CATEGORIAS, type Categoria } from '../data/lugares';
@@ -17,7 +18,7 @@ type Filtro = 'pendiente' | 'aprobado' | 'rechazado' | 'baja' | 'todos';
 // baja lo que registra el público) es un flujo distinto de la Base de
 // Conocimiento (fichas de la IA + alta rápida de lugares por el
 // propio equipo). Antes vivían mezcladas en una sola pantalla.
-type Seccion = 'servicios' | 'conocimiento' | 'comunidad' | 'eventos';
+type Seccion = 'servicios' | 'conocimiento' | 'comunidad' | 'eventos' | 'visitas';
 
 const MUNICIPIOS = ['Catemaco', 'San Andrés Tuxtla', 'Santiago Tuxtla'];
 const OPCIONES_IDEAL = ['solo', 'pareja', 'familia', 'amigos'];
@@ -479,12 +480,24 @@ export default function AdminPanel() {
               <CalendarDays size={15} /> Eventos
             </span>
           </button>
+          <button
+            onClick={() => cambiarSeccion('visitas')}
+            className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${seccion === 'visitas'
+              ? 'border-jungle-700 text-jungle-900'
+              : 'border-transparent text-jungle-400 hover:text-jungle-700'
+              }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <BarChart3 size={15} /> Visitas
+            </span>
+          </button>
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-6">
         {seccion === 'comunidad' && <SeccionComunidad />}
         {seccion === 'eventos' && <AdminEventos />}
+        {seccion === 'visitas' && <AdminVisitas />}
         {seccion === 'servicios' && (
           <>
             {/* Título */}

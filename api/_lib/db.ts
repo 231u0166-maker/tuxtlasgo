@@ -75,6 +75,32 @@ export async function asegurarTablaPagosReservacion(pool: Pool) {
 //   - el asistente de IA lo recomienda en el chat   → tipo 'ia_recomendacion'
 // Se auto-provisiona igual que las demás tablas del proyecto (ver
 // api/ia/chat.ts) — nada de migración manual aparte.
+// ── visitas_sitio — una fila por visita (carga de la app) a cualquier dominio
+// que apunte a este despliegue (tuxtlas.xyz, go.tuxtlas.xyz…). Guarda la IP real
+// para que el admin vea quién ha entrado; el registro de IPs distintas sale de
+// agrupar esta tabla. ip_hash se conserva para la comparación rápida anti-repetición.
+export async function asegurarTablaVisitasSitio(pool: Pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS visitas_sitio (
+      id SERIAL PRIMARY KEY,
+      host TEXT NOT NULL DEFAULT '',
+      ruta TEXT NOT NULL DEFAULT '',
+      visitante TEXT,
+      ip_hash TEXT NOT NULL,
+      pais TEXT,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  // IP real (para que el admin vea quién ha entrado), lugar aproximado, dispositivo y cuenta si inició sesión.
+  await pool.query('ALTER TABLE visitas_sitio ADD COLUMN IF NOT EXISTS ip TEXT');
+  await pool.query('ALTER TABLE visitas_sitio ADD COLUMN IF NOT EXISTS ciudad TEXT');
+  await pool.query('ALTER TABLE visitas_sitio ADD COLUMN IF NOT EXISTS dispositivo TEXT');
+  await pool.query('ALTER TABLE visitas_sitio ADD COLUMN IF NOT EXISTS usuario_id INT');
+  await pool.query('CREATE INDEX IF NOT EXISTS visitas_sitio_ip_real ON visitas_sitio (ip)');
+  await pool.query('CREATE INDEX IF NOT EXISTS visitas_sitio_fecha ON visitas_sitio (creado_en)');
+  await pool.query('CREATE INDEX IF NOT EXISTS visitas_sitio_ip ON visitas_sitio (ip_hash, creado_en)');
+}
+
 export async function asegurarTablaEventosServicio(pool: Pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS eventos_servicio (

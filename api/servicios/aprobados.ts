@@ -5,7 +5,8 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHash } from 'crypto';
-import { getPool, asegurarTablaEventosServicio, asegurarColumnasServicio } from '../_lib/db.js';
+import { getPool, asegurarTablaEventosServicio, asegurarTablaVisitasSitio, asegurarColumnasServicio } from '../_lib/db.js';
+import { esAdmin, ipDe } from '../_lib/seguridad.js';
 
 function cors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -51,6 +52,123 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const pool = getPool();
+
+  // ── POST ?recurso=visita — una visita al sitio (cualquier dominio). Público y
+  // fire-and-forget. Una visita por visitante+IP cada 30 min (evita contar recargas).
+  if (req.method === 'POST' && req.query.recurso === 'visita') {
+    try {
+      const { ruta, visitante } = req.body ?? {};
+      const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim().toLowerCase().slice(0, 100);
+      const rutaLimpia = typeof ruta === 'string' ? ruta.slice(0, 120) : '';
+      const vis = typeof visitante === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(visitante) ? visitante : null;
+      const ipHash = createHash('sha256').update(ipDe(req) + (process.env.EVENTOS_SAL ?? 'tuxtlasgo')).digest('hex').slice(0, 32);
+      await asegurarTablaVisitasSitio(pool);
+      const ip = ipDe(req).slice(0, 64);
+      // Si trae sesión, la visita se liga a la cuenta (para el registro del admin).
+      let usuarioId: number | null = null;
+      const auth = req.headers['authorization'];
+      if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
+        const u = await pool.query('SELECT usuario_id FROM sesiones WHERE token = $1 AND expira_en > NOW() LIMIT 1', [auth.slice(7)]);
+        usuarioId = u.rows[0]?.usuario_id ?? null;
+      }
+      const reciente = await pool.query(
+        `SELECT 1 FROM visitas_sitio WHERE ip_hash = $1 AND host = $2 AND COALESCE(visitante,'') = COALESCE($3,'')
+           AND creado_en > NOW() - INTERVAL '30 minutes' LIMIT 1`,
+        [ipHash, host, vis]
+      );
+      if (reciente.rows.length === 0) {
+        const pais = String(req.headers['x-vercel-ip-country'] ?? '').slice(0, 2) || null;
+        let ciudad: string | null = null;
+        try { ciudad = decodeURIComponent(String(req.headers['x-vercel-ip-city'] ?? '')).slice(0, 80) || null; } catch { /* cabecera mal codificada */ }
+        const ua = String(req.headers['user-agent'] ?? '');
+        const dispositivo = (/Android/i.test(ua) ? 'Android' : /iPhone|iPad|iOS/i.test(ua) ? 'iPhone/iPad'
+          : /Windows/i.test(ua) ? 'Windows' : /Mac OS/i.test(ua) ? 'Mac' : /Linux/i.test(ua) ? 'Linux' : 'Otro')
+          + (/Mobile/i.test(ua) ? ' (móvil)' : '');
+        await pool.query(
+          'INSERT INTO visitas_sitio (host, ruta, visitante, ip_hash, pais, ip, ciudad, dispositivo, usuario_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+          [host, rutaLimpia, vis, ipHash, pais, ip, ciudad, dispositivo, usuarioId]
+        );
+      }
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ ok: false, error: String(err) });
+    } finally {
+      await pool.end();
+    }
+  }
+
+  // ── GET ?recurso=visitantes_sitio — solo admin: registro de cada IP que ha entrado
+  // (desde que existe el registro), con primera/última visita y cuenta si inició sesión.
+  if (req.method === 'GET' && req.query.recurso === 'visitantes_sitio') {
+    try {
+      if (!esAdmin(req)) return res.status(401).json({ ok: false, error: 'No autorizado' });
+      await asegurarTablaVisitasSitio(pool);
+      const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 64) : '';
+      const limite = 100;
+      const pagina = Math.max(0, Number(req.query.pagina) || 0);
+      const filas = await pool.query(
+        `SELECT v.ip, COUNT(*) AS visitas, MIN(v.creado_en) AS primera, MAX(v.creado_en) AS ultima,
+                (ARRAY_AGG(v.host ORDER BY v.creado_en DESC))[1] AS host,
+                (ARRAY_AGG(v.pais ORDER BY v.creado_en DESC))[1] AS pais,
+                (ARRAY_AGG(v.ciudad ORDER BY v.creado_en DESC))[1] AS ciudad,
+                (ARRAY_AGG(v.dispositivo ORDER BY v.creado_en DESC))[1] AS dispositivo,
+                MAX(u.nombre) AS cuenta, MAX(u.correo) AS correo,
+                COUNT(*) OVER () AS total
+         FROM visitas_sitio v LEFT JOIN usuarios u ON u.id = v.usuario_id
+         WHERE v.ip IS NOT NULL AND ($1 = '' OR v.ip ILIKE '%' || $1 || '%')
+         GROUP BY v.ip ORDER BY MAX(v.creado_en) DESC LIMIT $2 OFFSET $3`,
+        [q, limite, pagina * limite]
+      );
+      return res.status(200).json({
+        ok: true, total: Number(filas.rows[0]?.total ?? 0), pagina, limite,
+        visitantes: filas.rows.map((f: any) => ({
+          ip: f.ip, visitas: Number(f.visitas), primera: f.primera, ultima: f.ultima, host: f.host,
+          pais: f.pais, ciudad: f.ciudad, dispositivo: f.dispositivo, cuenta: f.cuenta ?? null, correo: f.correo ?? null,
+        })),
+      });
+    } catch (err) {
+      return res.status(500).json({ ok: false, error: String(err) });
+    } finally {
+      await pool.end();
+    }
+  }
+
+  // ── GET ?recurso=visitas_sitio — solo admin: IPs distintas, por dominio, día y país.
+  if (req.method === 'GET' && req.query.recurso === 'visitas_sitio') {
+    try {
+      if (!esAdmin(req)) return res.status(401).json({ ok: false, error: 'No autorizado' });
+      await asegurarTablaVisitasSitio(pool);
+      const dias = Math.min(90, Math.max(1, Number(req.query.dias) || 30));
+      const [tot, porHost, porDia, porPais] = await Promise.all([
+        pool.query(
+          `SELECT COUNT(*) AS visitas, COUNT(DISTINCT ip_hash) AS ips, COUNT(DISTINCT visitante) AS visitantes,
+                  COUNT(DISTINCT ip_hash) FILTER (WHERE creado_en > NOW() - INTERVAL '24 hours') AS ips_24h
+           FROM visitas_sitio WHERE creado_en > NOW() - make_interval(days => $1)`, [dias]),
+        pool.query(
+          `SELECT host, COUNT(*) AS visitas, COUNT(DISTINCT ip_hash) AS ips FROM visitas_sitio
+           WHERE creado_en > NOW() - make_interval(days => $1) GROUP BY host ORDER BY ips DESC`, [dias]),
+        pool.query(
+          `SELECT to_char(creado_en::date,'YYYY-MM-DD') AS dia, COUNT(*) AS visitas, COUNT(DISTINCT ip_hash) AS ips
+           FROM visitas_sitio WHERE creado_en > NOW() - make_interval(days => $1) GROUP BY 1 ORDER BY 1`, [dias]),
+        pool.query(
+          `SELECT COALESCE(pais,'?') AS pais, COUNT(DISTINCT ip_hash) AS ips FROM visitas_sitio
+           WHERE creado_en > NOW() - make_interval(days => $1) GROUP BY 1 ORDER BY ips DESC LIMIT 10`, [dias]),
+      ]);
+      const n = (v: any) => Number(v ?? 0);
+      return res.status(200).json({
+        ok: true, dias,
+        visitas: n(tot.rows[0].visitas), ipsDistintas: n(tot.rows[0].ips),
+        visitantesDistintos: n(tot.rows[0].visitantes), ipsUltimas24h: n(tot.rows[0].ips_24h),
+        porDominio: porHost.rows.map((f: any) => ({ host: f.host, visitas: n(f.visitas), ips: n(f.ips) })),
+        porDia: porDia.rows.map((f: any) => ({ dia: f.dia, visitas: n(f.visitas), ips: n(f.ips) })),
+        porPais: porPais.rows.map((f: any) => ({ pais: f.pais, ips: n(f.ips) })),
+      });
+    } catch (err) {
+      return res.status(500).json({ ok: false, error: String(err) });
+    } finally {
+      await pool.end();
+    }
+  }
 
   // ── POST ?recurso=evento — tracking público (sin sesión) de vistas,
   // likes y recomendaciones de IA. Público a propósito: la mayoría de
@@ -133,15 +251,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     await asegurarColumnasServicio(pool);
+    await asegurarTablaEventosServicio(pool);
     const rows = await pool.query(`
       SELECT s.id, s.nombre, s.categoria, s.municipio, s.descripcion,
              s.precio, s.contacto, s.lat, s.lng, s.codigo_seguimiento, s.fotos, s.fotos_pies,
              s.horario, s.dias_abierto, s.duracion, s.como_llegar, s.tip, s.ideal_para,
              s.mascotas, s.enlaces, s.acepta_reservaciones, s.monto_minimo, s.mostrar_usd_reservacion,
              s.fechas_bloqueadas, s.premium, s.premium_hasta,
-             u.nombre AS propietario
+             u.nombre AS propietario,
+             COALESCE(v.n, 0) AS vistas
       FROM servicios s
       JOIN usuarios u ON u.id = s.usuario_id
+      LEFT JOIN (SELECT servicio_id, COUNT(*) AS n FROM eventos_servicio WHERE tipo = 'vista' GROUP BY servicio_id) v
+        ON v.servicio_id = s.id
       WHERE s.estado = 'aprobado'
       ORDER BY s.actualizado_en DESC NULLS LAST
     `);
@@ -197,6 +319,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         enlaces: parseEnlaces(s.enlaces).length > 0 ? parseEnlaces(s.enlaces) : undefined,
         aceptaReservaciones: !!s.acepta_reservaciones,
         servicioId: s.id,
+        // Veces que se ha visto la ficha (1 por visitante cada 24 h; no cuenta al dueño).
+        vistas: Number(s.vistas) || 0,
         montoMinimo: s.monto_minimo != null ? Number(s.monto_minimo) : null,
         mostrarUsdReservacion: !!s.mostrar_usd_reservacion,
         // Público a propósito — son solo fechas ya ocupadas, el

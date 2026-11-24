@@ -1,4 +1,4 @@
-import { Star, MapPin, Clock, Heart } from 'lucide-react';
+import { Star, MapPin, Clock, Heart, Eye } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useT, useTd } from '../lib/i18n';
 import { optimizarImagen, ANCHO_TARJETA, ANCHO_MINIATURA } from '../lib/imagenOptimizada';
@@ -148,6 +148,13 @@ export default function PlaceCard({ lugar, onClick, compact, prioritaria }: Prop
             <MapPin size={12} className="flex-shrink-0" />
             <span className="truncate">{lugar.municipio}</span>
           </span>
+          {!!lugar.vistas && lugar.vistas > 0 && (
+            <span className="flex items-center gap-1 flex-shrink-0" title={t('{n} vistas', { n: lugar.vistas })}>
+              <Eye size={12} aria-hidden="true" />
+              <span className="sr-only">{lugar.vistas === 1 ? t('1 vista') : t('{n} vistas', { n: lugar.vistas })}</span>
+              <span aria-hidden="true">{lugar.vistas}</span>
+            </span>
+          )}
           <span className="flex items-center gap-1 min-w-0 max-w-[48%] flex-shrink-0">
             <Clock size={12} className="flex-shrink-0" />
             <span className="truncate">{td(lugar.duracionSugerida)}</span>

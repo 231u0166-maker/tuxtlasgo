@@ -60,6 +60,8 @@ export interface Lugar {
   // real en Neon (distinto de `id`, que es "prestador-<n>").
   aceptaReservaciones?: boolean;
   servicioId?: number;
+  /** Veces que se ha visto la ficha (solo servicios de prestadores; viene del servidor). */
+  vistas?: number;
   montoMinimo?: number | null;
   mostrarUsdReservacion?: boolean;
   // Fechas ya ocupadas de este servicio — alimenta el calendario

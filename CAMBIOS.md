@@ -847,3 +847,24 @@ Build de producción + modo sin conexión del navegador: zona de 6 km descargada
 - **Probado:** en Catemaco (412×915) la gráfica sale con alturas reales (363–378 m en 1.1 km); ocultar/mostrar funciona; el mosaico quedó guardado por el service worker; sin internet el perfil de Catemaco se calcula con lo guardado (366–389 m) y el de Puebla (sin nada guardado) devuelve nada.
 - **Límites:** los paquetes regionales NO incluyen alturas (añadirían ~5–20 MB por estado): dentro de un paquete el perfil sin internet solo sale si ya se vio con internet o si se descargó una zona/ruta ahí. "Ver toda la ruta" se probó que no falla, no se verificó el encuadre a ojo. No probado: escritorio, GPS real, velocidad en movimiento.
 - El anuncio flotante "¿Vas a salir de señal?" ya no se muestra mientras hay una ruta en pantalla o se navega (tapaba la barra de giro; se vio en la vista previa de escritorio).
+
+---
+
+# Sesión 2026-11-23 — Visitas al sitio y vistas por servicio
+
+## Visitas al sitio (todos los dominios: tuxtlas.xyz, go.tuxtlas.xyz…)
+- `src/main.tsx` llama `registrarVisitaSitio()` (src/lib/eventos.ts): una vez por pestaña, POST `/api/servicios/aprobados?recurso=visita`.
+- Tabla nueva `visitas_sitio` (auto-provisionada): host, ruta, visitante, **hash** de IP, país (cabecera de Vercel). El servidor ignora repeticiones del mismo visitante+IP en 30 min.
+- Panel admin → pestaña **Visitas** (`AdminVisitas.tsx`, GET `?recurso=visitas_sitio`, solo admin): IPs distintas, últimas 24 h, por dominio, por día y por país.
+- Se guarda hash y no la IP en claro (consistente con `eventos_servicio`). No se reutilizó un endpoint nuevo: el plan Hobby limita a 12 funciones.
+- Solo cuenta desde que se despliegue; no hay histórico previo.
+
+## Vistas visibles en cada servicio
+- `aprobados.ts` devuelve `vistas` por servicio (conteo de eventos `vista`, ya antiabuso: 1 por visitante/24 h, sin contar al dueño).
+- Se muestra en `PlaceCard` (ojo + número) y en `PlaceDetail` (chip). El prestador ya tenía su desglose en Perfil → "Vistas de tu ficha".
+
+## Ajuste (misma sesión): registro de quién entra, con IP real
+- Petición de la maestra: panel de admin para ver quién ha entrado a la plataforma. `visitas_sitio` ahora guarda **la IP real** (+ ciudad/país de las cabeceras de Vercel, dispositivo, y `usuario_id` si traía sesión).
+- Admin → Visitas → lista **«Quién ha entrado»**: una fila por IP (visitas, primera/última, ubicación aproximada, dispositivo, dominio, cuenta si inició sesión), con buscador de IP y paginación de 100. GET `?recurso=visitantes_sitio` (solo admin).
+- No hay histórico: empieza a registrar desde el despliegue.
+- PENDIENTE: el Aviso de Privacidad no menciona que se guarda la IP; agregarlo antes de publicar.

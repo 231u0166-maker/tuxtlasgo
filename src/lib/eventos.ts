@@ -52,3 +52,21 @@ export function registrarEventoServicio(servicioId: number | undefined | null, t
     }).catch(() => { /* sin conexión — no es crítico */ });
   } catch { /* entornos donde fetch pueda fallar de forma síncrona (raro) */ }
 }
+
+// Visita al sitio (cualquier dominio: tuxtlas.xyz, go.tuxtlas.xyz…). Una por pestaña
+// abierta; el servidor además ignora repeticiones de la misma persona en 30 min.
+// Se consulta en el panel de admin → «Visitas».
+export function registrarVisitaSitio() {
+  try {
+    if (sessionStorage.getItem('tuxtlasgo-visita-registrada')) return;
+    sessionStorage.setItem('tuxtlasgo-visita-registrada', '1');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    fetch('/api/servicios/aprobados?recurso=visita', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ruta: location.pathname, visitante: idVisitante() }),
+    }).catch(() => {});
+  } catch { /* no crítico */ }
+}

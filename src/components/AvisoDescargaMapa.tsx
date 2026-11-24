@@ -39,7 +39,8 @@ type Fase = 'inicio' | 'buscando' | 'propuesta' | 'manual' | 'fallo' | 'hecho';
 
 // `onDescargar(ids)`: con ids, descarga esos paquetes; sin ids, abre el panel de mapa sin internet.
 // `ocultar`: mientras hay una ruta en pantalla (o se navega) el anuncio no debe tapar el mapa.
-export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { onDescargar: (ids?: string[]) => void; ocultar?: boolean }) {
+// `abajo`: con el mapa abierto el anuncio se baja para no tapar el buscador.
+export default function AvisoDescargaMapa({ onDescargar, ocultar = false, abajo = false }: { onDescargar: (ids?: string[]) => void; ocultar?: boolean; abajo?: boolean }) {
   const t = useT();
   const sinInternet = useOffline();
   const [cerrado, setCerrado] = useState(leerCerrado);
@@ -50,6 +51,13 @@ export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { on
   const [estado, setEstado] = useState('');
   const [plan, setPlan] = useState<PaqueteCatalogo[]>([]);
   const [motivo, setMotivo] = useState<string | null>(null);
+  // Con la lista de resultados del buscador del mapa abierta, el anuncio se esconde para no tapar
+  const [buscadorAbierto, setBuscadorAbierto] = useState(false);
+  useEffect(() => {
+    const alCambiar = (e: Event) => setBuscadorAbierto(!!(e as CustomEvent<boolean>).detail);
+    window.addEventListener('buscador-mapa-abierto', alCambiar);
+    return () => window.removeEventListener('buscador-mapa-abierto', alCambiar);
+  }, []);
 
   // Aparece un instante después de abrir la app, para no empalmarse con los avisos de inicio
   useEffect(() => {
@@ -97,7 +105,7 @@ export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { on
 
   // Con la propuesta/aviso de descarga: solo con internet y sin mapa guardado
   const pideDescarga = (fase === 'propuesta' || fase === 'manual') && !hayMapa && !sinInternet;
-  const visible = listo && !cerrado && !oculto && !ocultar
+  const visible = listo && !cerrado && !oculto && !ocultar && !buscadorAbierto
     && (fase === 'inicio' || fase === 'buscando' || fase === 'fallo' || pideDescarga);
   if (!visible) return null;
 
@@ -119,7 +127,7 @@ export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { on
   return (
     <div
       role="status"
-      className="fixed top-3 left-3 right-3 z-[9000] lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:top-4 lg:w-[440px] rounded-2xl px-3.5 py-2.5 shadow-lg backdrop-blur-xl backdrop-saturate-150 text-xs border bg-white/85 border-white/60 text-jungle-900"
+      className={(abajo ? 'top-[68px] lg:top-[68px]' : 'top-3 lg:top-4') + ' fixed left-3 right-3 z-[9000] lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:w-[440px] rounded-2xl px-3.5 py-2.5 shadow-lg backdrop-blur-xl backdrop-saturate-150 text-xs border bg-white/85 border-white/60 text-jungle-900'}
     >
       {fase === 'propuesta' && (
         <>

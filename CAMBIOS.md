@@ -904,3 +904,11 @@ Tres causas, las tres corregidas:
 - Secuencia de cámara al entrar (si estás a >40 km de Los Tuxtlas): vuela a tu punto (zoom 12) → ~2 s mirando «Estás aquí» → se abre para ver tu punto y Los Tuxtlas juntos. Si tocas o mueves el mapa antes, se cancela la apertura (no te quita la cámara). Cerca de Los Tuxtlas: vuela a tu punto (zoom 15).
 - El botón «Mi ubicación» también dispara la animación.
 - Probado en navegador con GPS simulado en Puebla (capturas del globo sobre Puebla y de la vista final Puebla ↔ Los Tuxtlas).
+
+## Buscador del mapa (estilo Google Maps) — Puebla, Tabasco, Veracruz y Los Tuxtlas
+- `lib/buscarLugares.ts` + `components/BuscadorMapa.tsx` (en `MapScreen.tsx`, arriba a la izquierda): al escribir muestra al instante los lugares de TuxtlasGO (catálogo + prestadores; funciona sin internet); con Enter / «Buscar» consulta OpenStreetMap (Nominatim) dentro de la caja de Puebla+Tabasco+Veracruz y filtra por `address.state` (descarta Oaxaca, Chiapas, etc.).
+- Elegir un resultado: el mapa vuela ahí, pone el pin y abre la tarjeta «Cómo llegar» de siempre (la de tocar un punto del mapa) → ruta desde tu ubicación.
+- Política de Nominatim respetada: NO hay autocompletado contra su servidor (solo al enviar), una petición a la vez, sin datos personales. Si algún día hay mucho tráfico, montar Nominatim propio o Photon/Pelias.
+- El anuncio de descarga se baja (`abajo`) con el mapa abierto y se esconde mientras la lista de resultados está abierta (evento `buscador-mapa-abierto`).
+- Probado en navegador con OpenStreetMap real: Catemaco, Villahermosa (Tabasco) → «Cómo llegar» → ruta Puebla→Villahermosa 631 km / 7 h 25 min; «Zócalo de Puebla»; «Oaxaca» y «Cancún» no devuelven esas ciudades (solo homónimos dentro de los 3 estados).
+- Límite: Nominatim es literal; «Avenida Juárez, Catemaco» no existe con ese nombre en OSM. Sin internet solo se buscan lugares de TuxtlasGO.

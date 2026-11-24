@@ -11,6 +11,8 @@ import {
   type Lugar,
 } from '../data/lugares';
 import { listarServiciosAprobadosComoLugares } from '../lib/db';
+import BuscadorMapa from './BuscadorMapa';
+import type { ResultadoBusqueda } from '../lib/buscarLugares';
 import { useT } from '../lib/i18n';
 import { colorTramo } from '../lib/colores';
 import {
@@ -526,6 +528,7 @@ export default function MapScreen({
   // quedaba fuera de pantalla si estás lejos de Los Tuxtlas (la cámara arranca allá) y parecía
   // que "no te marcaba". Se espera a que el mapa sea visible (si no, el encuadre sale mal).
   const encuadrePendiente = useRef<Coord | null>(null);
+  const cancelarViaje = useRef<(() => void) | null>(null);
   // «Estás aquí»: se muestra unos segundos cuando te ubican (al entrar o con el botón de ubicación)
   const [estasAqui, setEstasAqui] = useState(false);
   const temporizadorAqui = useRef<number | undefined>(undefined);
@@ -555,6 +558,7 @@ export default function MapScreen({
       const id = window.setTimeout(verViaje, 3600); // ~1.6 s de vuelo + ~2 s mirando «Estás aquí»
       // Si la persona toca o mueve el mapa antes, no se le arrebata la cámara
       const cancelar = () => window.clearTimeout(id);
+      cancelarViaje.current = cancelar;
       m.once('mousedown', cancelar); m.once('touchstart', cancelar); m.once('wheel', cancelar);
     } else {
       m.flyTo({ center: [c[1], c[0]], zoom: 15, pitch: 0, duration: reducir ? 0 : 1600 });
@@ -746,6 +750,14 @@ export default function MapScreen({
     return () => window.clearTimeout(id);
   }, [zonaLibre, hayZonaLibre, aplicarLimiteRegion]);
   const [serviciosPrestadores, setServiciosPrestadores] = useState<Lugar[]>([]);
+  // Buscador: lugares de TuxtlasGO (catálogo + prestadores) y resultados de OpenStreetMap.
+  // Elegir uno vuela ahí y abre la tarjeta «Cómo llegar» (la misma de tocar un punto del mapa).
+  const lugaresBuscables = useMemo(() => [...LUGARES, ...serviciosPrestadores], [serviciosPrestadores]);
+  const irABusqueda = useCallback((r: ResultadoBusqueda) => {
+    cancelarViaje.current?.(); // si la cámara iba a abrirse al panorama del viaje, ya no
+    setLugarElegido({ coord: r.coord, nombre: r.nombre, etiqueta: r.etiqueta, emoji: r.emoji });
+    mapRef.current?.getMap()?.flyTo({ center: [r.coord[1], r.coord[0]], zoom: 15, pitch: 0, bearing: 0, duration: 1400 });
+  }, []);
   // Vista satélite (Mapbox/Esri) en vez de calles vectoriales (OpenFreeMap) —
   // ver ESTILO_SATELITE arriba. El panel de capas es el mismo patrón visual
   // que el selector de Google Maps (icono de capas → opciones).
@@ -1299,6 +1311,9 @@ export default function MapScreen({
   return (
     <div ref={contenedorRef} role="region" aria-label={t('Mapa de lugares')} className="relative h-full">
       <p className="sr-only">{t('El mapa es visual. Para recorrer los lugares con lector de pantalla usa la pestaña Explorar.')}</p>
+      {!vistaCompacta && !rutaResaltada && !mostrarPanelOffline && !elegirOrigen && !navPos && (
+        <BuscadorMapa lugares={lugaresBuscables} onElegir={irABusqueda} />
+      )}
       {hayZonaLibre && onSalirZonaLibre && (
         <button
           onClick={onSalirZonaLibre}

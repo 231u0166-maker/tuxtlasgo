@@ -898,3 +898,9 @@ Tres causas, las tres corregidas:
 3. **El GPS hacía un solo intento preciso de 8 s**, que en PC suele fallar. `routing.ts`: si falla (y no es permiso denegado) reintenta con ubicación aproximada (15 s, caché de 5 min). Además `ultimoErrorGPS` distingue permiso bloqueado / página sin https / no se pudo fijar, y el aviso lo dice con «Reintentar».
 - Probado en navegador: con mapa guardado y GPS simulado en Puebla (aviso sale, se guarda, punto azul en Puebla con Los Tuxtlas en la misma vista); GPS preciso fallando y aproximado funcionando (2 intentos, se guarda); permiso denegado (mensaje correcto, 1 intento).
 - No se pudo probar con el GPS real de un dispositivo.
+
+## Animación «Estás aquí»
+- `MapScreen.tsx`: `PinMiUbicacion` acepta `destacar`: globo azul «Estás aquí» que cae sobre el punto + dos anillos que laten; dura 7 s y queda el punto normal. Respeta `prefers-reduced-motion` (sin animación y cámara sin vuelo).
+- Secuencia de cámara al entrar (si estás a >40 km de Los Tuxtlas): vuela a tu punto (zoom 12) → ~2 s mirando «Estás aquí» → se abre para ver tu punto y Los Tuxtlas juntos. Si tocas o mueves el mapa antes, se cancela la apertura (no te quita la cámara). Cerca de Los Tuxtlas: vuela a tu punto (zoom 15).
+- El botón «Mi ubicación» también dispara la animación.
+- Probado en navegador con GPS simulado en Puebla (capturas del globo sobre Puebla y de la vista final Puebla ↔ Los Tuxtlas).

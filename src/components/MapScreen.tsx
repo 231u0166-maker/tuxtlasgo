@@ -306,9 +306,30 @@ function PinParada({ orden }: { orden: number }) {
 // Punto azul pulsante "tú estás aquí" — mismo lenguaje visual que
 // Google Maps / la mayoría de apps de navegación, para que se
 // reconozca de inmediato qué representa sin necesitar explicación.
-function PinMiUbicacion() {
+// `destacar`: los primeros segundos tras ubicarte (al entrar o con «Mi ubicación») muestra el
+// globo «Estás aquí» que cae sobre el punto y anillos que laten; luego queda el punto de siempre.
+function PinMiUbicacion({ destacar = false }: { destacar?: boolean }) {
+  const t = useT();
   return (
     <div style={{ position: 'relative', width: 20, height: 20 }}>
+      {destacar && (
+        <>
+          <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', border: '2px solid rgba(37,99,235,0.7)', animation: 'tuxtlasgo-anillo 1.6s ease-out infinite' }} />
+          <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', border: '2px solid rgba(37,99,235,0.7)', animation: 'tuxtlasgo-anillo 1.6s ease-out 0.8s infinite' }} />
+          <div
+            role="status"
+            style={{
+              position: 'absolute', bottom: 34, left: '50%', whiteSpace: 'nowrap',
+              background: '#1d4ed8', color: 'white', fontSize: 12, fontWeight: 700,
+              padding: '5px 10px', borderRadius: 999, boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+              transform: 'translateX(-50%)', animation: 'tuxtlasgo-cae 0.6s cubic-bezier(.2,1.4,.4,1) both',
+            }}
+          >
+            {t('Estás aquí')}
+            <span style={{ position: 'absolute', left: '50%', bottom: -5, width: 10, height: 10, background: '#1d4ed8', transform: 'translateX(-50%) rotate(45deg)' }} />
+          </div>
+        </>
+      )}
       <div
         style={{
           position: 'absolute',
@@ -332,6 +353,17 @@ function PinMiUbicacion() {
         @keyframes tuxtlasgo-pulso-ubicacion {
           0% { transform: scale(0.6); opacity: 0.8; }
           100% { transform: scale(2.2); opacity: 0; }
+        }
+        @keyframes tuxtlasgo-anillo {
+          0% { transform: scale(0.5); opacity: 0.9; }
+          100% { transform: scale(3.4); opacity: 0; }
+        }
+        @keyframes tuxtlasgo-cae {
+          0% { opacity: 0; transform: translate(-50%, -22px) scale(0.6); }
+          100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="tuxtlasgo-anillo"], [style*="tuxtlasgo-cae"], [style*="tuxtlasgo-pulso-ubicacion"] { animation: none !important; }
         }
       `}</style>
     </div>
@@ -494,6 +526,15 @@ export default function MapScreen({
   // quedaba fuera de pantalla si estás lejos de Los Tuxtlas (la cámara arranca allá) y parecía
   // que "no te marcaba". Se espera a que el mapa sea visible (si no, el encuadre sale mal).
   const encuadrePendiente = useRef<Coord | null>(null);
+  // «Estás aquí»: se muestra unos segundos cuando te ubican (al entrar o con el botón de ubicación)
+  const [estasAqui, setEstasAqui] = useState(false);
+  const temporizadorAqui = useRef<number | undefined>(undefined);
+  const destacarUbicacion = useCallback(() => {
+    setEstasAqui(true);
+    window.clearTimeout(temporizadorAqui.current);
+    temporizadorAqui.current = window.setTimeout(() => setEstasAqui(false), 7000);
+  }, []);
+  useEffect(() => () => window.clearTimeout(temporizadorAqui.current), []);
   const aplicarEncuadre = useCallback(() => {
     const c = encuadrePendiente.current;
     const el = contenedorRef.current;
@@ -502,14 +543,23 @@ export default function MapScreen({
     encuadrePendiente.current = null;
     try { sessionStorage.setItem('ubicacion-encuadrada', '1'); } catch { /* nada */ }
     m.resize();
+    destacarUbicacion();
+    const reducir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (distanciaHaversine(c, LOS_TUXTLAS_CENTER) > 40000) {
-      // Lejos: se ven tú y Los Tuxtlas a la vez (el panorama del viaje)
+      // Lejos: primero el vuelo hasta TU punto («Estás aquí»), y después se abre para ver el
+      // panorama del viaje: tú y Los Tuxtlas a la vez.
       const caja = new maplibregl.LngLatBounds([c[1], c[0]], [c[1], c[0]]).extend([LOS_TUXTLAS_CENTER[1], LOS_TUXTLAS_CENTER[0]]);
-      m.fitBounds(caja, { padding: { top: 110, left: 60, right: 110, bottom: 160 }, maxZoom: 9, duration: 1200, pitch: 0, bearing: 0 });
+      const verViaje = () => m.fitBounds(caja, { padding: { top: 110, left: 60, right: 110, bottom: 160 }, maxZoom: 9, duration: reducir ? 0 : 1600, pitch: 0, bearing: 0 });
+      if (reducir) { verViaje(); return; }
+      m.flyTo({ center: [c[1], c[0]], zoom: 12, pitch: 0, bearing: 0, duration: 1600 });
+      const id = window.setTimeout(verViaje, 3600); // ~1.6 s de vuelo + ~2 s mirando «Estás aquí»
+      // Si la persona toca o mueve el mapa antes, no se le arrebata la cámara
+      const cancelar = () => window.clearTimeout(id);
+      m.once('mousedown', cancelar); m.once('touchstart', cancelar); m.once('wheel', cancelar);
     } else {
-      m.flyTo({ center: [c[1], c[0]], zoom: 14, pitch: 0, duration: 1200 });
+      m.flyTo({ center: [c[1], c[0]], zoom: 15, pitch: 0, duration: reducir ? 0 : 1600 });
     }
-  }, []);
+  }, [destacarUbicacion]);
   useEffect(() => {
     if (!contenedorRef.current) return;
     const observador = new ResizeObserver(() => {
@@ -892,6 +942,7 @@ export default function MapScreen({
       return;
     }
     setMiPosLocal(r.coord);
+    destacarUbicacion();
     window.setTimeout(() => {
       const m = mapRef.current?.getMap();
       if (!m) return;
@@ -1399,7 +1450,7 @@ export default function MapScreen({
 
         {ubic && !navPos && (
           <Marker longitude={ubic[1]} latitude={ubic[0]}>
-            <PinMiUbicacion />
+            <PinMiUbicacion destacar={estasAqui} />
           </Marker>
         )}
 

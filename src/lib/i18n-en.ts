@@ -282,6 +282,7 @@ export const EN: Record<string, string> = {
   'Vamos a guardar el mapa de Los Tuxtlas en tu dispositivo. Tarda unos segundos. Después podrás ver el mapa aunque no tengas internet. Mantén esta pantalla abierta mientras descarga.': 'We will save the Los Tuxtlas map on your device. It takes a few seconds. Afterwards you can view the map even without internet. Keep this screen open while it downloads.',
   'Descargar ahora': 'Download now',
   'Ahora no': 'Not now',
+  'Estás aquí': 'You are here',
   'Permite tu ubicación para marcarte en el mapa y ofrecerte el mapa de tu zona y de Los Tuxtlas ({estados}).': 'Allow your location to be placed on the map and offered the map of your area and Los Tuxtlas ({estados}).',
   'Tu navegador tiene bloqueada la ubicación. Actívala en el candado de la barra de direcciones y vuelve a intentar.': 'Your browser has location blocked. Enable it from the lock icon in the address bar and try again.',
   'El navegador solo da la ubicación en una página segura (https). Abre la app desde su dirección oficial.': 'The browser only provides location on a secure page (https). Open the app from its official address.',

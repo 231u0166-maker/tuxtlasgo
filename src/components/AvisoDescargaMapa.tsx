@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useOffline } from '../hooks/useOffline';
 import { useT } from '../lib/i18n';
 import { leerZonas } from '../lib/mapaOffline';
-import { obtenerUbicacionGPS } from '../lib/routing';
+import { obtenerUbicacionGPS, ultimoErrorGPS } from '../lib/routing';
 import {
   cargarCatalogo, hayServidorDePaquetes, paquetesParaUbicacion, planVisitaTuxtlas, PAQUETES_PERMITIDOS,
   type PaqueteCatalogo,
@@ -12,14 +12,14 @@ import {
 // Anuncio flotante al entrar: ubicarte → proponer el mapa → descargar
 // ============================================================
 // Flujo:
-//  1. Se marca tu ubicación actual (con tu permiso; si ya lo diste, es automático).
-//  2. «Estás en Puebla. ¿Descargar el mapa de Puebla y Los Tuxtlas para visitar la
-//     zona, con o sin internet?»
+//  1. Se marca tu ubicación actual en el mapa (con tu permiso; si ya lo diste, es
+//     automático). Esto va SIEMPRE, tengas o no mapa guardado y haya o no internet.
+//  2. Si aún no hay mapa guardado y hay internet: «Estás en Puebla. ¿Descargar el
+//     mapa de Puebla y Los Tuxtlas para visitar la zona, con o sin internet?»
 //  3. «Descargar» baja los paquetes necesarios (tu estado + el que cubre Los Tuxtlas)
 //     y el mapa te deja trazar desde tu punto hasta cualquier lugar de la región.
 // Solo Puebla, Tabasco y Veracruz tienen paquete (ver PAQUETES_PERMITIDOS).
 //
-// Flota sobre toda la app mientras no haya ningún mapa guardado y haya internet.
 // «Ahora no» solo lo cierra durante esta visita: la próxima vuelve a preguntar.
 // ============================================================
 
@@ -29,8 +29,13 @@ export const CLAVE_UBICACION_INICIAL = 'ubicacion-inicial';
 function leerCerrado(): boolean {
   try { return sessionStorage.getItem(CLAVE_CERRADO) === 'true'; } catch { return false; }
 }
+function yaUbicado(): boolean {
+  try { return !!sessionStorage.getItem(CLAVE_UBICACION_INICIAL); } catch { return false; }
+}
 
-type Fase = 'inicio' | 'buscando' | 'propuesta' | 'sin-permiso';
+// inicio: pide ubicación · buscando · propuesta: ofrece los paquetes · manual: sin paquetes
+// en el servidor, ofrece el panel de siempre · fallo: no se pudo ubicar · hecho: nada que mostrar
+type Fase = 'inicio' | 'buscando' | 'propuesta' | 'manual' | 'fallo' | 'hecho';
 
 // `onDescargar(ids)`: con ids, descarga esos paquetes; sin ids, abre el panel de mapa sin internet.
 // `ocultar`: mientras hay una ruta en pantalla (o se navega) el anuncio no debe tapar el mapa.
@@ -41,9 +46,10 @@ export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { on
   const [oculto, setOculto] = useState(false); // solo esta sesión (tocó «Descargar»)
   const [hayMapa, setHayMapa] = useState(() => leerZonas().length > 0);
   const [listo, setListo] = useState(false);
-  const [fase, setFase] = useState<Fase>('inicio');
+  const [fase, setFase] = useState<Fase>(() => (yaUbicado() ? 'hecho' : 'inicio'));
   const [estado, setEstado] = useState('');
   const [plan, setPlan] = useState<PaqueteCatalogo[]>([]);
+  const [motivo, setMotivo] = useState<string | null>(null);
 
   // Aparece un instante después de abrir la app, para no empalmarse con los avisos de inicio
   useEffect(() => {
@@ -59,32 +65,40 @@ export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { on
 
   const ubicar = async () => {
     setFase('buscando');
+    setMotivo(null);
     const r = await obtenerUbicacionGPS();
-    if (!r) { setFase('sin-permiso'); return; }
-    // Se marca en el mapa (MapScreen lo lee al montarse o por el evento)
+    if (!r) { setMotivo(ultimoErrorGPS); setFase('fallo'); return; }
+    // Se marca en el mapa (MapScreen lo lee al montarse o por el evento y encuadra la cámara)
     try {
       sessionStorage.setItem(CLAVE_UBICACION_INICIAL, JSON.stringify(r.coord));
       localStorage.setItem('ubicacion-explicada', 'true'); // ya dio el permiso: no repetir la explicación
     } catch { /* nada */ }
     window.dispatchEvent(new Event(CLAVE_UBICACION_INICIAL));
+    // Ya marcada: lo de descargar solo se ofrece si falta mapa y hay internet
+    if (leerZonas().length > 0 || !navigator.onLine) { setFase('hecho'); return; }
+    if (!hayServidorDePaquetes()) { setFase('manual'); return; }
     const catalogo = await cargarCatalogo();
     const sugeridos = planVisitaTuxtlas(r.coord, catalogo);
-    if (sugeridos.length === 0) { setFase('sin-permiso'); return; } // sin catálogo: se cae al panel manual
+    if (sugeridos.length === 0) { setFase('manual'); return; }
     setPlan(sugeridos);
     setEstado(paquetesParaUbicacion(r.coord, catalogo)[0]?.nombre ?? '');
     setFase('propuesta');
   };
 
   // Si ya diste el permiso de ubicación, se ubica sola al entrar (sin pedir nada)
-  const visible = listo && !cerrado && !oculto && !hayMapa && !sinInternet && !ocultar;
+  const puedeAutoUbicar = listo && !cerrado && fase === 'inicio';
   useEffect(() => {
-    if (!visible || fase !== 'inicio' || !hayServidorDePaquetes()) return;
+    if (!puedeAutoUbicar) return;
     navigator.permissions?.query({ name: 'geolocation' as PermissionName })
       .then((p) => { if (p.state === 'granted') void ubicar(); })
       .catch(() => { /* navegador sin Permissions API: se pide con el botón */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [puedeAutoUbicar]);
 
+  // Con la propuesta/aviso de descarga: solo con internet y sin mapa guardado
+  const pideDescarga = (fase === 'propuesta' || fase === 'manual') && !hayMapa && !sinInternet;
+  const visible = listo && !cerrado && !oculto && !ocultar
+    && (fase === 'inicio' || fase === 'buscando' || fase === 'fallo' || pideDescarga);
   if (!visible) return null;
 
   const cerrarEstaVisita = () => {
@@ -93,14 +107,21 @@ export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { on
   };
   const mb = Math.round(plan.reduce((s, p) => s + p.bytesMapa + p.bytesGrafo, 0) / 1048576);
   const nombres = plan.map((p) => p.nombre).join(' + ');
-  const sinPaquetes = !hayServidorDePaquetes();
+  const estados = PAQUETES_PERMITIDOS.map((i) => i[0].toUpperCase() + i.slice(1)).join(', ');
+  const puedeDescargarAMano = !sinInternet && !hayMapa;
+
+  const textoFallo = motivo === 'denegado'
+    ? t('Tu navegador tiene bloqueada la ubicación. Actívala en el candado de la barra de direcciones y vuelve a intentar.')
+    : motivo === 'sin-https'
+      ? t('El navegador solo da la ubicación en una página segura (https). Abre la app desde su dirección oficial.')
+      : t('No se pudo fijar tu ubicación (en computadora a veces falla). Vuelve a intentar o elige el mapa a mano.');
 
   return (
     <div
       role="status"
       className="fixed top-3 left-3 right-3 z-[9000] lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:top-4 lg:w-[440px] rounded-2xl px-3.5 py-2.5 shadow-lg backdrop-blur-xl backdrop-saturate-150 text-xs border bg-white/85 border-white/60 text-jungle-900"
     >
-      {fase === 'propuesta' ? (
+      {fase === 'propuesta' && (
         <>
           <p className="font-semibold mb-1.5">
             {estado
@@ -118,31 +139,42 @@ export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { on
           </button>
           <button onClick={cerrarEstaVisita} className="underline">{t('Ahora no')}</button>
         </>
-      ) : (
+      )}
+
+      {fase === 'manual' && (
         <>
           <p className="font-semibold mb-1.5">
-            {fase === 'buscando'
-              ? t('Buscando tu ubicación…')
-              : fase === 'sin-permiso'
-                ? t('No pude obtener tu ubicación o no hay mapa de tu zona. Elige el mapa a mano.')
-                : sinPaquetes
-                  ? t('¿Vas a salir de señal? Guarda el mapa ahora, con Wi-Fi, para usarlo sin internet.')
-                  : t('Permite tu ubicación para ofrecerte el mapa de tu zona y de Los Tuxtlas ({estados}).', { estados: PAQUETES_PERMITIDOS.map((i) => i[0].toUpperCase() + i.slice(1)).join(', ') })}
+            {t('¿Vas a salir de señal? Guarda el mapa ahora, con Wi-Fi, para usarlo sin internet.')}
           </p>
-          {fase !== 'buscando' && (
-            <>
-              <button
-                onClick={() => {
-                  if (fase === 'sin-permiso' || sinPaquetes) { setOculto(true); onDescargar(); return; }
-                  void ubicar();
-                }}
-                className="font-bold underline mr-3 text-jungle-700"
-              >
-                {fase === 'sin-permiso' || sinPaquetes ? t('Descargar mapa') : t('Usar mi ubicación')}
-              </button>
-              <button onClick={cerrarEstaVisita} className="underline">{t('Ahora no')}</button>
-            </>
+          <button onClick={() => { setOculto(true); onDescargar(); }} className="font-bold underline mr-3 text-jungle-700">
+            {t('Descargar mapa')}
+          </button>
+          <button onClick={cerrarEstaVisita} className="underline">{t('Ahora no')}</button>
+        </>
+      )}
+
+      {fase === 'buscando' && (
+        <p className="font-semibold">{t('Buscando tu ubicación…')}</p>
+      )}
+
+      {fase === 'inicio' && (
+        <>
+          <p className="font-semibold mb-1.5">
+            {t('Permite tu ubicación para marcarte en el mapa y ofrecerte el mapa de tu zona y de Los Tuxtlas ({estados}).', { estados })}
+          </p>
+          <button onClick={() => void ubicar()} className="font-bold underline mr-3 text-jungle-700">{t('Usar mi ubicación')}</button>
+          <button onClick={cerrarEstaVisita} className="underline">{t('Ahora no')}</button>
+        </>
+      )}
+
+      {fase === 'fallo' && (
+        <>
+          <p className="font-semibold mb-1.5">{textoFallo}</p>
+          <button onClick={() => void ubicar()} className="font-bold underline mr-3 text-jungle-700">{t('Reintentar')}</button>
+          {puedeDescargarAMano && (
+            <button onClick={() => { setOculto(true); onDescargar(); }} className="underline mr-3">{t('Elegir mapa a mano')}</button>
           )}
+          <button onClick={cerrarEstaVisita} className="underline">{t('Ahora no')}</button>
         </>
       )}
     </div>

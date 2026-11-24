@@ -337,39 +337,48 @@ export interface UbicacionGPS {
 // lógica vivía duplicada solo dentro de AppShell.tsx — se extrae aquí
 // para que el chat también pueda usarla, con el mismo diagnóstico de
 // permisos/HTTPS en un solo lugar.
+// Motivo del último fallo del GPS, para decirle al usuario QUÉ pasó:
+//  'denegado' → bloqueó el permiso (hay que activarlo en el navegador);
+//  'sin-https' → la página no es https/localhost, el navegador lo bloquea siempre;
+//  'no-disponible' / 'tiempo' → el dispositivo no pudo fijar la posición (típico en PC sin GPS).
+export type ErrorGPS = 'denegado' | 'sin-https' | 'no-disponible' | 'tiempo' | 'sin-soporte';
+export let ultimoErrorGPS: ErrorGPS | null = null;
+
+function pedirPosicion(opciones: PositionOptions): Promise<GeolocationPosition | GeolocationPositionError> {
+  return new Promise((res) => navigator.geolocation.getCurrentPosition(res, res, opciones));
+}
+
 export async function obtenerUbicacionGPS(): Promise<UbicacionGPS | null> {
-  return new Promise((res) => {
-    if (!navigator.geolocation) {
-      console.warn('[TuxtlasGO] navigator.geolocation no existe en este navegador.');
-      return res(null);
-    }
-    // Diagnóstico: si el origen no es https ni localhost, el GPS se
-    // bloquea SIEMPRE por regla del navegador (no es un bug) — esto se
-    // ve seguido al probar desde una IP local (ej. http://192.168.x.x:5173)
-    // en vez de la URL https desplegada.
-    if (
-      window.location.protocol !== 'https:' &&
-      window.location.hostname !== 'localhost'
-    ) {
-      console.warn(
-        `[TuxtlasGO] GPS bloqueado: estás en "${window.location.origin}" — el navegador solo permite geolocalización en https:// o localhost.`
-      );
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        res({
-          coord: [pos.coords.latitude, pos.coords.longitude],
-          precisionMetros: pos.coords.accuracy,
-        }),
-      (err) => {
-        console.warn(
-          `[TuxtlasGO] No se pudo obtener el GPS — código ${err.code}: ${err.message}`
-        );
-        res(null);
-      },
-      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
+  ultimoErrorGPS = null;
+  if (!navigator.geolocation) {
+    console.warn('[TuxtlasGO] navigator.geolocation no existe en este navegador.');
+    ultimoErrorGPS = 'sin-soporte';
+    return null;
+  }
+  // Diagnóstico: si el origen no es https ni localhost, el GPS se
+  // bloquea SIEMPRE por regla del navegador (no es un bug) — esto se
+  // ve seguido al probar desde una IP local (ej. http://192.168.x.x:5173)
+  // en vez de la URL https desplegada.
+  const origenSeguro = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+  if (!origenSeguro) {
+    console.warn(
+      `[TuxtlasGO] GPS bloqueado: estás en "${window.location.origin}" — el navegador solo permite geolocalización en https:// o localhost.`
     );
-  });
+  }
+  // 1.er intento: GPS preciso (celular). Si no logra fijar la posición (en PC no hay GPS y
+  // la alta precisión suele fallar o tardar), 2.º intento con la ubicación aproximada del
+  // sistema (Wi-Fi/red), más lenta de caducar. Si el permiso está denegado no se reintenta.
+  let r = await pedirPosicion({ timeout: 8000, enableHighAccuracy: true, maximumAge: 0 });
+  if ('code' in r && r.code !== 1) {
+    console.warn(`[TuxtlasGO] GPS preciso falló (código ${r.code}); se reintenta con ubicación aproximada.`);
+    r = await pedirPosicion({ timeout: 15000, enableHighAccuracy: false, maximumAge: 300000 });
+  }
+  if ('code' in r) {
+    console.warn(`[TuxtlasGO] No se pudo obtener el GPS — código ${r.code}: ${r.message}`);
+    ultimoErrorGPS = !origenSeguro ? 'sin-https' : r.code === 1 ? 'denegado' : r.code === 3 ? 'tiempo' : 'no-disponible';
+    return null;
+  }
+  return { coord: [r.coords.latitude, r.coords.longitude], precisionMetros: r.coords.accuracy };
 }
 
 export function formatearDuracion(segundos: number): string {

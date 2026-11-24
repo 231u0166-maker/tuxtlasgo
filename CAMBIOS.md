@@ -890,3 +890,11 @@ Build de producción + modo sin conexión del navegador: zona de 6 km descargada
 - Probado en navegador con paquetes reales y GPS simulado: Villahermosa (Tabasco + Veracruz, 88 MB, instalados) y Puebla (Puebla + Veracruz, 123 MB).
 - Límites: la unión carga dos grafos en RAM (Veracruz ≈ 254 mil nodos): falta probarlo en un celular de gama baja. Sigue pendiente el hosting de paquetes (`VITE_PAQUETES_URL`).
 - Para replicar en otros estados: ver respuesta de la sesión (los servicios y `estaEnLaRegion` siguen siendo de Los Tuxtlas).
+
+## Fix: «no me marca mi ubicación actual»
+Tres causas, las tres corregidas:
+1. **El aviso solo salía sin mapa guardado y con internet** → quien ya tenía un mapa (o estaba sin señal) nunca era ubicado ni marcado. Ahora la ubicación se pide SIEMPRE al entrar (`AvisoDescargaMapa.tsx`); lo de descargar solo se ofrece si falta mapa y hay internet.
+2. **El marcador quedaba fuera de pantalla**: la cámara arranca en Los Tuxtlas, así que desde Puebla/Tabasco no se veía. `MapScreen.tsx`: al abrir el mapa encuadra tu punto y Los Tuxtlas juntos (si estás a >40 km) o vuela a tu punto (si estás cerca). Una vez por sesión.
+3. **El GPS hacía un solo intento preciso de 8 s**, que en PC suele fallar. `routing.ts`: si falla (y no es permiso denegado) reintenta con ubicación aproximada (15 s, caché de 5 min). Además `ultimoErrorGPS` distingue permiso bloqueado / página sin https / no se pudo fijar, y el aviso lo dice con «Reintentar».
+- Probado en navegador: con mapa guardado y GPS simulado en Puebla (aviso sale, se guarda, punto azul en Puebla con Los Tuxtlas en la misma vista); GPS preciso fallando y aproximado funcionando (2 intentos, se guarda); permiso denegado (mensaje correcto, 1 intento).
+- No se pudo probar con el GPS real de un dispositivo.

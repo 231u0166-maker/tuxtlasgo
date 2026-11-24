@@ -490,14 +490,35 @@ export default function MapScreen({
   // con el canvas mal recortado o en blanco hasta que se le avisa a
   // fuerza con .resize(). En PC/desktop esto casi nunca pasa porque
   // el navegador maneja mejor esas transiciones.
+  // Encuadre de la ubicación al entrar (ver AvisoDescargaMapa): el marcador de tu ubicación
+  // quedaba fuera de pantalla si estás lejos de Los Tuxtlas (la cámara arranca allá) y parecía
+  // que "no te marcaba". Se espera a que el mapa sea visible (si no, el encuadre sale mal).
+  const encuadrePendiente = useRef<Coord | null>(null);
+  const aplicarEncuadre = useCallback(() => {
+    const c = encuadrePendiente.current;
+    const el = contenedorRef.current;
+    const m = mapRef.current?.getMap();
+    if (!c || !el || !m || el.clientWidth < 50 || el.clientHeight < 50) return;
+    encuadrePendiente.current = null;
+    try { sessionStorage.setItem('ubicacion-encuadrada', '1'); } catch { /* nada */ }
+    m.resize();
+    if (distanciaHaversine(c, LOS_TUXTLAS_CENTER) > 40000) {
+      // Lejos: se ven tú y Los Tuxtlas a la vez (el panorama del viaje)
+      const caja = new maplibregl.LngLatBounds([c[1], c[0]], [c[1], c[0]]).extend([LOS_TUXTLAS_CENTER[1], LOS_TUXTLAS_CENTER[0]]);
+      m.fitBounds(caja, { padding: { top: 110, left: 60, right: 110, bottom: 160 }, maxZoom: 9, duration: 1200, pitch: 0, bearing: 0 });
+    } else {
+      m.flyTo({ center: [c[1], c[0]], zoom: 14, pitch: 0, duration: 1200 });
+    }
+  }, []);
   useEffect(() => {
     if (!contenedorRef.current) return;
     const observador = new ResizeObserver(() => {
       mapRef.current?.getMap()?.resize();
+      aplicarEncuadre();
     });
     observador.observe(contenedorRef.current);
     return () => observador.disconnect();
-  }, []);
+  }, [aplicarEncuadre]);
 
   // Lugar tocado en el mapa (ícono del mapa base o punto libre) → pin + tarjeta "Ir"
   const [lugarElegido, setLugarElegido] = useState<LugarElegido | null>(null);
@@ -812,7 +833,13 @@ export default function MapScreen({
     const marcarUbicacion = () => {
       try {
         const v = JSON.parse(sessionStorage.getItem('ubicacion-inicial') || 'null');
-        if (Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number')) setMiPosLocal([v[0], v[1]]);
+        if (Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number')) {
+          setMiPosLocal([v[0], v[1]]);
+          if (sessionStorage.getItem('ubicacion-encuadrada') !== '1') {
+            encuadrePendiente.current = [v[0], v[1]];
+            aplicarEncuadre();
+          }
+        }
       } catch { /* nada */ }
     };
     void instalar();
@@ -823,7 +850,7 @@ export default function MapScreen({
       window.removeEventListener('instalar-paquetes', instalar);
       window.removeEventListener('ubicacion-inicial', marcarUbicacion);
     };
-  }, [instalarPaqueteUI]);
+  }, [instalarPaqueteUI, aplicarEncuadre]);
 
   // Vista previa del cuadro a descargar (se dibuja en el mapa mientras el panel está abierto)
   const [previewCaja, setPreviewCaja] = useState<Caja | null>(null);
@@ -1249,7 +1276,7 @@ export default function MapScreen({
         // El límite se quita/restaura con map.setMaxBounds en el efecto
         // de la ruta: pasar undefined por prop no lo limpia, y pasar el
         // mundo entero hace fallar a MapLibre.
-        onLoad={aplicarLimiteRegion}
+        onLoad={() => { aplicarLimiteRegion(); aplicarEncuadre(); }}
         onIdle={aplicarLimiteRegion}
         onMoveEnd={() => { aplicarLimiteRegion(); revisarCobertura(); const z = mapRef.current?.getMap()?.getZoom(); if (z !== undefined) setZoomVista(z); }}
         onClick={(e) => {

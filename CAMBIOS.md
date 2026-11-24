@@ -868,3 +868,4 @@ Build de producción + modo sin conexión del navegador: zona de 6 km descargada
 - Admin → Visitas → lista **«Quién ha entrado»**: una fila por IP (visitas, primera/última, ubicación aproximada, dispositivo, dominio, cuenta si inició sesión), con buscador de IP y paginación de 100. GET `?recurso=visitantes_sitio` (solo admin).
 - No hay histórico: empieza a registrar desde el despliegue.
 - PENDIENTE: el Aviso de Privacidad no menciona que se guarda la IP; agregarlo antes de publicar.
+- Admin → Visitas se actualiza sola cada 8 s (solo con la pestaña visible), con indicador «En vivo»/«Pausado» y hora de la última actualización.

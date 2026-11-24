@@ -1,5 +1,5 @@
 // ADMIN — visitas al sitio (todos los dominios que apuntan a este despliegue:
-// tuxtlas.xyz, go.tuxtlas.xyz…). Cuenta IPs distintas (guardadas como hash).
+// tuxtlas.xyz, go.tuxtlas.xyz…). Muestra cada IP que ha entrado; se actualiza sola cada 8 s.
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { adminPwd } from '../lib/adminPwd';
@@ -27,23 +27,35 @@ export default function AdminVisitas() {
   const [pagina, setPagina] = useState(0);
   const [busca, setBusca] = useState('');
   const [q, setQ] = useState('');
-  useEffect(() => {
-    let vivo = true;
-    fetch(`/api/servicios/aprobados?recurso=visitantes_sitio&pagina=${pagina}&q=${encodeURIComponent(q)}`, { headers: { 'X-Admin-Password': adminPwd() } })
-      .then((r) => r.json())
-      .then((d) => { if (vivo && d.ok) { setLista(d.visitantes); setTotalIps(d.total); } })
-      .catch(() => {});
-    return () => { vivo = false; };
-  }, [pagina, q]);
-
   const [dias, setDias] = useState(30);
   const [datos, setDatos] = useState<Resumen | null>(null);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(true);
+  // En vivo: Vercel no mantiene conexiones abiertas, así que se vuelve a pedir
+  // cada pocos segundos (solo con la pestaña visible, para no gastar de más).
+  const [enVivo, setEnVivo] = useState(true);
+  const [tick, setTick] = useState(0);
+  const [actualizado, setActualizado] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (!enVivo) return;
+    const refrescar = () => { if (!document.hidden) setTick((t) => t + 1); };
+    const id = setInterval(refrescar, 8000);
+    document.addEventListener('visibilitychange', refrescar);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', refrescar); };
+  }, [enVivo]);
 
   useEffect(() => {
     let vivo = true;
-    setCargando(true);
+    fetch(`/api/servicios/aprobados?recurso=visitantes_sitio&pagina=${pagina}&q=${encodeURIComponent(q)}`, { headers: { 'X-Admin-Password': adminPwd() } })
+      .then((r) => r.json())
+      .then((d) => { if (vivo && d.ok) { setLista(d.visitantes); setTotalIps(d.total); setActualizado(new Date()); } })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [pagina, q, tick]);
+
+  useEffect(() => {
+    let vivo = true;
     setError('');
     fetch(`/api/servicios/aprobados?recurso=visitas_sitio&dias=${dias}`, { headers: { 'X-Admin-Password': adminPwd() } })
       .then(async (r) => {
@@ -54,14 +66,27 @@ export default function AdminVisitas() {
       .catch((e) => vivo && setError(e instanceof Error ? e.message : 'Error al cargar.'))
       .finally(() => vivo && setCargando(false));
     return () => { vivo = false; };
-  }, [dias]);
+  }, [dias, tick]);
 
   const maxIps = Math.max(1, ...(datos?.porDia.map((d) => d.ips) ?? [1]));
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display font-bold text-lg text-jungle-950">Visitas al sitio</h2>
+        <div className="flex items-center gap-3 min-w-0">
+          <h2 className="font-display font-bold text-lg text-jungle-950">Visitas al sitio</h2>
+          <button
+            type="button"
+            onClick={() => setEnVivo((v) => !v)}
+            aria-pressed={enVivo}
+            title={enVivo ? 'Pausar actualización automática' : 'Reanudar actualización automática'}
+            className={`flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-full border ${enVivo ? 'border-green-300 bg-green-50 text-green-800' : 'border-gray-300 bg-gray-50 text-gray-600'}`}
+          >
+            <span className={`w-2 h-2 rounded-full ${enVivo ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+            {enVivo ? 'En vivo' : 'Pausado'}
+          </button>
+          {actualizado && <span className="text-[11px] text-jungle-500 hidden sm:inline">Actualizado {actualizado.toLocaleTimeString('es-MX')}</span>}
+        </div>
         <select
           value={dias}
           onChange={(e) => setDias(Number(e.target.value))}

@@ -8,13 +8,14 @@ import { leerZonas } from '../lib/mapaOffline';
 // ============================================================
 // Flota sobre toda la app (no solo sobre el mapa) mientras el turista no tenga
 // ningún mapa guardado y haya internet. Desaparece solo en cuanto guarda un
-// mapa, o con "Ahora no" (queda cerrado en ese dispositivo).
+// mapa. "Ahora no" solo lo cierra durante esta visita: la próxima vez vuelve a
+// preguntar (el mapa de la zona del turista es clave para que no se quede sin ruta).
 // ============================================================
 
 const CLAVE_CERRADO = 'aviso-descarga-cerrado';
 
 function leerCerrado(): boolean {
-  try { return localStorage.getItem(CLAVE_CERRADO) === 'true'; } catch { return false; }
+  try { return sessionStorage.getItem(CLAVE_CERRADO) === 'true'; } catch { return false; }
 }
 
 // `ocultar`: mientras hay una ruta en pantalla (o se navega) el anuncio no debe tapar el mapa.
@@ -42,7 +43,7 @@ export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { on
 
   const cerrarParaSiempre = () => {
     setCerrado(true);
-    try { localStorage.setItem(CLAVE_CERRADO, 'true'); } catch { /* nada */ }
+    try { sessionStorage.setItem(CLAVE_CERRADO, 'true'); } catch { /* nada */ }
   };
 
   return (
@@ -51,7 +52,7 @@ export default function AvisoDescargaMapa({ onDescargar, ocultar = false }: { on
       className="fixed top-3 left-3 right-3 z-[9000] lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:top-4 lg:w-[440px] rounded-2xl px-3.5 py-2.5 shadow-lg backdrop-blur-xl backdrop-saturate-150 text-xs border bg-white/85 border-white/60 text-jungle-900"
     >
       <p className="font-semibold mb-1.5">
-        {t('¿Vas a salir de señal? Guarda el mapa ahora, con Wi-Fi, para usarlo sin internet.')}
+        {t('¿Vas a salir de señal? Permite tu ubicación y guarda el mapa de tu zona con Wi-Fi.')}
       </p>
       <button
         onClick={() => { setOculto(true); onDescargar(); }}

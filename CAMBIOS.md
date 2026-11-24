@@ -875,3 +875,10 @@ Build de producción + modo sin conexión del navegador: zona de 6 km descargada
 - `MapScreen.tsx`: `mapaLiberado = true` fijo → límites = todo México (`LIMITES_MEXICO`), zoom mínimo 4. Eliminado `LIMITES_REGION`.
 - Verificado en el navegador: el mapa se aleja hasta ver todo México; OSRM traza Puebla → Catemaco (407 km, ~5.1 h).
 - Límite honesto: SIN internet, la ruta por calles solo existe donde hay paquete regional/zona descargada (Tabasco, Puebla, Veracruz) o en el grafo de Los Tuxtlas; con internet funciona en todo el país.
+
+## Paquetes según la ubicación en tiempo real (solo Puebla, Tabasco y Veracruz)
+- `lib/paquetes.ts`: `PAQUETES_PERMITIDOS` (puebla/tabasco/veracruz) filtra el catálogo; `paquetesParaUbicacion()` devuelve los paquetes cuya caja contiene la posición (Puebla y Veracruz se traslapan → puede haber dos, ordenados por cercanía).
+- `MapScreen.tsx` (PanelMapaOffline): al abrir «Mapa sin internet» SIEMPRE pide la ubicación (permiso del navegador) y arriba muestra «Estás en X» con el botón de descarga del paquete; fuera de zona o sin permiso lo dice y deja la lista manual. En el traslape avisa que Veracruz incluye Los Tuxtlas.
+- `AvisoDescargaMapa.tsx`: «Ahora no» ya no se guarda para siempre (sessionStorage): vuelve a preguntar en cada visita mientras no haya mapa guardado.
+- Probado en navegador con los paquetes reales servidos localmente y GPS simulado: Puebla (50 MB + Veracruz 74 MB), Villahermosa (Tabasco 14 MB, descarga e instalación completas), CDMX (fuera de zona) y permiso denegado.
+- PENDIENTE (ya anotado): sin `VITE_PAQUETES_URL` apuntando al hosting (R2) el catálogo queda vacío y este bloque no aparece.

@@ -44,7 +44,7 @@ import { useOffline } from '../hooks/useOffline';
 import NavegacionRuta from './NavegacionRuta';
 import {
   cargarCatalogo, leerCatalogoGuardado, leerInstalados, instalarPaquete, borrarPaquete,
-  leerPaquetePendiente, limpiarPaquetePendiente, hayActualizacion, hayServidorDePaquetes, opfsDisponible,
+  leerPaquetePendiente, limpiarPaquetePendiente, hayActualizacion, hayServidorDePaquetes, opfsDisponible, paquetesParaUbicacion,
   type PaqueteCatalogo, type PaqueteInstalado,
 } from '../lib/paquetes';
 import { estiloConPaquetes, estiloHibrido, olvidarPaquetesAbiertos } from '../lib/paquetesMapa';
@@ -1759,6 +1759,23 @@ function PanelMapaOffline({
   const [conSatelite, setConSatelite] = useState(true);
   const [alta, setAlta] = useState(false);
   const hayPaquetes = catalogo.length > 0 || instalados.length > 0;
+  // Ubicación en tiempo real → paquete(s) de la zona donde está el turista (solo Puebla, Tabasco y Veracruz).
+  // Se pregunta SIEMPRE al abrir el panel: el navegador muestra su propio permiso.
+  const [zonaGps, setZonaGps] = useState<{ estado: 'buscando' | 'ok' | 'fuera' | 'sin-permiso'; paquetes: PaqueteCatalogo[] } | null>(null);
+  const preguntoGps = useRef(false);
+  const ubicarParaPaquete = useCallback(async () => {
+    setZonaGps({ estado: 'buscando', paquetes: [] });
+    const r = await obtenerUbicacionGPS();
+    if (!r) { setZonaGps({ estado: 'sin-permiso', paquetes: [] }); return; }
+    setMiPos(r.coord);
+    const ps = paquetesParaUbicacion(r.coord, catalogo);
+    setZonaGps({ estado: ps.length ? 'ok' : 'fuera', paquetes: ps });
+  }, [catalogo]);
+  useEffect(() => {
+    if (preguntoGps.current || catalogo.length === 0 || sinConexion) return;
+    preguntoGps.current = true;
+    void ubicarParaPaquete();
+  }, [catalogo.length, sinConexion, ubicarParaPaquete]);
   const centroEfectivo: [number, number] = usarMiPos && miPos ? miPos : centroInicial;
   const caja = useMemo(() => cajaDeZona(tamano, centroEfectivo), [tamano, centroEfectivo]);
   const plan = useMemo(() => planearZona(caja, conSatelite, alta), [caja, conSatelite, alta]);
@@ -1818,6 +1835,57 @@ function PanelMapaOffline({
             <p className="text-xs font-semibold text-amber-800 bg-amber-50/90 border border-amber-200 rounded-xl px-3 py-2 mb-3">
               {t('Sin internet: para descargar necesitas conectarte.')}
             </p>
+          )}
+
+          {/* Según dónde está el turista ahora mismo */}
+          {catalogo.length > 0 && (
+            <div className="rounded-2xl border border-jungle-200 bg-jungle-50/80 px-3.5 py-3 mb-3">
+              {(!zonaGps || zonaGps.estado === 'buscando') && (
+                <p className="text-xs font-semibold text-jungle-800">{t('Buscando tu ubicación para sugerirte el mapa de tu zona…')}</p>
+              )}
+              {zonaGps?.estado === 'ok' && (
+                <>
+                  <p className="text-sm font-semibold text-jungle-900 mb-2">
+                    {t('Estás en')} {zonaGps.paquetes.map((p) => p.nombre).join(' / ')}
+                  </p>
+                  <ul className="space-y-2">
+                    {zonaGps.paquetes.map((c, i) => {
+                      const inst = instalados.some((x) => x.id === c.id);
+                      const mb = Math.round((c.bytesMapa + c.bytesGrafo) / 1048576);
+                      return (
+                        <li key={c.id} className="flex items-center gap-3">
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-semibold text-jungle-900">{c.nombre}{c.descripcion && c.id === 'veracruz' ? ` · ${c.descripcion}` : ''}</span>
+                            <span className="block text-[11px] text-jungle-600">{inst ? `✓ ${t('Listo para usar sin internet')}` : `${mb} MB`}</span>
+                          </span>
+                          {!inst && (
+                            <button
+                              disabled={sinConexion || !opfsDisponible()}
+                              onClick={() => onInstalarPaquete(c)}
+                              className={'disabled:opacity-40 text-xs font-semibold rounded-xl px-3.5 py-2 ' + (i === 0 ? 'bg-jungle-700 hover:bg-jungle-800 text-white' : 'bg-white border border-jungle-300 text-jungle-800')}
+                            >
+                              {t('Descargar')}
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {zonaGps.paquetes.length > 1 && (
+                    <p className="text-[11px] text-jungle-700 mt-2">{t('Tu zona está cubierta por más de un paquete. Para viajar a Los Tuxtlas sin internet, descarga Veracruz.')}</p>
+                  )}
+                </>
+              )}
+              {zonaGps?.estado === 'fuera' && (
+                <p className="text-xs text-jungle-800">{t('Tu ubicación está fuera de las zonas con paquete. Por ahora solo tenemos Puebla, Tabasco y Veracruz.')}</p>
+              )}
+              {zonaGps?.estado === 'sin-permiso' && (
+                <p className="text-xs text-amber-800">{t('No pude obtener tu ubicación. Revisa el permiso del navegador, o elige tu estado abajo.')}</p>
+              )}
+              {zonaGps && zonaGps.estado !== 'buscando' && (
+                <button onClick={ubicarParaPaquete} className="mt-2 text-xs font-semibold underline text-jungle-700">{t('Volver a ubicarme')}</button>
+              )}
+            </div>
           )}
 
           {/* Lo más fácil: un estado entero con un toque */}

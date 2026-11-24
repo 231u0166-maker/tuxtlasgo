@@ -869,3 +869,9 @@ Build de producción + modo sin conexión del navegador: zona de 6 km descargada
 - No hay histórico: empieza a registrar desde el despliegue.
 - PENDIENTE: el Aviso de Privacidad no menciona que se guarda la IP; agregarlo antes de publicar.
 - Admin → Visitas se actualiza sola cada 8 s (solo con la pestaña visible), con indicador «En vivo»/«Pausado» y hora de la última actualización.
+
+## Mapa liberado en todo México (siempre)
+- Antes el mapa se encerraba en Los Tuxtlas (zoom mínimo 9 + `maxBounds`) y solo se liberaba al detectar GPS/zona fuera de la región; quien planeaba un viaje desde Puebla hacia Los Tuxtlas no podía ver ni trazar la ruta completa.
+- `MapScreen.tsx`: `mapaLiberado = true` fijo → límites = todo México (`LIMITES_MEXICO`), zoom mínimo 4. Eliminado `LIMITES_REGION`.
+- Verificado en el navegador: el mapa se aleja hasta ver todo México; OSRM traza Puebla → Catemaco (407 km, ~5.1 h).
+- Límite honesto: SIN internet, la ruta por calles solo existe donde hay paquete regional/zona descargada (Tabasco, Puebla, Veracruz) o en el grafo de Los Tuxtlas; con internet funciona en todo el país.

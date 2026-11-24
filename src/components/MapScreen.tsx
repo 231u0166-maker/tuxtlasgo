@@ -612,7 +612,11 @@ export default function MapScreen({
     fueraDeRegion((z.caja[1] + z.caja[3]) / 2, (z.caja[0] + z.caja[2]) / 2));
   // También se libera cuando el turista eligió ver servicios de otra zona.
   const hayZonaLibre = !!zonaLibre && zonaLibre.length > 0;
-  const mapaLiberado = origenFueraDeRegion || hayZonaLibre || hayZonaDescargadaFuera;
+  // El mapa YA NO se encierra en Los Tuxtlas: siempre es navegable por todo México.
+  // Antes solo se liberaba al detectar origen/zona fuera, y quien planeaba un viaje
+  // desde Puebla (o cualquier lugar) hacia Los Tuxtlas se topaba con el borde y no
+  // podía ver ni trazar la ruta completa. Los mosaicos se bajan por demanda, no pesan de más.
+  const mapaLiberado = true;
   const origenFueraRef = useRef(mapaLiberado);
   origenFueraRef.current = mapaLiberado;
   // MapLibre revierte el límite a los pocos cientos de ms de aplicarlo
@@ -621,7 +625,7 @@ export default function MapScreen({
   const aplicarLimiteRegion = useCallback(() => {
     const m = mapRef.current?.getMap();
     if (!m) return;
-    const deseado = origenFueraRef.current ? LIMITES_MEXICO : LIMITES_REGION;
+    const deseado = LIMITES_MEXICO;
     const actual = m.getMaxBounds();
     if (actual && actual.getWest() === deseado[0][0] && actual.getNorth() === deseado[1][1]) return;
     m.setMaxBounds(deseado);

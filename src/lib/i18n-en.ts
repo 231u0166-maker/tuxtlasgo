@@ -492,4 +492,8 @@ export const EN: Record<string, string> = {
   '{n} actividades este día': '{n} activities this day',
   'Este día no tiene actividades en el programa': 'This day has no activities in the schedule',
   'Estás aquí': 'You are here',
+  'Buscando tu ubicación para sugerirte el mapa de tu zona…': 'Finding your location to suggest your area map…',
+  'Para viajar a Los Tuxtlas desde aquí': 'To travel to Los Tuxtlas from here',
+  'No pude obtener tu ubicación. Revisa el permiso del navegador, o elige tu estado abajo.': 'Could not get your location. Check the browser permission, or pick your state below.',
+  'Volver a ubicarme': 'Locate me again',
 };

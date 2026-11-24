@@ -43,6 +43,33 @@ export interface PaqueteInstalado {
 const CLAVE_INSTALADOS = 'paquetes-instalados-v1';
 const CLAVE_CATALOGO = 'paquetes-catalogo-v1';
 const CLAVE_PENDIENTE_PAQUETE = 'paquete-pendiente-v1';
+// Solo estos estados se ofrecen (decisión del equipo: por ahora Puebla, Tabasco y Veracruz).
+export const PAQUETES_PERMITIDOS = ['puebla', 'tabasco', 'veracruz'];
+const soloPermitidos = (l: PaqueteCatalogo[]) => l.filter((p) => PAQUETES_PERMITIDOS.includes(p.id));
+
+// Paquetes cuya caja contiene la ubicación [lat, lng], del más cercano (por centro) al más lejano.
+// Las cajas de Puebla y Veracruz se traslapan, así que puede haber más de uno.
+export function paquetesParaUbicacion(coord: [number, number], catalogo: PaqueteCatalogo[]): PaqueteCatalogo[] {
+  const [lat, lng] = coord;
+  const dentro = soloPermitidos(catalogo).filter((p) => lng >= p.bbox[0] && lng <= p.bbox[2] && lat >= p.bbox[1] && lat <= p.bbox[3]);
+  const dist = (p: PaqueteCatalogo) => Math.hypot(lng - (p.bbox[0] + p.bbox[2]) / 2, lat - (p.bbox[1] + p.bbox[3]) / 2);
+  return dentro.sort((a, b) => dist(a) - dist(b));
+}
+
+// Punto de referencia de Los Tuxtlas (Catemaco) para saber qué paquete cubre la región.
+export const PUNTO_TUXTLAS: [number, number] = [18.42, -95.11];
+
+// Qué paquetes bajar para visitar Los Tuxtlas desde donde está el turista:
+// su estado + el que cubre Los Tuxtlas (Veracruz). El trazado sin internet entre los dos
+// lo resuelve rutasOffline.ts (los une por su zona de traslape).
+export function planVisitaTuxtlas(coord: [number, number] | null, catalogo: PaqueteCatalogo[]): PaqueteCatalogo[] {
+  const deTuxtlas = paquetesParaUbicacion(PUNTO_TUXTLAS, catalogo)[0];
+  if (!deTuxtlas) return [];
+  const suyo = coord ? paquetesParaUbicacion(coord, catalogo)[0] : undefined;
+  if (!suyo || suyo.id === deTuxtlas.id) return [deTuxtlas];
+  return [suyo, deTuxtlas];
+}
+
 export const idZonaDePaquete = (id: string) => `pk-${id}`;
 
 // ---------- almacenamiento OPFS ----------
@@ -94,7 +121,7 @@ export async function cargarCatalogo(): Promise<PaqueteCatalogo[]> {
     const r = await fetch(`${URL_PAQUETES}/paquetes.json`, { cache: 'no-store' });
     if (!r.ok) throw new Error(String(r.status));
     const j = await r.json();
-    const lista: PaqueteCatalogo[] = Array.isArray(j) ? j : j.paquetes ?? [];
+    const lista: PaqueteCatalogo[] = soloPermitidos(Array.isArray(j) ? j : j.paquetes ?? []);
     try { localStorage.setItem(CLAVE_CATALOGO, JSON.stringify(lista)); } catch { /* nada */ }
     return lista;
   } catch {

@@ -44,7 +44,7 @@ import { useOffline } from '../hooks/useOffline';
 import NavegacionRuta from './NavegacionRuta';
 import {
   cargarCatalogo, leerCatalogoGuardado, leerInstalados, instalarPaquete, borrarPaquete,
-  leerPaquetePendiente, limpiarPaquetePendiente, hayActualizacion, hayServidorDePaquetes, opfsDisponible,
+  leerPaquetePendiente, limpiarPaquetePendiente, hayActualizacion, hayServidorDePaquetes, opfsDisponible, planVisitaTuxtlas,
   type PaqueteCatalogo, type PaqueteInstalado,
 } from '../lib/paquetes';
 import { estiloConPaquetes, estiloHibrido, olvidarPaquetesAbiertos } from '../lib/paquetesMapa';
@@ -768,6 +768,14 @@ export default function MapScreen({
       setTarea(null);
     }
   }, []);
+  // Baja varios paquetes de corrido (p. ej. tu estado + Veracruz); se detiene si uno falla o se cancela
+  const instalarVariosUI = useCallback(async (pks: PaqueteCatalogo[]) => {
+    for (const pk of pks) {
+      if (leerInstalados().some((i) => i.id === pk.id)) continue;
+      await instalarPaqueteUI(pk);
+      if (!leerInstalados().some((i) => i.id === pk.id)) return;
+    }
+  }, [instalarPaqueteUI]);
   const borrarPaqueteUI = useCallback(async (id: string) => {
     await borrarPaquete(id);
     olvidarPaquetesAbiertos();
@@ -1753,6 +1761,7 @@ export default function MapScreen({
           catalogo={catalogo}
           instalados={instalados}
           onInstalarPaquete={instalarPaqueteUI}
+          onInstalarVarios={instalarVariosUI}
           onBorrarPaquete={borrarPaqueteUI}
           onBorrarTodo={async () => { await borrarMapaOffline(); olvidarGrafosZona(); setZonas(leerZonas()); }}
         />
@@ -1767,7 +1776,7 @@ function fechaCorta(ms: number) {
 
 function PanelMapaOffline({
   zonas, sinConexion, error, centro, onCerrar, onDescargar, onAbrirRuta, onBorrarZona, onBorrarTodo, onPreview,
-  catalogo, instalados, onInstalarPaquete, onBorrarPaquete,
+  catalogo, instalados, onInstalarPaquete, onInstalarVarios, onBorrarPaquete,
 }: {
   zonas: ZonaOffline[];
   sinConexion: boolean;
@@ -1782,6 +1791,7 @@ function PanelMapaOffline({
   catalogo: PaqueteCatalogo[];
   instalados: PaqueteInstalado[];
   onInstalarPaquete: (p: PaqueteCatalogo) => void;
+  onInstalarVarios: (p: PaqueteCatalogo[]) => void;
   onBorrarPaquete: (id: string) => void;
 }) {
   const t = useT();
@@ -1795,6 +1805,26 @@ function PanelMapaOffline({
   const [conSatelite, setConSatelite] = useState(true);
   const [alta, setAlta] = useState(false);
   const hayPaquetes = catalogo.length > 0 || instalados.length > 0;
+  // Ubicación en tiempo real → paquetes para viajar a Los Tuxtlas desde donde está el turista.
+  const [planGps, setPlanGps] = useState<{ estado: 'buscando' | 'ok' | 'sin-permiso'; coord: [number, number] | null } | null>(null);
+  const preguntoGps = useRef(false);
+  const ubicarParaPaquete = useCallback(async () => {
+    setPlanGps({ estado: 'buscando', coord: null });
+    const r = await obtenerUbicacionGPS();
+    if (!r) { setPlanGps({ estado: 'sin-permiso', coord: null }); return; }
+    setMiPos(r.coord);
+    setPlanGps({ estado: 'ok', coord: r.coord });
+  }, []);
+  useEffect(() => {
+    if (preguntoGps.current || catalogo.length === 0 || sinConexion) return;
+    preguntoGps.current = true;
+    void ubicarParaPaquete();
+  }, [catalogo.length, sinConexion, ubicarParaPaquete]);
+  const planVisita = useMemo(
+    () => (planGps?.estado === 'ok' ? planVisitaTuxtlas(planGps.coord, catalogo) : []),
+    [planGps, catalogo]
+  );
+  const faltan = planVisita.filter((c) => !instalados.some((i) => i.id === c.id));
   const centroEfectivo: [number, number] = usarMiPos && miPos ? miPos : centroInicial;
   const caja = useMemo(() => cajaDeZona(tamano, centroEfectivo), [tamano, centroEfectivo]);
   const plan = useMemo(() => planearZona(caja, conSatelite, alta), [caja, conSatelite, alta]);
@@ -1854,6 +1884,39 @@ function PanelMapaOffline({
             <p className="text-xs font-semibold text-amber-800 bg-amber-50/90 border border-amber-200 rounded-xl px-3 py-2 mb-3">
               {t('Sin internet: para descargar necesitas conectarte.')}
             </p>
+          )}
+
+          {/* Un solo botón: tu estado + Los Tuxtlas, según dónde estás ahora */}
+          {catalogo.length > 0 && (
+            <div className="rounded-2xl border border-jungle-200 bg-jungle-50/80 px-3.5 py-3 mb-3">
+              {(!planGps || planGps.estado === 'buscando') && (
+                <p className="text-xs font-semibold text-jungle-800">{t('Buscando tu ubicación para sugerirte el mapa de tu zona…')}</p>
+              )}
+              {planGps?.estado === 'ok' && planVisita.length > 0 && (
+                <>
+                  <p className="text-sm font-semibold text-jungle-900 mb-1">
+                    {t('Para viajar a Los Tuxtlas desde aquí')}: {planVisita.map((p) => p.nombre).join(' + ')}
+                  </p>
+                  {faltan.length === 0 ? (
+                    <p className="text-xs font-semibold text-jungle-700">✓ {t('Listo para usar sin internet')}</p>
+                  ) : (
+                    <button
+                      disabled={sinConexion || !opfsDisponible()}
+                      onClick={() => onInstalarVarios(faltan)}
+                      className="w-full mt-1 bg-jungle-700 hover:bg-jungle-800 disabled:opacity-40 text-white text-sm font-semibold rounded-xl py-2.5"
+                    >
+                      {t('Descargar')} {faltan.map((p) => p.nombre).join(' + ')} · ~{Math.round(faltan.reduce((a, c) => a + c.bytesMapa + c.bytesGrafo, 0) / 1048576)} MB
+                    </button>
+                  )}
+                </>
+              )}
+              {planGps?.estado === 'sin-permiso' && (
+                <p className="text-xs text-amber-800">{t('No pude obtener tu ubicación. Revisa el permiso del navegador, o elige tu estado abajo.')}</p>
+              )}
+              {planGps && planGps.estado !== 'buscando' && (
+                <button onClick={ubicarParaPaquete} className="mt-2 text-xs font-semibold underline text-jungle-700">{t('Volver a ubicarme')}</button>
+              )}
+            </div>
           )}
 
           {/* Lo más fácil: un estado entero con un toque */}

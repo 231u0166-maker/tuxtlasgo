@@ -491,4 +491,5 @@ export const EN: Record<string, string> = {
   '1 actividad este día': '1 activity this day',
   '{n} actividades este día': '{n} activities this day',
   'Este día no tiene actividades en el programa': 'This day has no activities in the schedule',
+  'Estás aquí': 'You are here',
 };

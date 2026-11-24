@@ -306,9 +306,28 @@ function PinParada({ orden }: { orden: number }) {
 // Punto azul pulsante "tú estás aquí" — mismo lenguaje visual que
 // Google Maps / la mayoría de apps de navegación, para que se
 // reconozca de inmediato qué representa sin necesitar explicación.
-function PinMiUbicacion() {
+function PinMiUbicacion({ destacar = false }: { destacar?: boolean }) {
+  const t = useT();
   return (
     <div style={{ position: 'relative', width: 20, height: 20 }}>
+      {destacar && (
+        <>
+          <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', border: '2px solid rgba(37,99,235,0.7)', animation: 'tuxtlasgo-anillo 1.6s ease-out infinite' }} />
+          <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', border: '2px solid rgba(37,99,235,0.7)', animation: 'tuxtlasgo-anillo 1.6s ease-out 0.8s infinite' }} />
+          <div
+            role="status"
+            style={{
+              position: 'absolute', bottom: 34, left: '50%', whiteSpace: 'nowrap',
+              background: '#1d4ed8', color: 'white', fontSize: 12, fontWeight: 700,
+              padding: '5px 10px', borderRadius: 999, boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+              transform: 'translateX(-50%)', animation: 'tuxtlasgo-cae 0.6s cubic-bezier(.2,1.4,.4,1) both',
+            }}
+          >
+            {t('Estás aquí')}
+            <span style={{ position: 'absolute', left: '50%', bottom: -5, width: 10, height: 10, background: '#1d4ed8', transform: 'translateX(-50%) rotate(45deg)' }} />
+          </div>
+        </>
+      )}
       <div
         style={{
           position: 'absolute',
@@ -332,6 +351,17 @@ function PinMiUbicacion() {
         @keyframes tuxtlasgo-pulso-ubicacion {
           0% { transform: scale(0.6); opacity: 0.8; }
           100% { transform: scale(2.2); opacity: 0; }
+        }
+        @keyframes tuxtlasgo-anillo {
+          0% { transform: scale(0.5); opacity: 0.9; }
+          100% { transform: scale(3.4); opacity: 0; }
+        }
+        @keyframes tuxtlasgo-cae {
+          0% { opacity: 0; transform: translate(-50%, -22px) scale(0.6); }
+          100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="tuxtlasgo-anillo"], [style*="tuxtlasgo-cae"], [style*="tuxtlasgo-pulso-ubicacion"] { animation: none !important; }
         }
       `}</style>
     </div>
@@ -483,6 +513,15 @@ export default function MapScreen({
   const t = useT();
   const mapRef = useRef<MapRef>(null);
   const contenedorRef = useRef<HTMLDivElement>(null);
+  // «Estás aquí»: se muestra unos segundos cuando te ubican con el botón de ubicación
+  const [estasAqui, setEstasAqui] = useState(false);
+  const temporizadorAqui = useRef<number | undefined>(undefined);
+  const destacarUbicacion = useCallback(() => {
+    setEstasAqui(true);
+    window.clearTimeout(temporizadorAqui.current);
+    temporizadorAqui.current = window.setTimeout(() => setEstasAqui(false), 7000);
+  }, []);
+  useEffect(() => () => window.clearTimeout(temporizadorAqui.current), []);
 
   // En PWA instalada en móvil, MapLibre a veces no se entera solo de
   // que su contenedor cambió de tamaño (por ejemplo al volver de
@@ -826,6 +865,7 @@ export default function MapScreen({
       return;
     }
     setMiPosLocal(r.coord);
+    destacarUbicacion();
     window.setTimeout(() => {
       const m = mapRef.current?.getMap();
       if (!m) return;
@@ -1333,7 +1373,7 @@ export default function MapScreen({
 
         {ubic && !navPos && (
           <Marker longitude={ubic[1]} latitude={ubic[0]}>
-            <PinMiUbicacion />
+            <PinMiUbicacion destacar={estasAqui} />
           </Marker>
         )}
 

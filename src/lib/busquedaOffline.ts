@@ -128,8 +128,9 @@ function describirTipo(tipo: string): { etiqueta: string; emoji: string } {
   return describirOsm(grupo === 'lugar' ? 'place' : 'amenity', sub);
 }
 
-/** Busca en los paquetes con índice guardado. `ref` ordena por cercanía (tu ubicación o el centro del mapa). */
-export async function buscarSinInternet(texto: string, idsPaquetes: string[], ref: Coord | null, max = 8): Promise<ResultadoBusqueda[]> {
+/** Busca en los paquetes con índice guardado. `refs` ordena por cercanía al más próximo de esos puntos
+ *  (p. ej. donde estás Y lo que miras en el mapa): estando en Puebla, «centro de convenciones» trae primero el de Puebla. */
+export async function buscarSinInternet(texto: string, idsPaquetes: string[], refs: Coord[], max = 8): Promise<ResultadoBusqueda[]> {
   const q = normalizar(texto).trim();
   if (q.length < 2) return [];
   const tokens = q.split(/\s+/).filter(Boolean);
@@ -154,7 +155,8 @@ export async function buscarSinInternet(texto: string, idsPaquetes: string[], re
       const tipo = ix.tipos[ix.t[i]];
       // 0 = igual, 1 = empieza con, 2 = una palabra empieza con, 3 = lo contiene
       const base = nm === q ? 0 : nm.startsWith(q) ? 1 : nm.includes(' ' + q) ? 2 : 3;
-      const d = ref ? km(ref[0], ref[1], ix.la[i], ix.ln[i]) : 0;
+      let d = 0;
+      if (refs.length) { d = Infinity; for (const r of refs) d = Math.min(d, km(r[0], r[1], ix.la[i], ix.ln[i])); }
       // La distancia pesa poco frente al tipo/coincidencia, pero ordena entre iguales (la «Calle Juárez» de tu ciudad)
       // Cada palabra que solo coincide por la localidad resta un poco de relevancia
       const puntos = base + pesoTipo(tipo) + Math.min(d, 400) / 80 + (tokens.length - enNombre) * 0.25;

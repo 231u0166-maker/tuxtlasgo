@@ -929,3 +929,8 @@ Tres causas, las tres corregidas:
 - `buscarLugares.ts`: íconos/etiquetas para los tipos nuevos (plaza, ayuntamiento, panteón, parque temático, zona arqueológica…).
 - Probado en navegador con red cortada: los 6 casos de arriba. **Hay que subir a R2 los 3 `buscar.json` regenerados y `paquetes/paquetes.json`** (tamaños nuevos).
 - Límites: no hay números de casa ni «Calle X #123» (no vienen en el paquete); el extracto es de la fecha de descarga (nov 2026), lo posterior de OpenStreetMap solo sale con internet.
+
+## Ajustes tras probar «centro de convenciones»
+- Etiquetas nuevas para tipos que salían como «Lugar» genérico: centro de convenciones, centro de exposiciones, salón de eventos, centro cultural, centro social (`buscarLugares.ts`).
+- Orden por cercanía: `buscarSinInternet` ahora recibe VARIOS puntos (lo que miras en el mapa Y tu ubicación) y usa el más cercano. Antes, con la cámara en Los Tuxtlas y tú en Puebla, el «Centro de Convenciones de Puebla» salía 7.º tras uno de Minatitlán; ahora salen primero los de Puebla.
+- Probado sin internet (red cortada): «centro de convenciones» → Puebla primero → «Cómo llegar» → ruta 5 min / 4.3 km con dos rutas alternas, «Dentro de tu mapa descargado: funciona sin internet».

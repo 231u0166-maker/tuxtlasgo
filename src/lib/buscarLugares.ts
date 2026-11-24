@@ -101,6 +101,9 @@ export function describirOsm(categoria = '', tipo = ''): { etiqueta: string; emo
     nightclub: ['Antro', '🎶'], ice_cream: ['Helados', '🍦'], hospital_: ['Hospital', '🏥'], beach_resort: ['Balneario', '🏖️'],
     resort: ['Resort', '🏖️'], apartment: ['Departamentos', '🏢'], gallery: ['Galería', '🖼️'], zoo: ['Zoológico', '🦁'],
     theme: ['Parque temático', '🎢'],
+    conference_centre: ['Centro de convenciones', '🏢'], conference_center: ['Centro de convenciones', '🏢'],
+    exhibition_centre: ['Centro de exposiciones', '🏢'], events_venue: ['Salón de eventos', '🎉'], arts_centre: ['Centro cultural', '🎭'],
+    social_centre: ['Centro social', '🏘️'], social_facility: ['Servicio social', '🤝'], clinic_: ['Clínica', '🏥'],
   };
   if (mapa[t]) return { etiqueta: mapa[t][0], emoji: mapa[t][1] };
   if (categoria === 'highway') return { etiqueta: 'Calle', emoji: '🛣️' };

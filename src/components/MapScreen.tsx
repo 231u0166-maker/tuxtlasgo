@@ -753,10 +753,10 @@ export default function MapScreen({
   // Buscador: lugares de TuxtlasGO (catálogo + prestadores) y resultados de OpenStreetMap.
   // Elegir uno vuela ahí y abre la tarjeta «Cómo llegar» (la misma de tocar un punto del mapa).
   const lugaresBuscables = useMemo(() => [...LUGARES, ...serviciosPrestadores], [serviciosPrestadores]);
-  // Para ordenar los resultados por cercanía: lo que estás mirando en el mapa y, si no hay, tu ubicación
-  const obtenerReferencia = useCallback((): Coord | null => {
+  // Para ordenar los resultados por cercanía: lo que estás mirando en el mapa Y tu ubicación (cuenta el más cercano)
+  const obtenerReferencia = useCallback((): Coord[] => {
     const c = mapRef.current?.getMap()?.getCenter();
-    return c ? [c.lat, c.lng] : (ubic ?? null);
+    return [...(c ? [[c.lat, c.lng] as Coord] : []), ...(ubic ? [ubic] : [])];
   }, [ubic]);
   const irABusqueda = useCallback((r: ResultadoBusqueda) => {
     cancelarViaje.current?.(); // si la cámara iba a abrirse al panorama del viaje, ya no

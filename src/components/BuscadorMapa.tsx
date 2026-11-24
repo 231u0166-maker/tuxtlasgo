@@ -24,8 +24,8 @@ export default function BuscadorMapa({
 }: {
   lugares: Lugar[];
   onElegir: (r: ResultadoBusqueda) => void;
-  /** Punto para ordenar por cercanía: tu ubicación o, si no hay, el centro del mapa. */
-  obtenerReferencia?: () => Coord | null;
+  /** Puntos para ordenar por cercanía: tu ubicación y lo que miras en el mapa (cuenta el más cercano). */
+  obtenerReferencia?: () => Coord[];
 }) {
   const t = useT();
   const sinInternet = useOffline();
@@ -77,7 +77,7 @@ export default function BuscadorMapa({
         for (const p of leerInstalados()) if (await indiceGuardado(p.id)) ids.push(p.id);
         if (!vivo) return;
         setConIndice(ids);
-        const r = ids.length > 0 ? await buscarSinInternet(q, ids, referenciaRef.current?.() ?? null) : [];
+        const r = ids.length > 0 ? await buscarSinInternet(q, ids, referenciaRef.current?.() ?? []) : [];
         if (vivo) setDescargados(r);
       } catch { if (vivo) setDescargados([]); }
       finally { if (vivo) setBuscandoDescargados(false); }

@@ -293,7 +293,7 @@ function cargarGrafoZona(id: string): Promise<Grafo | null> {
   }
   return p;
 }
-export function olvidarGrafosZona(): void { grafosZona.clear(); }
+export function olvidarGrafosZona(): void { grafosZona.clear(); ultimoUnido = null; }
 
 // Ruta más rápida usando las zonas descargadas que cubren ambos puntos
 // (y la región base de Los Tuxtlas que viene con la app).
@@ -312,7 +312,65 @@ async function grafoConRuta(a: Coord, b: Coord, modo: ModoRuta): Promise<{ g: Gr
     const r = base ? calcularRuta(base, a, b, modo) : null;
     if (base && r) return { g: base, principal: r };
   }
+  // Origen y destino en paquetes distintos (p. ej. Tabasco → Los Tuxtlas): ningún
+  // paquete los cubre a ambos, así que se unen dos paquetes vecinos por las
+  // calles que comparten en su zona de traslape.
+  const conGrafo = leerZonas().filter((z) => z.grafo);
+  const zonasA = conGrafo.filter((z) => enCaja(z.caja, a));
+  const zonasB = conGrafo.filter((z) => enCaja(z.caja, b));
+  for (const x of zonasA) {
+    for (const y of zonasB) {
+      if (x.id === y.id || !cajasSeTocan(x.caja, y.caja)) continue;
+      const g = await grafoUnido(x.id, y.id);
+      const r = g ? calcularRuta(g, a, b, modo) : null;
+      if (g && r) return { g, principal: r };
+    }
+  }
   return null;
+}
+
+// ---- Unión de dos paquetes vecinos ----
+// Los nodos de las calles son coordenadas redondeadas (1e-5°): la misma esquina de
+// OpenStreetMap queda idéntica en los dos paquetes, así que basta unir por coordenada.
+type DatosGrafo = { nodos: [number, number][]; aristas: Arista[] };
+const cajasSeTocan = (c1: Caja, c2: Caja, m = 0.02) =>
+  c1[0] <= c2[2] + m && c2[0] <= c1[2] + m && c1[1] <= c2[3] + m && c2[1] <= c1[3] + m;
+const claveNodo = (la: number, ln: number) => la * 1e8 + ln;
+
+async function datosZona(id: string): Promise<DatosGrafo | null> {
+  try {
+    const r = await (await caches.open(CACHE_GRAFOS)).match(urlGrafoZona(id));
+    return r ? await r.json() : null;
+  } catch { return null; }
+}
+function unirDatos(d1: DatosGrafo, d2: DatosGrafo): DatosGrafo {
+  const nodos = d1.nodos.slice();
+  const indice = new Map<number, number>();
+  nodos.forEach(([la, ln], i) => indice.set(claveNodo(la, ln), i));
+  const mapa = new Int32Array(d2.nodos.length);
+  d2.nodos.forEach(([la, ln], i) => {
+    const k = claveNodo(la, ln);
+    const ya = indice.get(k);
+    if (ya !== undefined) { mapa[i] = ya; return; }
+    mapa[i] = nodos.length;
+    indice.set(k, nodos.length);
+    nodos.push([la, ln]);
+  });
+  const aristas = d1.aristas.slice();
+  for (const [a, b, ...resto] of d2.aristas) aristas.push([mapa[a], mapa[b], ...resto] as Arista);
+  return { nodos, aristas };
+}
+// Solo se conserva el último par unido (la RAM de un celular no da para más).
+let ultimoUnido: { clave: string; grafo: Promise<Grafo | null> } | null = null;
+function grafoUnido(id1: string, id2: string): Promise<Grafo | null> {
+  const clave = [id1, id2].sort().join('+');
+  if (ultimoUnido?.clave === clave) return ultimoUnido.grafo;
+  const grafo = (async () => {
+    const [d1, d2] = [await datosZona(id1), await datosZona(id2)];
+    return d1 && d2 ? grafoDesdeDatos(unirDatos(d1, d2)) : null;
+  })();
+  ultimoUnido = { clave, grafo };
+  return grafo;
 }
 
 export async function rutaPorCallesOffline(a: Coord, b: Coord, modo: ModoRuta = 'auto'): Promise<RutaOffline | null> {
